@@ -8211,11 +8211,9 @@ impl Workspace {
     }
 
     fn user_menu_items(&self, app: &AppContext) -> Vec<MenuItem<WorkspaceAction>> {
+        // 去中心化分支:用户菜单不再展示账户名 / Sign up / Upgrade / Billing / Invite /
+        // Log out 等云端账户相关项,只保留本地可用入口(更新、设置、文档、反馈、日志)。
         let mut items = Vec::new();
-        if !self.auth_state.is_anonymous_or_logged_out() {
-            let name = self.auth_state.username_for_display().unwrap_or_default();
-            items.push(MenuItemFields::new(name).with_disabled(true).into_item())
-        }
 
         let appearance = Appearance::as_ref(app);
 
@@ -8298,49 +8296,8 @@ impl Workspace {
             MenuItem::Separator,
         ]);
 
-        if self.auth_state.is_anonymous_or_logged_out() {
-            items.push(
-                MenuItemFields::new("Sign up")
-                    .with_on_select_action(WorkspaceAction::SignupAnonymousUser)
-                    .into_item(),
-            );
-        }
-
-        // Check if the user is on any paid plan to determine whether to show "Billing and Usage" or "Upgrade"
-        let is_on_paid_plan = UserWorkspaces::as_ref(app)
-            .current_workspace()
-            .map(|workspace| workspace.billing_metadata.is_user_on_paid_plan())
-            .unwrap_or(false);
-
-        if is_on_paid_plan {
-            items.push(
-                MenuItemFields::new("Billing and usage")
-                    .with_on_select_action(WorkspaceAction::ShowSettingsPage(
-                        SettingsSection::BillingAndUsage,
-                    ))
-                    .into_item(),
-            );
-        } else {
-            items.push(
-                MenuItemFields::new("Upgrade")
-                    .with_on_select_action(WorkspaceAction::ShowUpgrade)
-                    .into_item(),
-            );
-        }
-
-        items.push(
-            MenuItemFields::new("Invite a friend")
-                .with_on_select_action(WorkspaceAction::ShowReferralSettingsPage)
-                .into_item(),
-        );
-
-        if !self.auth_state.is_anonymous_or_logged_out() {
-            items.push(
-                MenuItemFields::new("Log out")
-                    .with_on_select_action(WorkspaceAction::LogOut)
-                    .into_item(),
-            );
-        }
+        // 去中心化分支:此处原本会追加 Sign up / Upgrade / Billing / Invite / Log out
+        // 等账号相关项,本地模式下全部移除。
         items
     }
 

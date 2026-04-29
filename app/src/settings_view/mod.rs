@@ -187,7 +187,7 @@ pub enum SettingsViewEvent {
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SettingsSection {
     About,
-    #[default]
+    // 去中心化分支:Account 不再作为默认页(已从侧栏移除),保留枚举值避免外部引用断裂。
     Account,
     MCPServers,
     BillingAndUsage,
@@ -206,6 +206,8 @@ pub enum SettingsSection {
     /// External callers should navigate to a specific subpage (e.g. `WarpAgent`) instead.
     AI,
     // ── Agents umbrella subpages ──
+    // 去中心化分支:Settings 默认页改为 Warp Agent(本地 AI 设置)。
+    #[default]
     WarpAgent,
     AgentProfiles,
     AgentMCPServers,
@@ -1180,15 +1182,14 @@ impl SettingsView {
             SettingsPage::new(about_page_handle),
         ]);
 
-        // Build sidebar nav items. AI page is presented as an "Agents" umbrella
-        // with subpages; the actual AI SettingsPage is hidden from direct sidebar listing.
+        // 去中心化分支:本地模式下移除所有云端账号 / 计费 / 团队 / 同步 / 分享相关的
+        // 设置入口。`SettingsSection` 枚举与各 page 实现暂时保留,只是不挂到侧栏。
+        // 后续在 cloud 模块物理删除 commit 中再清理 enum 与 page。
         let mut nav_items = vec![
-            SettingsNavItem::Page(SettingsSection::Account),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Agents",
                 SettingsSection::ai_subpages().to_vec(),
             )),
-            SettingsNavItem::Page(SettingsSection::BillingAndUsage),
             SettingsNavItem::Umbrella(SettingsUmbrella::new(
                 "Code",
                 vec![
@@ -1196,21 +1197,9 @@ impl SettingsView {
                     SettingsSection::EditorAndCodeReview,
                 ],
             )),
-            SettingsNavItem::Umbrella(SettingsUmbrella::new(
-                "Cloud platform",
-                vec![
-                    SettingsSection::CloudEnvironments,
-                    SettingsSection::OzCloudAPIKeys,
-                ],
-            )),
-            SettingsNavItem::Page(SettingsSection::Teams),
             SettingsNavItem::Page(SettingsSection::Appearance),
             SettingsNavItem::Page(SettingsSection::Features),
             SettingsNavItem::Page(SettingsSection::Keybindings),
-            SettingsNavItem::Page(SettingsSection::Warpify),
-            SettingsNavItem::Page(SettingsSection::Referrals),
-            SettingsNavItem::Page(SettingsSection::SharedBlocks),
-            SettingsNavItem::Page(SettingsSection::WarpDrive),
             SettingsNavItem::Page(SettingsSection::Privacy),
             SettingsNavItem::Page(SettingsSection::About),
         ];
