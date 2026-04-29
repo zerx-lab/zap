@@ -5168,10 +5168,10 @@ impl SettingsWidget for AIFactWidget {
             column.add_child(self.render_rule_suggestions_toggle(view, ai_settings, app));
         }
 
-        column
-            .with_child(button)
-            .with_child(self.render_warp_drive_context_toggle(view, ai_settings, app))
-            .finish()
+        // 去中心化分支:不再渲染 "Warp Drive as agent context" 开关。
+        let _ = self;
+        let _ = view;
+        column.with_child(button).finish()
     }
 }
 
