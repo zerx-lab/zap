@@ -1200,7 +1200,8 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::Appearance),
             SettingsNavItem::Page(SettingsSection::Features),
             SettingsNavItem::Page(SettingsSection::Keybindings),
-            SettingsNavItem::Page(SettingsSection::Privacy),
+            // 去中心化分支:Privacy 页全部内容(secret redaction / 云端对话 /
+            // network log / 数据管理 / 隐私政策)都属于云端能力,整页隐藏。
             SettingsNavItem::Page(SettingsSection::About),
         ];
 

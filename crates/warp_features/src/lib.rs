@@ -944,9 +944,20 @@ pub const RUNTIME_FEATURE_FLAGS: &[FeatureFlag] = &[];
 
 impl FeatureFlag {
     pub fn is_enabled(&self) -> bool {
-        // 去中心化分支:本地模式下永远关闭以下账号 / 登录相关 flag,
+        // 去中心化分支:本地模式下永远关闭以下账号 / 登录 / 云端 Agent 相关 flag,
         // 不再受 channel / preview 配置影响。
-        if matches!(self, FeatureFlag::ForceLogin | FeatureFlag::AvatarInTabBar) {
+        if matches!(
+            self,
+            FeatureFlag::ForceLogin
+                | FeatureFlag::AvatarInTabBar
+                | FeatureFlag::AgentModeComputerUse
+                | FeatureFlag::CloudMode
+                | FeatureFlag::CloudModeFromLocalSession
+                | FeatureFlag::CloudModeHostSelector
+                | FeatureFlag::CloudModeImageContext
+                | FeatureFlag::CloudModeSetupV2
+                | FeatureFlag::CloudModeInputV2
+        ) {
             return false;
         }
 
