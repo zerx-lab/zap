@@ -19898,11 +19898,7 @@ impl TypedActionView for Workspace {
             }
             AutoupdateFailureLink => self.open_autoupdate_failure_link(ctx),
             ApplyUpdate => self.apply_update(ctx),
-            LogOut => {
-                // Need to dispatch global action, or else we will not be able to retrieve
-                // the currently active session in the log out modal.
-                ctx.dispatch_global_action("app:maybe_log_out", ());
-            }
+            // 去中心化分支:`LogOut` 已删除。
             ExportAllWarpDriveObjects => {
                 self.export_all_warp_drive_objects(ctx);
             }

@@ -159,7 +159,7 @@ pub enum WorkspaceAction {
     SelectNewSessionMenuItem(NewSessionMenuItem),
     AutoupdateFailureLink,
     ApplyUpdate,
-    LogOut,
+    // 去中心化分支:`LogOut` 已删除。
     CopyVersion(&'static str),
     DownloadNewVersion,
     ConfigureKeybindingSettings {
@@ -864,7 +864,6 @@ impl WorkspaceAction {
             | ShowHeaderToolbarContextMenu { .. }
             | Reauth
             | SignupAnonymousUser
-            | LogOut
             | OpenLink(_)
             | OpenShareSessionModal(_)
             | StopSharingSessionFromTabMenu { .. }
