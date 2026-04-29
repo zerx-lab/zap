@@ -56,31 +56,22 @@ impl ReferralThemeStatus {
         }
     }
 
-    /// Is the "Sent Referral" theme available (i.e. has the user sent at least one referral)?
+    /// 去中心化分支:不再有 referral 概念,所有 referral-gated 主题对本地用户全部开放。
     pub fn sent_referral_theme_active(&self) -> bool {
-        self.sent_referral_theme.is_active()
+        true
     }
 
-    /// Is the "Received Referral" theme available (i.e. was the user referred by another)?
+    /// 去中心化分支:同上。
     pub fn received_referral_theme_active(&self) -> bool {
-        self.received_referral_theme.is_active()
+        true
     }
 
-    /// Fetch the referral statuses, sending events if the values change
+    /// 去中心化分支:不再向服务端查询 referral 状态。
     pub fn query_referral_status(
         &self,
-        referrals_client: Arc<dyn ReferralsClient>,
-        ctx: &mut ModelContext<Self>,
+        _referrals_client: Arc<dyn ReferralsClient>,
+        _ctx: &mut ModelContext<Self>,
     ) {
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            return;
-        }
-
-        let sent_referrals_client = referrals_client.clone();
-        let _ = ctx.spawn(
-            async move { sent_referrals_client.get_referral_info().await },
-            Self::handle_referral_status_response,
-        );
     }
 
     /// Handle the response from the server indicating the number of referrals the user has sent
