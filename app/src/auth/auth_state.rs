@@ -229,8 +229,13 @@ impl AuthState {
     }
 
     /// Determines whether the user should be considered as logged in.
+    ///
+    /// 去中心化分支:本地模式下不再依赖远端账号,统一视为已登录。所有原本因
+    /// 未登录而被阻断的功能(AI 入口、设置项、agent driver 启动等)直接放行。
+    /// 真正与云端通信的客户端(`AIClient`、`ObjectClient` 等)由更上层的
+    /// provider 替换为本地实现或返回错误,而不再以登录态作为门禁。
     pub fn is_logged_in(&self) -> bool {
-        self.credentials.read().is_some()
+        true
     }
 
     /// Returns whether the user should be treated as not having a full account.
@@ -240,7 +245,8 @@ impl AuthState {
     /// during the transient state where credentials exist but user data hasn't loaded
     /// yet, the user is conservatively treated as lacking a full account.
     pub fn is_anonymous_or_logged_out(&self) -> bool {
-        !self.is_logged_in() || self.is_user_anonymous().unwrap_or(true)
+        // 去中心化分支:本地用户不被视为匿名,避免 UI 上出现 “请登录/升级” 提示。
+        false
     }
 
     /// Returns the cached access token, if any exists. This method *will not* check if the JWT is
@@ -296,10 +302,8 @@ impl AuthState {
     /// Anonymous users are real Warp users, but have no providers linked in Firebase.
     /// Returns `None` if there is no user data.
     pub fn is_user_anonymous(&self) -> Option<bool> {
-        self.user
-            .read()
-            .as_ref()
-            .map(|user| user.is_user_anonymous())
+        // 去中心化分支:不再有 “匿名 vs 已登录” 的区别,所有本地用户一律视作完整账号。
+        Some(false)
     }
 
     /// Returns whether or not the user is a "web client anonymous user", aka their account

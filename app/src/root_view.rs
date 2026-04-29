@@ -1751,6 +1751,8 @@ impl RootView {
             workspace_setting,
         };
 
+        // 去中心化分支:`is_logged_in` 在本地模式下恒为 true,这里保留原结构是为了
+        // 在编译期保留 wasm/onboarding 等其它分支的可达性,不需要的子分支永远不会触发。
         let auth_onboarding_state = if auth_state.is_logged_in() {
             AuthOnboardingState::Terminal(workspace_args.create_workspace(ctx))
         } else {
