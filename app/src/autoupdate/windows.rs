@@ -155,6 +155,10 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
         const IGNOREABLE_ERRORS: &[&[u8]] = &[
             b"there is not enough space on the disk",
             b"setprocessmitigationpolicy failed with error code 87",
+            // Bundled skill files whose names contain "error" appear in "Dest filename:" log lines
+            // and produce false positives.
+            b"error-codes.md",
+            b"error-recovery.md",
         ];
 
         let mut error_count = memchr::memmem::find_iter(&contents_lowercase, b"error").count();
