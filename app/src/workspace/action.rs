@@ -189,8 +189,7 @@ pub enum WorkspaceAction {
         mode: PaletteMode,
         source: PaletteSource,
     },
-    ShowUpgrade,
-    ShowReferralSettingsPage,
+    // 去中心化分支:`ShowUpgrade` / `ShowReferralSettingsPage` 已删除。
     JoinSlack,
     ViewUserDocs,
     ViewLatestChangelog,
@@ -390,7 +389,7 @@ pub enum WorkspaceAction {
         zero_state_prompt_suggestion_type: Option<ZeroStatePromptSuggestionType>,
     },
     OpenCloudAgentSetupGuide,
-    AttemptLoginGatedAIUpgrade,
+    // 去中心化分支:`AttemptLoginGatedAIUpgrade` 已删除。
     /// Dismisses the Wayland crash recovery banner and opens a link to our docs page with more
     /// information.
     #[cfg(target_os = "linux")]
@@ -773,8 +772,6 @@ impl WorkspaceAction {
             | ResetZoom
             | OpenPalette { .. }
             | TogglePalette { mode: _, source: _ }
-            | ShowUpgrade
-            | ShowReferralSettingsPage
             | JoinSlack
             | ViewUserDocs
             | ViewLatestChangelog
@@ -887,7 +884,6 @@ impl WorkspaceAction {
             | InsertInInput { .. }
             | InsertForkSlashCommand
             | QueuePromptForConversation { .. }
-            | AttemptLoginGatedAIUpgrade
             | UndoTrash(_)
             | OpenFilePath { .. }
             | ViewObjectInWarpDrive(_)

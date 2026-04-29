@@ -789,9 +789,8 @@ impl SettingsWidget for EarnRewardsWidget {
                     .link(
                         "Refer a friend".into(),
                         None,
-                        Some(Box::new(move |ctx| {
-                            ctx.dispatch_typed_action(WorkspaceAction::ShowReferralSettingsPage);
-                        })),
+                        // 去中心化分支:`ShowReferralSettingsPage` 已删除。
+                        Some(Box::new(move |_ctx| {})),
                         self.refer_link_mouse_handle.clone(),
                     )
                     .soft_wrap(false)

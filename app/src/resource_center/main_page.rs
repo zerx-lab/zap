@@ -403,8 +403,8 @@ impl ResourceCenterMainView {
                     .with_inner_padding(BUTTON_PADDING),
                 )
                 .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::ShowReferralSettingsPage)
+                .on_click(|_ctx, _, _| {
+                    // 去中心化分支:Refer-a-friend 入口已移除。
                 })
                 .finish(),
         )
