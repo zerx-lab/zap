@@ -957,6 +957,7 @@ impl FeatureFlag {
                 | FeatureFlag::CloudModeImageContext
                 | FeatureFlag::CloudModeSetupV2
                 | FeatureFlag::CloudModeInputV2
+                | FeatureFlag::HOARemoteControl
         ) {
             return false;
         }
