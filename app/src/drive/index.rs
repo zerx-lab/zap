@@ -4062,7 +4062,8 @@ impl DriveIndex {
             .with_active_styles(hovered_and_clicked_styles)
             .with_centered_text_label("Sign up".to_string())
             .build()
-            .on_click(|ctx, _, _| ctx.dispatch_typed_action(DriveIndexAction::SignupAnonymousUser))
+            // 去中心化分支:Sign up 按钮 dispatch 已删除。
+            .on_click(|_ctx, _, _| {})
             .with_cursor(Cursor::PointingHand)
             .finish();
 
@@ -5620,12 +5621,8 @@ impl TypedActionView for DriveIndex {
                     ctx,
                 );
             }
-            DriveIndexAction::SignupAnonymousUser => {
-                let entrypoint = AnonymousUserSignupEntrypoint::SignUpButton;
-                AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    auth_manager.initiate_anonymous_user_linking(entrypoint, ctx);
-                });
-            }
+            // 去中心化分支:`DriveIndexAction::SignupAnonymousUser` 已 noop。
+            DriveIndexAction::SignupAnonymousUser => {}
             DriveIndexAction::DismissPersonalObjectLimits => {
                 self.dismiss_personal_object_limit_status(ctx);
             }

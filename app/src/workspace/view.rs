@@ -17798,8 +17798,8 @@ impl Workspace {
         Align::new(
             button
                 .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::SignInAnonymousWebUser)
+                .on_click(|_ctx, _, _| {
+                    // 去中心化分支:`SignInAnonymousWebUser` dispatch 已删除。
                 })
                 .finish(),
         )
@@ -17840,8 +17840,8 @@ impl Workspace {
         Align::new(
             button
                 .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::SignupAnonymousUser)
+                .on_click(|_ctx, _, _| {
+                    // 去中心化分支:Sign up 按钮 dispatch 已删除。
                 })
                 .finish(),
         )
@@ -20614,12 +20614,7 @@ impl TypedActionView for Workspace {
                 });
                 send_telemetry_from_ctx!(TelemetryEvent::InitiateReauth, ctx);
             }
-            SignupAnonymousUser => {
-                self.initiate_user_signup(AnonymousUserSignupEntrypoint::SignUpButton, ctx);
-            }
-            SignInAnonymousWebUser => {
-                self.redirect_to_sign_in();
-            }
+            // 去中心化分支:`SignupAnonymousUser` / `SignInAnonymousWebUser` 已删除。
             HandleConflictingWorkflow(workflow_id) => {
                 self.toast_stack.update(ctx, |view, ctx| {
                     view.dismiss_older_toasts(&workflow_id.uid(), ctx);

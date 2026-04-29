@@ -315,8 +315,7 @@ pub enum WorkspaceAction {
         position: Vector2F,
     },
     Reauth,
-    SignupAnonymousUser,
-    SignInAnonymousWebUser,
+    // 去中心化分支:`SignupAnonymousUser` / `SignInAnonymousWebUser` 已删除。
     OpenLink(String),
     /// On WASM, opens a given URL in the desktop Warp app (if installed) or redirects to download page.
     #[cfg(target_family = "wasm")]
@@ -863,7 +862,6 @@ impl WorkspaceAction {
             | OpenHeaderToolbarEditor
             | ShowHeaderToolbarContextMenu { .. }
             | Reauth
-            | SignupAnonymousUser
             | OpenLink(_)
             | OpenShareSessionModal(_)
             | StopSharingSessionFromTabMenu { .. }
@@ -888,7 +886,6 @@ impl WorkspaceAction {
             | ViewObjectInWarpDrive(_)
             | OpenObjectSharingSettings { .. }
             | TerminateApp
-            | SignInAnonymousWebUser
             | TabHoverWidthStart { .. }
             | TabHoverWidthEnd
             | OpenAIFactCollection
