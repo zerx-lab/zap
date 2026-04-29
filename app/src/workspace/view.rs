@@ -672,8 +672,7 @@ pub enum WorkspaceBanner {
     UnableToUpdateToNewVersion,
     /// to display the AutoupdateStage::UnableToLaunchNewVersion
     UnableToLaunchNewVersion,
-    /// to display when the user needs to reauthenticate
-    Reauth,
+    // 去中心化分支:`Reauth` banner 已删除。
     // to display an anonymous user has X days left to sign in
     AnonymousUserAuth,
     /// to display when recovering from a crash that may have been due to use
@@ -694,7 +693,7 @@ impl WorkspaceBanner {
             Self::UnableToLaunchNewVersion => true,
             Self::VersionDeprecated => false,
             Self::AnonymousUserAuth => false,
-            Self::Reauth => true,
+            // 去中心化分支:`Reauth` 已删除。
             #[cfg(target_os = "linux")]
             Self::WaylandCrashRecovery => true,
             Self::InvalidSettings => true,
@@ -18175,9 +18174,9 @@ impl Workspace {
         // more important that users are notified their settings file is broken
         // than that they continue to see any of the autoupdate or crash recovery
         // banners.
+        // 去中心化分支:reauth banner 已删除。
         let banner_fields = self
-            .render_reauth_banner_element()
-            .or_else(|| self.render_settings_error_banner(app))
+            .render_settings_error_banner(app)
             .or_else(|| self.render_autoupdate_banner_element(app));
 
         #[cfg(enable_crash_recovery)]
@@ -18229,26 +18228,7 @@ impl Workspace {
             .map(|fields| self.render_workspace_banner(fields, appearance))
     }
 
-    fn render_reauth_banner_element(&self) -> Option<WorkspaceBannerFields> {
-        if self.reauth_banner_dismissed || !self.auth_state.needs_reauth() {
-            return None;
-        }
-
-        Some(WorkspaceBannerFields {
-            banner_type: WorkspaceBanner::Reauth,
-            severity: BannerSeverity::Warning,
-            heading: Some("Your login has expired.".into()),
-            description: "Please sign in again to restore access to cloud-based features.".into(),
-            secondary_button: None,
-            button: Some(WorkspaceBannerButtonDetails {
-                text: "Sign in".into(),
-                action: WorkspaceAction::Reauth,
-                variant: BannerButtonVariant::Outlined,
-                icon: None,
-                more_info_button_action: None,
-            }),
-        })
-    }
+    // 去中心化分支:`render_reauth_banner_element` 已删除。
 
     fn render_autoupdate_banner_element(&self, app: &AppContext) -> Option<WorkspaceBannerFields> {
         if FeatureFlag::Autoupdate.is_enabled() {
@@ -18587,9 +18567,6 @@ impl Workspace {
             }
             WorkspaceBanner::VersionDeprecated => {}
             WorkspaceBanner::AnonymousUserAuth => {}
-            WorkspaceBanner::Reauth => {
-                self.reauth_banner_dismissed = true;
-            }
             #[cfg(all(enable_crash_recovery, target_os = "linux"))]
             WorkspaceBanner::WaylandCrashRecovery => {
                 crash_recovery::dismiss_workspace_banner(ctx);
@@ -20607,13 +20584,7 @@ impl TypedActionView for Workspace {
                 });
                 send_telemetry_from_ctx!(TelemetryEvent::DisableInputSync, ctx);
             }
-            Reauth => {
-                AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                    let sign_in_url = auth_manager.sign_in_url();
-                    ctx.open_url(&sign_in_url);
-                });
-                send_telemetry_from_ctx!(TelemetryEvent::InitiateReauth, ctx);
-            }
+            // 去中心化分支:`Reauth` 已删除。
             // 去中心化分支:`SignupAnonymousUser` / `SignInAnonymousWebUser` 已删除。
             HandleConflictingWorkflow(workflow_id) => {
                 self.toast_stack.update(ctx, |view, ctx| {

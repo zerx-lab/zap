@@ -314,8 +314,7 @@ pub enum WorkspaceAction {
     ShowHeaderToolbarContextMenu {
         position: Vector2F,
     },
-    Reauth,
-    // 去中心化分支:`SignupAnonymousUser` / `SignInAnonymousWebUser` 已删除。
+    // 去中心化分支:`Reauth` / `SignupAnonymousUser` / `SignInAnonymousWebUser` 已删除。
     OpenLink(String),
     /// On WASM, opens a given URL in the desktop Warp app (if installed) or redirects to download page.
     #[cfg(target_family = "wasm")]
@@ -861,7 +860,6 @@ impl WorkspaceAction {
             | OpenCLIAgentToolbarEditor
             | OpenHeaderToolbarEditor
             | ShowHeaderToolbarContextMenu { .. }
-            | Reauth
             | OpenLink(_)
             | OpenShareSessionModal(_)
             | StopSharingSessionFromTabMenu { .. }
