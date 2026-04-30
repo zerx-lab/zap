@@ -1,171 +1,51 @@
+//! 去中心化分支:不再有 referral 概念,所有 referral-gated 主题对本地用户全部开放。
+//!
+//! 旧版逻辑:从云端 `ReferralsClient` 拉用户的 referral 信息(发出/收到的推荐数),
+//! 据此控制两个 referral-gated 主题的可见性,并把状态缓存到 user preferences。
+//! 现在云端 API 已下线,模块退化为永远返回 true 的 stub,仅保留外部接口(`new` /
+//! `*_referral_theme_active` / `query_referral_status`)以兼容 `lib.rs` 注册和
+//! `theme_chooser` 的查询点。
+//!
+//! `ReferralThemeEvent` 仍保留以满足 `Entity::Event` 关联类型(workspace/view 仍订阅
+//! 该事件,只是再不会被 emit) — 等下个 Decentralize Batch 把订阅链一起清理。
+
 use std::sync::Arc;
 
-use crate::{
-    auth::AuthStateProvider,
-    safe_info,
-    server::server_api::referral::{ReferralInfo, ReferralsClient},
-};
-use serde::{Deserialize, Serialize};
-use warp_core::user_preferences::GetUserPreferences as _;
-use warpui::{Entity, ModelContext, SingletonEntity};
-
-// Note: The name of this key is from before this model was created. For consistency, it should
-// remain the same value
-const SENT_REFERRAL_THEME_KEY: &str = "ReferralThemeActive";
-const RECEIVED_REFERRAL_THEME_KEY: &str = "ReceivedReferralTheme";
+use crate::server::server_api::referral::ReferralsClient;
+use warpui::{Entity, ModelContext};
 
 pub enum ReferralThemeEvent {
     SentReferralThemeActivated,
     ReceivedReferralThemeActivated,
 }
 
-/// Model to track the status of referral theme(s)
-///
-/// Note: An invariant of this type, relied upon by the rest of the code, is that themes will only
-/// ever become available, they can not be revoked.
-pub struct ReferralThemeStatus {
-    sent_referral_theme: ReferralThemeFetchStatus,
-    received_referral_theme: ReferralThemeFetchStatus,
-}
+/// 去中心化:本地永远开放全部 referral-gated 主题。
+pub struct ReferralThemeStatus;
 
 impl Entity for ReferralThemeStatus {
     type Event = ReferralThemeEvent;
 }
 
 impl ReferralThemeStatus {
-    /// Creates a new ReferralThemeStatus model
-    ///
-    /// The initial values for the theme availability will be loaded from user default storage
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        let sent_referral_theme = parse_sent_referral_fetch_status(
-            ctx.private_user_preferences()
-                .read_value(SENT_REFERRAL_THEME_KEY)
-                .unwrap_or_default(),
-        );
-
-        let received_referral_theme = ctx
-            .private_user_preferences()
-            .read_value(RECEIVED_REFERRAL_THEME_KEY)
-            .unwrap_or_default()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or(ReferralThemeFetchStatus::NotFetched);
-
-        Self {
-            sent_referral_theme,
-            received_referral_theme,
-        }
+    pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
+        Self
     }
 
-    /// 去中心化分支:不再有 referral 概念,所有 referral-gated 主题对本地用户全部开放。
+    /// 去中心化:全部主题对本地用户开放。
     pub fn sent_referral_theme_active(&self) -> bool {
         true
     }
 
-    /// 去中心化分支:同上。
+    /// 去中心化:同上。
     pub fn received_referral_theme_active(&self) -> bool {
         true
     }
 
-    /// 去中心化分支:不再向服务端查询 referral 状态。
+    /// 去中心化:不再向服务端查询 referral 状态。
     pub fn query_referral_status(
         &self,
         _referrals_client: Arc<dyn ReferralsClient>,
         _ctx: &mut ModelContext<Self>,
     ) {
     }
-
-    /// Handle the response from the server indicating the number of referrals the user has sent
-    fn handle_referral_status_response(
-        &mut self,
-        response: anyhow::Result<ReferralInfo>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match response {
-            Ok(info) => {
-                // If the "you referred someone" theme isn't active, see if the user has since
-                // referred someone. If so, activate the theme and emit an event with the change.
-                if !self.sent_referral_theme.is_active() && info.number_claimed > 0 {
-                    // The user has referred at least one other user and doesn't yet have the
-                    // referral theme. Update the user defaults and this model to reflect that
-                    self.sent_referral_theme = ReferralThemeFetchStatus::Active;
-                    let _ = ctx
-                        .private_user_preferences()
-                        .write_value(SENT_REFERRAL_THEME_KEY, "true".to_owned());
-                    ctx.emit(ReferralThemeEvent::SentReferralThemeActivated);
-                }
-
-                // We only need to check if the user was referred once (they can never be referred after the
-                // fact). So if we're in this unfetched state, look at the response to find out if we should
-                // activate the "you were referred by someone" theme.
-                if matches!(
-                    self.received_referral_theme,
-                    ReferralThemeFetchStatus::NotFetched
-                ) {
-                    if info.is_referred {
-                        // The user _was_ referred. Store that value and notify the listeners that the
-                        // theme is now active
-                        self.received_referral_theme = ReferralThemeFetchStatus::Active;
-                        ctx.emit(ReferralThemeEvent::ReceivedReferralThemeActivated);
-                    } else {
-                        // The user was _not_ referred. Store that value into user defaults but no need to
-                        // notify since no theme became active
-                        self.received_referral_theme = ReferralThemeFetchStatus::Inactive;
-                    }
-                    // Store any new value in user defaults
-                    let _ = ctx.private_user_preferences().write_value(
-                        RECEIVED_REFERRAL_THEME_KEY,
-                        self.received_referral_theme.to_json(),
-                    );
-                }
-            }
-            Err(e) => {
-                safe_info!(
-                    safe: ("Unable to retrieve user referral info"),
-                    full: ("Unable to retrieve user referral info: {}", e)
-                );
-            }
-        }
-    }
-}
-
-/// Type used for tracking the fetch status of different referral themes
-///
-/// For the received referral theme, we only need to check until we get a successful response.
-/// Since the user can only sign up once and they were either referred or not, the response should
-/// be definitive.
-///
-/// For the sent referral theme, we still need to keep checking even if a previous response
-/// indicated that it wasn't available, since the user could have sent a referral in the interim.
-#[derive(Serialize, Deserialize, Clone, Copy)]
-enum ReferralThemeFetchStatus {
-    NotFetched,
-    Inactive,
-    Active,
-}
-
-impl ReferralThemeFetchStatus {
-    fn is_active(self) -> bool {
-        matches!(self, ReferralThemeFetchStatus::Active)
-    }
-
-    fn to_json(self) -> String {
-        serde_json::to_string(&self).expect("FetchStatus should serialize properly")
-    }
-}
-
-/// Parse the sent referral status into a ReferralThemeFetchStatus
-///
-/// Note: For historical reasons, the status is stored as a boolean literal (`true` or `false`),
-/// so we need to map that onto the fetch status.
-fn parse_sent_referral_fetch_status(stored_value: Option<String>) -> ReferralThemeFetchStatus {
-    stored_value
-        .and_then(|s| s.parse::<bool>().ok())
-        .map(|active| {
-            if active {
-                ReferralThemeFetchStatus::Active
-            } else {
-                ReferralThemeFetchStatus::Inactive
-            }
-        })
-        .unwrap_or(ReferralThemeFetchStatus::NotFetched)
 }

@@ -6,10 +6,13 @@
   "description": "OpenWarp 官网 — 为 Warp 解锁自定义 AI 提供商",
   "scripts": {
     "dev": "astro dev",
-    "start": "astro dev",
+    "start": "bunx serve dist -l tcp://0.0.0.0:${PORT:-3000}",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "@astrojs/react": "^4.2.0",

@@ -32,7 +32,7 @@ use crate::{
         cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager},
         ids::{ClientId, ObjectUid, ServerId, SyncId},
         sync_queue::SyncQueue,
-        telemetry::{AnonymousUserSignupEntrypoint, SharingDialogSource, TelemetryEvent},
+        telemetry::{SharingDialogSource, TelemetryEvent},
     },
     settings::app_installation_detection::{UserAppInstallDetectionSettings, UserAppInstallStatus},
     ui_components::{
