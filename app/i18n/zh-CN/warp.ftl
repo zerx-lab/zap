@@ -217,6 +217,115 @@ settings-warpify-use-tmux = 使用 Tmux Warpify
 settings-warpify-tmux-description = tmux ssh 包装器在许多默认方式无效的场景下能正常工作,但可能需要你手动点击按钮才能 Warpify。在新标签页中生效。
 settings-warpify-ssh-tmux-toggle-binding-label = 用于 Warpify 的 SSH 会话检测
 
+# --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
+# (待 agent-settings-ai-page 填充中文)
+
+# --- ANCHOR-SUB-FEATURES (agent-settings-features) ---
+# (待 agent-settings-features 填充中文)
+
+# --- ANCHOR-SUB-TEAMS (agent-settings-teams) ---
+settings-teams-page-title = 团队
+settings-teams-create-page-subtitle = 创建团队
+settings-teams-create-description = 创建团队后,您可以通过共享云端 agent 运行、环境、自动化与产物来协作进行 agent 驱动开发,也可以为队友与 agent 共享一个统一的知识库。
+settings-teams-create-button = 创建
+settings-teams-team-name-placeholder = 团队名称
+settings-teams-rename-placeholder = 新的团队名称
+settings-teams-leave-team-button = 退出团队
+settings-teams-delete-team-button = 删除团队
+settings-teams-emails-placeholder = 邮箱(逗号分隔)
+settings-teams-domains-placeholder = 域名(逗号分隔)
+settings-teams-set-button = 设置
+settings-teams-invite-button = 邀请
+settings-teams-join-button = 加入
+settings-teams-contact-admin-button = 联系管理员申请访问
+settings-teams-tab-link = 邀请链接
+settings-teams-tab-email = 邮箱邀请
+settings-teams-section-team-members = 团队成员
+settings-teams-section-team-members-pricing = 团队成员
+settings-teams-section-invite-by-link = 通过链接邀请
+settings-teams-section-invite-by-email = 通过邮箱邀请
+settings-teams-section-restrict-by-domain = 按域名限制
+settings-teams-section-make-discoverable = 设为可被发现
+settings-teams-section-plan-usage-free = 免费方案用量限制
+settings-teams-section-plan-usage = 方案用量限制
+settings-teams-shared-notebooks = 共享笔记本
+settings-teams-shared-workflows = 共享工作流
+settings-teams-reset-links = 重置链接
+settings-teams-compare-plans = 对比方案
+settings-teams-upgrade-build = 升级到 Build
+settings-teams-upgrade-turbo = 升级到 Turbo 方案
+settings-teams-upgrade-lightspeed = 升级到 Lightspeed 方案
+settings-teams-contact-support = 联系支持
+settings-teams-manage-billing = 管理账单
+settings-teams-manage-plan = 管理方案
+settings-teams-open-admin-panel = 打开管理员面板
+settings-teams-or-join-existing = 或加入您公司内已有的团队
+settings-teams-discovery-cta = 加入此团队,开始一起协作工作流、笔记本等内容。
+settings-teams-discovery-1-teammate = 1 名队友
+settings-teams-discovery-n-teammates = { $count } 名队友
+settings-teams-transfer-modal-title = 转移团队所有权?
+settings-teams-action-cancel-invite = 取消邀请
+settings-teams-action-transfer-ownership = 转移所有权
+settings-teams-action-demote-from-admin = 取消管理员
+settings-teams-action-promote-to-admin = 设为管理员
+settings-teams-action-remove-from-team = 从团队移除
+settings-teams-action-remove-domain = 移除域名
+settings-teams-state-expired = 已过期
+settings-teams-state-pending = 待处理
+settings-teams-state-owner = 拥有者
+settings-teams-state-admin = 管理员
+settings-teams-badge-past-due = 已逾期
+settings-teams-badge-unpaid = 未付款
+settings-teams-offline = 您当前处于离线状态。
+settings-teams-failed-load-invite-link = 加载邀请链接失败。
+settings-teams-toast-link-copied = 链接已复制到剪贴板!
+settings-teams-toast-invite-sent-one = 邀请已发出!
+settings-teams-toast-invites-sent = 已发出 { $count } 封邀请!
+settings-teams-toast-domain-added = 已添加域名限制:{ $count }
+settings-teams-toast-invalid-domains = 无效域名:{ $count }
+settings-teams-toast-invalid-emails = 无效邮箱:{ $count }
+settings-teams-toast-toggled-invite-links = 已切换邀请链接状态
+settings-teams-toast-reset-invite-links = 已重置邀请链接
+settings-teams-toast-deleted-invite = 已删除邀请
+settings-teams-toast-toggled-discoverability = 已切换团队可发现状态
+settings-teams-toast-joined-team = 已成功加入团队
+settings-teams-toast-joined-team-named = 已成功加入 { $name }
+settings-teams-toast-transferred-ownership = 已成功转移团队所有权
+settings-teams-toast-updated-role = 已成功更新团队成员角色
+settings-teams-toast-left-team = 已成功退出团队
+settings-teams-toast-renamed-team = 已成功重命名团队
+settings-teams-error-leave-team = 退出团队失败
+settings-teams-error-rename-team = 重命名团队失败
+settings-teams-error-send-invite = 发送邀请失败
+settings-teams-error-toggle-invite-links = 切换邀请链接失败
+settings-teams-error-reset-invite-links = 重置邀请链接失败
+settings-teams-error-delete-invite = 删除邀请失败
+settings-teams-error-add-domain = 添加域名限制失败
+settings-teams-error-delete-domain = 删除域名限制失败
+settings-teams-error-upgrade-link = 生成升级链接失败,请联系 feedback@warp.dev
+settings-teams-error-billing-link = 生成账单链接失败,请联系 feedback@warp.dev
+settings-teams-error-toggle-discoverability = 切换团队可发现状态失败
+settings-teams-error-join-team = 加入团队失败
+settings-teams-error-transfer-ownership = 转移团队所有权失败
+settings-teams-error-update-role = 更新团队成员角色失败
+
+# --- ANCHOR-SUB-SETTINGS-PAGE-NAV (agent-settings-page-nav) ---
+
+# ---- settings_page.rs ----
+settings-page-info-icon-tooltip = 点击查看文档详情
+settings-page-local-only-icon-tooltip = 此设置不会同步到你的其他设备
+settings-page-reset-to-default = 重置为默认值
+
+# ---- delete_environment_confirmation_dialog.rs ----
+settings-confirm-cancel = 取消
+settings-confirm-delete-environment-button = 删除环境
+settings-confirm-delete-environment-title = 删除环境?
+settings-confirm-delete-environment-description = 确定要删除 { $name } 环境吗?
+
+# ---- directory_color_add_picker.rs ----
+settings-color-picker-add-directory-footer = + 添加目录…
+settings-color-picker-add-directory-color = 添加目录颜色
+
 # --- ANCHOR-SUB-CODE (agent-settings-code) ---
 settings-code-feature-name = 代码
 settings-code-initialization-settings-header = 初始化设置

@@ -228,6 +228,184 @@ settings-warpify-use-tmux = Use Tmux Warpification
 settings-warpify-tmux-description = The tmux ssh wrapper works in many situations where the default one does not, but may require you to hit a button to warpify. Takes effect in new tabs.
 settings-warpify-ssh-tmux-toggle-binding-label = SSH session detection for Warpification
 
+# --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
+# 此锚点下放 settings_view/ai_page.rs 剩余字符串(已有 settings-ai-* 6 个 key 不动)
+# 命名前缀:settings-ai-*
+# (待 agent-settings-ai-page 填充)
+
+# --- ANCHOR-SUB-FEATURES (agent-settings-features) ---
+# settings_view/features_page.rs P0 + P1(category + toggle labels)
+# 命名前缀:settings-features-*
+settings-features-category-general = General
+settings-features-category-session = Session
+settings-features-category-keys = Keys
+settings-features-category-text-editing = Text Editing
+settings-features-category-terminal-input = Terminal Input
+settings-features-category-terminal = Terminal
+settings-features-category-notifications = Notifications
+settings-features-category-workflows = Workflows
+settings-features-category-system = System
+settings-features-open-links-in-desktop = Open links in desktop app
+settings-features-open-links-in-desktop-tooltip = Automatically open links in desktop app whenever possible.
+settings-features-restore-session = Restore windows, tabs, and panes on startup
+settings-features-show-sticky-command-header = Show sticky command header
+settings-features-show-link-tooltip = Show tooltip on click on links
+settings-features-show-quit-warning = Show warning before quitting/logging out
+settings-features-quit-on-last-window-closed = Quit when all windows are closed
+settings-features-show-changelog-after-update = Show changelog toast after updates
+settings-features-mouse-scroll-multiplier = Lines scrolled by mouse wheel interval
+settings-features-auto-open-code-review = Auto open code review panel
+settings-features-max-rows-per-block = Maximum rows in a block
+settings-features-ssh-wrapper = Warp SSH Wrapper
+settings-features-receive-desktop-notifications = Receive desktop notifications from Warp
+settings-features-show-in-app-agent-notifications = Show in-app agent notifications
+settings-features-confirm-close-shared-session = Confirm before closing shared session
+settings-features-global-hotkey-label = Global hotkey:
+settings-features-global-hotkey-not-supported-on-wayland = Not supported on Wayland.
+settings-features-autocomplete-symbols = Autocomplete quotes, parentheses, and brackets
+settings-features-error-underlining = Error underlining for commands
+settings-features-syntax-highlighting = Syntax highlighting for commands
+settings-features-completions-while-typing = Open completions menu as you type
+settings-features-command-corrections = Suggest corrected commands
+settings-features-expand-aliases = Expand aliases as you type
+settings-features-middle-click-paste = Middle-click to paste
+settings-features-vim-mode = Edit code and commands with Vim keybindings
+settings-features-at-context-menu = Enable '@' context menu in terminal mode
+settings-features-slash-commands-in-terminal = Enable slash commands in terminal mode
+settings-features-outline-codebase-symbols = Outline codebase symbols for '@' context menu
+settings-features-show-input-message-bar = Show terminal input message line
+settings-features-show-autosuggestion-hint = Show autosuggestion keybinding hint
+settings-features-show-autosuggestion-ignore = Show autosuggestion ignore button
+settings-features-enable-mouse-reporting = Enable Mouse Reporting
+settings-features-enable-scroll-reporting = Enable Scroll Reporting
+settings-features-enable-focus-reporting = Enable Focus Reporting
+settings-features-use-audible-bell = Use Audible Bell
+settings-features-double-click-smart-selection = Double-click smart selection
+settings-features-show-help-block-in-new-sessions = Show help block in new sessions
+settings-features-copy-on-select = Copy on select
+settings-features-show-global-workflows-in-command-search = Show Global Workflows in Command Search (ctrl-r)
+settings-features-linux-selection-clipboard = Honor linux selection clipboard
+settings-features-prefer-low-power-gpu = Prefer rendering new windows with integrated GPU (low power)
+settings-features-use-wayland = Use Wayland for window management
+settings-features-use-wayland-tooltip = Enables the use of Wayland
+settings-features-ctrl-tab-behavior-label = Ctrl+Tab behavior:
+settings-features-extra-meta-key-left-mac = Left Option key is Meta
+settings-features-extra-meta-key-right-mac = Right Option key is Meta
+settings-features-extra-meta-key-left-other = Left Alt key is Meta
+settings-features-extra-meta-key-right-other = Right Alt key is Meta
+settings-features-default-shell-header = Default shell for new sessions
+settings-features-working-directory-header = Working directory for new sessions
+settings-features-notify-agent-task-completed = Notify when an agent completes a task
+settings-features-notify-needs-attention = Notify when a command or agent needs your attention to continue
+settings-features-play-notification-sounds = Play notification sounds
+
+# --- ANCHOR-SUB-TEAMS (agent-settings-teams) ---
+# settings_view/teams_page.rs strings (P0 + P1)
+# 命名前缀:settings-teams-*
+settings-teams-page-title = Teams
+settings-teams-create-page-subtitle = Create a team
+settings-teams-create-description = When you create a team, you can collaborate on agent-driven development by sharing cloud agent runs, environments, automations, and artifacts. You can also create a shared knowledge store for teammates and agents alike.
+settings-teams-create-button = Create
+settings-teams-team-name-placeholder = Team name
+settings-teams-rename-placeholder = Your new team name
+settings-teams-leave-team-button = Leave team
+settings-teams-delete-team-button = Delete team
+settings-teams-emails-placeholder = Emails, comma separated
+settings-teams-domains-placeholder = Domains, comma separated
+settings-teams-set-button = Set
+settings-teams-invite-button = Invite
+settings-teams-join-button = Join
+settings-teams-contact-admin-button = Contact Admin to request access
+settings-teams-tab-link = Link
+settings-teams-tab-email = Email
+settings-teams-section-team-members = Team Members
+settings-teams-section-team-members-pricing = Team members
+settings-teams-section-invite-by-link = Invite by Link
+settings-teams-section-invite-by-email = Invite by Email
+settings-teams-section-restrict-by-domain = Restrict by domain
+settings-teams-section-make-discoverable = Make team discoverable
+settings-teams-section-plan-usage-free = Free plan usage limits
+settings-teams-section-plan-usage = Plan usage limits
+settings-teams-shared-notebooks = Shared Notebooks
+settings-teams-shared-workflows = Shared Workflows
+settings-teams-reset-links = Reset links
+settings-teams-compare-plans = Compare plans
+settings-teams-upgrade-build = Upgrade to Build
+settings-teams-upgrade-turbo = Upgrade to Turbo plan
+settings-teams-upgrade-lightspeed = Upgrade to Lightspeed plan
+settings-teams-contact-support = Contact support
+settings-teams-manage-billing = Manage billing
+settings-teams-manage-plan = Manage plan
+settings-teams-open-admin-panel = Open admin panel
+settings-teams-or-join-existing = Or, join an existing team within your company
+settings-teams-discovery-cta = Join this team and start collaborating on workflows, notebooks, and more.
+settings-teams-discovery-1-teammate = 1 teammate
+settings-teams-discovery-n-teammates = { $count } teammates
+settings-teams-transfer-modal-title = Transfer team ownership?
+settings-teams-action-cancel-invite = Cancel invite
+settings-teams-action-transfer-ownership = Transfer ownership
+settings-teams-action-demote-from-admin = Demote from admin
+settings-teams-action-promote-to-admin = Promote to admin
+settings-teams-action-remove-from-team = Remove from team
+settings-teams-action-remove-domain = Remove domain
+settings-teams-state-expired = EXPIRED
+settings-teams-state-pending = PENDING
+settings-teams-state-owner = OWNER
+settings-teams-state-admin = ADMIN
+settings-teams-badge-past-due = PAST DUE
+settings-teams-badge-unpaid = UNPAID
+settings-teams-offline = You are offline.
+settings-teams-failed-load-invite-link = Failed to load invite link.
+settings-teams-toast-link-copied = Link copied to clipboard!
+settings-teams-toast-invite-sent-one = Your invite is on the way!
+settings-teams-toast-invites-sent = Your { $count } invites are on the way!
+settings-teams-toast-domain-added = Domain restrictions added: { $count }
+settings-teams-toast-invalid-domains = Invalid domains: { $count }
+settings-teams-toast-invalid-emails = Invalid emails: { $count }
+settings-teams-toast-toggled-invite-links = Toggled invite links
+settings-teams-toast-reset-invite-links = Reset invite links
+settings-teams-toast-deleted-invite = Deleted invite
+settings-teams-toast-toggled-discoverability = Toggled team discoverability
+settings-teams-toast-joined-team = Successfully joined team
+settings-teams-toast-joined-team-named = Successfully joined { $name }
+settings-teams-toast-transferred-ownership = Successfully transferred team ownership
+settings-teams-toast-updated-role = Successfully updated team member role
+settings-teams-toast-left-team = Successfully left team
+settings-teams-toast-renamed-team = Successfully renamed team
+settings-teams-error-leave-team = Error leaving team
+settings-teams-error-rename-team = Failed to rename team
+settings-teams-error-send-invite = Failed to send invite
+settings-teams-error-toggle-invite-links = Failed to toggle invite links
+settings-teams-error-reset-invite-links = Failed to reset invite links
+settings-teams-error-delete-invite = Failed to delete invite
+settings-teams-error-add-domain = Failed to add domain restriction
+settings-teams-error-delete-domain = Failed to delete domain restriction
+settings-teams-error-upgrade-link = Failed to generate upgrade link. Please contact us at feedback@warp.dev
+settings-teams-error-billing-link = Failed to generate billing link. Please contact us at feedback@warp.dev
+settings-teams-error-toggle-discoverability = Failed to toggle team discoverability
+settings-teams-error-join-team = Failed to join team
+settings-teams-error-transfer-ownership = Failed to transfer team ownership
+settings-teams-error-update-role = Failed to update team member role
+
+# --- ANCHOR-SUB-SETTINGS-PAGE-NAV (agent-settings-page-nav) ---
+# 此锚点下放 settings_view/{settings_page,nav,delete_environment_confirmation_dialog,directory_color_add_picker,pane_manager}.rs 字符串
+# 命名前缀:settings-page-* / settings-nav-* / settings-confirm-* / settings-color-picker-*
+
+# ---- settings_page.rs ----
+settings-page-info-icon-tooltip = Click to learn more in docs
+settings-page-local-only-icon-tooltip = This setting is not synced to your other devices
+settings-page-reset-to-default = Reset to default
+
+# ---- delete_environment_confirmation_dialog.rs ----
+settings-confirm-cancel = Cancel
+settings-confirm-delete-environment-button = Delete environment
+settings-confirm-delete-environment-title = Delete environment?
+settings-confirm-delete-environment-description = Are you sure you want to remove the { $name } environment?
+
+# ---- directory_color_add_picker.rs ----
+settings-color-picker-add-directory-footer = + Add directory…
+settings-color-picker-add-directory-color = Add directory color
+
 # --- ANCHOR-SUB-CODE (agent-settings-code) ---
 settings-code-feature-name = Code
 settings-code-initialization-settings-header = Initialization Settings

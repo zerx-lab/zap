@@ -552,7 +552,7 @@ pub fn render_info_icon<T: Clone + Action>(
             13.,
             additional_info
                 .tooltip_override_text
-                .unwrap_or("Click to learn more in docs".to_owned()),
+                .unwrap_or_else(|| crate::t!("settings-page-info-icon-tooltip")),
             additional_info.mouse_state.clone(),
         )
         .on_click(move |ctx, _, _| {
@@ -578,7 +578,7 @@ pub fn render_local_only_icon(
         .ui_builder()
         .local_only_icon_with_tooltip(
             13.,
-            custom_tooltip.unwrap_or("This setting is not synced to your other devices".to_owned()),
+            custom_tooltip.unwrap_or_else(|| crate::t!("settings-page-local-only-icon-tooltip")),
             mouse_state.clone(),
         )
         .finish();
@@ -1915,5 +1915,5 @@ pub(super) fn build_reset_button(
             font_size: Some(appearance.ui_font_size() * 0.8),
             ..Default::default()
         })
-        .with_text_label("Reset to default".to_owned())
+        .with_text_label(crate::t!("settings-page-reset-to-default"))
 }

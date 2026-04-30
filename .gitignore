@@ -55,3 +55,9 @@ desired_behavior.md
 
 # Don't include the python cache for bundled skills.
 __pycache__/
+
+# 嵌套 vendored 仓库,本地参考用,不入库
+/warp-proto-apis/
+
+# logo 生成脚本的依赖
+/scripts/node_modules/

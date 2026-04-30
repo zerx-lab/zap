@@ -959,6 +959,32 @@ pub async fn generate_byop_output(
         // 流结束:把累积的 tool_calls 一次性发出。
         let mut final_messages: Vec<api::Message> = Vec::new();
         for call in tool_bufs.into_values() {
+            // 诊断:dump 模型实际发的 tool_call raw payload
+            // (call_id / fn_name / fn_arguments JSON 原文 + 类型标注),
+            // 便于核对模型是否按 schema 出入参(常见问题:bool 字段被字符串化、
+            // 数字被加引号、嵌套对象塌成字符串等)。
+            let args_repr = if call.fn_arguments.is_string() {
+                format!("string({:?})", call.fn_arguments.as_str().unwrap_or(""))
+            } else {
+                format!(
+                    "{}({})",
+                    match &call.fn_arguments {
+                        Value::Object(_) => "object",
+                        Value::Array(_) => "array",
+                        Value::Bool(_) => "bool",
+                        Value::Number(_) => "number",
+                        Value::Null => "null",
+                        Value::String(_) => "string",
+                    },
+                    call.fn_arguments
+                )
+            };
+            log::info!(
+                "[byop] tool_call_in: name={} call_id={} args={}",
+                call.fn_name,
+                call.call_id,
+                args_repr,
+            );
             match parse_incoming_tool_call(&call, mcp_context.as_ref()) {
                 Ok(warp_tool) => {
                     final_messages.push(make_tool_call_message(
@@ -1073,7 +1099,21 @@ fn parse_incoming_tool_call(
     let Some(tool) = tools::lookup(&call.fn_name) else {
         anyhow::bail!("unknown tool name: {}", call.fn_name);
     };
-    (tool.from_args)(&args_str)
+    match (tool.from_args)(&args_str) {
+        Ok(t) => Ok(t),
+        Err(e) => {
+            // 诊断:解析失败时把 from_args 实际拿到的字符串原样打出来,
+            // 配合上层 [byop] tool_call_in 的 args= 行可以判断:
+            //   1. 是否模型出参类型错(bool→"true" / 数字→"1" 等)
+            //   2. 是否 genai Value→string 转换中 escape 出问题
+            //   3. 是否 fn_arguments 整段被字符串化(应该 object 却是 string)
+            log::warn!(
+                "[byop] from_args failed: tool={} err={e:#} args_str={args_str}",
+                call.fn_name
+            );
+            Err(e)
+        }
+    }
 }
 
 fn make_reasoning_message(task_id: &str, request_id: &str, reasoning: String) -> api::Message {
