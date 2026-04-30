@@ -649,23 +649,14 @@ impl DriveIndex {
                 .as_ref(ctx)
                 .num_trashed_cloud_objects_per_space(spaces.iter(), ctx),
         };
-        let mut sections = spaces
+        let sections = spaces
             .iter()
             .map(|space| DriveIndexSection::Space(*space))
             .collect::<Vec<_>>();
 
-        if !user_workspaces.as_ref(ctx).has_teams() {
-            if user_workspaces
-                .as_ref(ctx)
-                .total_teammates_in_joinable_teams()
-                > 0
-            {
-                sections.insert(0, DriveIndexSection::JoinTeam);
-                sections.insert(1, DriveIndexSection::CreateATeam);
-            } else {
-                sections.insert(0, DriveIndexSection::CreateATeam);
-            }
-        }
+        // Decentralize: 不再展示 "Create team" / "Join team" 云端协作入口。
+        // DriveIndexSection::CreateATeam / JoinTeam 的 enum variant 与 render 函数
+        // 暂留为死代码,Batch 5(Drive 云同步)统一清理。
 
         // Item UI state is attached by index, not by id, so this is re-initialized whenever there's any type of change
         let item_mouse_states = num_cloud_objects_per_space
