@@ -1,0 +1,70 @@
+---
+import { t, type Locale } from '../i18n';
+import ProviderTabs from './ProviderTabs.tsx';
+
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+const d = t(locale);
+
+const providerLogos = [
+  'OpenAI', 'Anthropic', 'DeepSeek', 'Qwen', 'Ollama', 'Groq',
+  'Together', 'Mistral', 'Gemini', 'LM Studio', 'OpenRouter', 'Azure',
+];
+const marqueeItems = [...providerLogos, ...providerLogos];
+---
+
+<section id="providers" class="relative py-24 lg:py-32">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <span class="chip">{d.providers.eyebrow}</span>
+      <h2 class="mt-5 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">
+        {d.providers.title}
+      </h2>
+      <p class="mt-5 text-zinc-400">{d.providers.subtitle}</p>
+    </div>
+
+    <div class="mt-14 grid items-stretch gap-8 lg:grid-cols-12">
+      <div class="lg:col-span-7">
+        <ProviderTabs
+          client:visible
+          tabs={d.providers.tabs}
+          labels={{
+            name: d.providers.fields.name,
+            base_url: d.providers.fields.base_url,
+            api_key: d.providers.fields.api_key,
+            model: d.providers.fields.model,
+          }}
+        />
+      </div>
+
+      <div class="lg:col-span-5">
+        <ul class="space-y-3">
+          {d.providers.bullets.map((b) => (
+            <li class="flex items-start gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3.5 text-sm text-zinc-300">
+              <span class="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-brand-400"></span>
+              <span>{b}</span>
+            </li>
+          ))}
+        </ul>
+
+        <div class="mt-6 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+          <p class="text-[11px] font-medium uppercase tracking-wider text-zinc-500">{d.providers.fields.prompt}</p>
+          <pre class="mt-3 overflow-x-auto rounded-lg border border-white/5 bg-ink-950/80 p-3 font-mono text-[11.5px] leading-relaxed text-zinc-300"><span class="text-accent-pink">{'{%'}</span> if user.role <span class="text-accent-pink">{'%}'}</span>
+You are an expert <span class="text-accent-cyan">{'{{'}</span> user.role <span class="text-accent-cyan">{'}}'}</span>.
+<span class="text-accent-pink">{'{%'}</span> endif <span class="text-accent-pink">{'%}'}</span>
+Reply in <span class="text-accent-cyan">{'{{'}</span> locale <span class="text-accent-cyan">{'}}'}</span>.</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="marquee-mask mt-16 overflow-hidden">
+      <div class="marquee gap-4">
+        {marqueeItems.map((p) => (
+          <div class="flex h-12 min-w-[160px] items-center justify-center rounded-xl border border-white/5 bg-white/[0.02] px-6 text-sm font-semibold tracking-tight text-zinc-400">
+            {p}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,61 @@
+---
+import { t, type Locale } from '../i18n';
+import CommandCard from './CommandCard.tsx';
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+const d = t(locale);
+---
+
+<section id="cta" class="relative py-24 lg:py-28">
+  <div class="container-page">
+    <div class="surface-card relative isolate overflow-hidden">
+      <!-- Soft accent radial -->
+      <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(40%_60%_at_85%_50%,rgba(22,119,255,0.18),transparent_70%)]"></div>
+      <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10 bg-grid-faint opacity-[0.05]" style="background-size:32px 32px;"></div>
+
+      <div class="grid items-center gap-10 px-8 py-14 lg:grid-cols-12 lg:gap-12 lg:px-14 lg:py-20">
+        <!-- Left: headline -->
+        <div class="lg:col-span-7">
+          <h3 class="font-display text-3xl font-semibold tracking-tight text-white sm:text-5xl lg:text-[56px] lg:leading-[1.05]">
+            {d.cta.title}
+          </h3>
+          <p class="mt-5 max-w-xl text-zinc-400">{d.cta.desc}</p>
+
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+            <a href="https://github.com/zerx-lab/warp" target="_blank" rel="noreferrer" class="btn-primary">
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.18c-3.2.7-3.87-1.37-3.87-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.17.91-.25 1.89-.38 2.86-.39.97.01 1.95.14 2.86.39 2.19-1.48 3.15-1.17 3.15-1.17.62 1.59.23 2.76.11 3.05.74.8 1.18 1.82 1.18 3.08 0 4.42-2.69 5.4-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.55C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+              {d.cta.button}
+            </a>
+            <a href="#" class="btn-ghost">{d.cta.secondary} →</a>
+          </div>
+        </div>
+
+        <!-- Right: command card -->
+        <div class="lg:col-span-5">
+          <div class="rounded-2xl border border-white/10 bg-ink-900/70 p-5 shadow-card backdrop-blur-md">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">{d.cta.command_label}</span>
+              <span class="font-mono text-[10.5px] text-zinc-600">~/dev</span>
+            </div>
+            <div class="mt-3">
+              <CommandCard
+                client:load
+                command={d.cta.command}
+                copyLabel={d.cta.copy}
+                copiedLabel={d.cta.copied}
+              />
+            </div>
+            <ul class="mt-5 space-y-2 font-mono text-[12px] text-zinc-400">
+              {d.cta.steps.map((s, i) => (
+                <li class="flex items-center gap-2">
+                  <span class="h-1 w-1 rounded-full bg-brand-400/80"></span>
+                  <span class={i === 2 ? 'text-zinc-500' : ''}>{i === 2 ? `→ ${s}` : s}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,151 @@
+---
+import { t, type Locale } from '../i18n';
+import BYOPCard from './BYOPCard.tsx';
+
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+const d = t(locale);
+
+const items = d.features.items;
+// items: [BYOP, Templates, i18n, Privacy, Warp-native, Open source]
+---
+
+<section id="features" class="relative py-24 lg:py-32">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <span class="chip">{d.features.eyebrow}</span>
+      <h2 class="mt-5 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl lg:text-5xl">
+        {d.features.title}
+      </h2>
+    </div>
+
+    <div class="mt-16 grid grid-cols-1 gap-4 sm:grid-cols-6 sm:auto-rows-[minmax(220px,_auto)]">
+
+      <!-- 1. BYOP — large hero card -->
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6 lg:col-span-4 lg:row-span-2">
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">01</span>
+          <span class="h-px w-6 bg-zinc-700"></span>
+          <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-brand-300">{d.bento.byop.tag}</span>
+        </div>
+        <h3 class="mt-4 font-display text-2xl font-semibold tracking-tight text-white">{items[0].title}</h3>
+        <p class="mt-2 max-w-md text-sm leading-relaxed text-zinc-400">{items[0].desc}</p>
+
+        <div class="mt-6 h-[280px] sm:h-[300px]">
+          <BYOPCard client:visible tabs={d.providers.tabs} hint={d.bento.byop.hint} />
+        </div>
+      </article>
+
+      <!-- 2. Privacy -->
+      <article class="ring-gradient group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-3 lg:col-span-2">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">04</span>
+            <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[3].title}</h3>
+          </div>
+          <div class="relative">
+            <span class="absolute inset-0 -m-2 rounded-full bg-brand-500/15 blur-xl"></span>
+            <span class="relative inline-flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-ink-900/80">
+              <svg class="h-5 w-5 text-brand-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z"/>
+                <path d="M9 12h6M12 9v6"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+        <ul class="mt-5 space-y-1.5">
+          {d.bento.privacy.bullets.map((b) => (
+            <li class="flex items-center gap-2 text-[13px] text-zinc-300">
+              <svg class="h-3.5 w-3.5 text-brand-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg>
+              {b}
+            </li>
+          ))}
+        </ul>
+      </article>
+
+      <!-- 3. i18n — language pills cycling -->
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-3 lg:col-span-2">
+        <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">03</span>
+        <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[2].title}</h3>
+        <p class="mt-1 text-[13px] text-zinc-500">{items[2].desc}</p>
+        <div class="i18n-pills mt-5 flex flex-wrap gap-2">
+          {d.bento.i18n.pills.map((p, i) => (
+            <span class="i18n-pill rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[12px] text-zinc-300" style={`--i:${i}`}>{p}</span>
+          ))}
+        </div>
+      </article>
+
+      <!-- 4. Templates -->
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6 lg:col-span-3">
+        <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">02</span>
+        <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[1].title}</h3>
+        <p class="mt-1 text-[13px] text-zinc-500">{items[1].desc}</p>
+        <pre class="mt-4 overflow-hidden rounded-lg border border-white/5 bg-ink-950/70 p-3 font-mono text-[11.5px] leading-6 text-zinc-300"><span class="text-zinc-500">// {d.bento.templates.tag}</span>
+You are an expert <span class="tpl-var">{'{{'} role {'}}'}</span>.
+Workspace: <span class="tpl-var">{'{{'} cwd {'}}'}</span>
+<span class="tpl-ctrl">{'{%'} if locale {'%}'}</span>
+Reply in <span class="tpl-var">{'{{'} locale {'}}'}</span>.
+<span class="tpl-ctrl">{'{%'} endif {'%}'}</span></pre>
+      </article>
+
+      <!-- 5. Warp-native -->
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6 lg:col-span-3">
+        <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">05</span>
+        <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[4].title}</h3>
+        <p class="mt-1 text-[13px] text-zinc-500">{items[4].desc}</p>
+        <div class="mt-5 flex flex-wrap gap-2">
+          {d.bento.warp.chips.map((c) => (
+            <span class="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[12px] text-zinc-300">
+              <span class="h-1 w-1 rounded-full bg-brand-400/80"></span>
+              {c}
+            </span>
+          ))}
+        </div>
+      </article>
+
+      <!-- 6. Open source — full width footer card -->
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6">
+        <div class="grid items-center gap-6 sm:grid-cols-2">
+          <div>
+            <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">06</span>
+            <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[5].title}</h3>
+            <p class="mt-1 text-[13px] text-zinc-500">{items[5].desc}</p>
+          </div>
+          <div class="flex items-center gap-3 sm:justify-end">
+            {d.bento.opensource.license.map((l) => (
+              <span class="rounded-lg border border-brand-500/20 bg-brand-500/[0.06] px-3 py-2 font-mono text-[13px] tracking-tight text-brand-200">{l}</span>
+            ))}
+            <a href="https://github.com/zerx-lab/warp" target="_blank" rel="noreferrer" class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] text-zinc-200 transition hover:bg-white/[0.07]">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.18c-3.2.7-3.87-1.37-3.87-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.17.91-.25 1.89-.38 2.86-.39.97.01 1.95.14 2.86.39 2.19-1.48 3.15-1.17 3.15-1.17.62 1.59.23 2.76.11 3.05.74.8 1.18 1.82 1.18 3.08 0 4.42-2.69 5.4-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.55C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<style>
+  .tpl-var { color: #69b1ff; }
+  .tpl-ctrl { color: #91caff; }
+
+  /* i18n cycling pill — staggered active state */
+  .i18n-pills .i18n-pill {
+    transition: background-color 400ms ease, color 400ms ease, border-color 400ms ease;
+    animation: i18nCycle 8s linear infinite;
+    animation-delay: calc(var(--i) * 2s);
+  }
+  @keyframes i18nCycle {
+    0%, 18% {
+      background: rgba(22, 119, 255, 0.14);
+      border-color: rgba(22, 119, 255, 0.4);
+      color: #ffffff;
+    }
+    25%, 100% {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.10);
+      color: rgb(212 212 216 / 0.9);
+    }
+  }
+</style>

@@ -1,0 +1,49 @@
+---
+import { t, type Locale } from '../i18n';
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+const dict = t(locale);
+const year = new Date().getFullYear();
+---
+
+<footer class="mt-12 border-t border-white/5 bg-ink-950">
+  <div class="container-page py-14">
+    <div class="grid gap-10 md:grid-cols-4">
+      <div class="md:col-span-2">
+        <div class="flex items-center gap-2.5">
+          <span class="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/10 bg-white/[0.04]">
+            <svg viewBox="0 0 24 24" class="h-3.5 w-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m6 8 4 4-4 4"/>
+              <path d="M13 16h5"/>
+            </svg>
+          </span>
+          <span class="font-display text-base font-semibold text-white">OpenWarp</span>
+        </div>
+        <p class="mt-4 max-w-sm text-sm text-zinc-400">{dict.footer.rights}</p>
+      </div>
+
+      <div>
+        <h4 class="text-xs font-semibold uppercase tracking-widest text-zinc-500">{dict.footer.project}</h4>
+        <ul class="mt-4 space-y-2 text-sm">
+          <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.docs}</a></li>
+          <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.changelog}</a></li>
+          <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.roadmap}</a></li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="text-xs font-semibold uppercase tracking-widest text-zinc-500">{dict.footer.community}</h4>
+        <ul class="mt-4 space-y-2 text-sm">
+          <li><a class="text-zinc-400 transition hover:text-white" href="https://github.com/zerx-lab/warp">GitHub</a></li>
+          <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.discussions}</a></li>
+          <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.issues}</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-12 flex flex-col items-start justify-between gap-3 border-t border-white/5 pt-6 text-xs text-zinc-500 sm:flex-row sm:items-center">
+      <p>© {year} OpenWarp · AGPL-3.0 / MIT</p>
+      <p>Built with Astro · Tailwind · Framer Motion</p>
+    </div>
+  </div>
+</footer>

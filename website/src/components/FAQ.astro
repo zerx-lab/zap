@@ -1,0 +1,33 @@
+---
+import { t, type Locale } from '../i18n';
+interface Props { locale: Locale }
+const { locale } = Astro.props;
+const d = t(locale);
+---
+
+<section id="faq" class="relative py-24 lg:py-28">
+  <div class="container-page">
+    <div class="mx-auto max-w-2xl text-center">
+      <span class="chip">{d.faq.eyebrow}</span>
+      <h2 class="mt-5 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+        {d.faq.title}
+      </h2>
+    </div>
+
+    <div class="mx-auto mt-12 max-w-3xl space-y-3">
+      {d.faq.items.map((it, i) => (
+        <details class="group surface-card overflow-hidden open:bg-white/[0.04]" open={i === 0}>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-6 py-5 text-left">
+            <span class="text-base font-medium text-zinc-100">{it.q}</span>
+            <span class="flex h-7 w-7 flex-none items-center justify-center rounded-full border border-white/10 text-zinc-400 transition group-open:rotate-45 group-open:border-accent-violet/40 group-open:text-white">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </span>
+          </summary>
+          <div class="border-t border-white/5 px-6 pb-6 pt-4 text-sm leading-relaxed text-zinc-400">
+            {it.a}
+          </div>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

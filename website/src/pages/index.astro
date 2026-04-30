@@ -1,0 +1,22 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Hero from '../components/Hero.astro';
+import Stats from '../components/Stats.astro';
+import Compare from '../components/Compare.astro';
+import Features from '../components/Features.astro';
+import ProviderShowcase from '../components/ProviderShowcase.astro';
+import FAQ from '../components/FAQ.astro';
+import CTA from '../components/CTA.astro';
+
+const locale = 'zh-CN' as const;
+---
+
+<Layout locale={locale}>
+  <Hero locale={locale} />
+  <Stats locale={locale} />
+  <Compare locale={locale} />
+  <Features locale={locale} />
+  <ProviderShowcase locale={locale} />
+  <FAQ locale={locale} />
+  <CTA locale={locale} />
+</Layout>
