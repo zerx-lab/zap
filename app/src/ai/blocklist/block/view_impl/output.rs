@@ -38,7 +38,6 @@ use ai::agent::action::{SuggestPromptRequest, UploadArtifactRequest};
 use ai::skills::SkillReference;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
-use ui_components::{button, Component as _, Options as _};
 use warp_core::ui::theme::color::internal_colors;
 #[allow(unused_imports)]
 use warp_util::path::{common_path, CleanPathResult};
@@ -148,7 +147,6 @@ pub(crate) struct Props<'a> {
     pub(super) model: &'a dyn AIBlockModel<View = AIBlock>,
     pub(super) state_handles: &'a AIBlockStateHandles,
     pub(super) action_buttons: &'a HashMap<AIAgentActionId, ActionButtons>,
-    pub(super) view_screenshot_buttons: &'a HashMap<AIAgentActionId, ui_components::button::Button>,
     pub(super) action_model: &'a ModelHandle<BlocklistAIActionModel>,
     pub(super) editor_views: &'a [EmbeddedCodeEditorView],
     pub(super) current_working_directory: Option<&'a String>,

@@ -1,6 +1,5 @@
 use std::{path::PathBuf, time::Duration};
 
-use itertools::Itertools as _;
 use uuid::Uuid;
 use warp_core::features::FeatureFlag;
 use warp_multi_agent_api as api;
@@ -449,93 +448,6 @@ impl From<api::message::tool_call::read_skill::SkillReference> for SkillReferenc
             }
             ApiSkillReference::BundledSkillId(id) => SkillReference::BundledSkillId(id),
         }
-    }
-}
-
-/// Converts API ScreenshotParams to the internal computer_use type.
-fn convert_screenshot_params(
-    params: api::message::tool_call::ScreenshotParams,
-) -> computer_use::ScreenshotParams {
-    let region = params
-        .region
-        .and_then(|r| match (r.top_left.as_ref(), r.bottom_right.as_ref()) {
-            (Some(tl), Some(br)) => Some(computer_use::ScreenshotRegion {
-                top_left: computer_use::Vector2I::new(tl.x, tl.y),
-                bottom_right: computer_use::Vector2I::new(br.x, br.y),
-            }),
-            _ => None,
-        });
-
-    computer_use::ScreenshotParams {
-        max_long_edge_px: (params.max_long_edge_px > 0).then_some(params.max_long_edge_px as usize),
-        max_total_px: (params.max_total_px > 0).then_some(params.max_total_px as usize),
-        region,
-    }
-}
-
-fn coordinates_to_vec(
-    coords: Option<&api::Coordinates>,
-) -> Result<computer_use::Vector2I, ToolToAIAgentActionError> {
-    match coords {
-        Some(coords) => Ok(computer_use::Vector2I::new(coords.x, coords.y)),
-        None => Err(ToolToAIAgentActionError::MissingComputerUseCoordinates),
-    }
-}
-
-fn to_computer_use_button(
-    api_button: api::message::tool_call::use_computer::action::MouseButton,
-) -> computer_use::MouseButton {
-    use api::message::tool_call::use_computer::action::MouseButton;
-    match api_button {
-        MouseButton::Left => computer_use::MouseButton::Left,
-        MouseButton::Right => computer_use::MouseButton::Right,
-        MouseButton::Middle => computer_use::MouseButton::Middle,
-        MouseButton::Back => computer_use::MouseButton::Back,
-        MouseButton::Forward => computer_use::MouseButton::Forward,
-    }
-}
-
-fn to_scroll_direction(
-    api_direction: api::message::tool_call::use_computer::action::mouse_wheel::Direction,
-) -> computer_use::ScrollDirection {
-    use api::message::tool_call::use_computer::action::mouse_wheel::Direction;
-    match api_direction {
-        Direction::Up => computer_use::ScrollDirection::Up,
-        Direction::Down => computer_use::ScrollDirection::Down,
-        Direction::Left => computer_use::ScrollDirection::Left,
-        Direction::Right => computer_use::ScrollDirection::Right,
-    }
-}
-
-fn to_scroll_distance(
-    api_distance: Option<api::message::tool_call::use_computer::action::mouse_wheel::Distance>,
-) -> Result<computer_use::ScrollDistance, ToolToAIAgentActionError> {
-    use api::message::tool_call::use_computer::action::mouse_wheel::Distance;
-    match api_distance {
-        Some(Distance::Pixels(pixels)) => Ok(computer_use::ScrollDistance::Pixels(pixels)),
-        Some(Distance::Clicks(clicks)) => Ok(computer_use::ScrollDistance::Clicks(clicks)),
-        None => Err(ToolToAIAgentActionError::MissingComputerUseScrollDistance),
-    }
-}
-
-fn convert_key(
-    api_key: Option<api::message::tool_call::use_computer::action::Key>,
-) -> Result<computer_use::Key, ToolToAIAgentActionError> {
-    use api::message::tool_call::use_computer::action::key::Data;
-    let key = api_key.ok_or(ToolToAIAgentActionError::MissingComputerUseKey)?;
-    match key.data {
-        Some(Data::Keycode(keycode)) => Ok(computer_use::Key::Keycode(keycode)),
-        Some(Data::Char(char_str)) => {
-            let mut chars = char_str.chars();
-            let ch = chars
-                .next()
-                .ok_or(ToolToAIAgentActionError::InvalidComputerUseCharKey)?;
-            if chars.next().is_some() {
-                return Err(ToolToAIAgentActionError::InvalidComputerUseCharKey);
-            }
-            Ok(computer_use::Key::Char(ch))
-        }
-        None => Err(ToolToAIAgentActionError::MissingComputerUseKey),
     }
 }
 

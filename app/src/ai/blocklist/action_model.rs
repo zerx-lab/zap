@@ -71,7 +71,6 @@ use self::execute::{
 use super::BlocklistAIHistoryModel;
 use crate::ai::ai_document_view::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use crate::ai::document::ai_document_model::AIDocumentModel;
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
 /// The status of an action from an AI output.
 #[derive(Clone, Debug)]

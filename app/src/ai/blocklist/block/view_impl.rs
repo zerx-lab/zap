@@ -1043,7 +1043,6 @@ impl View for AIBlock {
                 model: self.model.as_ref(),
                 state_handles: &self.state_handles,
                 action_buttons: &self.action_buttons,
-                view_screenshot_buttons: &self.view_screenshot_buttons,
                 action_model: &self.action_model,
                 editor_views: &self.code_editor_views,
                 current_working_directory: self.current_working_directory.as_ref(),

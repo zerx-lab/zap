@@ -141,10 +141,8 @@ use warp_editor::{
     content::buffer::InitialBufferState, render::element::VerticalExpansionBehavior,
 };
 use warpui::{
-    assets::asset_cache::AssetCache,
     clipboard::ClipboardContent,
     elements::{MouseStateHandle, SelectionBound, SelectionHandle},
-    image_cache::ImageType,
     keymap::FixedBinding,
     r#async::{SpawnedFutureHandle, Timer},
     text::SelectionType,
@@ -914,9 +912,6 @@ pub struct AIBlock {
     /// Rewind button to revert to before this block.
     rewind_button: ViewHandle<ActionButton>,
 
-    /// Per-action button components for "View screenshot" buttons on UseComputer actions.
-    view_screenshot_buttons: HashMap<AIAgentActionId, ui_components::button::Button>,
-
     /// Stores the last command that was right-clicked by a child component.
     /// When set, CopyCommand will copy this specific command instead of all commands.
     last_right_clicked_command: Option<String>,
@@ -1346,7 +1341,6 @@ impl AIBlock {
             dismiss_suggestion_button,
             disable_rule_suggestions_button,
             rewind_button,
-            view_screenshot_buttons: Default::default(),
             last_right_clicked_command: None,
             is_usage_footer_expanded: false,
             agent_view_controller,

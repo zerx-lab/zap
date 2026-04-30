@@ -1913,20 +1913,6 @@ impl From<String> for crate::ai::agent::MessageId {
     }
 }
 
-fn convert_api_platform(platform: i32) -> Option<computer_use::Platform> {
-    use api::request_computer_use_result::approved::Platform;
-    match Platform::try_from(platform) {
-        Ok(Platform::Macos) => Some(computer_use::Platform::Mac),
-        Ok(Platform::Windows) => Some(computer_use::Platform::Windows),
-        Ok(Platform::LinuxX11) => Some(computer_use::Platform::LinuxX11),
-        Ok(Platform::LinuxWayland) => Some(computer_use::Platform::LinuxWayland),
-        Err(_) => {
-            log::warn!("Unknown platform value: {platform}");
-            None
-        }
-    }
-}
-
 #[cfg(test)]
 #[path = "convert_conversation_tests.rs"]
 mod tests;
