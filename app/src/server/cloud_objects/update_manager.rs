@@ -4211,8 +4211,18 @@ impl UpdateManager {
     }
 
     pub fn trash_object(&mut self, id: CloudObjectTypeAndId, ctx: &mut ModelContext<Self>) {
-        // // If the object isn't known to the server yet, we can't trash it.
+        // OpenWarp(去中心化分支):本地对象(无 server_id)走纯本地 trash —
+        // 标记 trashed_ts + 写 sqlite。**不 emit ObjectOperationComplete**,
+        // 因为它的多个消费者(notebooks/env_vars/cloud_object/view)都 `.expect` server_id;
+        // Drive UI 已经通过 mark_object_trashed_and_return_timestamps 内部
+        // emit 的 CloudModelEvent::ObjectTrashed 收到通知。
         let Some(server_id) = id.server_id() else {
+            let hashed_id = id.uid();
+            self.mark_object_trashed_and_return_timestamps(&hashed_id, ctx);
+            CloudModel::handle(ctx).update(ctx, |cloud_model, _| {
+                self.save_in_memory_object_to_sqlite(cloud_model, &hashed_id);
+            });
+            ctx.notify();
             return;
         };
 
@@ -4324,8 +4334,23 @@ impl UpdateManager {
     }
 
     pub fn untrash_object(&mut self, id: CloudObjectTypeAndId, ctx: &mut ModelContext<Self>) {
-        // If the object isn't known to the server yet, we can't untrash it.
+        // OpenWarp:本地对象 untrash —— 清掉 trashed_ts + emit ObjectUntrashed + 写 sqlite。
+        // 不 emit ObjectOperationComplete(同 trash_object 的注释)。
         let Some(server_id) = id.server_id() else {
+            let hashed_id = id.uid();
+            CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
+                if let Some(object) = cloud_model.get_mut_by_uid(&hashed_id) {
+                    object.metadata_mut().trashed_ts = None;
+                    ctx.emit(CloudModelEvent::ObjectUntrashed {
+                        type_and_id: object.cloud_object_type_and_id(),
+                        source: UpdateSource::Local,
+                    });
+                }
+            });
+            CloudModel::handle(ctx).update(ctx, |cloud_model, _| {
+                self.save_in_memory_object_to_sqlite(cloud_model, &hashed_id);
+            });
+            ctx.notify();
             return;
         };
 
