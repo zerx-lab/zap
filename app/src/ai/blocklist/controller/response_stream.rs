@@ -37,6 +37,18 @@ struct ByopDispatch {
     /// 是否需要 emit `CreateTask` 把 Optimistic root 升级为 Server task。
     /// 仅首轮(root task 还没 source)需要;再次发会触发 `UnexpectedUpgrade`。
     needs_create_task: bool,
+    /// 标题生成模型参数。仅在首轮(needs_create_task)且 active title_model
+    /// 解码为合法 BYOP id 时填充;否则 `None`,chat_stream 跳过摘要步骤。
+    title_gen: Option<TitleGenParams>,
+}
+
+/// 标题生成专用的 BYOP 配置(可能与主 base 模型同 provider 也可能不同)。
+pub(crate) struct TitleGenParams {
+    pub base_url: String,
+    pub api_key: String,
+    pub model_id: String,
+    pub api_type: crate::settings::AgentProviderApiType,
+    pub reasoning_effort: crate::settings::ReasoningEffortSetting,
 }
 
 fn byop_dispatch_info(
@@ -53,6 +65,27 @@ fn byop_dispatch_info(
     // compute_active_tasks 只返回 `task.source().is_some()` 的 task —
     // 因此非空 ⇒ root 已经升级为 Server 状态,不要再 emit CreateTask。
     let needs_create_task = conversation.compute_active_tasks().is_empty();
+
+    // 标题生成:只在首轮触发(避免每轮重复打标题)。
+    // 解析 active title_model:可能是 base_model 自己,也可能是用户独立选的另一个 BYOP 模型。
+    // 任一模型不是 BYOP 编码(比如 fallback 到非 BYOP 默认),则跳过 — OpenWarp 主路径都是 BYOP,
+    // 实际 fallback 到 base 时,base 自己就是 BYOP。
+    let title_gen = if needs_create_task {
+        let llm_prefs = crate::ai::llms::LLMPreferences::as_ref(ctx);
+        let title_id = llm_prefs.get_active_title_model(ctx, None).id.clone();
+        crate::ai::agent_providers::lookup_byop(ctx, &title_id).map(
+            |(t_provider, t_api_key, t_model_id)| TitleGenParams {
+                base_url: t_provider.base_url,
+                api_key: t_api_key,
+                model_id: t_model_id,
+                api_type: t_provider.api_type,
+                reasoning_effort: t_provider.reasoning_effort,
+            },
+        )
+    } else {
+        None
+    };
+
     Some(ByopDispatch {
         base_url: provider.base_url,
         api_key,
@@ -61,6 +94,7 @@ fn byop_dispatch_info(
         reasoning_effort: provider.reasoning_effort,
         task_id,
         needs_create_task,
+        title_gen,
     })
 }
 
@@ -153,6 +187,15 @@ impl ResponseStream {
                         byop.reasoning_effort,
                         byop.task_id,
                         byop.needs_create_task,
+                        byop.title_gen.map(|t| {
+                            crate::ai::agent_providers::chat_stream::TitleGenInput {
+                                base_url: t.base_url,
+                                api_key: t.api_key,
+                                model_id: t.model_id,
+                                api_type: t.api_type,
+                                reasoning_effort: t.reasoning_effort,
+                            }
+                        }),
                         cancellation_rx,
                     )
                     .await
@@ -233,6 +276,15 @@ impl ResponseStream {
                         byop.reasoning_effort,
                         byop.task_id,
                         byop.needs_create_task,
+                        byop.title_gen.map(|t| {
+                            crate::ai::agent_providers::chat_stream::TitleGenInput {
+                                base_url: t.base_url,
+                                api_key: t.api_key,
+                                model_id: t.model_id,
+                                api_type: t.api_type,
+                                reasoning_effort: t.reasoning_effort,
+                            }
+                        }),
                         cancellation_rx,
                     )
                     .await

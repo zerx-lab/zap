@@ -64,7 +64,6 @@ pub(crate) use view_util::{
     ai_brand_color, ai_indicator_height, get_ai_block_overflow_menu_element_position_id,
     get_attached_blocks_chip_element_position_id, render_ai_agent_mode_icon,
     render_ai_follow_up_icon, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, CLAUDE_ORANGE,
-    NEW_AGENT_PANE_LABEL,
 };
 
 pub(crate) use view_util::format_credits;

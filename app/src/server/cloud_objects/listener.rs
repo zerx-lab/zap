@@ -1,5 +1,4 @@
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
-use crate::report_error;
 use crate::server::{ids::ServerId, retry_strategies::LISTENER_RETRY_STRATEGY};
 use crate::system::{SystemStats, SystemStatsEvent};
 use crate::workspaces::{
@@ -280,11 +279,12 @@ impl Listener {
         }
     }
 
-    fn start_listener(&mut self, ctx: &mut ModelContext<Self>) {
-        if !self.should_subscribe_to_updates {
-            self.should_subscribe_to_updates = true;
-            self.get_warp_drive_updates(ctx);
-        }
+    fn start_listener(&mut self, _ctx: &mut ModelContext<Self>) {
+        // OpenWarp:云端 Drive WebSocket 已禁用。
+        // 原实现会订阅服务端 cloud_objects 更新流,需要 access_token;
+        // OpenWarp 无登录态,Drive 全部走本地 SQLite,不需要这个连接。
+        // 保留 should_subscribe_to_updates = false,使 CPU 唤醒/网络恢复
+        // 分支也不会触发 get_warp_drive_updates。
     }
 
     /// Cancels any pending delayed refresh that was scheduled after a reconnection.
@@ -415,8 +415,9 @@ impl Listener {
                     RequestState::RequestFailedRetryPending(e) => {
                         log::warn!("CloudObjects::Listener: websocket connection failed to connect or finished with an error; trying again: {e:#}");
                     }
-                    RequestState::RequestFailed(e) => {
-                        report_error!(e.context("CloudObjects::Listener websocket connection failed"));
+                    RequestState::RequestFailed(_e) => {
+                        // OpenWarp: 云端 WebSocket 已通过 start_listener no-op 禁用,
+                        // 此分支不再可达;原 report_error! 已移除以避免无登录态噪音日志。
                     }
                 }
             },

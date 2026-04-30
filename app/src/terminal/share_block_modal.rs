@@ -1022,7 +1022,8 @@ impl ShareBlockModal {
                 .finish()
             }
             None => {
-                log::warn!("Tried to render share modal without a model");
+                // OpenWarp:share modal 在云端 block 未就绪时会进到此分支,
+                // 静默渲染空占位,不再打 warn。
                 Empty::new().finish()
             }
         };

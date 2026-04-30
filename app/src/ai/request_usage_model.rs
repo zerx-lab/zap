@@ -1,6 +1,5 @@
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::AIAgentExchangeId;
-use crate::auth::AuthStateProvider;
 use crate::pricing::PricingInfoModel;
 use crate::server::server_api::ai::AIClient;
 use crate::settings::AISettings;
@@ -223,24 +222,10 @@ impl AIRequestUsageModel {
     }
 
     /// Spawns a task to refresh the latest AI request usage and bonus grants, fetching from the server.
-    pub fn refresh_request_usage_async(&mut self, ctx: &mut ModelContext<Self>) {
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            return;
-        }
-
-        let ai_client = self.ai_client.clone();
-        ctx.spawn(
-            async move { ai_client.get_request_limit_info().await },
-            |model, result, ctx| match result {
-                Ok(usage_info) => {
-                    model.bonus_grants = usage_info.bonus_grants;
-                    model.update_request_limit_info(usage_info.request_limit_info, ctx);
-                }
-                Err(e) => {
-                    log::warn!("Failed to retrieve initial request limit info: {e:#}");
-                }
-            },
-        );
+    pub fn refresh_request_usage_async(&mut self, _ctx: &mut ModelContext<Self>) {
+        // OpenWarp:无 Warp Inc 云后端,request limit / bonus grants 概念不适用,
+        // 直接 no-op。原实现的 is_logged_in() 守门在本分支恒为 true,会让
+        // GraphQL 调用进入并因缺少 access_token 报 warn。
     }
 
     pub fn update_request_limit_info(

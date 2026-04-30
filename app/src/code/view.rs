@@ -92,8 +92,6 @@ const TAB_PADDING: f32 = 2.;
 
 // Keybinding constants - exported so AI document view can reuse
 pub const SAVE_FILE_BINDING_NAME: &str = "code_view:save";
-pub const SAVE_FILE_BINDING_DESCRIPTION: &str = "Save file";
-
 pub fn init(app: &mut AppContext) {
     super::editor::view::init(app);
     super::local_code_editor::init(app);
@@ -102,7 +100,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             SAVE_FILE_BINDING_NAME,
-            SAVE_FILE_BINDING_DESCRIPTION,
+            crate::t!("keybinding-desc-save-file"),
             CodeViewAction::SaveFile,
         )
         .with_context_predicate(text_entry.clone())

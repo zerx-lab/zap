@@ -1592,3 +1592,14 @@ keybinding-desc-terminal-toggle-session-recording = Toggle PTY Recording for Ses
 # Notebook editor extra
 keybinding-desc-nbeditor-select-to-paragraph-start = Select to start of paragraph
 keybinding-desc-nbeditor-select-to-paragraph-end = Select to end of paragraph
+
+# Misc binding desc(收尾批次:常量/LazyLock/动态描述去硬编码)
+keybinding-desc-save-file = Save file
+keybinding-desc-new-agent-pane = New Agent Pane
+keybinding-desc-edit-code-diff = Edit Code Diff
+keybinding-desc-edit-requested-command = Edit requested command
+keybinding-desc-set-input-mode-agent = Set Input Mode to Agent Mode
+keybinding-desc-set-input-mode-terminal = Set Input Mode to Terminal Mode
+keybinding-desc-toggle-hide-cli-responses = Toggle Hide CLI Responses
+keybinding-desc-slash-command = Slash command: { $name }
+keybinding-desc-take-control-of-running-command = Take control of running command

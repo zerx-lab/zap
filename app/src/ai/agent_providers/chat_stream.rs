@@ -739,8 +739,20 @@ fn map_genai_error(err: genai::Error) -> OpenAiCompatibleError {
 // 主流程
 // ---------------------------------------------------------------------------
 
+/// 标题生成所需的 BYOP 配置。可能与主请求同 provider 也可能不同(用户在 Profile
+/// Editor 里独立选了 title_model)。`None` 时跳过摘要步骤。
+pub struct TitleGenInput {
+    pub base_url: String,
+    pub api_key: String,
+    pub model_id: String,
+    pub api_type: AgentProviderApiType,
+    pub reasoning_effort: crate::settings::ReasoningEffortSetting,
+}
+
 /// `task_id`: conversation 的 root task id(controller 端从 history model 取)。
 /// `needs_create_task`: 仅首轮(root 还是 Optimistic)需要 emit `CreateTask`。
+/// `title_gen`: 仅首轮且 active title_model 可解析为 BYOP 时填充;非 None 时
+/// 在主流程结束后单独发一次摘要请求,把 task description(= 会话标题)写回。
 pub async fn generate_byop_output(
     params: RequestParams,
     base_url: String,
@@ -750,6 +762,7 @@ pub async fn generate_byop_output(
     reasoning_effort: crate::settings::ReasoningEffortSetting,
     task_id: String,
     needs_create_task: bool,
+    title_gen: Option<TitleGenInput>,
     _cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let chat_req = build_chat_request(&params);
@@ -1043,10 +1056,105 @@ pub async fn generate_byop_output(
             yield Ok(make_add_messages_event(&task_id, final_messages));
         }
 
+        // 标题生成:首轮在所有主流消息发完之后,用 title_model 单独发一次短请求,
+        // 把生成的简短标题作为 `Action::UpdateTaskDescription` 注入下游 conversation,
+        // 这样 `task.description()` 非空,`AIConversation::title()` 优先返回它。
+        if let Some(tg) = title_gen.as_ref() {
+            if let Some(query) = pending_user_queries.first().cloned() {
+                match generate_title_via_byop(tg, &query).await {
+                    Ok(Some(title)) => {
+                        log::info!("[byop] title generated: {title:?}");
+                        yield Ok(make_update_task_description_event(&task_id, title));
+                    }
+                    Ok(None) => {
+                        log::warn!("[byop] title gen returned empty content; skip");
+                    }
+                    Err(e) => {
+                        log::warn!("[byop] title gen failed: {e:#}; skip");
+                    }
+                }
+            }
+        }
+
         yield Ok(make_finished_done());
     };
 
     Ok(Box::pin(stream))
+}
+
+/// 用独立 BYOP 配置发一个短的非工具请求,要求模型对首条 user query 输出一个
+/// 5–10 词的会话标题。所有错误吞掉(返回 Err 让上游打 warn log,不影响主流程)。
+async fn generate_title_via_byop(
+    tg: &TitleGenInput,
+    user_query: &str,
+) -> Result<Option<String>, anyhow::Error> {
+    let client = build_client(tg.api_type, tg.base_url.clone(), tg.api_key.clone());
+
+    // 标题专用 ChatOptions:不 capture 任何流式片段,reasoning 不需要。
+    // 标题生成不应触发 thinking — 大多数模型会把 reasoning 跑得比标题本身还长,浪费 token。
+    let opts = ChatOptions::default()
+        .with_capture_content(true)
+        .with_capture_usage(true);
+
+    // 中英双语都覆盖的 system,要求 plain text(无引号、无 markdown)。
+    let system = "You generate concise conversation titles. \
+                  Reply with ONLY a 4-8 word title (no quotes, no punctuation at the end, no markdown). \
+                  Match the language of the user's message. \
+                  Do not answer the question — just title it.";
+    let user_short = if user_query.chars().count() > 1000 {
+        user_query.chars().take(1000).collect::<String>()
+    } else {
+        user_query.to_owned()
+    };
+    let chat_req = ChatRequest::from_messages(vec![ChatMessage::user(user_short)])
+        .with_system(system.to_owned());
+
+    let resp = client
+        .exec_chat(&tg.model_id, chat_req, Some(&opts))
+        .await
+        .map_err(|e| anyhow::anyhow!("title gen exec_chat failed: {e}"))?;
+
+    let raw = resp.first_text().unwrap_or("").to_owned();
+    Ok(sanitize_title(&raw))
+}
+
+/// 清洗 title 文本:trim、剥引号/反引号、去尾标点、截断到 80 字符上限。
+/// 空字符串 → None(让上游跳过 emit)。
+fn sanitize_title(raw: &str) -> Option<String> {
+    let mut s = raw.trim().to_owned();
+    // 剥首尾引号(中英文)。
+    let quotes = ['"', '\'', '`', '“', '”', '‘', '’', '《', '》'];
+    while let Some(c) = s.chars().next() {
+        if quotes.contains(&c) {
+            s.remove(0);
+        } else {
+            break;
+        }
+    }
+    while let Some(c) = s.chars().last() {
+        if quotes.contains(&c) {
+            let new_len = s.len() - c.len_utf8();
+            s.truncate(new_len);
+        } else {
+            break;
+        }
+    }
+    // 去尾标点。
+    while let Some(c) = s.chars().last() {
+        if matches!(c, '.' | '。' | '!' | '!' | '?' | '?' | ',' | ',' | ';' | ';') {
+            let new_len = s.len() - c.len_utf8();
+            s.truncate(new_len);
+        } else {
+            break;
+        }
+    }
+    let s = s.trim().to_owned();
+    if s.is_empty() {
+        return None;
+    }
+    // 80 字符截断(按 char 而不是 byte,保护 CJK)。
+    let truncated: String = s.chars().take(80).collect();
+    Some(truncated)
 }
 
 // ---------------------------------------------------------------------------
@@ -1244,6 +1352,23 @@ fn make_tool_call_message(
         })),
         request_id: request_id.to_owned(),
         timestamp: None,
+    }
+}
+
+fn make_update_task_description_event(task_id: &str, description: String) -> api::ResponseEvent {
+    api::ResponseEvent {
+        r#type: Some(api::response_event::Type::ClientActions(
+            api::response_event::ClientActions {
+                actions: vec![api::ClientAction {
+                    action: Some(api::client_action::Action::UpdateTaskDescription(
+                        api::client_action::UpdateTaskDescription {
+                            task_id: task_id.to_owned(),
+                            description,
+                        },
+                    )),
+                }],
+            },
+        )),
     }
 }
 

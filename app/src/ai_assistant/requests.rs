@@ -136,15 +136,9 @@ impl Requests {
             ai_execution_context: None,
         };
 
-        if cached_request_limit_info.is_none()
-            && AuthStateProvider::as_ref(ctx).get().is_logged_in()
-        {
-            let ai_client = requests.ai_client.clone();
-            let _ = ctx.spawn(
-                async move { ai_client.get_request_limit_info().await },
-                Self::update_request_limit_info,
-            );
-        }
+        // OpenWarp:无 Warp Inc 云后端,初始 request_limit_info 不再向服务端拉取;
+        // 使用上面 cached / default 的值即可。
+        let _ = cached_request_limit_info;
         requests
     }
 

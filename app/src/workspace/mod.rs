@@ -21,7 +21,6 @@ mod toast_stack;
 pub mod util;
 pub mod view;
 
-use crate::ai::blocklist::NEW_AGENT_PANE_LABEL;
 use crate::ai::skills::SkillManager;
 use crate::ai::AIRequestUsageModel;
 use crate::channel::Channel;
@@ -1192,7 +1191,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "workspace:toggle_ai_assistant",
-            *NEW_AGENT_PANE_LABEL,
+            crate::t!("keybinding-desc-new-agent-pane"),
             WorkspaceAction::NewPaneInAgentMode {
                 entrypoint: AgentModeEntrypoint::NewPaneBinding,
                 zero_state_prompt_suggestion_type: None,
