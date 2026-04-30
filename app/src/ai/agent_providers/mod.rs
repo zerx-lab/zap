@@ -12,6 +12,7 @@
 pub mod chat_stream;
 pub mod llm_id;
 pub mod openai_compatible;
+pub mod prompt_renderer;
 pub mod secrets;
 pub mod tools;
 

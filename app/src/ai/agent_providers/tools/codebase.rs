@@ -87,10 +87,7 @@ fn result_to_json(result: &api::message::tool_call_result::Result) -> Option<Val
 
 pub static SEARCH_CODEBASE: OpenAiTool = OpenAiTool {
     name: "search_codebase",
-    description: "用自然语言对代码库做语义化搜索(基于 embeddings + 符号索引)。\
-                  当你不知道关键字、只有概念性描述时优先用本工具,否则用 grep。\
-                  **仅 Local 会话支持**(即用户当前在本地工作目录,且代码库已被索引);\
-                  跨远程会话或未索引目录会返回 error,这种情况请改用 grep + file_glob 组合。",
+    description: include_str!("../prompts/tool_descriptions/search_codebase.md"),
     parameters,
     from_args,
     result_to_json,

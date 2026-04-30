@@ -1,0 +1,8 @@
+{% if project_rules %}
+# Project rules
+The user has the following project rules configured. Treat them as authoritative project conventions.
+{% for rule in project_rules %}
+## {{ rule.path }}
+{{ rule.content }}
+{% endfor %}
+{% endif %}

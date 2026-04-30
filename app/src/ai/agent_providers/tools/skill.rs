@@ -76,9 +76,7 @@ fn result_to_json(result: &api::message::tool_call_result::Result) -> Option<Val
 
 pub static READ_SKILL: OpenAiTool = OpenAiTool {
     name: "read_skill",
-    description: "读取 Warp Skill markdown 模板(用户/项目预定义的工作流提示)。\
-                  传入 SKILL.md 的绝对路径,返回完整 markdown 内容。\
-                  当用户提到具体 skill 名 / 路径,或当前任务匹配已知 skill 描述时使用。",
+    description: include_str!("../prompts/tool_descriptions/read_skill.md"),
     parameters,
     from_args,
     result_to_json,

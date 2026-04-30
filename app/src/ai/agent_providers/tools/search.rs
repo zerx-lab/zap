@@ -81,10 +81,7 @@ fn grep_result_to_json(result: &api::message::tool_call_result::Result) -> Optio
 
 pub static GREP: OpenAiTool = OpenAiTool {
     name: "grep",
-    description: "在指定路径(文件或目录)下**逐行**搜索关键字或正则,返回匹配的文件路径 + 行号列表。\
-                  queries 数组里任一模式命中即算匹配(OR 语义)。区分大小写。仅匹配单行,跨行模式不支持。\
-                  比 run_shell_command 调用 grep/rg 更快更安全(只读、自动通过审批,无需 shell 解析)。\
-                  优先输入**裸标识符**(如 'InProgressQuote'),避免复杂正则 — `.*\\d+` 等贪婪模式跨 token 通常 0 命中。",
+    description: include_str!("../prompts/tool_descriptions/grep.md"),
     parameters: grep_parameters,
     from_args: grep_from_args,
     result_to_json: grep_result_to_json,
@@ -171,11 +168,7 @@ fn glob_result_to_json(result: &api::message::tool_call_result::Result) -> Optio
 
 pub static FILE_GLOB_V2: OpenAiTool = OpenAiTool {
     name: "file_glob",
-    description: "用文件名通配符查找文件路径。支持 `?`(单字符)、`*`(单层任意)、\
-                  `**`(跨层递归,如 `**/*.rs` 匹配所有 .rs)、`[abc]`(字符集)。\
-                  patterns 数组任一命中即返回(OR 语义)。\
-                  优先用本工具而不是 shell 调 find/ls(更快、自动通过审批、跨平台)。\
-                  limit=0 表示不限条数(默认)。",
+    description: include_str!("../prompts/tool_descriptions/file_glob.md"),
     parameters: glob_parameters,
     from_args: glob_from_args,
     result_to_json: glob_result_to_json,

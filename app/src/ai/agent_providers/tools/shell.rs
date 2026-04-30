@@ -115,15 +115,7 @@ fn result_to_json(result: &api::message::tool_call_result::Result) -> Option<Val
 
 pub static RUN_SHELL_COMMAND: OpenAiTool = OpenAiTool {
     name: "run_shell_command",
-    description: "在用户当前 shell 中执行命令并返回 stdout/stderr 与 exit code。\
-                  【关键】对于 dev server / watcher / tail -f / 交互式 REPL 等持续进程,\
-                  必须传 wait_until_complete=false,否则会一直挂起永远等不到结束。\
-                  拿到 LongRunningCommandSnapshot 里的 command_id 之后:\
-                  用 read_shell_command_output 读最新输出、\
-                  用 write_to_long_running_shell_command 发输入(raw mode 写 \\x03 可发 Ctrl-C 终止)。\
-                  只读命令(ls/cat/git status 等)保持默认 wait_until_complete=true 即可,\
-                  is_read_only=true 时更易自动通过审批。\
-                  命令需要用户审批后才会真正执行(除非配置了 auto-approve / allowlist)。",
+    description: include_str!("../prompts/tool_descriptions/run_shell_command.md"),
     parameters,
     from_args,
     result_to_json,

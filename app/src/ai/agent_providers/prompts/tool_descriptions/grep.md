@@ -1,0 +1,8 @@
+- Fast content search tool that works with any codebase size.
+- Searches file contents using regular expressions.
+- Supports full regex syntax (e.g. "log.*Error", "function\s+\w+", etc).
+- Filter the search by passing a directory or single-file `path`. Optionally restrict file types via the `include` glob (e.g. "*.ts", "*.{ts,tsx}").
+- Returns file paths and line numbers with at least one match, sorted by modification time.
+- Use this tool when you need to find files containing specific patterns.
+- If you need to count matches per file, run `run_shell_command` with `rg` directly. Do NOT use `grep` (the binary) for content search via `run_shell_command` — use this tool instead.
+- For open-ended exploration that may need multiple rounds of globbing and grepping, alternate between this tool and `file_glob`, then narrow down to specific files with `read_files`.

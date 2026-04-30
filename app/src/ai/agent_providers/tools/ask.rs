@@ -154,8 +154,7 @@ fn result_to_json(result: &api::message::tool_call_result::Result) -> Option<Val
 
 pub static ASK_USER_QUESTION: OpenAiTool = OpenAiTool {
     name: "ask_user_question",
-    description: "在用户指令含歧义、选错代价高时,主动向用户反问(单选/多选/可附自由补全)。\
-                  避免用于琐碎确认(如「是否继续」之类)。一次最多发 1-2 个 question。",
+    description: include_str!("../prompts/tool_descriptions/ask_user_question.md"),
     parameters,
     from_args,
     result_to_json,

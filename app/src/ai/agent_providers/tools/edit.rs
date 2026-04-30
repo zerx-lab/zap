@@ -153,9 +153,7 @@ fn result_to_json(result: &api::message::tool_call_result::Result) -> Option<Val
 
 pub static APPLY_FILE_DIFFS: OpenAiTool = OpenAiTool {
     name: "apply_file_diffs",
-    description: "批量编辑文件:支持字符串替换 (edit)、创建新文件 (create)、删除文件 (delete)。\
-                  操作会触发用户审批弹窗(除非 profile 里 ApplyCodeDiffs=AlwaysAllow)。\
-                  edit 的 search 必须与文件中现有内容**完全一致**(含空白和换行),否则失败。",
+    description: include_str!("../prompts/tool_descriptions/apply_file_diffs.md"),
     parameters,
     from_args,
     result_to_json,

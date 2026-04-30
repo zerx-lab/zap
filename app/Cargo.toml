@@ -111,6 +111,9 @@ async-openai.workspace = true
 getset.workspace = true
 handlebars.workspace = true
 hex.workspace = true
+# BYOP system prompt 模板渲染。轻量(运行时引擎,无重依赖),Jinja2 子集,
+# 支持 if/for/include/extends,debug 下可走文件 loader 热加载。
+minijinja = { version = "2", default-features = false, features = ["builtins", "loader"] }
 http.workspace = true
 http_client.workspace = true
 image.workspace = true

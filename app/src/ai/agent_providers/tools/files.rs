@@ -131,8 +131,7 @@ fn result_to_json(result: &api::message::tool_call_result::Result) -> Option<Val
 
 pub static READ_FILES: OpenAiTool = OpenAiTool {
     name: "read_files",
-    description: "读取一个或多个文件的内容。可指定每个文件的行号区间(1-based,闭区间);\
-                  不指定则读整个文件。返回 JSON: { files: [{path, content}, ...] }。",
+    description: include_str!("../prompts/tool_descriptions/read_files.md"),
     parameters,
     from_args,
     result_to_json,

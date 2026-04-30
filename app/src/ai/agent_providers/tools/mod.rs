@@ -21,13 +21,16 @@
 
 pub mod ask;
 pub mod codebase;
+pub mod documents;
 pub mod edit;
 pub mod files;
 pub mod long_shell;
+pub mod markers;
 pub mod mcp;
 pub mod search;
 pub mod shell;
 pub mod skill;
+pub mod suggest;
 
 use anyhow::Result;
 use serde_json::Value;
@@ -62,6 +65,17 @@ pub const REGISTRY: &[&OpenAiTool] = &[
     &long_shell::READ_SHELL_COMMAND_OUTPUT,
     &ask::ASK_USER_QUESTION,
     &skill::READ_SKILL,
+    // 本地文档系统(AIDocumentModel)
+    &documents::READ_DOCUMENTS,
+    &documents::EDIT_DOCUMENTS,
+    &documents::CREATE_DOCUMENTS,
+    // 用户建议类(本地 channel + UI)
+    &suggest::SUGGEST_NEW_CONVERSATION,
+    &suggest::SUGGEST_PROMPT,
+    // UI marker(无副作用,信号通知前端)
+    &markers::OPEN_CODE_REVIEW,
+    &markers::INIT_PROJECT,
+    &markers::TRANSFER_SHELL_CONTROL,
 ];
 
 /// 按 OpenAI function name 反查注册表。
@@ -137,6 +151,14 @@ pub fn serialize_action_result(action: &AIAgentActionResult) -> Option<String> {
         ReqR::ReadMcpResource(r) => MsgR::ReadMcpResource(r),
         ReqR::AskUserQuestion(r) => MsgR::AskUserQuestion(r),
         ReqR::ReadSkill(r) => MsgR::ReadSkill(r),
+        ReqR::ReadDocuments(r) => MsgR::ReadDocuments(r),
+        ReqR::EditDocuments(r) => MsgR::EditDocuments(r),
+        ReqR::CreateDocuments(r) => MsgR::CreateDocuments(r),
+        ReqR::SuggestNewConversation(r) => MsgR::SuggestNewConversation(r),
+        ReqR::SuggestPrompt(r) => MsgR::SuggestPrompt(r),
+        ReqR::OpenCodeReview(r) => MsgR::OpenCodeReview(r),
+        ReqR::InitProject(r) => MsgR::InitProject(r),
+        ReqR::TransferShellCommandControlToUser(r) => MsgR::TransferShellCommandControlToUser(r),
         _ => return None,
     };
 

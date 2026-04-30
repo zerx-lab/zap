@@ -104,13 +104,7 @@ fn write_result_to_json(result: &api::message::tool_call_result::Result) -> Opti
 
 pub static WRITE_TO_LONG_RUNNING_SHELL_COMMAND: OpenAiTool = OpenAiTool {
     name: "write_to_long_running_shell_command",
-    description: "向一个长运行 shell 命令的 stdin/PTY 写文本(交互式输入或终止信号)。\
-                  command_id 必须来自前一轮 run_shell_command(wait_until_complete=false)返回的 \
-                  LongRunningCommandSnapshot.command_id;不能凭空构造、不能跨 session 复用。\
-                  mode=line 自动加换行(默认,适合一般输入);\
-                  mode=raw 原始字节(发 \\x03 终止进程、\\t 补全、方向键等控制序列必须用 raw);\
-                  mode=block 多行块。\
-                  返回 status=running 表示进程还在跑、completed 表示已退出、error 表示 command_id 失效。",
+    description: include_str!("../prompts/tool_descriptions/write_to_long_running_shell_command.md"),
     parameters: write_parameters,
     from_args: write_from_args,
     result_to_json: write_result_to_json,
@@ -195,12 +189,7 @@ fn read_result_to_json(result: &api::message::tool_call_result::Result) -> Optio
 
 pub static READ_SHELL_COMMAND_OUTPUT: OpenAiTool = OpenAiTool {
     name: "read_shell_command_output",
-    description: "读取一个长运行 shell 命令的当前 stdout 快照。\
-                  command_id 来源同 write_to_long_running_shell_command(必须先有 \
-                  run_shell_command(wait_until_complete=false) 的 snapshot)。\
-                  delay_seconds 不填 = 阻塞到命令自然结束才返回(谨慎使用,dev server 不会自己退出);\
-                  delay_seconds=N(秒) = N 秒后返回当前 snapshot,不管命令有没有结束(轮询输出推荐用法)。\
-                  返回 status=running 时 output 是当前已收到的 stdout 累积。",
+    description: include_str!("../prompts/tool_descriptions/read_shell_command_output.md"),
     parameters: read_parameters,
     from_args: read_from_args,
     result_to_json: read_result_to_json,
