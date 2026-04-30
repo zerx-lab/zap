@@ -1,12 +1,11 @@
 //! 自定义 Agent Provider 设置面板 widget。
 //!
 //! UI 形态:
-//! - Sub-header + 简短说明
+//! - Sub-header (标题左 + 右上角 `+ 添加提供商` 小按钮) + 简短说明
 //! - 每条 provider 一张卡片,卡片内含:
 //!     · `Name` / `Base URL` / `API Key` 三个输入框 (失焦/Enter 时保存)
 //!     · 模型列表区: 表头 `显示名 | 模型 ID`,每行两个输入框 + `×` 删除按钮
 //!     · 底部按钮行: `+ 添加模型` `Fetch from API` `Remove` (provider)
-//! - 底部 "Add OpenAI-compatible provider" 整宽按钮
 //!
 //! 当 provider 列表大小或某条 provider 的 models 数量变化时,
 //! `AISettingsPageView::rebuild_current_page` 会被触发以重建整个 widget,
@@ -42,9 +41,7 @@ use crate::settings::{
 use strum::IntoEnumIterator;
 
 use super::ai_page::{AISettingsPageAction, AISettingsPageView};
-use super::settings_page::{
-    build_sub_header, render_full_pane_width_ai_button, SettingsWidget, HEADER_PADDING,
-};
+use super::settings_page::{build_sub_header, SettingsWidget, HEADER_PADDING};
 
 const CARD_BUTTON_FONT_SIZE: f32 = 12.0;
 const CARD_BUTTON_PADDING: f32 = 6.0;
@@ -1071,7 +1068,7 @@ impl SettingsWidget for AgentProvidersWidget {
         let is_any_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
         let providers = AISettings::as_ref(app).agent_providers.value().clone();
 
-        let header = build_sub_header(
+        let title_node = build_sub_header(
             appearance,
             crate::t!("settings-agent-providers-title"),
             Some(if is_any_ai_enabled {
@@ -1079,6 +1076,22 @@ impl SettingsWidget for AgentProvidersWidget {
             } else {
                 appearance.theme().disabled_ui_text_color()
             }),
+        )
+        .finish();
+
+        let header_add_button = Self::render_card_button(
+            crate::t!("settings-agent-providers-add-button"),
+            self.add_button_state.clone(),
+            AISettingsPageAction::AddAgentProvider,
+            appearance,
+        );
+
+        let header = Container::new(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(Expanded::new(1., title_node).finish())
+                .with_child(header_add_button)
+                .finish(),
         )
         .with_padding_bottom(HEADER_PADDING)
         .finish();
@@ -1124,15 +1137,6 @@ impl SettingsWidget for AgentProvidersWidget {
                 column.add_child(self.render_provider_card(provider, appearance, app));
             }
         }
-
-        let add_button = render_full_pane_width_ai_button(
-            &crate::t!("settings-agent-providers-add-button"),
-            is_any_ai_enabled,
-            self.add_button_state.clone(),
-            AISettingsPageAction::AddAgentProvider,
-            appearance,
-        );
-        column.add_child(add_button);
 
         Container::new(column.finish())
             .with_margin_bottom(HEADER_PADDING)
