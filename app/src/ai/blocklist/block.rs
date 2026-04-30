@@ -1848,13 +1848,6 @@ impl AIBlock {
                     .or_default();
             }
 
-            // Ensure a button component exists for UseComputer actions.
-            if matches!(&action.action, AIAgentActionType::UseComputer(_)) {
-                self.view_screenshot_buttons
-                    .entry(action.id.clone())
-                    .or_default();
-            }
-
             match action {
                 AIAgentAction {
                     id: action_id,
@@ -6304,74 +6297,8 @@ impl TypedActionView for AIBlock {
             AIBlockAction::OpenCommentInGitHub { url } => {
                 ctx.open_url(url);
             }
-            AIBlockAction::ViewScreenshot { action_id } => {
-                // Collect all UseComputer action IDs across the entire conversation
-                // so the lightbox can navigate between their screenshots.
-                let conversation_id = self.client_ids.conversation_id;
-
-                let use_computer_action_ids: Vec<AIAgentActionId> =
-                    BlocklistAIHistoryModel::as_ref(ctx)
-                        .conversation(&conversation_id)
-                        .into_iter()
-                        .flat_map(|c| c.use_computer_action_ids())
-                        .collect();
-
-                // Build lightbox images for each action that has a screenshot result.
-                // We Arc::clone the result each iteration to release the immutable
-                // borrow on ctx, allowing the mutable AssetCache update in the same
-                // loop body. Arc::clone is just a refcount bump (no data copied).
-                let mut screenshot_action_ids: Vec<&AIAgentActionId> = Vec::new();
-                let mut images: Vec<ui_components::lightbox::LightboxImage> = Vec::new();
-                for action_id in &use_computer_action_ids {
-                    let Some(result) = self
-                        .action_model
-                        .as_ref(ctx)
-                        .get_action_result(action_id)
-                        .map(Arc::clone)
-                    else {
-                        continue;
-                    };
-                    let AIAgentActionResultType::UseComputer(
-                        crate::ai::agent::UseComputerResult::Success(computer_use::ActionResult {
-                            screenshot: Some(screenshot),
-                            ..
-                        }),
-                    ) = &result.result
-                    else {
-                        continue;
-                    };
-                    let asset_id = format!("screenshot-{action_id}");
-                    AssetCache::handle(ctx).update(ctx, |asset_cache, ctx| {
-                        asset_cache.insert_raw_asset_bytes::<ImageType>(
-                            asset_id.clone(),
-                            &screenshot.data,
-                            ctx,
-                        );
-                    });
-                    images.push(ui_components::lightbox::LightboxImage {
-                        source: ui_components::lightbox::LightboxImageSource::Resolved {
-                            asset_source: warpui::assets::asset_cache::AssetSource::Raw {
-                                id: asset_id,
-                            },
-                        },
-                        description: None,
-                    });
-                    screenshot_action_ids.push(action_id);
-                }
-
-                if images.is_empty() {
-                    return;
-                }
-
-                let initial_index = screenshot_action_ids
-                    .iter()
-                    .position(|id| *id == action_id)
-                    .unwrap_or(0);
-
-                ctx.dispatch_typed_action(&WorkspaceAction::OpenLightbox {
-                    images,
-                    initial_index,
-                });
+            AIBlockAction::ViewScreenshot { action_id: _ } => {
+                // Computer Use 已被移除,screenshot lightbox 不再可用。
             }
         }
         ctx.notify();

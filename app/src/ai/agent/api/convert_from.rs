@@ -684,11 +684,10 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::TransferShellCommandControlToUser(
                 transfer_shell_command_control_to_user,
             ) => create_standard_action(transfer_shell_command_control_to_user.into()),
-            api::message::tool_call::Tool::UseComputer(use_computer) => {
-                create_standard_action(use_computer.try_into()?)
-            }
-            api::message::tool_call::Tool::RequestComputerUse(request_computer_use) => {
-                create_standard_action(request_computer_use.into())
+            api::message::tool_call::Tool::UseComputer(_)
+            | api::message::tool_call::Tool::RequestComputerUse(_) => {
+                // Computer Use 已被移除,模型即便发起这两类调用也不 dispatch。
+                return Err(ToolToAIAgentActionError::UnexpectedTool);
             }
             api::message::tool_call::Tool::Subagent(subagent) => {
                 use api::message::tool_call::subagent::Metadata;

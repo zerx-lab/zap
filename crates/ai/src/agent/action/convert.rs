@@ -11,7 +11,6 @@ use crate::{
             AIAgentActionType, AIAgentPtyWriteMode, CommentSide, FileEdit, InsertReviewComment,
             InsertedCommentLine, InsertedCommentLocation, ReadFilesRequest, ReadSkillRequest,
             SearchCodebaseRequest, ShellCommandDelay, SuggestPromptRequest, UploadArtifactRequest,
-            UseComputerRequest,
         },
         action_result::{AnyFileContent, FileContext},
         convert::ToolToAIAgentActionError,
@@ -417,91 +416,6 @@ impl From<api::message::tool_call::TransferShellCommandControlToUser> for AIAgen
         AIAgentActionType::TransferShellCommandControlToUser {
             reason: value.reason,
         }
-    }
-}
-
-impl TryFrom<api::message::tool_call::UseComputer> for AIAgentActionType {
-    type Error = ToolToAIAgentActionError;
-
-    fn try_from(value: api::message::tool_call::UseComputer) -> Result<Self, Self::Error> {
-        use api::message::tool_call::use_computer;
-
-        let actions = value
-            .actions
-            .into_iter()
-            .map(|action| {
-                let Some(action_type) = action.r#type else {
-                    return Err(ToolToAIAgentActionError::MissingComputerUseActionType);
-                };
-                match action_type {
-                    use_computer::action::Type::MouseMove(mouse_move) => {
-                        Ok(computer_use::Action::MouseMove {
-                            to: coordinates_to_vec(mouse_move.to.as_ref())?,
-                        })
-                    }
-                    use_computer::action::Type::MouseDown(mouse_down) => {
-                        Ok(computer_use::Action::MouseDown {
-                            button: to_computer_use_button(mouse_down.button()),
-                            at: coordinates_to_vec(mouse_down.at.as_ref())?,
-                        })
-                    }
-                    use_computer::action::Type::MouseUp(mouse_up) => {
-                        Ok(computer_use::Action::MouseUp {
-                            button: to_computer_use_button(mouse_up.button()),
-                        })
-                    }
-                    use_computer::action::Type::MouseWheel(mouse_wheel) => {
-                        let direction = to_scroll_direction(mouse_wheel.direction());
-                        let distance = to_scroll_distance(mouse_wheel.distance)?;
-                        Ok(computer_use::Action::MouseWheel {
-                            at: coordinates_to_vec(mouse_wheel.at.as_ref())?,
-                            direction,
-                            distance,
-                        })
-                    }
-                    use_computer::action::Type::Wait(wait) => {
-                        let duration = wait.duration.unwrap_or_default();
-                        if duration.seconds < 0 || duration.nanos < 0 {
-                            return Err(ToolToAIAgentActionError::InvalidComputerUseWaitDuration);
-                        }
-                        let duration = Duration::from_secs(duration.seconds as u64)
-                            + Duration::from_nanos(duration.nanos as u64);
-                        Ok(computer_use::Action::Wait(duration))
-                    }
-                    use_computer::action::Type::TypeText(type_text) => {
-                        Ok(computer_use::Action::TypeText {
-                            text: type_text.text,
-                        })
-                    }
-                    use_computer::action::Type::KeyDown(key_down) => {
-                        let key = convert_key(key_down.key)?;
-                        Ok(computer_use::Action::KeyDown { key })
-                    }
-                    use_computer::action::Type::KeyUp(key_up) => {
-                        let key = convert_key(key_up.key)?;
-                        Ok(computer_use::Action::KeyUp { key })
-                    }
-                }
-            })
-            .try_collect()?;
-        let screenshot_params = value
-            .post_actions_screenshot_params
-            .map(convert_screenshot_params);
-        Ok(AIAgentActionType::UseComputer(UseComputerRequest {
-            action_summary: value.action_summary,
-            actions,
-            screenshot_params,
-        }))
-    }
-}
-
-impl From<api::message::tool_call::RequestComputerUse> for AIAgentActionType {
-    fn from(value: api::message::tool_call::RequestComputerUse) -> Self {
-        use crate::agent::action::RequestComputerUseRequest;
-        AIAgentActionType::RequestComputerUse(RequestComputerUseRequest {
-            task_summary: value.task_summary,
-            screenshot_params: value.screenshot_params.map(convert_screenshot_params),
-        })
     }
 }
 

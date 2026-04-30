@@ -34,8 +34,7 @@ use crate::terminal::model::block::BlockId;
 use crate::terminal::model::terminal_model::BlockIndex;
 use ai::agent::action_result::{
     AskUserQuestionAnswerItem, AskUserQuestionResult, FetchConversationResult, ReadSkillResult,
-    RequestComputerUseResult, SendMessageToAgentResult, StartAgentResult, StartAgentVersion,
-    UseComputerResult,
+    SendMessageToAgentResult, StartAgentResult, StartAgentVersion,
 };
 use ai::skills::ParsedSkill;
 use chrono::{DateTime, Local, TimeZone};
@@ -1310,90 +1309,10 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::UseComputer(result)) => {
-            let use_computer_result = match &result.result {
-                Some(api::use_computer_result::Result::Success(success)) => {
-                    let screenshot = success.screenshot.as_ref().map(|s| {
-                        // The original dimensions are not preserved through the API, so we use
-                        // the current dimensions for both.
-                        computer_use::Screenshot {
-                            width: s.width as usize,
-                            height: s.height as usize,
-                            original_width: s.width as usize,
-                            original_height: s.height as usize,
-                            data: s.data.clone(),
-                            mime_type: s.mime_type.clone().into(),
-                        }
-                    });
-                    let cursor_position = success
-                        .cursor_position
-                        .as_ref()
-                        .map(|c| computer_use::Vector2I::new(c.x, c.y));
-                    UseComputerResult::Success(computer_use::ActionResult {
-                        screenshot,
-                        cursor_position,
-                    })
-                }
-                Some(api::use_computer_result::Result::Error(error)) => {
-                    UseComputerResult::Error(error.message.clone())
-                }
-                None => UseComputerResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::UseComputer(use_computer_result),
-                },
-                context,
-            })
-        }
-        Some(ToolCallResultType::RequestComputerUseResult(result)) => {
-            let request_result = match &result.result {
-                Some(api::request_computer_use_result::Result::Approved(approved)) => {
-                    match (approved, convert_api_platform(approved.platform)) {
-                        (
-                            api::request_computer_use_result::Approved {
-                                screen_dimensions: Some(screen_dimensions),
-                                initial_screenshot: Some(initial_screenshot),
-                                ..
-                            },
-                            Some(platform),
-                        ) => RequestComputerUseResult::Approved {
-                            screenshot: computer_use::Screenshot {
-                                width: initial_screenshot.width as usize,
-                                height: initial_screenshot.height as usize,
-                                original_width: screen_dimensions.width_px as usize,
-                                original_height: screen_dimensions.height_px as usize,
-                                data: initial_screenshot.data.clone(),
-                                mime_type: initial_screenshot.mime_type.clone().into(),
-                            },
-                            platform,
-                        },
-                        _ => RequestComputerUseResult::Error(
-                            "Missing screen dimensions, initial screenshot, or valid platform"
-                                .to_string(),
-                        ),
-                    }
-                }
-                Some(api::request_computer_use_result::Result::Rejected(_)) => {
-                    RequestComputerUseResult::Cancelled
-                }
-                Some(api::request_computer_use_result::Result::Error(error)) => {
-                    RequestComputerUseResult::Error(error.message.clone())
-                }
-                None => RequestComputerUseResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::RequestComputerUse(request_result),
-                },
-                context,
-            })
+        Some(ToolCallResultType::UseComputer(_))
+        | Some(ToolCallResultType::RequestComputerUseResult(_)) => {
+            // Computer Use 已被移除,历史记录中遇到这两类 result 直接忽略。
+            None
         }
         Some(ToolCallResultType::FetchConversation(result)) => {
             let fetch_result = match &result.result {
@@ -1645,11 +1564,9 @@ fn create_cancelled_result_for_tool_call(
                 TransferShellCommandControlToUserResult::Cancelled,
             )
         }
-        ToolType::UseComputer(_) => {
-            AIAgentActionResultType::UseComputer(UseComputerResult::Cancelled)
-        }
-        ToolType::RequestComputerUse(_) => {
-            AIAgentActionResultType::RequestComputerUse(RequestComputerUseResult::Cancelled)
+        ToolType::UseComputer(_) | ToolType::RequestComputerUse(_) => {
+            // Computer Use 已被移除,转换路径不应再被命中。
+            return None;
         }
         ToolType::FetchConversation(_) => {
             AIAgentActionResultType::FetchConversation(FetchConversationResult::Cancelled)

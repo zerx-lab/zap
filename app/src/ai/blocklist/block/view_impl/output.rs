@@ -34,9 +34,7 @@ use crate::AIAgentTodoList;
 #[allow(unused_imports)]
 use std::path::{Component, Path, PathBuf};
 
-use ai::agent::action::{
-    RequestComputerUseRequest, SuggestPromptRequest, UploadArtifactRequest, UseComputerRequest,
-};
+use ai::agent::action::{SuggestPromptRequest, UploadArtifactRequest};
 use ai::skills::SkillReference;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
@@ -683,14 +681,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             }
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::UseComputer(request),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_use_computer(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::ReadSkill(request),
                             id,
                             ..
@@ -710,15 +700,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                         }) => {
                             should_render_footer = false;
                             output_items.add_child(render_upload_artifact(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::RequestComputerUse(request),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items
-                                .add_child(render_request_computer_use(props, id, request, app));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
                             action:
@@ -2693,105 +2674,7 @@ fn render_upload_artifact(
     renderable_action.render(app).finish()
 }
 
-fn render_use_computer(
-    props: Props,
-    action_id: &AIAgentActionId,
-    request: &UseComputerRequest,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::handle(app).as_ref(app);
-
-    let mut renderable_action = RenderableAction::new(&request.action_summary, app)
-        .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-
-    // Add a "View screenshot" button if the action result contains a screenshot.
-    let has_screenshot = props
-        .action_model
-        .as_ref(app)
-        .get_action_result(action_id)
-        .is_some_and(|result| {
-            matches!(
-                &result.result,
-                AIAgentActionResultType::UseComputer(
-                    crate::ai::agent::UseComputerResult::Success(action_result)
-                ) if action_result.screenshot.is_some()
-            )
-        });
-
-    if has_screenshot {
-        let action_id_clone = action_id.clone();
-        let view_screenshot_button = props.view_screenshot_buttons.get(action_id).map(|btn| {
-            btn.render(
-                appearance,
-                button::Params {
-                    content: button::Content::Label("View screenshot".into()),
-                    theme: &button::themes::Secondary,
-                    options: button::Options {
-                        size: button::Size::Small,
-                        on_click: Some(Box::new(move |ctx, _, _| {
-                            ctx.dispatch_typed_action(AIBlockAction::ViewScreenshot {
-                                action_id: action_id_clone.clone(),
-                            });
-                        })),
-                        ..button::Options::default(appearance)
-                    },
-                },
-            )
-        });
-
-        if let Some(button_element) = view_screenshot_button {
-            renderable_action = renderable_action.with_action_button(button_element);
-        }
-    }
-
-    renderable_action.render(app).finish()
-}
-
-fn render_request_computer_use(
-    props: Props,
-    action_id: &AIAgentActionId,
-    request: &RequestComputerUseRequest,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let status = props.action_model.as_ref(app).get_action_status(action_id);
-
-    let mut renderable_action = RenderableAction::new(&request.task_summary, app);
-
-    if status.as_ref().is_some_and(|status| status.is_blocked()) {
-        let buttons = props
-            .action_buttons
-            .get(action_id)
-            .expect("Button states must exist for each requested action.");
-
-        renderable_action = renderable_action
-            .with_header(blocked_action_header(
-                action_id.clone(),
-                "OK if I use computer control for this task?",
-                buttons.run_button.clone(),
-                buttons.cancel_button.clone(),
-                props.action_model,
-                props.model,
-                app,
-            ))
-            .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
-    } else {
-        if (props.model.status(app).is_streaming()
-            && !props.model.is_first_action_in_output(action_id, app))
-            || status.as_ref().is_some_and(|s| s.is_queued())
-        {
-            renderable_action = renderable_action.with_font_color(blended_colors::text_disabled(
-                appearance.theme(),
-                appearance.theme().surface_2(),
-            ));
-        }
-        renderable_action = renderable_action
-            .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-    }
-
-    renderable_action.render(app).finish()
-}
+// Computer Use 已被移除:render_use_computer / render_request_computer_use 函数已删。
 
 /// Renders the collapsible references footer
 /// if there are any citations.

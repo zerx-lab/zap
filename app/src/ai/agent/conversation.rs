@@ -1248,23 +1248,9 @@ impl AIConversation {
         })
     }
 
-    /// Returns an iterator over the IDs of all UseComputer actions across all exchanges
-    /// in this conversation.
+    /// Computer Use 已被移除,保留空 iterator 以兼容调用点。
     pub fn use_computer_action_ids(&self) -> impl Iterator<Item = AIAgentActionId> + '_ {
-        self.all_exchanges().into_iter().flat_map(|exchange| {
-            exchange
-                .output_status
-                .output()
-                .into_iter()
-                .flat_map(|output| {
-                    output
-                        .get()
-                        .actions()
-                        .filter(|a| matches!(a.action, super::AIAgentActionType::UseComputer(_)))
-                        .map(|a| a.id.clone())
-                        .collect::<Vec<_>>()
-                })
-        })
+        std::iter::empty()
     }
 
     pub fn contains_action(&self, action_id: &AIAgentActionId) -> bool {
