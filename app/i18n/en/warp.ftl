@@ -229,9 +229,150 @@ settings-warpify-tmux-description = The tmux ssh wrapper works in many situation
 settings-warpify-ssh-tmux-toggle-binding-label = SSH session detection for Warpification
 
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
-# 此锚点下放 settings_view/ai_page.rs 剩余字符串(已有 settings-ai-* 6 个 key 不动)
-# 命名前缀:settings-ai-*
-# (待 agent-settings-ai-page 填充)
+# Section / sub-headers
+settings-ai-warp-agent-header = Warp Agent
+settings-ai-active-ai-section = Active AI
+settings-ai-input-section = Input
+settings-ai-mcp-servers-section = MCP Servers
+settings-ai-knowledge-section = Knowledge
+settings-ai-voice-section = Voice
+settings-ai-other-section = Other
+settings-ai-third-party-cli-section = Third party CLI agents
+settings-ai-agent-attribution-section = Agent Attribution
+settings-ai-experimental-section = Experimental
+settings-ai-aws-bedrock-section = AWS Bedrock
+settings-ai-agents-header = Agents
+settings-ai-profiles-header = Profiles
+settings-ai-models-subheader = Models
+settings-ai-permissions-subheader = Permissions
+settings-ai-usage-header = Usage
+settings-ai-credits-label = Credits
+
+# Active AI toggle labels
+settings-ai-next-command-label = Next Command
+settings-ai-prompt-suggestions-label = Prompt Suggestions
+settings-ai-suggested-code-banners-label = Suggested Code Banners
+settings-ai-natural-language-autosuggestions-label = Natural Language Autosuggestions
+settings-ai-shared-block-title-generation-label = Shared Block Title Generation
+settings-ai-git-operations-autogen-label = Commit & Pull Request Generation
+
+# Permissions dropdown options
+settings-ai-permission-agent-decides = Agent decides
+settings-ai-permission-always-allow = Always allow
+settings-ai-permission-always-ask = Always ask
+settings-ai-permission-ask-on-first-write = Ask on first write
+settings-ai-permission-read-only = Read only
+settings-ai-permission-supervised = Supervised
+settings-ai-permission-allow-specific-dirs = Allow in specific directories
+
+# Permission row labels
+settings-ai-apply-code-diffs = Apply code diffs
+settings-ai-read-files = Read files
+settings-ai-execute-commands = Execute commands
+settings-ai-interact-running-commands = Interact with running commands
+settings-ai-call-mcp-servers = Call MCP servers
+settings-ai-command-denylist = Command denylist
+settings-ai-command-denylist-description = Regular expressions to match commands that the Warp Agent should always ask permission to execute.
+settings-ai-command-allowlist = Command allowlist
+settings-ai-command-allowlist-description = Regular expressions to match commands that can be automatically executed by the Warp Agent.
+settings-ai-directory-allowlist = Directory allowlist
+settings-ai-directory-allowlist-description = Give the agent file access to certain directories.
+settings-ai-mcp-allowlist = MCP allowlist
+settings-ai-mcp-allowlist-description = Allow the Warp Agent to call these MCP servers.
+settings-ai-mcp-denylist = MCP denylist
+settings-ai-mcp-denylist-description = The Warp Agent will always ask for permission before calling any MCP servers on this list.
+settings-ai-info-banner-managed-by-workspace = Some of your permissions are managed by your workspace.
+
+# Models / Profiles
+settings-ai-base-model = Base model
+settings-ai-base-model-description = This model serves as the primary engine behind the Warp Agent. It powers most interactions and invokes other models for tasks like planning or code generation when necessary. Warp may automatically switch to alternate models based on model availability or for auxiliary tasks such as conversation summarization.
+settings-ai-show-model-picker-in-prompt = Show model picker in prompt
+settings-ai-codebase-context = Codebase Context
+settings-ai-codebase-context-description = Allow the Warp Agent to generate an outline of your codebase that can be used for context. No code is ever stored on our servers.
+settings-ai-add-profile = Add Profile
+settings-ai-agents-description = Set the boundaries for how your Agent operates. Choose what it can access, how much autonomy it has, and when it must ask for your approval. You can also fine-tune behavior around natural language input, codebase awareness, and more.
+settings-ai-profiles-description = Profiles let you define how your Agent operates — from the actions it can take and when it needs approval, to the models it uses for tasks like coding and planning. You can also scope them to individual projects.
+
+# Anonymous / org gates
+settings-ai-sign-up = Sign up
+settings-ai-anonymous-create-account = To use AI features, please create an account.
+settings-ai-org-disallows-remote-session = Your organization disallows AI when the active pane contains content from a remote session
+settings-ai-org-enforced-tooltip = This option is enforced by your organization's settings and cannot be customized.
+settings-ai-restricted-billing = Restricted due to billing issue
+settings-ai-unlimited = Unlimited
+
+# AI Input section
+settings-ai-show-input-hint-text = Show input hint text
+settings-ai-show-agent-tips = Show agent tips
+settings-ai-include-agent-commands-in-history = Include agent-executed commands in history
+settings-ai-autodetect-agent-prompts = Autodetect agent prompts in terminal input
+settings-ai-autodetect-terminal-commands = Autodetect terminal commands in agent input
+settings-ai-natural-language-detection = Natural language detection
+settings-ai-natural-language-denylist = Natural language denylist
+settings-ai-natural-language-denylist-description = Commands listed here will never trigger natural language detection.
+settings-ai-let-us-know = Let us know
+
+# MCP Servers
+settings-ai-learn-more = Learn more
+settings-ai-add-server = Add a server
+settings-ai-manage-mcp-servers = Manage MCP servers
+settings-ai-file-based-mcp-toggle = Auto-spawn servers from third-party agents
+settings-ai-file-based-mcp-supported-providers = See supported providers.
+settings-ai-mcp-dropdown-header = Select MCP servers
+
+# Knowledge / Rules
+settings-ai-rules-label = Rules
+settings-ai-suggested-rules-label = Suggested Rules
+settings-ai-suggested-rules-description = Let AI suggest rules to save based on your interactions.
+settings-ai-manage-rules = Manage rules
+
+# Voice
+settings-ai-voice-input-label = Voice Input
+settings-ai-voice-key = Key for Activating Voice Input
+settings-ai-voice-key-hint = Press and hold to activate.
+
+# Other section
+settings-ai-show-oz-changelog = Show Oz changelog in new conversation view
+settings-ai-show-use-agent-footer = Show "Use Agent" footer
+settings-ai-use-agent-footer-description = Shows hint to use the "Full Terminal Use"-enabled agent in long running commands.
+settings-ai-show-conversation-history = Show conversation history in tools panel
+settings-ai-thinking-display = Agent thinking display
+settings-ai-thinking-display-description = Controls how reasoning/thinking traces are displayed.
+settings-ai-conversation-layout-label = Preferred layout when opening existing agent conversations
+settings-ai-conversation-layout-newtab = New Tab
+settings-ai-conversation-layout-splitpane = Split Pane
+settings-ai-toolbar-layout = Toolbar layout
+
+# Third-party CLI agents
+settings-ai-show-coding-agent-toolbar = Show coding agent toolbar
+settings-ai-auto-show-rich-input = Auto show/hide Rich Input based on agent status
+settings-ai-auto-show-rich-input-tooltip = Requires the Warp plugin for your coding agent
+settings-ai-auto-open-rich-input = Auto open Rich Input when a coding agent session starts
+settings-ai-auto-dismiss-rich-input = Auto dismiss Rich Input after prompt submission
+settings-ai-toolbar-commands-label = Commands that enable the toolbar
+settings-ai-toolbar-commands-description = Add regex patterns to show the coding agent toolbar for matching commands.
+settings-ai-coding-agent-other = Other
+settings-ai-coding-agent-select-header = Select coding agent
+
+# Agent Attribution
+settings-ai-enable-agent-attribution = Enable agent attribution
+settings-ai-agent-attribution-description = Oz can add attribution to commit messages and pull requests it creates
+
+# Experimental / Cloud Agent
+settings-ai-cloud-agent-computer-use = Computer use in Cloud Agents
+settings-ai-cloud-agent-computer-use-description = Enable computer use in cloud agent conversations started from the Warp app.
+settings-ai-orchestration-label = Orchestration
+settings-ai-orchestration-description = Enable multi-agent orchestration, allowing the agent to spawn and coordinate parallel sub-agents.
+
+# AWS Bedrock
+settings-ai-aws-bedrock-toggle = Use AWS Bedrock credentials
+settings-ai-aws-bedrock-description = Warp loads and sends local AWS CLI credentials for Bedrock-supported models.
+settings-ai-aws-bedrock-description-managed = Warp loads and sends local AWS CLI credentials for Bedrock-supported models. This setting is managed by your organization.
+settings-ai-aws-login-command = Login Command
+settings-ai-aws-profile = AWS Profile
+settings-ai-aws-auto-login = Automatically run login command
+settings-ai-aws-auto-login-description = When enabled, the login command will run automatically when AWS Bedrock credentials expire.
+settings-ai-refresh = Refresh
 
 # --- ANCHOR-SUB-FEATURES (agent-settings-features) ---
 # settings_view/features_page.rs P0 + P1(category + toggle labels)
