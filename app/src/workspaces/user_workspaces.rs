@@ -617,13 +617,29 @@ impl UserWorkspaces {
         spaces
     }
 
-    // Returns the [`Owner`] for the user's personal drive. If the user is not authenticated, this
-    // returns `None`.
-    pub fn personal_drive(&self, ctx: &AppContext) -> Option<Owner> {
+    // OpenWarp(去中心化分支)本地常量 user_uid。
+    // 无 auth 时 personal_drive() 用它构造 Owner,owner_to_space() 也认它为 Personal。
+    // 必须保持稳定,否则重启后旧对象 owner 字段对不上,Personal Space 列表里"看不见"旧数据。
+    fn local_personal_user_uid() -> UserUid {
+        UserUid::new("openwarp")
+    }
+
+    // 当前用于"个人 Drive"的 user_uid:有登录走 auth,无登录走本地常量。
+    fn effective_personal_user_uid(ctx: &AppContext) -> UserUid {
         AuthStateProvider::as_ref(ctx)
             .get()
             .user_id()
-            .map(|user_uid| Owner::User { user_uid })
+            .unwrap_or_else(Self::local_personal_user_uid)
+    }
+
+    // Returns the [`Owner`] for the user's personal drive.
+    // OpenWarp:无 auth 时回退到 local_personal_user_uid(),让 Drive Personal 空间下的
+    // Workflow / EnvVar / Folder / Notebook / Import 等 Create 动作能在本地走通
+    // (只本地 sqlite 持久化,SyncQueue 上行无 auth 自然 no-op)。
+    pub fn personal_drive(&self, ctx: &AppContext) -> Option<Owner> {
+        Some(Owner::User {
+            user_uid: Self::effective_personal_user_uid(ctx),
+        })
     }
 
     // Maps a [`Space`] into an [`Owner`], based on the user's team memberships. If the space
@@ -645,8 +661,9 @@ impl UserWorkspaces {
                     return Space::Personal;
                 }
 
-                let current_user = AuthStateProvider::as_ref(ctx).get().user_id();
-                if Some(user_uid) == current_user {
+                // OpenWarp:用 effective_personal_user_uid 比较,确保无 auth 下
+                // 本地 Owner(user_uid="openwarp")也归到 Personal 而非 Shared。
+                if user_uid == Self::effective_personal_user_uid(ctx) {
                     Space::Personal
                 } else {
                     Space::Shared

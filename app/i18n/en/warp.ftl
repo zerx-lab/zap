@@ -140,6 +140,90 @@ settings-mcp-install-modal-busy = Finish the current MCP install before opening 
 settings-mcp-unknown-server = Unknown MCP server '{$name}'
 settings-mcp-install-from-link-failed = MCP server '{$name}' cannot be installed from this link.
 
+# ---- destructive_mcp_confirmation_dialog.rs ----
+settings-mcp-confirm-delete-local-title = Delete MCP server?
+settings-mcp-confirm-delete-local-description = This will uninstall and remove this MCP server from all your devices.
+settings-mcp-confirm-delete-shared-title = Delete shared MCP server?
+settings-mcp-confirm-delete-shared-description = This will not only delete this MCP server for yourself, but also uninstall and remove this MCP server from Warp and across all of your teammates' devices.
+settings-mcp-confirm-unshare-title = Remove shared MCP server from team?
+settings-mcp-confirm-unshare-description = This will uninstall and remove this MCP server from Warp and across all of your teammates' devices.
+settings-mcp-confirm-delete-button = Delete MCP
+settings-mcp-confirm-remove-from-team-button = Remove from team
+settings-mcp-confirm-cancel-button = Cancel
+
+# ---- edit_page.rs ----
+settings-mcp-edit-save = Save
+settings-mcp-edit-edit-variables = Edit Variables
+settings-mcp-edit-delete = Delete MCP
+settings-mcp-edit-remove-from-team = Remove from team
+settings-mcp-edit-editing-disabled-banner = Only team admins and the creator of the MCP server can edit the MCP server.
+settings-mcp-edit-add-new-title = Add New MCP Server
+settings-mcp-edit-edit-named-title = Edit { $name } MCP Server
+settings-mcp-edit-edit-title = Edit MCP Server
+settings-mcp-edit-logout-tooltip = Log out
+settings-mcp-edit-secrets-error = This MCP server contains secrets. Visit Settings > Privacy to modify your secret redaction settings.
+settings-mcp-edit-no-server-error = No MCP Server specified.
+settings-mcp-edit-multiple-servers-error = Cannot add multiple MCP servers while editing a single server.
+
+# ---- installation_modal.rs ----
+settings-mcp-install-modal-title = Install { $name }
+settings-mcp-install-modal-source-shared = Shared from team
+settings-mcp-install-modal-source-other-device = From another device
+settings-mcp-install-modal-cancel = Cancel
+settings-mcp-install-modal-install = Install
+settings-mcp-install-modal-no-server = No MCP server selected
+
+# ---- list_page.rs ----
+settings-mcp-list-description = Add MCP servers to extend the Warp Agent's capabilities. MCP servers expose data sources or tools to agents through a standardized interface, essentially acting like plugins. Add a custom server, or use the presets to get started with popular servers. You can also find team servers that have been shared with you here.
+settings-mcp-list-learn-more = Learn more.
+settings-mcp-list-empty-state = Once you add a MCP server, it will be shown here.
+settings-mcp-list-no-search-results = No search results found
+settings-mcp-list-search-placeholder = Search MCP Servers
+settings-mcp-list-add-button = Add
+settings-mcp-list-file-based-toggle-label = Auto-spawn servers from third-party agents
+settings-mcp-list-file-based-description = Automatically detect and spawn MCP servers from globally-scoped third-party AI agent configuration files (e.g. in your home directory). Servers detected inside a repository are never spawned automatically and must be enabled individually in the "Detected from" sections below.
+settings-mcp-list-file-based-supported-providers = See supported providers.
+settings-mcp-list-template-available-to-install = Available to install
+settings-mcp-list-file-based-detected = Detected from config file
+settings-mcp-list-toast-server-updated = MCP server updated
+settings-mcp-list-section-my-mcps = My MCPs
+settings-mcp-list-section-shared-by-warp-and-team = Shared by Warp and { $name }
+settings-mcp-list-section-shared-by-warp-and-other-devices = Shared by Warp and from other devices
+settings-mcp-list-section-shared-from-warp = Shared from Warp
+settings-mcp-list-section-detected-from = Detected from { $provider }
+settings-mcp-list-chip-global = global
+settings-mcp-list-chip-shared-by-creator = Shared by: { $creator }
+settings-mcp-list-chip-shared-by-team-member = Shared by a team member
+settings-mcp-list-chip-from-another-device = From another device
+
+# ---- server_card.rs ----
+settings-mcp-card-tooltip-show-logs = Show logs
+settings-mcp-card-tooltip-log-out = Log out
+settings-mcp-card-tooltip-share-server = Share server
+settings-mcp-card-tooltip-edit = Edit
+settings-mcp-card-tooltip-update-available = Server update available
+settings-mcp-card-button-view-logs = View logs
+settings-mcp-card-button-edit-config = Edit config
+settings-mcp-card-button-set-up = Set up
+settings-mcp-card-tools-none = No tools available
+settings-mcp-card-tools-available = { $count } tools available
+settings-mcp-card-status-offline = Offline
+settings-mcp-card-status-starting = Starting server...
+settings-mcp-card-status-authenticating = Authenticating...
+settings-mcp-card-status-shutting-down = Shutting down...
+
+# ---- update_modal.rs ----
+settings-mcp-update-modal-default-name = Server
+settings-mcp-update-modal-title = Update { $name }
+settings-mcp-update-modal-description = This server has { $count } updates available, which would you like to proceed with?
+settings-mcp-update-modal-publisher-another-device = another device
+settings-mcp-update-modal-publisher-team-member = a team member
+settings-mcp-update-modal-update-from = Update from { $publisher }
+settings-mcp-update-modal-version = Version { $version }
+settings-mcp-update-modal-cancel = Cancel
+settings-mcp-update-modal-update = Update
+settings-mcp-update-modal-no-updates = No updates available
+
 # --- ANCHOR-SUB-PLATFORM (agent-settings-platform) ---
 # 此锚点下放 settings_view/platform_page.rs 字符串
 # 命名前缀:settings-platform-*
@@ -325,6 +409,7 @@ settings-ai-rules-label = Rules
 settings-ai-suggested-rules-label = Suggested Rules
 settings-ai-suggested-rules-description = Let AI suggest rules to save based on your interactions.
 settings-ai-manage-rules = Manage rules
+settings-ai-rules-description = Rules help the Warp Agent follow your conventions, whether for codebases or specific workflows.
 
 # Voice
 settings-ai-voice-input-label = Voice Input
@@ -546,6 +631,11 @@ settings-confirm-delete-environment-description = Are you sure you want to remov
 # ---- directory_color_add_picker.rs ----
 settings-color-picker-add-directory-footer = + Add directory…
 settings-color-picker-add-directory-color = Add directory color
+
+# ---- settings_file_footer.rs ----
+settings-footer-open-file = Open settings file
+settings-footer-alert-open-file = Open file
+settings-footer-alert-fix-with-oz = Fix with Oz
 
 # --- ANCHOR-SUB-CODE (agent-settings-code) ---
 settings-code-feature-name = Code
@@ -1013,3 +1103,196 @@ quit-warning-unsaved-changes = You have unsaved file changes
 # Unsaved code changes for a specific editor tab.
 quit-warning-unsaved-editor-tab = Do you want to save the changes you made to { $file }? Your changes will be discarded if you don't save them.
 quit-warning-unsaved-editor-tab-fallback-name = this file
+
+# --- ANCHOR-SUB-RULES-PAGE (agent-rules-page) ---
+# Manage Rules 页面(Warp Drive 中的 AI Fact Collection)。
+rules-collection-name = Rules
+
+# --- ANCHOR-SUB-KEYBINDING-DESC (agent-keybinding-descriptions) ---
+# Description 文案 for keyboard binding entries shown in the Settings >
+# Keyboard Shortcuts page and the command palette. Each key corresponds to
+# a binding registered via `EditableBinding::new(name, description, action)`
+# or `BindingDescription::new("…")`. The binding `name` (e.g.
+# `workspace:open_settings_file`) is **not** translated — it is a protocol
+# field used to persist user-customised shortcuts.
+
+# Tabs / sessions
+keybinding-desc-workspace-cycle-next-session = Switch to next tab
+keybinding-desc-workspace-cycle-prev-session = Switch to previous tab
+keybinding-desc-workspace-add-window = Create New Window
+keybinding-desc-workspace-new-file = New File
+keybinding-desc-workspace-zoom-in = Zoom In
+keybinding-desc-workspace-zoom-out = Zoom Out
+keybinding-desc-workspace-reset-zoom = Reset Zoom
+keybinding-desc-workspace-increase-font-size = Increase font size
+keybinding-desc-workspace-decrease-font-size = Decrease font size
+keybinding-desc-workspace-reset-font-size = Reset font size to default
+keybinding-desc-workspace-increase-zoom = Increase zoom level
+keybinding-desc-workspace-decrease-zoom = Decrease zoom level
+keybinding-desc-workspace-reset-zoom-level = Reset zoom level to default
+keybinding-desc-workspace-save-launch-config = Save new launch configuration
+
+# Project Explorer / panels
+keybinding-desc-workspace-toggle-project-explorer = Toggle project explorer
+keybinding-desc-workspace-toggle-project-explorer-menu = Project Explorer
+keybinding-desc-workspace-show-theme-chooser = Open theme picker
+keybinding-desc-workspace-toggle-tab-configs-menu = Open tab configs menu
+
+# Switch to N-th tab
+keybinding-desc-workspace-activate-1st-tab = Switch to 1st tab
+keybinding-desc-workspace-activate-2nd-tab = Switch to 2nd tab
+keybinding-desc-workspace-activate-3rd-tab = Switch to 3rd tab
+keybinding-desc-workspace-activate-4th-tab = Switch to 4th tab
+keybinding-desc-workspace-activate-5th-tab = Switch to 5th tab
+keybinding-desc-workspace-activate-6th-tab = Switch to 6th tab
+keybinding-desc-workspace-activate-7th-tab = Switch to 7th tab
+keybinding-desc-workspace-activate-8th-tab = Switch to 8th tab
+keybinding-desc-workspace-activate-last-tab = Switch to last tab
+keybinding-desc-workspace-activate-prev-tab = Activate previous tab
+keybinding-desc-workspace-activate-next-tab = Activate next tab
+
+# Pane navigation
+keybinding-desc-pane-group-navigate-prev = Activate previous pane
+keybinding-desc-pane-group-navigate-next = Activate next pane
+
+# Mouse / Notebooks / Workflows / Folders
+keybinding-desc-workspace-toggle-mouse-reporting = Toggle Mouse Reporting
+keybinding-desc-workspace-create-team-notebook = Create a new team notebook
+keybinding-desc-workspace-create-team-notebook-menu = New Team Notebook
+keybinding-desc-workspace-create-personal-notebook = Create a new personal notebook
+keybinding-desc-workspace-create-personal-notebook-menu = New Personal Notebook
+keybinding-desc-workspace-create-team-workflow = Create a new team workflow
+keybinding-desc-workspace-create-team-workflow-menu = New Team Workflow
+keybinding-desc-workspace-create-personal-workflow = Create a new personal workflow
+keybinding-desc-workspace-create-personal-workflow-menu = New Personal Workflow
+keybinding-desc-workspace-create-team-folder = Create a new team folder
+keybinding-desc-workspace-create-team-folder-menu = New Team Folder
+keybinding-desc-workspace-create-personal-folder = Create a new personal folder
+keybinding-desc-workspace-create-personal-folder-menu = New Personal Folder
+
+# New tab variants
+keybinding-desc-workspace-new-tab = Create new tab
+keybinding-desc-workspace-new-terminal-tab = New Terminal Tab
+keybinding-desc-workspace-new-agent-tab = New Agent Tab
+keybinding-desc-workspace-new-cloud-agent-tab = New Cloud Agent Tab
+
+# Left / right panel toggles
+keybinding-desc-workspace-toggle-left-panel = Open Left Panel
+keybinding-desc-workspace-toggle-right-panel = Toggle code review
+keybinding-desc-workspace-toggle-right-panel-menu = Toggle Code Review
+keybinding-desc-workspace-toggle-vertical-tabs = Toggle vertical tabs panel
+keybinding-desc-workspace-toggle-vertical-tabs-menu = Toggle Vertical Tabs Panel
+keybinding-desc-workspace-left-panel-agent-conversations = Left Panel: Agent conversations
+keybinding-desc-workspace-left-panel-project-explorer = Left Panel: Project explorer
+keybinding-desc-workspace-left-panel-global-search = Left Panel: Global search
+keybinding-desc-workspace-left-panel-warp-drive = Left Panel: Warp Drive
+keybinding-desc-workspace-open-global-search = Open global search
+keybinding-desc-workspace-open-global-search-menu = Global Search
+keybinding-desc-workspace-toggle-warp-drive = Toggle Warp Drive
+keybinding-desc-workspace-toggle-warp-drive-menu = Warp Drive
+keybinding-desc-workspace-toggle-conversation-list-view = Toggle Agent conversation list view
+keybinding-desc-workspace-toggle-conversation-list-view-menu = Agent conversation list view
+keybinding-desc-workspace-close-panel = Close focused panel
+
+# Command palette / navigation
+keybinding-desc-workspace-toggle-command-palette = Toggle command palette
+keybinding-desc-workspace-toggle-command-palette-menu = Command Palette
+keybinding-desc-workspace-toggle-navigation-palette = Toggle navigation palette
+keybinding-desc-workspace-toggle-navigation-palette-menu = Navigation Palette
+keybinding-desc-workspace-toggle-launch-config-palette = Launch configuration palette
+keybinding-desc-workspace-toggle-files-palette = Toggle Files Palette
+keybinding-desc-workspace-search-drive = Search Warp Drive
+keybinding-desc-workspace-move-tab-left = Move tab left
+keybinding-desc-workspace-move-tab-up = move tab up
+keybinding-desc-workspace-move-tab-right = Move tab right
+keybinding-desc-workspace-move-tab-down = move tab down
+
+# Keybindings settings
+keybinding-desc-workspace-toggle-keybindings-page = Toggle keyboard shortcuts
+keybinding-desc-workspace-show-keybinding-settings = Open keybindings editor
+keybinding-desc-workspace-toggle-block-snackbar = Toggle sticky command header
+
+# Window / tab close
+keybinding-desc-workspace-rename-active-tab = Rename the current tab
+keybinding-desc-workspace-terminate-app = Quit Warp
+keybinding-desc-workspace-close-window = Close Window
+keybinding-desc-workspace-close-active-tab = Close the current tab
+keybinding-desc-workspace-close-other-tabs = Close other tabs
+keybinding-desc-workspace-close-tabs-right = Close tabs to the right
+keybinding-desc-workspace-close-tabs-below = close tabs below
+
+# Notifications
+keybinding-desc-workspace-toggle-notifications-on = Turn notifications on
+keybinding-desc-workspace-toggle-notifications-off = Turn notifications off
+
+# Updates / changelog
+keybinding-desc-workspace-update-and-relaunch = Install update and relaunch
+keybinding-desc-workspace-check-for-updates = Check for updates
+keybinding-desc-workspace-view-changelog = View latest changelog
+
+# Resource center / Drive export / CLI
+keybinding-desc-workspace-toggle-resource-center = Toggle resource center
+keybinding-desc-workspace-export-all-warp-drive-objects = Export all Warp Drive objects
+keybinding-desc-workspace-install-cli = Install Oz CLI command
+keybinding-desc-workspace-uninstall-cli = Uninstall Oz CLI command
+
+# AI assistant / agents
+keybinding-desc-workspace-toggle-ai-assistant = Toggle Warp AI
+
+# Env vars / prompts
+keybinding-desc-workspace-create-team-env-vars = Create new team environment variables
+keybinding-desc-workspace-create-team-env-vars-menu = New Team Environment Variables
+keybinding-desc-workspace-create-personal-env-vars = Create new personal environment variables
+keybinding-desc-workspace-create-personal-env-vars-menu = New Personal Environment Variables
+keybinding-desc-workspace-create-personal-ai-prompt = Create a new personal prompt
+keybinding-desc-workspace-create-personal-ai-prompt-menu = New Personal Prompt
+keybinding-desc-workspace-create-team-ai-prompt = Create a new team prompt
+keybinding-desc-workspace-create-team-ai-prompt-menu = New Team Prompt
+
+# Focus / import
+keybinding-desc-workspace-shift-focus-left = Switch Focus to Left Panel
+keybinding-desc-workspace-shift-focus-right = Switch Focus to Right Panel
+keybinding-desc-workspace-import-to-personal-drive = Import To Personal Drive
+keybinding-desc-workspace-import-to-team-drive = Import To Team Drive
+
+# Drive / repository / AI rules / MCP
+keybinding-desc-workspace-open-repository = Open repository
+keybinding-desc-workspace-open-repository-menu = Open Repository
+keybinding-desc-workspace-open-ai-fact-collection = Open AI Rules
+keybinding-desc-workspace-open-mcp-servers = Open MCP Servers
+keybinding-desc-workspace-jump-to-latest-toast = Jump to latest agent task
+keybinding-desc-workspace-toggle-notification-mailbox = Toggle notification mailbox
+keybinding-desc-workspace-toggle-agent-management-view = Toggle the agent management view
+
+# Settings pages
+keybinding-desc-workspace-show-settings = Open Settings
+keybinding-desc-workspace-show-settings-menu = Settings
+keybinding-desc-workspace-show-settings-account = Open Settings: Account
+keybinding-desc-workspace-show-settings-appearance = Open Settings: Appearance
+keybinding-desc-workspace-show-settings-appearance-menu = Appearance...
+keybinding-desc-workspace-show-settings-features = Open Settings: Features
+keybinding-desc-workspace-show-settings-shared-blocks = Open Settings: Shared Blocks
+keybinding-desc-workspace-show-settings-shared-blocks-menu = View Shared Blocks...
+keybinding-desc-workspace-show-settings-keyboard-shortcuts = Open Settings: Keyboard Shortcuts
+keybinding-desc-workspace-show-settings-keyboard-shortcuts-menu = Configure Keyboard Shortcuts...
+keybinding-desc-workspace-show-settings-about = Open Settings: About
+keybinding-desc-workspace-show-settings-about-menu = About Warp
+keybinding-desc-workspace-show-settings-teams = Open Settings: Teams
+keybinding-desc-workspace-show-settings-teams-menu = Open Team Settings
+keybinding-desc-workspace-show-settings-privacy = Open Settings: Privacy
+keybinding-desc-workspace-show-settings-warpify = Open Settings: Warpify
+keybinding-desc-workspace-show-settings-warpify-menu = Configure Warpify...
+keybinding-desc-workspace-show-settings-ai = Open Settings: AI
+keybinding-desc-workspace-show-settings-code = Open Settings: Code
+keybinding-desc-workspace-show-settings-referrals = Open Settings: Referrals
+keybinding-desc-workspace-show-settings-environments = Open Settings: Environments
+keybinding-desc-workspace-show-settings-mcp-servers = Open Settings: MCP Servers
+keybinding-desc-workspace-open-settings-file = Open settings file
+
+# Overflow menu / external links
+keybinding-desc-workspace-link-to-slack = Join our Slack community (opens external link)
+keybinding-desc-workspace-link-to-user-docs = View user docs (opens external link)
+keybinding-desc-workspace-send-feedback = Send feedback (opens external link)
+keybinding-desc-workspace-send-feedback-oz = Send feedback with Oz
+keybinding-desc-workspace-view-logs = View Warp logs
+keybinding-desc-workspace-link-to-privacy-policy = View privacy policy (opens external link)

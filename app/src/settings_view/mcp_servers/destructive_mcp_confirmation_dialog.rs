@@ -59,22 +59,22 @@ impl From<&DestructiveMCPConfirmationDialogVariant>
     fn from(variant: &DestructiveMCPConfirmationDialogVariant) -> Self {
         match *variant {
             DestructiveMCPConfirmationDialogVariant::DeleteLocal => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Delete MCP server?".to_string(),
-                "This will uninstall and remove this MCP server from all your devices.".to_string(),
-                "Delete MCP".to_string(),
-                "Cancel".to_string(),
+                crate::t!("settings-mcp-confirm-delete-local-title"),
+                crate::t!("settings-mcp-confirm-delete-local-description"),
+                crate::t!("settings-mcp-confirm-delete-button"),
+                crate::t!("settings-mcp-confirm-cancel-button"),
             ),
             DestructiveMCPConfirmationDialogVariant::DeleteShared => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Delete shared MCP server?".to_string(),
-                "This will not only delete this MCP server for yourself, but also uninstall and remove this MCP server from Warp and across all of your teammates' devices.".to_string(),
-                "Delete MCP".to_string(),
-                "Cancel".to_string(),
+                crate::t!("settings-mcp-confirm-delete-shared-title"),
+                crate::t!("settings-mcp-confirm-delete-shared-description"),
+                crate::t!("settings-mcp-confirm-delete-button"),
+                crate::t!("settings-mcp-confirm-cancel-button"),
             ),
             DestructiveMCPConfirmationDialogVariant::Unshare => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                "Remove shared MCP server from team?".to_string(),
-                "This will uninstall and remove this MCP server from Warp and across all of your teammates' devices.".to_string(),
-                "Remove from team".to_string(),
-                "Cancel".to_string(),
+                crate::t!("settings-mcp-confirm-unshare-title"),
+                crate::t!("settings-mcp-confirm-unshare-description"),
+                crate::t!("settings-mcp-confirm-remove-from-team-button"),
+                crate::t!("settings-mcp-confirm-cancel-button"),
             ),
         }
     }

@@ -17,15 +17,6 @@ pub static AGENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     argument: Some(Argument::optional().with_execute_on_selection()),
 });
 
-pub static CLOUD_AGENT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
-    name: "/cloud-agent",
-    description: "Start a new cloud agent conversation",
-    icon_path: "bundled/svg/oz-cloud.svg",
-    availability: Availability::AI_ENABLED,
-    auto_enter_ai_mode: false,
-    argument: Some(Argument::optional().with_execute_on_selection()),
-});
-
 pub const ADD_MCP: StaticCommand = StaticCommand {
     name: "/add-mcp",
     description: "Add new MCP server",
@@ -580,10 +571,6 @@ fn all_commands() -> Vec<StaticCommand> {
         && !FeatureFlag::PRCommentsSkill.is_enabled()
     {
         commands.push(PR_COMMENTS);
-    }
-
-    if FeatureFlag::CloudMode.is_enabled() && FeatureFlag::CloudModeFromLocalSession.is_enabled() {
-        commands.push(CLOUD_AGENT.clone());
     }
 
     if FeatureFlag::InlineProfileSelector.is_enabled() {

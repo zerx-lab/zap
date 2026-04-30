@@ -408,7 +408,6 @@ pub enum TerminalAction {
     ToggleLongRunningCommandControl,
     ToggleHideCliResponses,
     ExitAgentView,
-    EnterCloudAgentView,
     StartNewAgentConversation,
     /// Toggle the cloud mode conversation details panel
     ToggleCloudModeDetailsPanel,
@@ -690,7 +689,6 @@ impl fmt::Debug for TerminalAction {
             }
             ToggleHideCliResponses => write!(f, "ToggleHideCliResponses"),
             ExitAgentView => write!(f, "ExitAgentView"),
-            EnterCloudAgentView => write!(f, "EnterCloudAgentView"),
             StartNewAgentConversation => write!(f, "StartNewAgentConversation"),
             ToggleCloudModeDetailsPanel => write!(f, "ToggleCloudModeDetailsPanel"),
             CancelAmbientAgentTask => write!(f, "CancelAmbientAgentTask"),

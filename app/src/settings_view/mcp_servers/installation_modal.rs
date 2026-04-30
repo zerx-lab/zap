@@ -253,7 +253,7 @@ impl InstallationModalBody {
 
         // Renders MCP title text
         let title = Text::new(
-            format!("Install {name}"),
+            crate::t!("settings-mcp-install-modal-title", name = name.clone()),
             appearance.ui_font_family(),
             appearance.header_font_size(),
         )
@@ -419,13 +419,13 @@ impl InstallationModalBody {
         .finish();
 
         let source_text = if is_shared {
-            "Shared from team"
+            crate::t!("settings-mcp-install-modal-source-shared")
         } else {
-            "From another device"
+            crate::t!("settings-mcp-install-modal-source-other-device")
         };
 
         let label_text = Text::new_inline(
-            source_text.to_string(),
+            source_text,
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
@@ -444,7 +444,7 @@ impl InstallationModalBody {
         let cancel_button = appearance
             .ui_builder()
             .button(ButtonVariant::Text, self.cancel_mouse_state.clone())
-            .with_text_label("Cancel".into())
+            .with_text_label(crate::t!("settings-mcp-install-modal-cancel").into())
             .with_style(UiComponentStyles {
                 font_weight: Some(Weight::Bold),
                 font_color: Some(appearance.theme().active_ui_text_color().into()),
@@ -481,7 +481,7 @@ impl InstallationModalBody {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
                 Text::new_inline(
-                    "Install",
+                    crate::t!("settings-mcp-install-modal-install"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -612,7 +612,7 @@ impl View for InstallationModalBody {
                 .finish()
         } else {
             Text::new(
-                "No MCP server selected",
+                crate::t!("settings-mcp-install-modal-no-server"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )

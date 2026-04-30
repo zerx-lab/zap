@@ -83,7 +83,8 @@ impl UpdateModalBody {
 
     fn render_title(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
-        let name = self.server_name.as_deref().unwrap_or("Server");
+        let default_name = crate::t!("settings-mcp-update-modal-default-name");
+        let name = self.server_name.as_deref().unwrap_or(&default_name);
 
         // Renders MCP avatar icon
         let avatar_content = if let Some(icon) = ExternalProductIcon::from_string(name) {
@@ -113,7 +114,7 @@ impl UpdateModalBody {
 
         // Renders MCP title text
         let title = Text::new(
-            format!("Update {name}"),
+            crate::t!("settings-mcp-update-modal-title", name = name.to_string()),
             appearance.ui_font_family(),
             appearance.header_font_size(),
         )
@@ -180,9 +181,9 @@ impl UpdateModalBody {
 
     fn render_description(&self, appearance: &Appearance) -> Box<dyn Element> {
         // Modal appears only when multiple updates are available
-        let description = format!(
-            "This server has {} updates available, which would you like to proceed with?",
-            self.update_options.len()
+        let description = crate::t!(
+            "settings-mcp-update-modal-description",
+            count = self.update_options.len()
         );
 
         Text::new(
@@ -216,10 +217,10 @@ impl UpdateModalBody {
                 new_version_ts,
                 ..
             } => {
-                let publisher_string = match publisher {
-                    Author::CurrentUser => "another device",
-                    Author::OtherUser { name } => name,
-                    Author::Unknown => "a team member",
+                let publisher_string: String = match publisher {
+                    Author::CurrentUser => crate::t!("settings-mcp-update-modal-publisher-another-device"),
+                    Author::OtherUser { name } => name.clone(),
+                    Author::Unknown => crate::t!("settings-mcp-update-modal-publisher-team-member"),
                 };
                 let datetime = Local
                     .timestamp_opt(*new_version_ts, 0)
@@ -227,15 +228,15 @@ impl UpdateModalBody {
                     .unwrap_or_else(Local::now);
                 let formatted_time = format_approx_duration_from_now(datetime);
                 (
-                    format!("Update from {publisher_string}"),
+                    crate::t!("settings-mcp-update-modal-update-from", publisher = publisher_string),
                     formatted_time.to_string(),
                 )
             }
             MCPServerUpdate::Gallery {
                 name, new_version, ..
             } => (
-                format!("Update from {name}"),
-                format!("Version {new_version}"),
+                crate::t!("settings-mcp-update-modal-update-from", publisher = name.clone()),
+                crate::t!("settings-mcp-update-modal-version", version = new_version.to_string()),
             ),
         };
 
@@ -302,7 +303,7 @@ impl UpdateModalBody {
         let cancel_button = appearance
             .ui_builder()
             .button(ButtonVariant::Text, self.cancel_mouse_state.clone())
-            .with_text_label("Cancel".into())
+            .with_text_label(crate::t!("settings-mcp-update-modal-cancel").into())
             .with_style(UiComponentStyles {
                 font_weight: Some(Weight::Bold),
                 font_color: Some(appearance.theme().active_ui_text_color().into()),
@@ -339,7 +340,7 @@ impl UpdateModalBody {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
                 Text::new_inline(
-                    "Update",
+                    crate::t!("settings-mcp-update-modal-update"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -428,7 +429,7 @@ impl View for UpdateModalBody {
         // Add update options
         if self.update_options.is_empty() {
             let no_updates_text = Text::new(
-                "No updates available",
+                crate::t!("settings-mcp-update-modal-no-updates"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )

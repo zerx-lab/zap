@@ -27,7 +27,7 @@ impl WarpDriveAIFactCollection {
 
 impl WarpDriveItem for WarpDriveAIFactCollection {
     fn display_name(&self) -> Option<String> {
-        Some("Rules".to_string())
+        Some(crate::t!("rules-collection-name"))
     }
 
     fn metadata(&self) -> Option<&CloudObjectMetadata> {

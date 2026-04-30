@@ -1043,8 +1043,14 @@ impl DriveIndex {
         app: &AppContext,
     ) -> bool {
         if let Some(object) = CloudModel::as_ref(app).get_by_uid(&cloud_object_type_and_id.uid()) {
+            // OpenWarp(去中心化分支):本地对象(无 server_id,SyncQueue 上行无 auth no-op)
+            // 在原逻辑下永远拿不到 trash/move 菜单。这里把"无 server_id"视为本地对象,
+            // 允许其执行本地侧操作(trash 走 sqlite,无需服务器协调)。
+            if !cloud_object_type_and_id.has_server_id() {
+                return !object.metadata().has_pending_online_only_change();
+            }
+
             return self.is_online(app)
-                && cloud_object_type_and_id.has_server_id()
                 && !object.metadata().has_pending_online_only_change();
         }
 
@@ -4357,8 +4363,14 @@ impl DriveIndex {
         let object = CloudModel::as_ref(app).get_by_uid(&cloud_object_type_and_id.uid());
 
         if let CloudObjectTypeAndId::Folder(folder_id) = cloud_object_type_and_id {
-            if let SyncId::ServerId(_) = folder_id {
-                if self.is_online(app) {
+            // OpenWarp:本地 folder(ClientId,SyncQueue 上行无 auth no-op)永远拿不到 server_id,
+            // 原 `SyncId::ServerId(_) && is_online` 双重门槛会让本地文件夹永远没有"新建子项/Rename"右键菜单。
+            // 这里把"本地 folder"视为永远 ready。
+            let is_local_folder = matches!(folder_id, SyncId::ClientId(_));
+            let server_folder_ready =
+                matches!(folder_id, SyncId::ServerId(_)) && self.is_online(app);
+            if is_local_folder || server_folder_ready {
+                {
                     if !FeatureFlag::SharedWithMe.is_enabled() || editability.can_edit() {
                         menu_items.push(
                             MenuItemFields::new(INDEX_FOLDER_LABEL)

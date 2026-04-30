@@ -12987,19 +12987,9 @@ fn build_onboarding_keybindings(ctx: &AppContext) -> OnboardingKeybindings {
     .map(|k| k.displayed())
     .unwrap_or_else(|_| "⌘-⏎".to_string());
 
-    // TerminalAction::EnterCloudAgentView is a fixed binding, not editable
-    let submit_to_cloud_agent = if OperatingSystem::get().is_mac() {
-        Keystroke::parse("cmd-alt-enter")
-    } else {
-        Keystroke::parse("ctrl-alt-enter")
-    }
-    .map(|k| k.displayed())
-    .unwrap_or_else(|_| "⌘-⌥-⏎".to_string());
-
     OnboardingKeybindings {
         toggle_input_mode,
         submit_to_local_agent,
-        submit_to_cloud_agent,
     }
 }
 
@@ -19758,9 +19748,6 @@ impl TerminalView {
                     );
                 }
             },
-            InputEvent::EnterCloudAgentView { initial_prompt } => {
-                self.enter_cloud_agent_view(initial_prompt.clone(), ctx);
-            }
             InputEvent::CreateDockerSandbox => {
                 if !FeatureFlag::LocalDockerSandbox.is_enabled() {
                     log::warn!("Local docker sandbox feature flag is disabled");
@@ -24354,7 +24341,6 @@ impl TypedActionView for TerminalView {
             | ToggleHideCliResponses
             | OpenConversationsPalette
             | ExitAgentView
-            | EnterCloudAgentView
             | StartNewAgentConversation
             | ToggleCloudModeDetailsPanel
             | CancelAmbientAgentTask
@@ -25335,12 +25321,6 @@ impl TypedActionView for TerminalView {
             ExitAgentView => {
                 self.exit_agent_view(ctx);
                 ctx.notify();
-            }
-            EnterCloudAgentView => {
-                let mut draft_text = self.input.as_ref(ctx).buffer_text(ctx);
-                draft_text.truncate(draft_text.trim_end().len());
-                let initial_prompt = (!draft_text.trim().is_empty()).then_some(draft_text);
-                self.enter_cloud_agent_view(initial_prompt, ctx);
             }
             StartNewAgentConversation => {
                 self.input.update(ctx, |input, ctx| {

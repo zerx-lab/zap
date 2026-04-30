@@ -40,7 +40,7 @@
 | 9 | workflows | `app/src/workflows/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 10 | editor & search | `app/src/editor/**`, `app/src/search/**`, `app/src/search_bar.rs` | ⬜ | ⬜ | ⬜ | (free) | |
 | 11 | terminal | `app/src/terminal/**`, `app/src/shell_indicator.rs` | ⬜ | ⬜ | ⬜ | (free) | |
-| 12 | mcp servers | `app/src/settings_view/mcp_servers/**`, `app/src/ai/mcp/**` | 🟡 (mcp_servers_page.rs) | 🟡 | 6 | agent-settings-mcp | mcp_servers_page.rs ✅(6 key/6 cs:page-title + logout-success ×2 + install-modal-busy + unknown-server + install-from-link-failed);剩余 settings_view/mcp_servers/** 子目录 + ai/mcp/** 待认领 |
+| 12 | mcp servers | `app/src/settings_view/mcp_servers/**`, `app/src/ai/mcp/**` | ✅ (settings_view/mcp_servers/**) | ✅ | 78 | agent-settings-mcp-servers-subdir | mcp_servers_page.rs ✅(6 key/6 cs);settings_view/mcp_servers/** 子目录 ✅:destructive_mcp_confirmation_dialog.rs(9 key/12 cs)+ edit_page.rs(12 key/13 cs)+ installation_modal.rs(6 key/6 cs)+ list_page.rs(20 key/16 cs:删 3 个 const + LazyLock 改运行时 fragments)+ server_card.rs(14 key/14 cs:tooltip×4/button×3/status×4/tools×2/update-tooltip)+ update_modal.rs(10 key/9 cs:default-name/title/desc/publisher×2/from/version/cancel/update/no-updates)。cargo check -p warp --lib 0 error / 50s。剩余 ai/mcp/** 待认领 |
 | 13 | billing & pricing | `app/src/billing/**`, `app/src/pricing/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 14 | notebooks | `app/src/notebooks/**` | ⬜ | ⬜ | ⬜ | (free) | |
 | 15 | code_review | `app/src/code_review/**` | ⬜ | ⬜ | ⬜ | (free) | |
@@ -49,6 +49,8 @@
 | 18 | menu & app_menus | `app/src/menu.rs`, `app/src/app_menus.rs` | ⬜ | ⬜ | ⬜ | (free) | |
 | 19 | view_components | `app/src/view_components/**` | ⬜ | ⬜ | ⬜ | (free) | 通用 UI 控件 placeholder/tooltip |
 | 20 | misc(其余 single-file) | 见 lib.rs mod 列表 | ⬜ | ⬜ | ⬜ | (free) | 收尾兜底 |
+| - | settings-rules-page | drive/items/ai_fact{,_collection}.rs + ai_page.rs:5521 | ✅ | ✅ | 4 | agent-rules-page | Manage Rules 页面。新增 2 key:`rules-collection-name`(Drive 侧 collection 标题,新 ANCHOR-SUB-RULES-PAGE)+ `settings-ai-rules-description`(AI 设置页 rules 段描述,放 ANCHOR-SUB-AI-PAGE)。复用已有 `settings-ai-learn-more`。call sites:ai_fact_collection.rs `display_name`、ai_page.rs rules_description plain_text + hyperlink(2 处)。ai_fact.rs 单条 fact 渲染均为用户数据(name/content),无硬编码字符串需翻译。cloud_object_naming_dialog.rs 无 rule 相关字符串。 |
+| - | keybinding descriptions | binding 注册点 (workspace/mod.rs 等) | ✅ | ✅ | 156 | agent-keybinding-descriptions | binding description 文案。新 ANCHOR-SUB-KEYBINDING-DESC,116 key,聚焦 `app/src/workspace/mod.rs`(workspace 内全部用户可见 description 已替换:FixedBinding::custom + EditableBinding::new + BindingDescription::new + with_custom_description(MAC_MENUS_CONTEXT) + with_dynamic_override 闭包)。`BindingDescription::new` 已经是 `S: Into<String>` 泛型,直接接受 `crate::t!()` 返回的 `String`,无需改 API;`titlecase` 仍会被应用,但中文不受影响。binding `name`(协议字段)未动。**未碰**:`[Debug]/[a11y]/sample_process/dump_heap_profile/crash` 等仅 debug build 出现的工程类条目(对终端用户不可见,刻意跳过减负);其它 binding 文件 — `terminal/view/init.rs`(77 处,terminal binding/agent context 等)、`editor/view/mod.rs`(60)、`notebooks/editor/view.rs`(51)、`code/editor/view/actions.rs`(39)、`pane_group/mod.rs`(14)、`terminal/input.rs`(14) 全部待续作。cargo check -p warp --lib 0 error 27s。 |
 
 ## Agent 工作流(拷贝执行)
 
@@ -73,7 +75,7 @@
 | Drive | 云盘 | warp drive 文件协作产品 |
 | Workflow | 工作流 | |
 | Notebook | 笔记本 | |
-| Profile | 配置档 | execution profile / agent profile |
+| Profile | 配置 | execution profile / agent profile |
 | Permission | 权限 | |
 | Prompt | 提示词 | LLM 上下文,非 shell prompt |
 | Shell Prompt | Shell 提示符 | 必要时用全称区分 |

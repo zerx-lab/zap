@@ -1032,9 +1032,6 @@ pub enum Event {
         conversation_id: Option<AIConversationId>,
         origin: AgentViewEntryOrigin,
     },
-    EnterCloudAgentView {
-        initial_prompt: Option<String>,
-    },
     CreateDockerSandbox,
     /// Exit cloud mode (ambient agent) and start a new *local* agent conversation in the root terminal.
     ///

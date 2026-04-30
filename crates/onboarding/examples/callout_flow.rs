@@ -49,7 +49,6 @@ impl OnboardingExampleView {
             let keybindings = OnboardingKeybindings {
                 toggle_input_mode: "⌘-I".to_string(),
                 submit_to_local_agent: "⌘-⏎".to_string(),
-                submit_to_cloud_agent: "⌘-⌥-⏎".to_string(),
             };
             OnboardingCalloutView::new_agent_modality(
                 true, // has_project
