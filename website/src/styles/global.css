@@ -11,6 +11,8 @@
   body {
     @apply bg-ink-950 text-zinc-200 antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* 移动端最小宽度兜底:小于 400px 出横向滚动而不是布局错乱 */
+    min-width: 400px;
   }
 
   ::selection {
@@ -37,7 +39,7 @@
 
 @layer components {
   .container-page {
-    @apply mx-auto w-full max-w-6xl px-6 lg:px-8;
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
   }
 
   .text-gradient {
@@ -70,11 +72,11 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-ink-950 transition hover:bg-zinc-200;
+    @apply inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-zinc-200 sm:px-5 sm:py-2.5;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.06] hover:border-white/20;
+    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.06] hover:border-white/20 sm:px-5 sm:py-2.5;
   }
 
   .chip {

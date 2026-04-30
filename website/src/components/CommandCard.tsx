@@ -25,7 +25,7 @@ export default function CommandCard({ command, copyLabel, copiedLabel }: Props) 
       aria-label="copy command"
     >
       <span className="select-none text-brand-300">$</span>
-      <span className="flex-1 truncate">{command}</span>
+      <span className="min-w-0 flex-1 truncate">{command}</span>
       <span
         className={
           'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10.5px] uppercase tracking-wider transition ' +

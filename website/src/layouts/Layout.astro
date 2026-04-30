@@ -26,6 +26,33 @@ const dict = t(locale);
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate" hreflang="zh-CN" href="/" />
     <link rel="alternate" hreflang="en" href="/en/" />
+    <script is:inline>
+      // 浏览器语言自动检测:中文留中文页,其他语言跳 /en/
+      // 用户手动点切换器后记忆偏好,后续不再自动重定向
+      (function () {
+        try {
+          var KEY = 'ow-lang';
+          var path = location.pathname;
+          var isEnPage = /^\/en(\/|$)/.test(path);
+          // 切换器点击 → 写入用户主动偏好
+          document.addEventListener('click', function (e) {
+            var a = e.target && e.target.closest && e.target.closest('a[data-locale-switch]');
+            if (a) {
+              try { localStorage.setItem(KEY, a.getAttribute('data-locale-switch')); } catch (_) {}
+            }
+          });
+          // 已记忆偏好,跳过自动检测
+          if (localStorage.getItem(KEY)) return;
+          // 仅在中文默认页做一次性自动重定向
+          if (isEnPage) return;
+          var lang = (navigator.language || (navigator.languages && navigator.languages[0]) || '').toLowerCase();
+          if (lang && !lang.startsWith('zh')) {
+            try { localStorage.setItem(KEY, 'en'); } catch (_) {}
+            location.replace('/en/');
+          }
+        } catch (_) {}
+      })();
+    </script>
   </head>
   <body class="min-h-screen overflow-x-hidden bg-ink-950 font-sans">
     <!-- Decorative background layers -->

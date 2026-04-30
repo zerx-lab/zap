@@ -1,89 +1,103 @@
-<a href="https://www.warp.dev">
-    <img width="1024" alt="Warp Agentic Development Environment product preview" src="https://github.com/user-attachments/assets/9976b2da-2edd-4604-a36c-8fd53719c6d4" />
-</a>
+<div align="center">
 
-<p align="center">
-  <a href="https://www.warp.dev">Website</a>
-  ·
-  <a href="https://www.warp.dev/code">Code</a>
-  ·
-  <a href="https://www.warp.dev/agents">Agents</a>
-  ·
-  <a href="https://www.warp.dev/terminal">Terminal</a>
-  ·
-  <a href="https://www.warp.dev/drive">Drive</a>
-  ·
-  <a href="https://docs.warp.dev">Docs</a>
-  ·
-  <a href="https://www.warp.dev/blog/how-warp-works">How Warp Works</a>
-</p>
+# OpenWarp
 
-> [!NOTE]
-> OpenAI is the founding sponsor of the new, open-source Warp repository, and the new agentic management workflows are powered by GPT models.
+**Bring any AI model into your terminal**
 
-<h1></h1>
+OpenWarp is a community fork of [Warp](https://github.com/warpdotdev/warp) that opens up the AI layer.
+Keep the full Warp terminal experience — blocks, workflows, keymaps — while plugging in
+**any OpenAI-compatible provider**, customizing system prompts with minijinja templates,
+and keeping every credential local.
 
-## About
+[简体中文](./README.zh-CN.md) · [Docs](https://docs.warp.dev) · [Upstream Warp](https://www.warp.dev)
 
-[Warp](https://www.warp.dev) is an agentic development environment, born out of the terminal. Use Warp's built-in coding agent, or bring your own CLI agent (Claude Code, Codex, Gemini CLI, and others).
+> ⚠️ Early development. No official release yet. **Not affiliated with Warp, Inc.**
 
-## Installation
+</div>
 
-You can [download Warp](https://www.warp.dev/download) and [read our docs](https://docs.warp.dev/) for platform-specific instructions.
+---
 
-## Licensing
+## ✨ Why OpenWarp
 
-Warp's UI framework (the `warpui_core` and `warpui` crates) are licensed under the [MIT license](LICENSE-MIT).
+The official Warp client routes AI through Warp's cloud agent service.
+OpenWarp opens that layer entirely:
 
-The rest of the code in this repository is licensed under the [AGPL v3](LICENSE-AGPL).
+| | Upstream Warp | OpenWarp |
+| --- | --- | --- |
+| AI provider | Warp gateway | **Any OpenAI-compatible endpoint** |
+| Credentials | Cloud account | **Local config file, never leaves device** |
+| System prompt | Server-assembled, opaque | **minijinja templates, fully editable** |
+| UI language | English | **Native English + Simplified Chinese, extensible** |
+| Cloud Agent / Computer Use | On by default | **Off by default, fully local** |
+| Blocks / Workflows / Keymaps | ✓ | ✓ Fully preserved |
+| License | AGPL-3.0 / MIT dual | Same as upstream |
 
-## Open Source & Contributing
+## 🚀 Three steps to take AI fully into your own hands
 
-Warp's client codebase is open source and lives in this repository. We welcome community contributions and have designed a lightweight workflow to help new contributors get started. For the full contribution flow, read our [CONTRIBUTING.md](CONTRIBUTING.md) guide.
+**01 · Plug in any provider**
+Paste a Base URL and API key in settings — any OpenAI Chat Completions–compatible
+endpoint works out of the box. Credentials are stored locally only.
 
-### Issue to PR
+**02 · Author dynamic prompts**
+A minijinja-powered template engine renders the system prompt in real time
+based on the current working directory, language, and role.
 
-Before filing, [search existing issues](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+sort%3Areactions-%2B1-desc) for your bug or feature request. If nothing exists, [file an issue](https://github.com/warpdotdev/warp/issues/new/choose) using our templates. Security vulnerabilities should be reported privately as described in [CONTRIBUTING.md](CONTRIBUTING.md#reporting-security-issues).
+**03 · Use it in the terminal immediately**
+Switch models, conversations, and command suggestions with one click —
+the experience is identical to Warp, but every layer is yours.
 
-Once filed, a Warp maintainer reviews the issue and may apply a readiness label: [`ready-to-spec`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-spec) signals the design is open for contributors to spec out, and [`ready-to-implement`](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+label%3Aready-to-implement) signals the design is settled and code PRs are welcome. Anyone can pick up a labeled issue — mention **@oss-maintainers** on an issue if you'd like it considered for a readiness label.
+## 🧩 Verified providers
 
-### Building the Repo Locally
+| Provider | Base URL | Notes |
+| --- | --- | --- |
+| **OpenAI** | `https://api.openai.com/v1` | Native protocol |
+| **Anthropic** | via genai native | Claude 4.x family |
+| **DeepSeek** | `https://api.deepseek.com/v1` | thinking + tool calling |
+| **Gemini** | via genai native | Google AI Studio |
+| **Ollama** | `http://localhost:11434/v1` | Local inference, no key |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Aggregator gateway |
+| **Qwen / Groq / Together / LM Studio / any OpenAI-compatible proxy** | — | Configure and go |
 
-To build and run Warp from source:
+## 🔧 Core features
+
+- **BYOP custom providers** — five native protocols (OpenAI / OpenAIResp / Anthropic / Gemini / Ollama / DeepSeek) explicitly bound on top of [genai](https://github.com/jeremychone/rust-genai) 0.6
+- **SSE streaming** — incremental block rendering identical to Warp's first-party path
+- **18 local tools** — shell / read / edit / search / mcp / drive docs / skills / ask, all executed locally
+- **System prompt templates** — eight model-family prompts ported from opencode (default / anthropic / gpt / beast / gemini / kimi / codex / trinity)
+- **models.dev integration** — searchable Providers subpage with thousands of preloaded model entries
+- **Privacy first** — Cloud Agent / Computer Use / Referral disabled by default; no telemetry
+- **Warp experience preserved** — continuously merged with upstream; Blocks, Workflows, AI commands, Keymaps and themes all kept
+- **Localized UI** — Simplified Chinese + English, community-extensible
+
+## 📦 Build from source
 
 ```bash
-./script/bootstrap   # platform-specific setup
-./script/run         # build and run Warp
-./script/presubmit   # fmt, clippy, and tests
+git clone https://github.com/zerx-lab/openwarp
+cd openwarp
+./script/bootstrap   # platform-specific deps
+./script/run         # build & run
+./script/presubmit   # fmt / clippy / tests
 ```
 
-See [WARP.md](WARP.md) for the full engineering guide, including coding style, testing, and platform-specific notes.
+See [WARP.md](WARP.md) for the full engineering guide (style, testing, platform notes).
 
-## Joining the Team
+## 📜 License
 
-Interested in joining the team? See our [open roles](https://www.warp.dev/careers).
+Same as upstream Warp:
 
-## Support and Questions
+- `warpui_core` / `warpui` crates — [MIT](LICENSE-MIT)
+- Everything else — [AGPL-3.0](LICENSE-AGPL)
 
-1. See our [docs](https://docs.warp.dev/) for a comprehensive guide to Warp's features.
-2. Join our [Slack Community](https://go.warp.dev/join-preview) to connect with other users and get help from the Warp team.
-3. Try our [Preview build](https://www.warp.dev/download-preview) to test the latest experimental features.
-4. Mention **@oss-maintainers** on any issue to escalate to the team — for example, if you encounter problems with the automated agents.
+## 🤝 Contributing
 
-## Code of Conduct
+Community contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full flow.
 
-We ask everyone to be respectful and empathetic. Warp follows the [Code of Conduct](CODE_OF_CONDUCT.md). To report violations, email warp-coc at warp.dev.
+Before filing, please [search existing issues](https://github.com/zerx-lab/openwarp/issues).
+Security vulnerabilities should be reported privately per
+[CONTRIBUTING.md#reporting-security-issues](CONTRIBUTING.md#reporting-security-issues).
 
-## Open Source Dependencies
+## 🙏 Acknowledgements
 
-We'd like to call out a few of the [open source dependencies](https://docs.warp.dev/help/licenses) that have helped Warp to get off the ground:
+OpenWarp stands on the shoulders of the Warp team and many open-source projects:
 
-* [Tokio](https://github.com/tokio-rs/tokio)
-* [NuShell](https://github.com/nushell/nushell)
-* [Fig Completion Specs](https://github.com/withfig/autocomplete)
-* [Warp Server Framework](https://github.com/seanmonstar/warp)
-* [Alacritty](https://github.com/alacritty/alacritty)
-* [Hyper HTTP library](https://github.com/hyperium/hyper)
-* [FontKit](https://github.com/servo/font-kit)
-* [Core-foundation](https://github.com/servo/core-foundation-rs)
-* [Smol](https://github.com/smol-rs/smol)
+[Warp](https://github.com/warpdotdev/warp) · [genai](https://github.com/jeremychone/rust-genai) · [opencode](https://github.com/opencode-ai/opencode) · [models.dev](https://models.dev) · [Tokio](https://github.com/tokio-rs/tokio) · [NuShell](https://github.com/nushell/nushell) · [Alacritty](https://github.com/alacritty/alacritty) · [Hyper](https://github.com/hyperium/hyper) · [minijinja](https://github.com/mitsuhiko/minijinja)

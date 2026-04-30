@@ -94,7 +94,13 @@ impl super::SecureStorage for SecureStorage {
 
     fn read_value(&self, key: &str) -> Result<String, Error> {
         let storage_file = self.storage_file(key);
-        let file_bytes = std::fs::read(storage_file)?;
+        let file_bytes = std::fs::read(storage_file).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                Error::NotFound
+            } else {
+                Error::IOError(e)
+            }
+        })?;
         Self::decrypt(file_bytes)
     }
 

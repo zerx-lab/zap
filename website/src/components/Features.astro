@@ -22,7 +22,7 @@ const items = d.features.items;
     <div class="mt-16 grid grid-cols-1 gap-4 sm:grid-cols-6 sm:auto-rows-[minmax(220px,_auto)]">
 
       <!-- 1. BYOP — large hero card -->
-      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6 lg:col-span-4 lg:row-span-2">
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-5 transition sm:p-7 sm:col-span-6 lg:col-span-4 lg:row-span-2">
         <div class="flex items-center gap-2">
           <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">01</span>
           <span class="h-px w-6 bg-zinc-700"></span>
@@ -37,7 +37,7 @@ const items = d.features.items;
       </article>
 
       <!-- 2. Privacy -->
-      <article class="ring-gradient group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-3 lg:col-span-2">
+      <article class="ring-gradient group relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-5 transition sm:p-7 sm:col-span-3 lg:col-span-2">
         <div class="flex items-start justify-between">
           <div>
             <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">04</span>
@@ -64,7 +64,7 @@ const items = d.features.items;
       </article>
 
       <!-- 3. i18n — language pills cycling -->
-      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-3 lg:col-span-2">
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-5 transition sm:p-7 sm:col-span-3 lg:col-span-2">
         <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">03</span>
         <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[2].title}</h3>
         <p class="mt-1 text-[13px] text-zinc-500">{items[2].desc}</p>
@@ -76,7 +76,7 @@ const items = d.features.items;
       </article>
 
       <!-- 4. Templates -->
-      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6 lg:col-span-3">
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-5 transition sm:p-7 sm:col-span-6 lg:col-span-3">
         <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">02</span>
         <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[1].title}</h3>
         <p class="mt-1 text-[13px] text-zinc-500">{items[1].desc}</p>
@@ -89,7 +89,7 @@ Reply in <span class="tpl-var">{'{{'} locale {'}}'}</span>.
       </article>
 
       <!-- 5. Warp-native -->
-      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6 lg:col-span-3">
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-5 transition sm:p-7 sm:col-span-6 lg:col-span-3">
         <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">05</span>
         <h3 class="mt-3 font-display text-lg font-semibold text-white">{items[4].title}</h3>
         <p class="mt-1 text-[13px] text-zinc-500">{items[4].desc}</p>
@@ -104,7 +104,7 @@ Reply in <span class="tpl-var">{'{{'} locale {'}}'}</span>.
       </article>
 
       <!-- 6. Open source — full width footer card -->
-      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-7 transition sm:col-span-6">
+      <article class="ring-gradient relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02] p-5 transition sm:p-7 sm:col-span-6">
         <div class="grid items-center gap-6 sm:grid-cols-2">
           <div>
             <span class="text-[11px] font-medium uppercase tracking-[0.16em] text-zinc-500">06</span>
@@ -115,7 +115,7 @@ Reply in <span class="tpl-var">{'{{'} locale {'}}'}</span>.
             {d.bento.opensource.license.map((l) => (
               <span class="rounded-lg border border-brand-500/20 bg-brand-500/[0.06] px-3 py-2 font-mono text-[13px] tracking-tight text-brand-200">{l}</span>
             ))}
-            <a href="https://github.com/zerx-lab/warp" target="_blank" rel="noreferrer" class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] text-zinc-200 transition hover:bg-white/[0.07]">
+            <a href="https://github.com/zerx-lab/warp/tree/openWarp" target="_blank" rel="noreferrer" class="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[12px] text-zinc-200 transition hover:bg-white/[0.07]">
               <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2.18c-3.2.7-3.87-1.37-3.87-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.17.91-.25 1.89-.38 2.86-.39.97.01 1.95.14 2.86.39 2.19-1.48 3.15-1.17 3.15-1.17.62 1.59.23 2.76.11 3.05.74.8 1.18 1.82 1.18 3.08 0 4.42-2.69 5.4-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.55C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
               GitHub
             </a>

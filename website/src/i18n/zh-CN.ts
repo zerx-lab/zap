@@ -183,7 +183,6 @@ export const zhCN = {
     title: '想第一时间体验?',
     desc: '克隆仓库本地构建,或关注 GitHub 接收每次发布更新。',
     button: '前往 GitHub',
-    secondary: '订阅更新',
     command_label: '克隆仓库',
     command: 'git clone https://github.com/zerx-lab/openwarp',
     copy: '复制',

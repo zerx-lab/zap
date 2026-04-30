@@ -186,7 +186,6 @@ export const en: Dict = {
     title: 'Want early access?',
     desc: 'Clone the repo and build locally, or watch GitHub for the next release.',
     button: 'Go to GitHub',
-    secondary: 'Get updates',
     command_label: 'Clone the repo',
     command: 'git clone https://github.com/zerx-lab/openwarp',
     copy: 'Copy',

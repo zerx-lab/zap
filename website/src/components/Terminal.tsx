@@ -100,12 +100,12 @@ export default function Terminal({ scenarios, tabs, breadcrumb, status }: Props)
             <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
             <span className="h-3 w-3 rounded-full bg-[#28c840]" />
           </div>
-          <div className="flex flex-1 items-center gap-1 px-2">
+          <div className="flex flex-1 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {tabs.map((tab, i) => (
               <button
                 key={tab}
                 className={
-                  'group relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] transition ' +
+                  'group relative inline-flex flex-none items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] transition ' +
                   (i === 1
                     ? 'bg-white/[0.06] text-zinc-100'
                     : 'text-zinc-500 hover:text-zinc-300')
@@ -121,7 +121,7 @@ export default function Terminal({ scenarios, tabs, breadcrumb, status }: Props)
               </button>
             ))}
           </div>
-          <div className="font-mono text-[11px] text-zinc-500">{breadcrumb}</div>
+          <div className="hidden flex-none font-mono text-[11px] text-zinc-500 sm:block">{breadcrumb}</div>
         </div>
 
         {/* Body */}
@@ -230,8 +230,8 @@ export default function Terminal({ scenarios, tabs, breadcrumb, status }: Props)
         </div>
 
         {/* Status bar */}
-        <div className="flex items-center justify-between gap-2 border-t border-white/5 bg-white/[0.015] px-4 py-2 font-mono text-[10.5px] text-zinc-500">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-white/5 bg-white/[0.015] px-3 py-2 font-mono text-[10.5px] text-zinc-500 sm:gap-2 sm:px-4">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <span className="inline-flex items-center gap-1.5">
               <span
                 className={
@@ -250,11 +250,9 @@ export default function Terminal({ scenarios, tabs, breadcrumb, status }: Props)
                   : status.ready}
             </span>
             <span className="text-zinc-700">·</span>
-            <span>
-              <span className="text-zinc-400">{current.model}</span>
-            </span>
+            <span className="truncate text-zinc-400">{current.model}</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <span>
               <span className="text-zinc-400 tabular-nums">{tokens}</span>{' '}
               <span className="text-zinc-600">{status.tokens}</span>
@@ -262,10 +260,10 @@ export default function Terminal({ scenarios, tabs, breadcrumb, status }: Props)
             <span className="text-zinc-700">·</span>
             <span>
               <span className="text-zinc-400 tabular-nums">{latency}</span>
-              <span className="text-zinc-600">ms {status.latency}</span>
+              <span className="text-zinc-600">ms</span>
             </span>
-            <span className="text-zinc-700">·</span>
-            <span className="text-zinc-500">{status.local}</span>
+            <span className="hidden text-zinc-700 sm:inline">·</span>
+            <span className="hidden text-zinc-500 sm:inline">{status.local}</span>
           </div>
         </div>
       </div>

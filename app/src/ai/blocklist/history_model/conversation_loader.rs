@@ -87,7 +87,7 @@ pub fn convert_persisted_conversation_to_ai_conversation_with_metadata(
     match AIConversation::new_restored(conversation_id, tasks, conversation_data) {
         Ok(conversation) => Some(conversation),
         Err(e) => {
-            log::warn!("Failed to convert persisted conversation to AIConversation: {e:?}");
+            log::debug!("Skipping persisted conversation (legacy/incomplete): {e:?}");
             None
         }
     }
@@ -535,8 +535,8 @@ impl BlocklistAIHistoryModel {
                 }).unwrap_or_default();
 
                 if initial_query.is_empty() {
-                    log::warn!(
-                        "Failed to record conversation with ID {conversation_id} because it was missing an initial query"
+                    log::debug!(
+                        "Skipping legacy conversation {conversation_id} (no initial query)"
                     );
                     return None;
                 }
