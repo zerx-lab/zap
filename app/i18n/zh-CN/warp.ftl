@@ -1554,8 +1554,9 @@ rules-add-button = 添加
 rules-init-project-button = 初始化项目
 
 # --- Agent 视图零状态 + 消息栏 ---
-agent-zero-state-title = 新建 Oz Agent 对话
-agent-zero-state-title-cloud = 新建 Oz 云端 Agent 对话
+agent-zero-state-title = 新建 Agent 对话
+# OpenWarp 已移除云端 Agent 入口,此 key 实际不会被渲染;保留以匹配 en 兜底链。
+agent-zero-state-title-cloud = 新建 Agent 对话
 agent-zero-state-description = 在下方输入提示开始新的对话
 agent-zero-state-description-with-location = 在下方输入提示,于 `{ $location }` 开始新的对话
 agent-zero-state-switch-model = 切换模型
