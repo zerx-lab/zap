@@ -26,6 +26,8 @@ struct ByopDispatch {
     base_url: String,
     api_key: String,
     model_id: String,
+    /// 显式指定的 API 协议类型,chat_stream 据此映射 genai AdapterKind。
+    api_type: crate::settings::AgentProviderApiType,
     /// conversation 的 root task id — 必须用本地已注册的 id,
     /// 否则下游 `Action::AddMessagesToTask` 在 task_store 找不到会 `TaskNotFound`。
     task_id: String,
@@ -52,6 +54,7 @@ fn byop_dispatch_info(
         base_url: provider.base_url,
         api_key,
         model_id,
+        api_type: provider.api_type,
         task_id,
         needs_create_task,
     })
@@ -142,6 +145,7 @@ impl ResponseStream {
                         byop.base_url,
                         byop.api_key,
                         byop.model_id,
+                        byop.api_type,
                         byop.task_id,
                         byop.needs_create_task,
                         cancellation_rx,
@@ -220,6 +224,7 @@ impl ResponseStream {
                         byop.base_url,
                         byop.api_key,
                         byop.model_id,
+                        byop.api_type,
                         byop.task_id,
                         byop.needs_create_task,
                         cancellation_rx,

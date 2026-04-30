@@ -16,6 +16,7 @@ pub mod openai_compatible;
 pub mod prompt_renderer;
 pub mod secrets;
 pub mod tools;
+pub mod user_context;
 
 // 当前外部使用点:
 // - `fetch_openai_compatible_models`: ai_page.rs 中的 FetchAgentProviderModels handler

@@ -1,177 +1,79 @@
-//! BYOP 模式下的 chat completion + tool calling 适配层。
+//! BYOP 模式下 chat completion + tool calling 适配层(基于 genai 0.5.3)。
 //!
-//! 把 `RequestParams` 翻译为 OpenAI 兼容 chat/completions 请求,调用用户配置的
-//! provider base_url,收到响应后翻译回 `warp_multi_agent_api::ResponseEvent`,
-//! 让 controller 自家逻辑(权限/弹窗/执行/result 回写/触发下一轮)接管闭环。
+//! 把 `RequestParams` 翻译为 genai `ChatRequest`,通过 `Client::exec_chat_stream`
+//! 调用用户配置的 provider,响应翻译回 `warp_multi_agent_api::ResponseEvent`,
+//! controller 自家逻辑(权限/弹窗/执行/result 回写/触发下一轮)接管闭环。
 //!
-//! ## 当前能力
+//! ## 5 种 API 协议显式路由
 //!
-//! - 多轮: `params.tasks` 中所有历史消息 + `params.input` 当前输入 → OpenAI messages
-//! - Tool calling: 内置 tools 见 `tools::REGISTRY`(目前: `run_shell_command`, `read_files`)
-//! - 模型回 `tool_calls` → 翻译为 `Message::ToolCall` → controller 按 profile
-//!   权限自动 ask / auto-approve / 执行 / 写 result → 自动触发下一轮 byop
-//! - Tool result 在下一轮被序列化为 `role=tool, tool_call_id=...` 的 JSON content
+//! 不再把所有 provider 当作 OpenAI 兼容硬塞,通过 `ServiceTargetResolver` 把
+//! 用户在 settings UI 选的 `AgentProviderApiType` 一对一映射到 genai 的 `AdapterKind`:
 //!
-//! ## 限制(待后续扩展)
+//! | ApiType        | AdapterKind  | 默认 endpoint                                  |
+//! |----------------|--------------|------------------------------------------------|
+//! | OpenAi         | OpenAI       | https://api.openai.com/v1                      |
+//! | OpenAiResp     | OpenAIResp   | https://api.openai.com/v1 (走 /v1/responses)   |
+//! | Gemini         | Gemini       | https://generativelanguage.googleapis.com/v1beta |
+//! | Anthropic      | Anthropic    | https://api.anthropic.com                      |
+//! | Ollama         | Ollama       | http://localhost:11434                         |
 //!
-//! - 不响应 cancel
-//! - 不解析 token usage
+//! 用户填的 `base_url` 始终覆盖默认。这样:
+//! - DeepSeek / SiliconFlow / OpenRouter 等 OpenAI 兼容 provider 选 `OpenAi`,自定义 base_url
+//! - 显式选定 adapter 完全绕过 genai 的"按模型名识别"默认行为,避免误识别
 //!
-//! ## 流式实现(SSE)
+//! ## 多轮 message 转换
 //!
-//! `stream=true` 后用 `create_stream_byot` 拿 SSE chunk,翻译成 warp 协议:
-//! - 首次出现 content/reasoning_content → emit `AddMessagesToTask` 注册 message id;
-//! - 后续 chunk → emit `AppendToMessageContent` + FieldMask 增量追加,UI 打字机效果;
-//! - tool_calls 按 `index` 在 buffer 中累积,流结束后一次性 emit。
+//! - system prompt: `ChatRequest::with_system()`(不进 messages 数组)
+//! - user query: `ChatMessage::user(text)`
+//! - assistant text: `ChatMessage::assistant(text)`
+//! - assistant tool_calls: `ChatMessage::from(Vec<ToolCall>)`(自动 assistant role)
+//! - tool result: `ChatMessage::from(ToolResponse::new(call_id, content))`(自动 tool role)
+//!
+//! ## 流式实现
+//!
+//! `Client::exec_chat_stream` 返回 `ChatStreamResponse`,其 `stream` 字段实现了
+//! `futures_core::Stream<Item = Result<ChatStreamEvent>>`。事件:
+//! - `Start` / `Chunk(text)` / `ReasoningChunk(text)` / `ToolCallChunk(tool_call)` / `End(StreamEnd)`
+//!
+//! 我们对 Chunk/ReasoningChunk 立即 emit `AppendToMessageContent`(打字机效果),
+//! 对 ToolCallChunk 累积 buffer(按 call_id),流末统一 emit `Message::ToolCall`,
+//! controller 自动接管。
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use async_openai::{config::OpenAIConfig, Client as OpenAIClient};
 use futures::StreamExt;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use uuid::Uuid;
 use warp_multi_agent_api as api;
 
+use genai::adapter::AdapterKind;
+use genai::chat::{
+    ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, Tool as GenaiTool, ToolCall,
+    ToolResponse,
+};
+use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
+use genai::{Client, ModelIden, ServiceTarget};
+
 use crate::ai::agent::api::{RequestParams, ResponseStream};
 use crate::ai::agent::AIAgentInput;
 use crate::server::server_api::AIApiError;
+use crate::settings::AgentProviderApiType;
 use ai::agent::convert::ConvertToAPITypeError;
 
-use super::openai_compatible::{normalize_base_url, OpenAiCompatibleError};
+use super::openai_compatible::OpenAiCompatibleError;
 use super::tools;
-
-// ---------------------------------------------------------------------------
-// OpenAI 协议类型(子集)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Clone, Serialize)]
-struct ChatRequest<'a> {
-    model: &'a str,
-    messages: Vec<ChatMessage>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    tools: Vec<ToolDef>,
-    stream: bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct ChatMessage {
-    role: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    content: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_calls: Option<Vec<OutToolCall>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    tool_call_id: Option<String>,
-    /// DeepSeek reasoner / 类似 o1 thinking 模式: 上一轮的 reasoning_content 必须
-    /// 在下一轮的同一 assistant message 中带回去,否则 400。
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reasoning_content: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct OutToolCall {
-    id: String,
-    #[serde(rename = "type")]
-    kind: &'static str, // "function"
-    function: OutFunction,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct OutFunction {
-    name: String,
-    arguments: String, // JSON 字符串
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct ToolDef {
-    #[serde(rename = "type")]
-    kind: &'static str, // "function"
-    function: ToolFunction,
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct ToolFunction {
-    name: String,
-    description: String,
-    parameters: Value,
-}
-
-/// 仅在流结束 buffer → parse_incoming_tool_call 时合成使用。非流式 ChatResponse
-/// 已弃用,所有响应统一走 SSE。
-#[derive(Debug)]
-#[allow(dead_code)]
-struct RespToolCall {
-    id: String,
-    kind: String,
-    function: RespFunction,
-}
-
-#[derive(Debug)]
-struct RespFunction {
-    name: String,
-    arguments: String,
-}
-
-// ---- streaming(SSE chunk)----
-
-#[derive(Debug, Deserialize)]
-struct RespChunk {
-    #[serde(default)]
-    choices: Vec<ChoiceDelta>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ChoiceDelta {
-    #[serde(default)]
-    delta: Delta,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct Delta {
-    #[serde(default)]
-    content: Option<String>,
-    #[serde(default)]
-    reasoning_content: Option<String>,
-    #[serde(default)]
-    tool_calls: Option<Vec<RespToolCallDelta>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct RespToolCallDelta {
-    #[serde(default)]
-    index: Option<u32>,
-    #[serde(default)]
-    id: Option<String>,
-    #[serde(default)]
-    function: Option<RespFunctionDelta>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-struct RespFunctionDelta {
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    arguments: Option<String>,
-}
-
-#[derive(Default)]
-struct ToolCallBuf {
-    id: String,
-    name: String,
-    args: String,
-}
 
 // ---------------------------------------------------------------------------
 // System prompt
 // ---------------------------------------------------------------------------
-// system prompt 现在由 `prompt_renderer::render_system` 通过 minijinja 模板生成,
+// system prompt 由 `prompt_renderer::render_system` 通过 minijinja 模板生成,
 // 按 LLMId 模型族选 system/{anthropic,gpt,beast,gemini,kimi,codex,trinity,default}.j2,
 // 并把 warp 客户端已经收集好的 AIAgentContext(env / git / skills / project_rules / codebase / current_time)
 // 渲染进 system,让 BYOP 路径也能拥有跟 warp 自家路径相当的环境信息。
 
 use super::prompt_renderer;
+use super::user_context;
 use crate::ai::agent::AIAgentContext;
 
 /// 从 input 中抽出最近一条 `UserQuery.context`(等价 warp `convert_to.rs::convert_input` 取的那条)。
@@ -188,20 +90,57 @@ fn latest_input_context(input: &[AIAgentInput]) -> &[AIAgentContext] {
 // Multi-turn message 转换
 // ---------------------------------------------------------------------------
 
-/// 把 RequestParams 翻译为 OpenAI messages 数组。
+/// 累积同一 assistant turn 的 text + tool_calls + reasoning,然后 flush 成一个或两个
+/// `ChatMessage`(text 一个,tool_calls 一个 — genai 把它们建模为分开的 message)。
 ///
-/// 顺序: `params.tasks[*].messages` 按时间戳排序(同一个 task 内部已经按发生顺序),
-/// 然后 append `params.input`(当前轮新输入)。
-fn build_openai_messages(params: &RequestParams) -> Vec<ChatMessage> {
+/// **DeepSeek thinking-mode 关键**:assistant turn 含 tool_calls 时,
+/// 必须用 `ChatMessage::with_reasoning_content(Some(reasoning))` 把上一轮的
+/// reasoning_content 字段回传,否则 DeepSeek 服务端 400(genai 0.6 才有此 API,
+/// 0.5.3 是 issue #138 — 见 Cargo.toml 注释)。
+#[derive(Default)]
+struct AssistantBuffer {
+    text: Option<String>,
+    tool_calls: Vec<ToolCall>,
+    /// 上一轮 AgentReasoning(thinking 链)。flush 时挂到对应 assistant message
+    /// 的 reasoning_content 字段(genai 内部按 adapter 序列化:DeepSeek/Kimi 走 reasoning_content,
+    /// Anthropic 走 thinking blocks)。
+    reasoning: Option<String>,
+}
+
+impl AssistantBuffer {
+    fn flush_into(&mut self, messages: &mut Vec<ChatMessage>) {
+        let reasoning = self.reasoning.take();
+        let has_tool_calls = !self.tool_calls.is_empty();
+        if let Some(t) = self.text.take() {
+            let mut msg = ChatMessage::assistant(t);
+            // 仅当本 turn 没有 tool_calls 时才把 reasoning 挂到 text message;
+            // 有 tool_calls 时 reasoning 必须跟 tool_calls 在同一 message
+            // (DeepSeek 服务端只对 含 tool_calls 的 assistant 强制要求 reasoning_content)。
+            if !has_tool_calls {
+                if let Some(r) = reasoning.as_deref().filter(|s| !s.is_empty()) {
+                    msg = msg.with_reasoning_content(Some(r.to_owned()));
+                }
+            }
+            messages.push(msg);
+        }
+        if has_tool_calls {
+            // genai `From<Vec<ToolCall>> for ChatMessage` 自动产 assistant role +
+            // MessageContent::from_tool_calls。
+            let mut msg = ChatMessage::from(std::mem::take(&mut self.tool_calls));
+            if let Some(r) = reasoning.filter(|s| !s.is_empty()) {
+                msg = msg.with_reasoning_content(Some(r));
+            }
+            messages.push(msg);
+        }
+    }
+}
+
+/// 把 RequestParams 翻译为 genai `ChatRequest`(含 system + messages + tools)。
+fn build_chat_request(params: &RequestParams) -> ChatRequest {
     let agent_ctx = latest_input_context(&params.input);
     let system_text = prompt_renderer::render_system(&params.model, agent_ctx);
-    let mut messages = vec![ChatMessage {
-        role: "system",
-        content: Some(system_text),
-        tool_calls: None,
-        tool_call_id: None,
-        reasoning_content: None,
-    }];
+
+    let mut messages: Vec<ChatMessage> = Vec::new();
 
     // 收集所有 task 的 messages,按时间戳排序。
     let mut all_msgs: Vec<&api::Message> = params
@@ -216,38 +155,7 @@ fn build_openai_messages(params: &RequestParams) -> Vec<ChatMessage> {
             .unwrap_or((0, 0))
     });
 
-    // 把同一 request_id 的 ToolCall 聚合到同一个 assistant message 的 tool_calls 数组。
-    // OpenAI 要求 assistant 的 tool_calls 紧接着对应 tool_call_id 的 tool messages。
-    // DeepSeek reasoner 模式还要求 reasoning_content 在同一 assistant 块中带回去。
-    let mut pending_tool_calls: Vec<OutToolCall> = Vec::new();
-    let mut pending_assistant_text: Option<String> = None;
-    let mut pending_reasoning: Option<String> = None;
-
-    let flush_assistant = |msgs: &mut Vec<ChatMessage>,
-                           text: &mut Option<String>,
-                           tcs: &mut Vec<OutToolCall>,
-                           reasoning: &mut Option<String>| {
-        // OpenAI 协议要求 assistant message 必须有 content 或 tool_calls 之一。
-        // 只有 reasoning_content 的"残缺"消息(上一轮流被截断 / 模型只产出思考链
-        // 没产出最终回答时会出现)直接丢弃,否则下一轮回放会被服务端 400 拒绝。
-        if text.is_some() || !tcs.is_empty() {
-            msgs.push(ChatMessage {
-                role: "assistant",
-                content: text.take(),
-                tool_calls: if tcs.is_empty() {
-                    None
-                } else {
-                    Some(std::mem::take(tcs))
-                },
-                tool_call_id: None,
-                reasoning_content: reasoning.take(),
-            });
-        } else {
-            text.take();
-            tcs.clear();
-            reasoning.take();
-        }
-    };
+    let mut buf = AssistantBuffer::default();
 
     for msg in all_msgs {
         let Some(inner) = &msg.message else {
@@ -255,127 +163,93 @@ fn build_openai_messages(params: &RequestParams) -> Vec<ChatMessage> {
         };
         match inner {
             api::message::Message::UserQuery(u) => {
-                flush_assistant(
-                    &mut messages,
-                    &mut pending_assistant_text,
-                    &mut pending_tool_calls,
-                    &mut pending_reasoning,
-                );
-                messages.push(ChatMessage {
-                    role: "user",
-                    content: Some(u.query.clone()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                    reasoning_content: None,
-                });
+                buf.flush_into(&mut messages);
+                // 历史轮的 user query 没有 AIAgentContext 数据(InputContext 在 warp 协议
+                // 是单 Request 级 payload,不持久化到 message),只送 query 文本。
+                // 这跟 warp 自家路径行为一致 — 历史轮不重发附件 context。
+                messages.push(ChatMessage::user(u.query.clone()));
             }
             api::message::Message::AgentReasoning(r) => {
-                // DeepSeek reasoner 的思考链。挂到下一个 assistant block 上。
-                if pending_assistant_text.is_some()
-                    || !pending_tool_calls.is_empty()
-                    || pending_reasoning.is_some()
-                {
-                    flush_assistant(
-                        &mut messages,
-                        &mut pending_assistant_text,
-                        &mut pending_tool_calls,
-                        &mut pending_reasoning,
-                    );
+                // 把上一轮的 reasoning 挂到下一个要 flush 的 assistant message 上。
+                // genai 0.6 的 with_reasoning_content 会按当前 adapter 序列化:
+                // DeepSeek/Kimi → reasoning_content 字段;Anthropic → thinking blocks。
+                // 多段 AgentReasoning 累加(同一 turn 可能 stream 出多个 reasoning chunk
+                // 落地为多条 AgentReasoning)。
+                let next = r.reasoning.clone();
+                if !next.is_empty() {
+                    match buf.reasoning.as_mut() {
+                        Some(existing) => existing.push_str(&next),
+                        None => buf.reasoning = Some(next),
+                    }
                 }
-                pending_reasoning = Some(r.reasoning.clone());
             }
             api::message::Message::AgentOutput(a) => {
-                if pending_assistant_text.is_some() {
-                    flush_assistant(
-                        &mut messages,
-                        &mut pending_assistant_text,
-                        &mut pending_tool_calls,
-                        &mut pending_reasoning,
-                    );
+                if buf.text.is_some() || !buf.tool_calls.is_empty() {
+                    buf.flush_into(&mut messages);
                 }
-                pending_assistant_text = Some(a.text.clone());
+                buf.text = Some(a.text.clone());
             }
             api::message::Message::ToolCall(tc) => {
-                let (name, args) =
+                let (name, args_json) =
                     serialize_outgoing_tool_call(tc, params.mcp_context.as_ref());
-                pending_tool_calls.push(OutToolCall {
-                    id: tc.tool_call_id.clone(),
-                    kind: "function",
-                    function: OutFunction {
-                        name,
-                        arguments: args,
-                    },
+                buf.tool_calls.push(ToolCall {
+                    call_id: tc.tool_call_id.clone(),
+                    fn_name: name,
+                    fn_arguments: args_json,
+                    thought_signatures: None,
                 });
             }
             api::message::Message::ToolCallResult(tcr) => {
-                flush_assistant(
-                    &mut messages,
-                    &mut pending_assistant_text,
-                    &mut pending_tool_calls,
-                    &mut pending_reasoning,
-                );
-                messages.push(ChatMessage {
-                    role: "tool",
-                    content: Some(tools::serialize_result(tcr)),
-                    tool_calls: None,
-                    tool_call_id: Some(tcr.tool_call_id.clone()),
-                    reasoning_content: None,
-                });
+                buf.flush_into(&mut messages);
+                // BYOP 持久化的 ToolCallResult 走 server_message_data(content 已是 JSON 字符串);
+                // server 端 emit 走 result oneof 结构化 variant — 兼容两路。
+                let content = if tcr.result.is_some() {
+                    tools::serialize_result(tcr)
+                } else if !msg.server_message_data.is_empty() {
+                    msg.server_message_data.clone()
+                } else {
+                    r#"{"status":"empty"}"#.to_owned()
+                };
+                messages.push(ChatMessage::from(ToolResponse::new(
+                    tcr.tool_call_id.clone(),
+                    content,
+                )));
             }
             _ => {
-                // 其他 message 类型(SystemQuery/UpdateTodos/...)Phase 3a 暂不送上游。
+                // 其他 message 类型(SystemQuery/UpdateTodos/...)BYOP 暂不送上游。
             }
         }
     }
-    flush_assistant(
-        &mut messages,
-        &mut pending_assistant_text,
-        &mut pending_tool_calls,
-        &mut pending_reasoning,
-    );
+    buf.flush_into(&mut messages);
 
     // 当前轮新输入 → 追加。
     for input in &params.input {
         match input {
-            AIAgentInput::UserQuery { query, .. } => {
-                messages.push(ChatMessage {
-                    role: "user",
-                    content: Some(query.clone()),
-                    tool_calls: None,
-                    tool_call_id: None,
-                    reasoning_content: None,
-                });
+            AIAgentInput::UserQuery { query, context, .. } => {
+                // 当前轮 UserQuery 自带的附件类 context(Block / SelectedText / File / Image)
+                // 严格对齐 warp 自家路径走 `api::InputContext.executed_shell_commands` 等字段
+                // 上行后由后端注入 prompt 的语义。BYOP 没有后端这层,直接 prepend 到 user message。
+                // 环境型 context(env / git / skills / ...)由 prompt_renderer 渲染进 system,
+                // 与本路径不重叠。
+                let full_text = match user_context::render_user_attachments(context) {
+                    Some(prefix) => format!("{prefix}\n\n{query}"),
+                    None => query.clone(),
+                };
+                messages.push(ChatMessage::user(full_text));
             }
             AIAgentInput::ActionResult { result, .. } => {
-                // 关键: 上一轮模型回了 tool_calls,client 端执行完后 result 走
-                // `params.input` 而不是 `params.tasks` 的 message 历史。如果不在
-                // 这里把 ActionResult 序列化为 `role=tool` message,OpenAI 协议
-                // (DeepSeek/官方都严格校验)会因为缺少 tool_call_id 对应的 tool
-                // message 而 400: "An assistant message with 'tool_calls' must be
-                // followed by tool messages responding to each 'tool_call_id'".
+                // 上一轮模型回了 tool_calls,client 端执行完后 result 走 `params.input`
+                // 而不是 `params.tasks` 历史。必须在这里序列化为 ToolResponse,否则
+                // genai/上游会因 tool_call_id 配对失败 400。
                 let tool_call_id = result.id.to_string();
-                // 走 per-tool 结构化序列化:LongRunningCommandSnapshot 等必须保留
-                // command_id / output / is_alt_screen_active 字段,否则下一轮模型
-                // 拿不到 command_id 没法继续 read/write_to_long_running_*,长运行
-                // 命令工具完全不可用。Display fallback 仅用于注册表里未覆盖的
-                // ActionResult variant(如 SuggestPrompt/UploadArtifact 等)。
                 let content = tools::serialize_action_result(result).unwrap_or_else(|| {
                     serde_json::json!({ "result": result.result.to_string() }).to_string()
                 });
-                messages.push(ChatMessage {
-                    role: "tool",
-                    content: Some(content),
-                    tool_calls: None,
-                    tool_call_id: Some(tool_call_id),
-                    reasoning_content: None,
-                });
+                messages.push(ChatMessage::from(ToolResponse::new(tool_call_id, content)));
             }
             AIAgentInput::InvokeSkill {
                 skill, user_query, ..
             } => {
-                // Skill 是用户预定义的 prompt 模板(markdown 文件)。把 skill 内容
-                // + 可选的 user_query 拼成一条 user message 喂给上游 — 这样自定义
-                // provider 路径下也能走 warp 的 skill 工作流。
                 let mut composed = format!(
                     "请按下面的技能 \"{}\" 指引执行任务:\n\n{}\n\n---\n",
                     skill.name, skill.content,
@@ -383,13 +257,7 @@ fn build_openai_messages(params: &RequestParams) -> Vec<ChatMessage> {
                 if let Some(uq) = user_query {
                     composed.push_str(&format!("用户进一步指令: {}", uq.query));
                 }
-                messages.push(ChatMessage {
-                    role: "user",
-                    content: Some(composed),
-                    tool_calls: None,
-                    tool_call_id: None,
-                    reasoning_content: None,
-                });
+                messages.push(ChatMessage::user(composed));
             }
             AIAgentInput::ResumeConversation { .. }
             | AIAgentInput::AutoCodeDiffQuery { .. }
@@ -402,43 +270,31 @@ fn build_openai_messages(params: &RequestParams) -> Vec<ChatMessage> {
         }
     }
 
-    // 最后做一次 sanitize: 确保每个 assistant.tool_calls 后面都跟着对应每个
-    // tool_call_id 的 role=tool message。
-    //
-    // 背景: warp 自家协议在 tool 执行后,result 不一定保留为 task.messages 中的
-    // `Message::ToolCallResult` — 实测发现是被"消化"成下一条 AgentOutput
-    // (模型基于 result 生成的总结)。OpenAI 协议则严格要求 tool_calls 紧跟
-    // 对应 tool messages,否则 400.
-    //
-    // 注意必须在 params.input 处理 *之后* 跑(否则 ActionResult 转出的 tool
-    // message 还没 push,sanitize 会误认为缺失,合成占位,然后 ActionResult
-    // 又 push 一个真实 tool — 同一 id 出现两次,触发 "Messages with role
-    // 'tool' must be a response to a preceding message with 'tool_calls'").
+    // 防御性 sanitize: 确保每个 assistant tool_calls 后面跟着对应每个 call_id 的
+    // ToolResponse。warp 自家协议有时把 tool result 消化成下一轮 AgentOutput,
+    // 上游若未保留 ToolCallResult,会让 tool_calls 配对失败。
     sanitize_tool_call_pairs(&mut messages);
 
-    messages
+    let tools_array = build_tools_array(params);
+
+    let mut req = ChatRequest::from_messages(messages).with_system(system_text);
+    if !tools_array.is_empty() {
+        req = req.with_tools(tools_array);
+    }
+    req
 }
 
-/// 扫描 messages,对每个 assistant.tool_calls 块,确保其后面紧跟对应每个
-/// tool_call_id 的 role=tool message。缺失的合成 placeholder。
-///
-/// 算法:从前往后单次扫描。遇到一个含 tool_calls 的 assistant 时:
-///   1. 记下它的所有 ids
-///   2. 收集紧随其后的所有 role=tool messages 的 tool_call_id 集合(直到下一个
-///      非 tool message 出现)
-///   3. 对 ids 中没出现在收集集合的,在该 assistant 后立即插入 placeholder。
-///   4. 若紧随 assistant 的下一个 message 是另一个 assistant 含 content(典型:
-///      warp 把 tool 结果消化成的总结),把它的 content 取来作为 placeholder
-///      content,这样上游模型至少能"看到"上一轮 tool 调用产生了什么效果。
+/// 扫描 messages,对每个 assistant 含 tool_calls 的 message,确保其后面紧跟对应每个
+/// call_id 的 tool message。缺失的合成 placeholder。
 fn sanitize_tool_call_pairs(messages: &mut Vec<ChatMessage>) {
     use std::collections::HashSet;
 
     let mut i = 0;
     while i < messages.len() {
-        // 仅处理含 tool_calls 的 assistant
-        let ids: Vec<String> = match &messages[i].tool_calls {
-            Some(tcs) if messages[i].role == "assistant" && !tcs.is_empty() => {
-                tcs.iter().map(|tc| tc.id.clone()).collect()
+        // 仅处理 assistant 且 content 含 tool_calls 的 message
+        let ids: Vec<String> = match (&messages[i].role, messages[i].content.tool_calls()) {
+            (genai::chat::ChatRole::Assistant, calls) if !calls.is_empty() => {
+                calls.iter().map(|tc| tc.call_id.clone()).collect()
             }
             _ => {
                 i += 1;
@@ -446,64 +302,52 @@ fn sanitize_tool_call_pairs(messages: &mut Vec<ChatMessage>) {
             }
         };
 
-        // 扫描后续紧跟的 role=tool 消息,收集已经回应的 ids;
-        // 同时记录第一条非 tool 消息(若存在),用作 placeholder content 的来源。
+        // 收集后面紧跟的 Tool 消息已 cover 的 call_id
         let mut covered: HashSet<String> = HashSet::new();
         let mut scan = i + 1;
-        while scan < messages.len() && messages[scan].role == "tool" {
-            if let Some(id) = &messages[scan].tool_call_id {
-                covered.insert(id.clone());
+        while scan < messages.len() && messages[scan].role == genai::chat::ChatRole::Tool {
+            for resp in messages[scan].content.tool_responses() {
+                covered.insert(resp.call_id.clone());
             }
             scan += 1;
         }
 
-        // 找缺失的 ids
         let missing: Vec<String> = ids.into_iter().filter(|id| !covered.contains(id)).collect();
         if missing.is_empty() {
             i = scan;
             continue;
         }
 
-        // 占位 content 来源: 紧随的下一个 assistant message(典型场景:
-        // warp 把 tool 结果消化成的下一轮 AgentOutput)的 content。
+        // 占位 content 来源:紧随的下一个 assistant message 的 first_text(典型场景:
+        // warp 把 tool 结果消化成的下一轮 AgentOutput)。
         let placeholder_content: String = messages
             .get(scan)
-            .filter(|m| m.role == "assistant")
-            .and_then(|m| m.content.clone())
+            .filter(|m| m.role == genai::chat::ChatRole::Assistant)
+            .and_then(|m| m.content.first_text().map(str::to_owned))
             .map(|c| format!("(tool 执行结果已被对话消化为助手回答,内容摘要: {c})"))
             .unwrap_or_else(|| "(tool 执行结果未保留)".to_owned());
 
-        // 在 i+1 位置插入所有缺失 id 的占位 tool message
         let inserts: Vec<ChatMessage> = missing
             .into_iter()
-            .map(|id| ChatMessage {
-                role: "tool",
-                content: Some(placeholder_content.clone()),
-                tool_calls: None,
-                tool_call_id: Some(id),
-                reasoning_content: None,
-            })
+            .map(|id| ChatMessage::from(ToolResponse::new(id, placeholder_content.clone())))
             .collect();
         let inserted = inserts.len();
         messages.splice(i + 1..i + 1, inserts);
 
-        // 跳过 assistant + 已 cover + 新插入的占位
         i = i + 1 + (scan - (i + 1)) + inserted;
     }
 }
 
-/// 反向: 把内部 `tool_call::Tool` variant 序列化成 OpenAI tool_calls 中的
-/// `(function.name, function.arguments)` 对,用于多轮历史回放。
-///
-/// 这里的 (name, args_json) 必须与 `tools::REGISTRY` 中各 tool 的 `name` 与
-/// `from_args` 期望的 schema 严格对齐 — 否则历史的"模型曾调用过 X"信息会
-/// 退化为 unknown_tool,新一轮请求时模型上下文不完整。
+/// 反向: 把内部 `tool_call::Tool` variant 序列化成 (function name, arguments JSON Value)
+/// 用于多轮历史回放。这里的 (name, args) 必须与 `tools::REGISTRY` 中各 tool 的 `name`
+/// 与 `from_args` 期望的 schema 严格对齐。
 fn serialize_outgoing_tool_call(
     tc: &api::message::ToolCall,
     mcp_ctx: Option<&crate::ai::agent::MCPContext>,
-) -> (String, String) {
+) -> (String, Value) {
     use api::message::tool_call::Tool;
-    match &tc.tool {
+    // 大多数旧实现返回 (String, String);这里改成 (String, Value),把字符串再 parse 一次。
+    let (name, args_str) = match &tc.tool {
         Some(Tool::CallMcpTool(c)) => tools::mcp::serialize_outgoing_call(c, mcp_ctx),
         Some(Tool::ReadMcpResource(r)) => tools::mcp::serialize_outgoing_read_resource(r, mcp_ctx),
         Some(Tool::RunShellCommand(c)) => (
@@ -608,9 +452,6 @@ fn serialize_outgoing_tool_call(
                     "file_path": f.file_path,
                 }));
             }
-            // 注: v4a_updates 没有反向序列化(我们的 schema 也没暴露),回放时会丢
-            // 失这部分信息;若用户在 server-side 已存在的 v4a 历史回到 byop 路径,
-            // 模型只能看到部分 ops。Phase 4 若加 v4a 支持需同步在这里追加。
             (
                 "apply_file_diffs".to_owned(),
                 json!({ "summary": a.summary, "operations": operations }).to_string(),
@@ -725,11 +566,6 @@ fn serialize_outgoing_tool_call(
             }
             ("read_shell_command_output".to_owned(), args.to_string())
         }
-        // 未在 BYOP 路径接入的 ToolCall variant(StartAgent/Subagent/UseComputer/
-        // UploadFileArtifact/InsertReviewComments 等)。这些工具要么依赖 warp 后端
-        // orchestration / server upload,要么 Decentralize 分支主动隐藏。这里把
-        // variant 名(基于 protobuf inner type 的 Debug 输出)放到 function name 里,
-        // 让历史回放的模型至少能看到"曾调用过 X 内部工具"而不是 unknown_tool。
         Some(other) => {
             let variant_name = format!("{other:?}")
                 .split('(')
@@ -742,92 +578,100 @@ fn serialize_outgoing_tool_call(
             )
         }
         None => ("warp_internal_empty".to_owned(), "{}".to_owned()),
-    }
+    };
+    let args_value: Value = serde_json::from_str(&args_str).unwrap_or(Value::Object(Default::default()));
+    (name, args_value)
 }
 
 // ---------------------------------------------------------------------------
-// 主流程
+// Tools 数组
 // ---------------------------------------------------------------------------
 
-fn build_tools_array(params: &RequestParams) -> Vec<ToolDef> {
-    let mut out: Vec<ToolDef> = tools::REGISTRY
-        .iter()
-        .map(|t| ToolDef {
-            kind: "function",
-            function: ToolFunction {
-                name: t.name.to_owned(),
-                description: t.description.to_owned(),
-                parameters: (t.parameters)(),
-            },
-        })
-        .collect();
-    // 动态注入 MCP server 暴露的 tools
+fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
+    let mut out: Vec<GenaiTool> = tools::REGISTRY.iter().map(|t| t.to_genai_tool()).collect();
+
     if let Some(ctx) = params.mcp_context.as_ref() {
         for (name, description, parameters) in tools::mcp::build_mcp_tool_defs(ctx) {
-            out.push(ToolDef {
-                kind: "function",
-                function: ToolFunction {
-                    name,
-                    description,
-                    parameters,
-                },
-            });
+            out.push(
+                GenaiTool::new(name)
+                    .with_description(description)
+                    .with_schema(parameters),
+            );
         }
     }
     out
 }
 
-/// 构造 OpenAI 兼容 client + 准备好流式请求 body。
-fn build_client_and_body(
-    base_url: &str,
-    api_key: &str,
-    model_id: &str,
-    messages: Vec<ChatMessage>,
-    tools_array: Vec<ToolDef>,
-) -> Result<(OpenAIClient<OpenAIConfig>, Value), OpenAiCompatibleError> {
-    // base_url 规范化(剔除尾 /,确保 http/https) — async-openai 的 with_api_base
-    // 期望不含 /chat/completions 后缀,我们传规范化后的 base 即可。
-    let base = normalize_base_url(base_url)?;
-    let mut config = OpenAIConfig::new().with_api_base(base);
-    if !api_key.trim().is_empty() {
-        config = config.with_api_key(api_key);
+// ---------------------------------------------------------------------------
+// Client / 路由
+// ---------------------------------------------------------------------------
+
+/// 把 `AgentProviderApiType` 一对一映射到 genai `AdapterKind`。
+fn adapter_kind_for(api_type: AgentProviderApiType) -> AdapterKind {
+    match api_type {
+        AgentProviderApiType::OpenAi => AdapterKind::OpenAI,
+        AgentProviderApiType::OpenAiResp => AdapterKind::OpenAIResp,
+        AgentProviderApiType::Gemini => AdapterKind::Gemini,
+        AgentProviderApiType::Anthropic => AdapterKind::Anthropic,
+        AgentProviderApiType::Ollama => AdapterKind::Ollama,
+        AgentProviderApiType::DeepSeek => AdapterKind::DeepSeek,
     }
-    let client = OpenAIClient::with_config(config);
-
-    // BYOT (Bring Your Own Type): 直接传/收 serde_json::Value,绕过 SDK 的强类型,
-    // 这样 DeepSeek 的 `reasoning_content`、OpenRouter 的 `provider` 等非标准
-    // 字段都能透传/读取。请求体仍用我们的 ChatRequest 序列化(serde::Serialize)。
-    let body = ChatRequest {
-        model: model_id,
-        messages,
-        tools: tools_array,
-        stream: true,
-    };
-    let body_value = serde_json::to_value(&body)
-        .map_err(|e| OpenAiCompatibleError::Decode(format!("serialize request: {e}")))?;
-
-    // 调试日志:打印最终发出去的 messages 序列,定位"tool_calls 后没跟 tool message"
-    // 之类的协议违例。debug 级别 — 默认日志配置不会污染输出,需要时通过
-    // RUST_LOG=warp::ai::agent_providers::chat_stream=debug 打开。
-    if log::log_enabled!(log::Level::Debug) {
-        if let Some(messages) = body_value.get("messages") {
-            log::debug!(
-                "[byop] outgoing messages: {}",
-                serde_json::to_string(messages).unwrap_or_default()
-            );
-        }
-    }
-
-    Ok((client, body_value))
 }
 
-/// 把 async-openai 的 `OpenAIError` 映射回我们的 `OpenAiCompatibleError`。
-/// 不同 SDK 版本的 variant 集合差异较大,这里直接用 Display 文本携带诊断信息,
-/// 让 retry/UI 看到完整错误链。后续如果要按 status code 做精细分支(401/429),
-/// 可以解析 Display 字符串或升级到 SDK 更稳定的 API。
-fn map_openai_error(err: async_openai::error::OpenAIError) -> OpenAiCompatibleError {
+/// 构造 genai Client。每次请求新建(开销低 — Client 内部只是 reqwest::Client + adapter 表)。
+/// `ServiceTargetResolver` capture 当前请求的 endpoint/key/api_type 后,把每次 exec_chat_stream
+/// 都强制路由到指定 AdapterKind,完全绕过 genai 默认的"按模型名识别"。
+fn build_client(
+    api_type: AgentProviderApiType,
+    base_url: String,
+    api_key: String,
+) -> Client {
+    let adapter_kind = adapter_kind_for(api_type);
+    let endpoint_url = if base_url.trim().is_empty() {
+        api_type.default_base_url().to_owned()
+    } else {
+        // 去掉尾随 /,有的 adapter 实现对此挑剔
+        base_url.trim_end_matches('/').to_owned()
+    };
+    let key_for_resolver = api_key.clone();
+    let resolver = ServiceTargetResolver::from_resolver_fn(
+        move |service_target: ServiceTarget| -> Result<ServiceTarget, genai::resolver::Error> {
+            let ServiceTarget { model, .. } = service_target;
+            let endpoint = Endpoint::from_owned(endpoint_url.clone());
+            let auth = AuthData::from_single(key_for_resolver.clone());
+            // 用我们指定的 AdapterKind 覆盖 genai 的"按模型名"识别结果,
+            // 但保留 model_name 以便上游服务正确寻址模型。
+            let model = ModelIden::new(adapter_kind, model.model_name);
+            Ok(ServiceTarget {
+                endpoint,
+                auth,
+                model,
+            })
+        },
+    );
+    Client::builder()
+        .with_service_target_resolver(resolver)
+        .build()
+}
+
+fn build_chat_options() -> ChatOptions {
+    ChatOptions::default()
+        .with_capture_content(true)
+        .with_capture_tool_calls(true)
+        .with_capture_reasoning_content(true)
+        .with_capture_usage(true)
+        // 让 genai 把 DeepSeek-style 模型在 content 中夹带的 <think>...</think>
+        // 段抽出来归到 reasoning chunk,UI 显示更干净。仅对支持该格式的 adapter 生效。
+        .with_normalize_reasoning_content(true)
+}
+
+fn map_genai_error(err: genai::Error) -> OpenAiCompatibleError {
     OpenAiCompatibleError::Decode(format!("{err}"))
 }
+
+// ---------------------------------------------------------------------------
+// 主流程
+// ---------------------------------------------------------------------------
 
 /// `task_id`: conversation 的 root task id(controller 端从 history model 取)。
 /// `needs_create_task`: 仅首轮(root 还是 Optimistic)需要 emit `CreateTask`。
@@ -836,12 +680,14 @@ pub async fn generate_byop_output(
     base_url: String,
     api_key: String,
     model_id: String,
+    api_type: AgentProviderApiType,
     task_id: String,
     needs_create_task: bool,
     _cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
-    let messages = build_openai_messages(&params);
-    let tools_array = build_tools_array(&params);
+    let chat_req = build_chat_request(&params);
+    let chat_opts = build_chat_options();
+    let client = build_client(api_type, base_url, api_key);
     let conversation_id = params
         .conversation_token
         .as_ref()
@@ -850,8 +696,70 @@ pub async fn generate_byop_output(
     let request_id = Uuid::new_v4().to_string();
     let mcp_context = params.mcp_context.clone();
 
-    // build client / body 同步阶段;失败立即作为单 Err event 发回。
-    let prepared = build_client_and_body(&base_url, &api_key, &model_id, messages, tools_array);
+    // ⚠️ BYOP 持久化关键:warp 自家路径下,以下 ClientAction 都是 server 端 emit
+    // 让 client 端把 UserQuery / ToolCallResult 等"非模型产出"的 message
+    // 写回 task.messages,从而让下一轮请求的 `params.tasks` snapshot 完整。
+    //
+    // BYOP 去云化客户端自管,server 端不存在,必须我们自己 emit 这些写回事件,
+    // 否则下一轮 `compute_active_tasks` 只看到模型产出(reasoning/output/tool_call),
+    // 缺失对应的 user_query 和 tool_call_result,模型 context 严重断裂。
+    //
+    // 这里在流开始后 emit 两类事件:
+    //   1. AddMessagesToTask{UserQuery}    ← 当前轮所有 UserQuery input
+    //   2. AddMessagesToTask{ToolCallResult} ← 当前轮所有 ActionResult input
+    //
+    // emit 时机必须在 CreateTask 之后(任务已升级为 Server 状态),
+    // 在模型响应开始之前(UI 顺序:user 显示 → thinking/answer)。
+    let pending_user_queries: Vec<String> = params
+        .input
+        .iter()
+        .filter_map(|i| match i {
+            AIAgentInput::UserQuery { query, .. } => Some(query.clone()),
+            _ => None,
+        })
+        .collect();
+    // ToolCallResult 持久化:用 `tools::serialize_action_result` 把 ActionResult
+    // 序列化为 JSON 字符串,装进 Message 的 server_message_data 字段
+    // (warp protobuf 的 `tool_call_result.result` oneof 都是结构化 variant,
+    // 没有通用 string 兜底;但 server_message_data 是自由字符串字段,刚好够用)。
+    // 下一轮 build_chat_request 在 ToolCallResult 分支:result=None 时从
+    // server_message_data 读 content,result=Some 时走 tools::serialize_result。
+    let pending_tool_results: Vec<(String, String)> = params
+        .input
+        .iter()
+        .filter_map(|i| match i {
+            AIAgentInput::ActionResult { result, .. } => {
+                let id = result.id.to_string();
+                let content = tools::serialize_action_result(result).unwrap_or_else(|| {
+                    serde_json::json!({ "result": result.result.to_string() }).to_string()
+                });
+                Some((id, content))
+            }
+            _ => None,
+        })
+        .collect();
+
+    // INFO 级别一行总览 + 每条 message 一行简报(role + 文本长度 + tool 计数 + reasoning 标记),
+    // 默认日志配置即可看到,便于诊断"历史是否完整传上去"等问题。
+    log::info!(
+        "[byop] adapter={:?} model={} system_len={} messages={} tools={}",
+        adapter_kind_for(api_type),
+        model_id,
+        chat_req.system.as_deref().map(str::len).unwrap_or(0),
+        chat_req.messages.len(),
+        chat_req.tools.as_ref().map(|t| t.len()).unwrap_or(0),
+    );
+    for (idx, m) in chat_req.messages.iter().enumerate() {
+        let role = format!("{:?}", m.role);
+        let text_len = m.content.first_text().map(str::len).unwrap_or(0);
+        let tc_count = m.content.tool_calls().len();
+        let tr_count = m.content.tool_responses().len();
+        // reasoning_content 检测 — genai 把它存为 ContentPart::ReasoningContent,
+        // 没有公开 getter,这里通过 size() 与 first_text+tool_count 的和差异粗判。
+        log::info!(
+            "[byop]  [{idx}] role={role} text_len={text_len} tool_calls={tc_count} tool_responses={tr_count}"
+        );
+    }
 
     let stream = async_stream::stream! {
         // 1) StreamInit — 始终先发,UI 能立刻显示 "thinking..."
@@ -865,25 +773,36 @@ pub async fn generate_byop_output(
             )),
         });
 
-        let (client, body_value) = match prepared {
-            Ok(p) => p,
-            Err(e) => {
-                log::error!("BYOP prepare request failed: {e:#}");
-                yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
-                    "BYOP prepare failed: {e}"
-                ))));
-                return;
-            }
-        };
+        // 2) 首轮:CreateTask 升级 Optimistic root → Server。
+        if needs_create_task {
+            yield Ok(create_task_event(&task_id));
+        }
+
+        // 3) 持久化 input 里的 UserQuery / ToolCallResult 到 task.messages。
+        //    (warp server 路径由后端 emit;BYOP 客户端必须自己 emit,见上方注释。)
+        let mut persistence_messages: Vec<api::Message> = Vec::new();
+        for q in &pending_user_queries {
+            persistence_messages.push(make_user_query_message(&task_id, &request_id, q.clone()));
+        }
+        for (call_id, content) in &pending_tool_results {
+            persistence_messages.push(make_tool_call_result_message(
+                &task_id,
+                &request_id,
+                call_id.clone(),
+                content.clone(),
+            ));
+        }
+        if !persistence_messages.is_empty() {
+            yield Ok(make_add_messages_event(&task_id, persistence_messages));
+        }
 
         let mut sdk_stream = match client
-            .chat()
-            .create_stream_byot::<Value, Value>(body_value)
+            .exec_chat_stream(&model_id, chat_req, Some(&chat_opts))
             .await
         {
-            Ok(s) => s,
+            Ok(resp) => resp.stream,
             Err(e) => {
-                let mapped = map_openai_error(e);
+                let mapped = map_genai_error(e);
                 log::error!("BYOP open stream failed: {mapped:#}");
                 yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
                     "BYOP open stream failed: {mapped}"
@@ -892,25 +811,20 @@ pub async fn generate_byop_output(
             }
         };
 
-        // 2) 首轮:CreateTask 升级 Optimistic root → Server。在拿到 chunk 之前 emit,
-        //    保证后续 AddMessages/Append 都落到 Server 状态的 root task。
-        if needs_create_task {
-            yield Ok(create_task_event(&task_id));
-        }
-
         // 流式状态:文本 / 推理各自的 message id 在第一次 chunk 到达时生成,
         // 之后的 chunk 走 AppendToMessageContent 增量追加。
         let mut text_msg_id: Option<String> = None;
         let mut reasoning_msg_id: Option<String> = None;
-        // tool_call 必须按 index 累积 — name/id 通常仅在第一个 chunk 中出现,
-        // arguments 则跨多 chunk 拼接,在流结束后一次性 parse + emit。
-        let mut tool_bufs: BTreeMap<u32, ToolCallBuf> = BTreeMap::new();
+        // tool_call 按 call_id 累积 — genai 流式发的 ToolCallChunk 已带完整 ToolCall
+        // (since 0.4.0 行为),但跨 chunk 同一 call_id 可能多次出现 args 增量,
+        // 用 HashMap 按 id 累积后在流末统一 emit。
+        let mut tool_bufs: HashMap<String, ToolCall> = HashMap::new();
 
         while let Some(item) = sdk_stream.next().await {
-            let value = match item {
-                Ok(v) => v,
+            let event = match item {
+                Ok(ev) => ev,
                 Err(e) => {
-                    let mapped = map_openai_error(e);
+                    let mapped = map_genai_error(e);
                     log::error!("BYOP stream chunk error: {mapped:#}");
                     yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
                         "BYOP stream error: {mapped}"
@@ -918,103 +832,79 @@ pub async fn generate_byop_output(
                     return;
                 }
             };
-            let chunk: RespChunk = match serde_json::from_value(value) {
-                Ok(c) => c,
-                Err(e) => {
-                    log::warn!("BYOP failed to parse chunk: {e}");
-                    continue;
-                }
-            };
-            let Some(choice) = chunk.choices.into_iter().next() else {
-                continue;
-            };
-            let delta = choice.delta;
 
-            // reasoning_content(DeepSeek reasoner 等)。先于文本输出,UI 显示思考块。
-            if let Some(reasoning) = delta.reasoning_content.filter(|s| !s.is_empty()) {
-                if let Some(id) = reasoning_msg_id.clone() {
-                    yield Ok(make_append_event(&task_id, &id, AppendKind::Reasoning(reasoning)));
-                } else {
-                    let new_id = Uuid::new_v4().to_string();
-                    let mut msg = make_reasoning_message(&task_id, &request_id, reasoning);
-                    msg.id = new_id.clone();
-                    reasoning_msg_id = Some(new_id);
-                    yield Ok(make_add_messages_event(&task_id, vec![msg]));
+            match event {
+                ChatStreamEvent::Start => {
+                    // unit event;UI 已通过 StreamInit 显示 thinking,这里 no-op
                 }
-            }
-
-            // 普通文本 content。
-            if let Some(content) = delta.content.filter(|s| !s.is_empty()) {
-                if let Some(id) = text_msg_id.clone() {
-                    yield Ok(make_append_event(&task_id, &id, AppendKind::Text(content)));
-                } else {
-                    let new_id = Uuid::new_v4().to_string();
-                    let mut msg = make_agent_output_message(&task_id, &request_id, content);
-                    msg.id = new_id.clone();
-                    text_msg_id = Some(new_id);
-                    yield Ok(make_add_messages_event(&task_id, vec![msg]));
+                ChatStreamEvent::Chunk(c) if !c.content.is_empty() => {
+                    if let Some(id) = text_msg_id.clone() {
+                        yield Ok(make_append_event(&task_id, &id, AppendKind::Text(c.content)));
+                    } else {
+                        let new_id = Uuid::new_v4().to_string();
+                        let mut msg = make_agent_output_message(&task_id, &request_id, c.content);
+                        msg.id = new_id.clone();
+                        text_msg_id = Some(new_id);
+                        yield Ok(make_add_messages_event(&task_id, vec![msg]));
+                    }
                 }
-            }
-
-            // tool_calls deltas — 仅累积,不流式 emit(controller 期望完整 args)。
-            if let Some(tcs) = delta.tool_calls {
-                for tc in tcs {
-                    let idx = tc.index.unwrap_or(0);
-                    let buf = tool_bufs.entry(idx).or_default();
-                    if let Some(id) = tc.id {
-                        if !id.is_empty() {
-                            buf.id = id;
+                ChatStreamEvent::Chunk(_) => {}
+                ChatStreamEvent::ReasoningChunk(c) if !c.content.is_empty() => {
+                    if let Some(id) = reasoning_msg_id.clone() {
+                        yield Ok(make_append_event(&task_id, &id, AppendKind::Reasoning(c.content)));
+                    } else {
+                        let new_id = Uuid::new_v4().to_string();
+                        let mut msg = make_reasoning_message(&task_id, &request_id, c.content);
+                        msg.id = new_id.clone();
+                        reasoning_msg_id = Some(new_id);
+                        yield Ok(make_add_messages_event(&task_id, vec![msg]));
+                    }
+                }
+                ChatStreamEvent::ReasoningChunk(_) => {}
+                ChatStreamEvent::ToolCallChunk(tc) => {
+                    let mut call = tc.tool_call;
+                    // 极个别 provider(自建 ollama 代理等)不发 call_id,本地 uuid 兜底。
+                    if call.call_id.is_empty() {
+                        call.call_id = Uuid::new_v4().to_string();
+                    }
+                    // 同一 call_id 多次 chunk:后到的覆盖(genai 已合并 args)。
+                    tool_bufs.insert(call.call_id.clone(), call);
+                }
+                ChatStreamEvent::End(end) => {
+                    // genai >= 0.4.0 的 captured_content 含 tool_calls。
+                    // 优先用 captured_content 里的 tool_calls(更完整),
+                    // 否则用 streaming 中累积的 tool_bufs。
+                    if let Some(content) = end.captured_content.as_ref() {
+                        for call in content.tool_calls() {
+                            tool_bufs.entry(call.call_id.clone()).or_insert_with(|| call.clone());
                         }
                     }
-                    if let Some(f) = tc.function {
-                        if let Some(n) = f.name {
-                            if !n.is_empty() {
-                                buf.name = n;
-                            }
-                        }
-                        if let Some(a) = f.arguments {
-                            buf.args.push_str(&a);
-                        }
-                    }
+                }
+                _ => {
+                    // ThoughtSignatureChunk 等暂不处理(Gemini 3 thoughts 需要回传给后续轮次,
+                    // 当前 BYOP 不持久化 thought_signatures,接受降级)
                 }
             }
         }
 
         // 流结束:把累积的 tool_calls 一次性发出。
         let mut final_messages: Vec<api::Message> = Vec::new();
-        for (_idx, mut buf) in tool_bufs.into_iter() {
-            if buf.name.is_empty() {
-                continue;
-            }
-            // 极个别 provider(自建 ollama 代理等)在 tool_call chunk 不发 id 字段。
-            // controller 后续要靠 tool_call_id 匹配 result,空 id 会让 sanitize_tool_call_pairs
-            // 命中占位分支。本地兜底生成 uuid 保证后续协议成立。
-            if buf.id.is_empty() {
-                buf.id = Uuid::new_v4().to_string();
-            }
-            let synth = RespToolCall {
-                id: buf.id.clone(),
-                kind: "function".to_owned(),
-                function: RespFunction {
-                    name: buf.name.clone(),
-                    arguments: buf.args.clone(),
-                },
-            };
-            match parse_incoming_tool_call(&synth, mcp_context.as_ref()) {
+        for call in tool_bufs.into_values() {
+            match parse_incoming_tool_call(&call, mcp_context.as_ref()) {
                 Ok(warp_tool) => {
                     final_messages.push(make_tool_call_message(
                         &task_id,
                         &request_id,
-                        &buf.id,
+                        &call.call_id,
                         warp_tool,
                     ));
                 }
                 Err(e) => {
-                    log::warn!("BYOP: failed to parse tool_call args for {}: {e:#}", buf.name);
+                    log::warn!("BYOP: failed to parse tool_call args for {}: {e:#}", call.fn_name);
                     final_messages.push(make_agent_output_message(
                         &task_id,
                         &request_id,
-                        format!("(byop:工具 `{}` 的参数解析失败: {})", buf.name, e),
+                        format!("(byop:工具 `{}` 的参数解析失败: {})", call.fn_name, e),
                     ));
                 }
             }
@@ -1028,6 +918,10 @@ pub async fn generate_byop_output(
 
     Ok(Box::pin(stream))
 }
+
+// ---------------------------------------------------------------------------
+// Event 构造辅助
+// ---------------------------------------------------------------------------
 
 enum AppendKind {
     Reasoning(String),
@@ -1058,10 +952,6 @@ fn make_append_event(task_id: &str, message_id: &str, kind: AppendKind) -> api::
                 reasoning: r,
                 finished_duration: None,
             }),
-            // FieldMask 路径用 oneof variant 字段名,不要带 oneof 自身的名字 `message` —
-            // prost-reflect 的 `get_field_by_name` 不把 oneof 暴露为字段,
-            // `field_mask::apply_path` 在路径段找不到字段时静默 no-op
-            // (crates/field_mask/src/lib.rs:103-110),导致所有 append 丢失,UI 只看到首个 chunk。
             "agent_reasoning.reasoning",
         ),
         AppendKind::Text(t) => (
@@ -1098,18 +988,23 @@ fn make_append_event(task_id: &str, message_id: &str, kind: AppendKind) -> api::
 }
 
 fn parse_incoming_tool_call(
-    tc: &RespToolCall,
+    call: &ToolCall,
     mcp_ctx: Option<&crate::ai::agent::MCPContext>,
 ) -> anyhow::Result<api::message::tool_call::Tool> {
-    // MCP 工具走前缀路由
-    if tools::mcp::is_mcp_function(&tc.function.name) {
-        return tools::mcp::parse_mcp_tool_call(&tc.function.name, &tc.function.arguments, mcp_ctx);
-    }
-    // 静态注册的内置工具
-    let Some(tool) = tools::lookup(&tc.function.name) else {
-        anyhow::bail!("unknown tool name: {}", tc.function.name);
+    // genai ToolCall.fn_arguments 是 Value;tools::* 的 from_args 期望 &str,
+    // 把 Value 序列化回字符串后传入(原协议就是字符串 JSON)。
+    let args_str = if call.fn_arguments.is_string() {
+        call.fn_arguments.as_str().unwrap_or("").to_owned()
+    } else {
+        call.fn_arguments.to_string()
     };
-    (tool.from_args)(&tc.function.arguments)
+    if tools::mcp::is_mcp_function(&call.fn_name) {
+        return tools::mcp::parse_mcp_tool_call(&call.fn_name, &args_str, mcp_ctx);
+    }
+    let Some(tool) = tools::lookup(&call.fn_name) else {
+        anyhow::bail!("unknown tool name: {}", call.fn_name);
+    };
+    (tool.from_args)(&args_str)
 }
 
 fn make_reasoning_message(task_id: &str, request_id: &str, reasoning: String) -> api::Message {
@@ -1137,6 +1032,51 @@ fn make_agent_output_message(task_id: &str, request_id: &str, text: String) -> a
         citations: vec![],
         message: Some(api::message::Message::AgentOutput(
             api::message::AgentOutput { text },
+        )),
+        request_id: request_id.to_owned(),
+        timestamp: None,
+    }
+}
+
+fn make_user_query_message(task_id: &str, request_id: &str, query: String) -> api::Message {
+    api::Message {
+        id: Uuid::new_v4().to_string(),
+        task_id: task_id.to_owned(),
+        server_message_data: String::new(),
+        citations: vec![],
+        message: Some(api::message::Message::UserQuery(api::message::UserQuery {
+            query,
+            ..Default::default()
+        })),
+        request_id: request_id.to_owned(),
+        timestamp: None,
+    }
+}
+
+fn make_tool_call_result_message(
+    task_id: &str,
+    request_id: &str,
+    tool_call_id: String,
+    content: String,
+) -> api::Message {
+    // ToolCallResult 持久化:warp protobuf 的 `tool_call_result.result` oneof 都是
+    // 结构化 variant(RunShellCommand / Grep / ReadFiles / ...),没有通用的字符串
+    // 兜底 variant。BYOP 已经在 chat_stream 自己把 result 序列化为 JSON 字符串,
+    // 不再需要按 warp 协议结构化 — 直接把字符串存到 `server_message_data` 这个
+    // 自由字符串字段,并把 `result` oneof 留 None。下一轮 build_chat_request 在
+    // `Message::ToolCallResult` 分支需要特判:result=None 时从 server_message_data
+    // 读 content(否则走 tools::serialize_result 反序列化结构化 variant)。
+    api::Message {
+        id: Uuid::new_v4().to_string(),
+        task_id: task_id.to_owned(),
+        server_message_data: content,
+        citations: vec![],
+        message: Some(api::message::Message::ToolCallResult(
+            api::message::ToolCallResult {
+                tool_call_id,
+                context: None,
+                result: None,
+            },
         )),
         request_id: request_id.to_owned(),
         timestamp: None,

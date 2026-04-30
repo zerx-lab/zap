@@ -15,8 +15,7 @@ pub use listed_skill::SkillDescriptor;
 
 mod skill_utils;
 pub use skill_utils::{
-    icon_override_for_skill_name, list_skills_if_changed, render_skill_button,
-    skill_path_from_file_path,
+    icon_override_for_skill_name, list_skills, render_skill_button, skill_path_from_file_path,
 };
 
 #[cfg(not(target_family = "wasm"))]

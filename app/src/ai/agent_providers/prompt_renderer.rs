@@ -225,9 +225,12 @@ fn collect_prompt_context(model_id: &str, ctx: &[AIAgentContext]) -> PromptConte
                     out.project_rules.push(ProjectRuleCtx { path, content });
                 }
             }
-            // user-message-side context(File / Image / SelectedText / Block)
-            // 不进 system prompt,这里跳过 — 由 build_openai_messages 在 user message
-            // 侧另行处理。
+            // 用户附件类 context(File / Image / SelectedText / Block)不进 system prompt,
+            // 由 `user_context::render_user_attachments` 在 chat_stream 的 UserQuery 分支
+            // 注入到当前轮 user message。这跟 warp 自家路径分两类的语义对齐:
+            // - 环境型 → InputContext.{directory,shell,git,...} → 后端注入 system 区
+            // - 附件型 → InputContext.{executed_shell_commands,selected_text,files,images}
+            //            → 后端注入 user 区
             AIAgentContext::File(_)
             | AIAgentContext::Image(_)
             | AIAgentContext::SelectedText(_)

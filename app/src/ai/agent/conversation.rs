@@ -3,7 +3,6 @@ use crate::ai::agent::linearization::compute_task_depths;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::artifacts::Artifact;
 use crate::ai::blocklist::{RequestInput, ResponseStreamId, SerializedBlockListItem};
-use crate::ai::skills::SkillDescriptor;
 use crate::code_review::CodeReviewTelemetryEvent;
 use crate::notebooks::NotebookId;
 use crate::persistence::model::{ConversationUsageMetadata, ModelTokenUsage, ToolUsageMetadata};
@@ -1112,10 +1111,6 @@ impl AIConversation {
 
     pub fn latest_exchange(&self) -> Option<&AIAgentExchange> {
         self.task_store.latest_exchange()
-    }
-
-    pub fn latest_skills(&self) -> Option<Vec<SkillDescriptor>> {
-        self.task_store.latest_skills()
     }
 
     /// Get the auto-generated title of the given conversation

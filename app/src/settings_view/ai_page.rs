@@ -2157,6 +2157,12 @@ pub enum AISettingsPageAction {
         provider_id: String,
         base_url: String,
     },
+    /// 显式设置 provider 的 API 协议类型(OpenAI / OpenAI-Response / Gemini / Anthropic / Ollama)。
+    /// chat_stream 据此显式绑定 genai AdapterKind,绕过模型名识别。
+    SetAgentProviderApiType {
+        provider_id: String,
+        api_type: crate::settings::AgentProviderApiType,
+    },
     UpdateAgentProviderApiKey {
         provider_id: String,
         api_key: String,
@@ -2973,6 +2979,24 @@ impl TypedActionView for AISettingsPageView {
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });
                 ctx.notify();
+            }
+            AISettingsPageAction::SetAgentProviderApiType {
+                provider_id,
+                api_type,
+            } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        p.api_type = *api_type;
+                        // 若 base_url 为空,顺手填该类型的默认 endpoint(便于新手)。
+                        // 用户已自填 base_url 时不动。
+                        if p.base_url.trim().is_empty() {
+                            p.base_url = api_type.default_base_url().to_owned();
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                self.rebuild_current_page(ctx);
             }
             AISettingsPageAction::UpdateAgentProviderApiKey {
                 provider_id,

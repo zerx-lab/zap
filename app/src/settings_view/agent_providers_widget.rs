@@ -36,7 +36,8 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
-use crate::settings::{AISettings, AgentProvider, AgentProviderModel};
+use crate::settings::{AISettings, AgentProvider, AgentProviderApiType, AgentProviderModel};
+use strum::IntoEnumIterator;
 
 use super::ai_page::{AISettingsPageAction, AISettingsPageView};
 use super::settings_page::{
@@ -67,6 +68,8 @@ struct ProviderRow {
     sync_models_dev_button_state: MouseStateHandle,
     remove_button_state: MouseStateHandle,
     add_model_button_state: MouseStateHandle,
+    /// 5 个 ApiType chip 各自的鼠标状态。HashMap 由 chip 显示名映射。
+    api_type_chip_states: RefCell<HashMap<AgentProviderApiType, MouseStateHandle>>,
     model_rows: Vec<ModelRow>,
 }
 
@@ -351,8 +354,82 @@ impl AgentProvidersWidget {
             sync_models_dev_button_state: MouseStateHandle::default(),
             remove_button_state: MouseStateHandle::default(),
             add_model_button_state: MouseStateHandle::default(),
+            api_type_chip_states: RefCell::new(HashMap::new()),
             model_rows,
         }
+    }
+
+    /// 渲染 "API Type" 行:5 个 chip 横排,当前选中的高亮显示。
+    /// 点击 chip 即 dispatch `SetAgentProviderApiType`,后端会顺手填默认 endpoint。
+    fn render_api_type_field(
+        &self,
+        provider: &AgentProvider,
+        row: &ProviderRow,
+        label_color: warp_core::ui::theme::Fill,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        let label_text = Container::new(
+            Text::new(
+                "API Type".to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(label_color.into())
+            .finish(),
+        )
+        .with_margin_top(FIELD_LABEL_MARGIN_TOP)
+        .with_margin_bottom(FIELD_LABEL_MARGIN_BOTTOM)
+        .finish();
+
+        let mut chip_row = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
+        {
+            let mut states = row.api_type_chip_states.borrow_mut();
+            for variant in AgentProviderApiType::iter() {
+                let state = states
+                    .entry(variant)
+                    .or_insert_with(MouseStateHandle::default)
+                    .clone();
+                let is_selected = provider.api_type == variant;
+                let label = if is_selected {
+                    format!("● {}", variant.display_name())
+                } else {
+                    variant.display_name().to_owned()
+                };
+                let chip = Self::render_card_button(
+                    label,
+                    state,
+                    AISettingsPageAction::SetAgentProviderApiType {
+                        provider_id: provider.id.clone(),
+                        api_type: variant,
+                    },
+                    appearance,
+                );
+                chip_row = chip_row.with_child(Container::new(chip).with_margin_right(6.).finish());
+            }
+        }
+
+        let hint_text = Container::new(
+            Text::new(
+                format!(
+                    "(genai 据此显式绑定 adapter,避免按模型名误识别。Base URL 留空将使用默认: {})",
+                    provider.api_type.default_base_url()
+                ),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(appearance.theme().disabled_ui_text_color().into())
+            .soft_wrap(true)
+            .finish(),
+        )
+        .with_margin_top(2.)
+        .finish();
+
+        Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(label_text)
+            .with_child(chip_row.finish())
+            .with_child(hint_text)
+            .finish()
     }
 
     fn render_card_button(
@@ -459,6 +536,7 @@ impl AgentProvidersWidget {
             label_color,
             appearance,
         );
+        let api_type_field = self.render_api_type_field(provider, row, label_color, appearance);
         let base_url_field = field_block(
             "Base URL",
             ChildView::new(&row.base_url_editor).finish(),
@@ -612,6 +690,7 @@ impl AgentProvidersWidget {
             Flex::column()
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                 .with_child(name_field)
+                .with_child(api_type_field)
                 .with_child(base_url_field)
                 .with_child(api_key_field)
                 .with_child(Container::new(models_column.finish()).with_margin_top(8.).finish())

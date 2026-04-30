@@ -2,10 +2,6 @@ use std::collections::HashMap;
 
 use warp_multi_agent_api as api;
 
-use crate::ai::{
-    agent::{AIAgentContext, AIAgentInput},
-    skills::SkillDescriptor,
-};
 
 use super::{
     task::{
@@ -196,38 +192,6 @@ impl TaskStore {
         }
 
         result
-    }
-
-    pub fn latest_skills(&self) -> Option<Vec<SkillDescriptor>> {
-        self.linearized_refs.iter().rev().find_map(|exchange_ref| {
-            let exchange = self.lookup_exchange(exchange_ref);
-
-            if let Some(exchange) = exchange {
-                let skills = exchange.input.iter().find_map(|input| {
-                    let context = match input {
-                        AIAgentInput::UserQuery { context, .. } => Some(context),
-                        AIAgentInput::ResumeConversation { context, .. } => Some(context),
-                        AIAgentInput::ActionResult { context, .. } => Some(context),
-                        AIAgentInput::TriggerPassiveSuggestion { context, .. } => Some(context),
-                        _ => None,
-                    };
-
-                    context.and_then(|ctx| {
-                        ctx.iter().find_map(|context| {
-                            if let AIAgentContext::Skills { skills } = context {
-                                Some(skills)
-                            } else {
-                                None
-                            }
-                        })
-                    })
-                });
-
-                skills.cloned()
-            } else {
-                None
-            }
-        })
     }
 
     /// Returns all messages in linearized DFS order, interleaving subtask messages

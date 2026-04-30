@@ -1,16 +1,14 @@
 //! Utility functions for working with skills.
 
 use super::{SkillDescriptor, SkillManager};
-use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::blocklist::view_util::render_provider_icon_button;
-use crate::ai::blocklist::BlocklistAIHistoryModel;
 use ai::skills::{
     home_skills_path, provider_rank, ParsedSkill, SkillProvider, SKILL_PROVIDER_DEFINITIONS,
 };
 use lazy_static::lazy_static;
 use siphasher::sip::SipHasher;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::path::PathBuf;
@@ -86,41 +84,19 @@ pub(crate) fn unique_skills(
     dedup_map.into_values().collect()
 }
 
-/// Returns the list of skills if they have changed since the last time we sent them to the server.
-/// Skills are always included except when the current list matches the last list sent.
-pub fn list_skills_if_changed(
+/// 列出当前 working directory 适用的全部 skills。
+///
+/// **设计说明**:旧版 `list_skills_if_changed` 在云端协议下做差量发送(对比上轮已发的
+/// `conversation.latest_skills()`,未变化时返回 `None`)以节省上行 token —— warp 后端
+/// 维护会话状态,首轮收到后保留即可。项目去云端后,BYOP 走 OpenAI/Anthropic 等无状态
+/// `/chat/completions`,system prompt 每轮在客户端完整重渲染,数据必须每轮都送达,
+/// 否则第二轮起 system prompt 里 skills section 会消失。
+/// 因此简化为每轮全量返回。
+pub fn list_skills(
     working_directory: Option<&Path>,
-    conversation_id: Option<AIConversationId>,
     app: &AppContext,
-) -> Option<Vec<SkillDescriptor>> {
-    let current_skills =
-        SkillManager::as_ref(app).get_skills_for_working_directory(working_directory, app);
-
-    let previous_skills: Option<Vec<SkillDescriptor>> =
-        conversation_id.and_then(|conversation_id| {
-            let history_model = BlocklistAIHistoryModel::as_ref(app);
-            history_model
-                .conversation(&conversation_id)
-                .and_then(|conversation| conversation.latest_skills())
-        });
-
-    // If there are no previous skills, we consider the skills changed and push the current skills to the context
-    let skills_changed = previous_skills
-        .map(|previous_skills| {
-            let previous_skills_set: HashSet<SkillDescriptor> =
-                HashSet::from_iter(previous_skills.iter().cloned());
-            let current_skills_set: HashSet<SkillDescriptor> =
-                HashSet::from_iter(current_skills.iter().cloned());
-
-            previous_skills_set != current_skills_set
-        })
-        .unwrap_or(true);
-
-    if skills_changed {
-        Some(current_skills)
-    } else {
-        None
-    }
+) -> Vec<SkillDescriptor> {
+    SkillManager::as_ref(app).get_skills_for_working_directory(working_directory, app)
 }
 
 /// Renders an 'open skill' button for blocklist AI actions and the code diff view.

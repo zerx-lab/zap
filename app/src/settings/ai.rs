@@ -649,6 +649,81 @@ impl Default for AgentProviderKind {
     }
 }
 
+/// BYOP provider 实际使用的 API 协议类型 — 显式指定,
+/// 由 chat_stream 通过 genai `ServiceTargetResolver` 一对一映射到对应的
+/// `AdapterKind`,完全绕过"按模型名识别"的默认行为,避免误识别。
+///
+/// **注意**:这是相对 [`AgentProviderKind`] 的更细粒度维度。
+/// `AgentProviderKind` 目前只有 `OpenAiCompatible`(语义"用户自管 endpoint"),
+/// `AgentProviderApiType` 决定 genai 用哪种原生协议序列化请求 / 解析响应。
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    EnumIter,
+    schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentProviderApiType {
+    /// OpenAI Chat Completions(`POST /v1/chat/completions`)。
+    /// 适用于:OpenAI 官方、DeepSeek、SiliconFlow、OpenRouter、智谱 GLM、
+    /// Moonshot、DashScope-OpenAI 兼容、本地 vLLM/llama.cpp 等。
+    OpenAi,
+    /// OpenAI Responses API(`POST /v1/responses`)。
+    /// 适用于:GPT-5 / Codex / Pro 等较新模型。
+    OpenAiResp,
+    /// Google Gemini 原生协议(generativelanguage.googleapis.com)。
+    Gemini,
+    /// Anthropic Messages API 原生协议(api.anthropic.com)。
+    Anthropic,
+    /// Ollama 原生协议(本地或自建 Ollama)。
+    Ollama,
+    /// DeepSeek 原生协议。与 OpenAI 兼容相比:多轮 thinking 模式必须把
+    /// `reasoning_content` 字段带回服务端(否则 400),仅 genai DeepSeek
+    /// adapter 处理这个非标字段。`deepseek-reasoner / deepseek-v4-flash` 等
+    /// thinking-mode 模型必须选这个类型,普通 chat 模型(`deepseek-chat`)
+    /// 选 OpenAI 也可以工作。
+    DeepSeek,
+}
+
+impl Default for AgentProviderApiType {
+    fn default() -> Self {
+        Self::OpenAi
+    }
+}
+
+impl AgentProviderApiType {
+    /// 设置 UI dropdown 显示文字。
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::OpenAi => "OpenAI",
+            Self::OpenAiResp => "OpenAI-Response",
+            Self::Gemini => "Gemini",
+            Self::Anthropic => "Anthropic",
+            Self::Ollama => "Ollama",
+            Self::DeepSeek => "DeepSeek",
+        }
+    }
+
+    /// 当用户没填 base_url 时使用的默认 endpoint。新建 provider / 切换 ApiType
+    /// 时,UI 可调用此方法预填,便于新手。
+    pub fn default_base_url(&self) -> &'static str {
+        match self {
+            Self::OpenAi => "https://api.openai.com/v1",
+            Self::OpenAiResp => "https://api.openai.com/v1",
+            Self::Gemini => "https://generativelanguage.googleapis.com/v1beta",
+            Self::Anthropic => "https://api.anthropic.com",
+            Self::Ollama => "http://localhost:11434",
+            Self::DeepSeek => "https://api.deepseek.com",
+        }
+    }
+}
+
 /// 一条用户自定义的 Agent 提供商配置。
 ///
 /// `api_key` **不**保存在这里,而是保存在 `AgentProviderSecrets` 单例(secure storage),
@@ -662,9 +737,15 @@ pub struct AgentProvider {
     /// 用户给这个提供商起的显示名(例如 "DeepSeek 官方"、"本地 Ollama")。
     pub name: String,
 
-    /// 协议类型,目前固定为 OpenAI 兼容。
+    /// 协议类型,目前固定为 OpenAI 兼容(语义"用户自管 endpoint")。
+    /// 实际请求/响应序列化协议由 [`AgentProvider::api_type`] 决定。
     #[serde(default)]
     pub kind: AgentProviderKind,
+
+    /// 显式指定的 API 协议类型(OpenAI / OpenAI-Response / Gemini / Anthropic / Ollama)。
+    /// 老配置(无此字段)反序列化为 `OpenAi` 兼容老语义。
+    #[serde(default)]
+    pub api_type: AgentProviderApiType,
 
     /// API base URL,例如 `https://api.deepseek.com/v1`、`http://localhost:11434/v1`。
     /// 不要带尾随斜杠,但代码侧会做容错。
@@ -687,6 +768,7 @@ impl AgentProvider {
             id: Self::default_id(),
             name: String::new(),
             kind: AgentProviderKind::default(),
+            api_type: AgentProviderApiType::default(),
             base_url: String::new(),
             models: Vec::new(),
         }

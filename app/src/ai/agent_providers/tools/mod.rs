@@ -39,18 +39,32 @@ use warp_multi_agent_api as api;
 use crate::ai::agent::AIAgentActionResult;
 
 /// 一条 tool 的双向适配描述。
+///
+/// **命名历史**:最早 BYOP 只接 OpenAI 兼容协议,后改用 genai SDK 跨 5 种 adapter
+/// (OpenAI / OpenAIResp / Gemini / Anthropic / Ollama)。结构体名沿用 `OpenAiTool`
+/// 保留 git blame,但所承载的 JSON Schema 是 OpenAPI 标准,各 adapter 由 genai 内部
+/// 自动重写为各自原生格式(如 Anthropic input_schema、Gemini function_declarations)。
 pub struct OpenAiTool {
-    /// 给上游 OpenAI 兼容 API 的 function name(LLM 在响应中按此名调用)。
+    /// 给上游 LLM 的 function name(模型在响应中按此名调用)。
     pub name: &'static str,
     /// 给 LLM 的描述。
     pub description: &'static str,
-    /// 参数 JSON Schema(OpenAI 协议要求)。返回闭包以避免在 const 中构造 serde_json::Value。
+    /// 参数 JSON Schema(OpenAPI 标准)。返回闭包以避免在 const 中构造 serde_json::Value。
     pub parameters: fn() -> Value,
     /// 反向解析: 上游模型返回的 args JSON 字符串 → warp 内部 `tool_call::Tool` variant。
     pub from_args: fn(args: &str) -> Result<api::message::tool_call::Tool>,
     /// 把 ToolCallResult 中对应该 tool 的 `Result` variant 转成给上游模型可读的 JSON。
     /// 没有匹配的 variant 时返回 `None`(让调用方 fallback 到 generic 序列化)。
     pub result_to_json: fn(&api::message::tool_call_result::Result) -> Option<Value>,
+}
+
+impl OpenAiTool {
+    /// 转 genai `Tool`(用于喂给 `ChatRequest.tools`)。
+    pub fn to_genai_tool(&self) -> genai::chat::Tool {
+        genai::chat::Tool::new(self.name)
+            .with_description(self.description)
+            .with_schema((self.parameters)())
+    }
 }
 
 /// 注册表:全部已支持的 BYOP tool。
@@ -129,6 +143,26 @@ pub fn serialize_result(result: &api::message::ToolCallResult) -> String {
 /// 新增 BYOP tool 时,**这里的 enum match 必须同步加 variant**,否则该 tool 的
 /// 当前轮 ActionResult 会 fallback 到 Display,丢失结构化字段。
 pub fn serialize_action_result(action: &AIAgentActionResult) -> Option<String> {
+    let msg_side = action_result_to_msg_result(action)?;
+    for t in REGISTRY {
+        if let Some(json) = (t.result_to_json)(&msg_side) {
+            return Some(serde_json::to_string(&json).unwrap_or_else(|_| "{}".to_owned()));
+        }
+    }
+    if let Some(json) = mcp::serialize_result(&msg_side) {
+        return Some(serde_json::to_string(&json).unwrap_or_else(|_| "{}".to_owned()));
+    }
+    None
+}
+
+/// 把当前轮 client 端执行完的 `AIAgentActionResult` 转为
+/// `api::message::tool_call_result::Result` enum,供 BYOP 持久化为 task.message。
+///
+/// 共用 `serialize_action_result` 的 ReqR → MsgR 映射;调用方拿到后包成
+/// `Message::ToolCallResult { result: Some(...), context: None, tool_call_id }`。
+pub fn action_result_to_msg_result(
+    action: &AIAgentActionResult,
+) -> Option<api::message::tool_call_result::Result> {
     use api::message::tool_call_result::Result as MsgR;
     use api::request::input::tool_call_result::Result as ReqR;
     use api::request::input::user_inputs::user_input::Input;
@@ -161,14 +195,5 @@ pub fn serialize_action_result(action: &AIAgentActionResult) -> Option<String> {
         ReqR::TransferShellCommandControlToUser(r) => MsgR::TransferShellCommandControlToUser(r),
         _ => return None,
     };
-
-    for t in REGISTRY {
-        if let Some(json) = (t.result_to_json)(&msg_side) {
-            return Some(serde_json::to_string(&json).unwrap_or_else(|_| "{}".to_owned()));
-        }
-    }
-    if let Some(json) = mcp::serialize_result(&msg_side) {
-        return Some(serde_json::to_string(&json).unwrap_or_else(|_| "{}".to_owned()));
-    }
-    None
+    Some(msg_side)
 }

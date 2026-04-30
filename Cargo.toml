@@ -212,12 +212,17 @@ prost-reflect = "0.16.3"
 prost-types = "0.14.3"
 rand = "0.8.2"
 rangemap = "1.3.0"
-# BYOP(Bring Your Own Provider)模式下用 async-openai 调用用户配置的
-# OpenAI 兼容端点。features:
-#   - chat-completion: 启用 _api(client/config) + chat completions 类型
-#   - byot:           启用 create_byot 等泛型方法,允许用 serde_json::Value
-#                     处理 DeepSeek 的 reasoning_content 等非标准字段
-async-openai = { version = "0.32", features = ["chat-completion", "byot"] }
+# BYOP(Bring Your Own Provider)模式下用 genai 调用 5 种原生协议:
+#   - OpenAI / OpenAIResp(/v1/responses, GPT-5 Codex)
+#   - Gemini / Anthropic / Ollama
+# 通过 ServiceTargetResolver 显式绑定 endpoint + auth + AdapterKind,
+# 完全绕过 genai 的"按模型名识别 provider"默认行为,避免误识别。
+# pin 到精确 beta patch — 0.6.x 仍在 beta,API 有可能再调,锁版本避免被动升级。
+# 选 0.6 而非 0.5.3 stable 是为了拿 ChatMessage::with_reasoning_content 方法,
+# 这是 DeepSeek thinking-mode + tool calling 多轮回传 reasoning_content 的唯一干净口子
+# (0.5.3 没有此 API,会触发 issue #138 — assistant 含 tool_calls 的 turn 缺
+# reasoning_content 字段被 DeepSeek 服务端 400)。
+genai = "=0.6.0-beta.18"
 reqwest = { version = "0.12.28", default-features = false, features = [
   "blocking",
   "brotli",
