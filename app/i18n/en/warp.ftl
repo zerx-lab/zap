@@ -960,9 +960,9 @@ settings-environments-toast-share-not-synced = Unable to share environment: envi
 # 此锚点下放 settings_view/agent_providers_widget.rs 字符串
 # 命名前缀:settings-agent-providers-*
 settings-agent-providers-title = Agent providers
-settings-agent-providers-description = Configure custom OpenAI-compatible Agent providers (DeepSeek, Zhipu GLM, Moonshot, Alibaba DashScope, SiliconFlow, OpenRouter, local Ollama, etc.). You can add models manually (display name + model ID mapping) or fetch them automatically from the API. Provider metadata is stored in the local settings.toml; API keys are stored securely in the system keychain.
-settings-agent-providers-empty = No providers configured yet. Click the button below to add one.
-settings-agent-providers-add-button = + Add OpenAI-compatible provider
+settings-agent-providers-description = Configure custom Agent providers across multiple protocols — OpenAI-compatible (DeepSeek, Zhipu GLM, Moonshot, DashScope, SiliconFlow, OpenRouter, etc.), Anthropic, Gemini, and local Ollama. You can add models manually (display name + model ID mapping) or fetch them automatically from the API. Provider metadata is stored in the local settings.toml; API keys are stored securely in the system keychain.
+settings-agent-providers-empty = No providers configured yet. Click [+ Add provider] in the top-right to add one.
+settings-agent-providers-add-button = + Add provider
 settings-agent-providers-search-placeholder = Search providers…
 settings-agent-providers-quick-add-title = Quick add
 settings-agent-providers-refresh-catalog = Refresh catalog
@@ -1296,3 +1296,130 @@ keybinding-desc-workspace-send-feedback = Send feedback (opens external link)
 keybinding-desc-workspace-send-feedback-oz = Send feedback with Oz
 keybinding-desc-workspace-view-logs = View Warp logs
 keybinding-desc-workspace-link-to-privacy-policy = View privacy policy (opens external link)
+
+# Input / terminal / project bindings (registered outside workspace/mod.rs)
+keybinding-desc-input-edit-prompt = Edit Prompt
+keybinding-desc-terminal-attach-block-as-context = Attach Selected Block as Agent Context
+keybinding-desc-terminal-attach-text-as-context = Attach Selected Text as Agent Context
+keybinding-desc-terminal-attach-as-context-menu = Attach Selection as Agent Context
+keybinding-desc-workspace-write-codebase-index = Write current codebase index snapshot
+keybinding-desc-workspace-init-project = Initiate project for warp
+keybinding-desc-workspace-add-current-folder = Add current folder as project
+
+# Workspace debug / crash / sentry / heap profile bindings
+keybinding-desc-workspace-crash-macos = Crash the app (for testing sentry-cocoa)
+keybinding-desc-workspace-crash-other = Crash the app (for testing sentry-native)
+keybinding-desc-workspace-log-review-comment-send-status = [Debug] Log review comment send status for active tab
+keybinding-desc-workspace-panic = Trigger a panic (for testing sentry-rust)
+keybinding-desc-workspace-open-view-tree-debugger = Open view tree debugger
+keybinding-desc-workspace-view-first-time-user-experience = [Debug] View first-time user experience
+keybinding-desc-workspace-open-build-plan-migration-modal = [Debug] Open Build Plan Migration Modal
+keybinding-desc-workspace-reset-build-plan-migration-modal-state = [Debug] Reset Build Plan Migration Modal State
+keybinding-desc-workspace-undismiss-aws-login-banner = [Debug] Un-dismiss AWS login banner
+keybinding-desc-workspace-open-oz-launch-modal = [Debug] Open Oz Launch Modal
+keybinding-desc-workspace-reset-oz-launch-modal-state = [Debug] Reset Oz Launch Modal State
+keybinding-desc-workspace-open-openwarp-launch-modal = [Debug] Open OpenWarp Launch Modal
+keybinding-desc-workspace-reset-openwarp-launch-modal-state = [Debug] Reset OpenWarp Launch Modal State
+keybinding-desc-workspace-install-opencode-warp-plugin = [Debug] Install OpenCode Warp plugin
+keybinding-desc-workspace-use-local-opencode-warp-plugin = [Debug] Use local OpenCode Warp plugin (testing only)
+keybinding-desc-workspace-open-session-config-modal = [Debug] Open Session Config Modal
+keybinding-desc-workspace-start-hoa-onboarding-flow = [Debug] Start HOA Onboarding Flow
+keybinding-desc-workspace-sample-process = Sample Process
+keybinding-desc-workspace-dump-heap-profile = Dump heap profile (can only be done once)
+
+# Terminal input bindings
+keybinding-desc-input-show-network-log = Show Warp network log
+keybinding-desc-input-clear-screen = Clear screen
+keybinding-desc-input-toggle-classic-completions = (Experimental) Toggle classic completions mode
+keybinding-desc-input-command-search = Command Search
+keybinding-desc-input-history-search = History Search
+keybinding-desc-input-open-completions-menu = Open completions menu
+keybinding-desc-input-workflows = Workflows
+keybinding-desc-input-open-ai-command-suggestions = Open AI Command Suggestions
+keybinding-desc-input-new-agent-conversation = New agent conversation
+keybinding-desc-input-trigger-auto-detection = Trigger Auto Detection
+keybinding-desc-input-clear-and-reset-ai-context-menu-query = Clear and reset AI context menu query
+
+# Terminal view bindings
+keybinding-desc-terminal-alternate-paste = Alternate terminal paste
+keybinding-desc-terminal-toggle-cli-agent-rich-input = Toggle CLI Agent Rich Input
+keybinding-desc-terminal-warpify-subshell = Warpify subshell
+keybinding-desc-terminal-warpify-ssh-session = Warpify ssh session
+keybinding-desc-terminal-accept-prompt-suggestion = Accept Prompt Suggestion
+keybinding-desc-terminal-cancel-process-windows = Copy text or cancel active process
+keybinding-desc-terminal-cancel-process = Cancel active process
+keybinding-desc-terminal-focus-input = Focus terminal input
+keybinding-desc-terminal-paste = Paste
+keybinding-desc-terminal-copy = Copy
+keybinding-desc-terminal-reinput-commands = Reinput selected commands
+keybinding-desc-terminal-reinput-commands-sudo = Reinput selected commands as root
+keybinding-desc-terminal-find = Find in Terminal
+keybinding-desc-terminal-select-bookmark-up = Select the closest bookmark up
+keybinding-desc-terminal-select-bookmark-down = Select the closest bookmark down
+keybinding-desc-terminal-open-block-context-menu = Open block context menu
+keybinding-desc-terminal-toggle-team-workflows-modal = Toggle team workflows modal
+keybinding-desc-terminal-copy-git-branch = Copy git branch
+keybinding-desc-terminal-clear-blocks = Clear Blocks
+keybinding-desc-terminal-cursor-word-left = Move cursor one word to the left within an executing command
+keybinding-desc-terminal-cursor-word-right = Move cursor one word to the right within an executing command
+keybinding-desc-terminal-cursor-home = Move cursor home within an executing command
+keybinding-desc-terminal-cursor-end = Move cursor end within an executing command
+keybinding-desc-terminal-delete-word-left = Delete word left within an executing command
+keybinding-desc-terminal-delete-line-start = Delete to line start within an executing command
+keybinding-desc-terminal-delete-line-end = Delete to line end within an executing command
+keybinding-desc-terminal-backward-tabulation = Backward tabulation within an executing command
+keybinding-desc-terminal-select-previous-block = Select previous block
+keybinding-desc-terminal-select-next-block = Select next block
+keybinding-desc-terminal-share-selected-block = Share selected block
+keybinding-desc-terminal-bookmark-selected-block = Bookmark selected block
+keybinding-desc-terminal-find-within-selected-block = Find within selected block
+keybinding-desc-terminal-copy-command-and-output = Copy command and output
+keybinding-desc-terminal-copy-command-output = Copy command output
+keybinding-desc-terminal-copy-command = Copy command
+keybinding-desc-terminal-scroll-up-one-line = Scroll terminal output up one line
+keybinding-desc-terminal-scroll-down-one-line = Scroll terminal output down one line
+keybinding-desc-terminal-scroll-to-top-of-block = Scroll to top of selected block
+keybinding-desc-terminal-scroll-to-bottom-of-block = Scroll to bottom of selected block
+keybinding-desc-terminal-select-all-blocks = Select all blocks
+keybinding-desc-terminal-expand-blocks-above = Expand selected blocks above
+keybinding-desc-terminal-expand-blocks-below = Expand selected blocks below
+keybinding-desc-terminal-insert-command-correction = Insert Command Correction
+keybinding-desc-terminal-setup-guide = Setup Guide
+keybinding-desc-terminal-onboarding-warp-input-terminal = [Debug] Onboarding Callout: WarpInput - Terminal
+keybinding-desc-terminal-onboarding-warp-input-project = [Debug] Onboarding Callout: WarpInput - Project
+keybinding-desc-terminal-onboarding-warp-input-no-project = [Debug] Onboarding Callout: WarpInput - No Project
+keybinding-desc-terminal-onboarding-modality-project = [Debug] Onboarding Callout: Modality - Project
+keybinding-desc-terminal-onboarding-modality-no-project = [Debug] Onboarding Callout: Modality - No Project
+keybinding-desc-terminal-onboarding-modality-terminal = [Debug] Onboarding Callout: Modality - Terminal
+keybinding-desc-terminal-import-external-settings = Import External Settings
+keybinding-desc-terminal-share-current-session = Share current session
+keybinding-desc-terminal-stop-sharing-current-session = Stop sharing current session
+keybinding-desc-terminal-toggle-block-filter = Toggle block filter on selected or last block
+keybinding-desc-terminal-toggle-sticky-command-header = Toggle Sticky Command Header in Active Pane
+keybinding-desc-terminal-toggle-autoexecute-mode = Toggle Auto-execute Mode
+keybinding-desc-terminal-toggle-queue-next-prompt = Toggle Queue Next Prompt
+keybinding-desc-terminal-generate-codebase-index = [Debug] Generate codebase index
+
+# Pane group bindings
+keybinding-desc-pane-group-close-current-session = Close Current Session
+keybinding-desc-pane-group-split-left = Split pane left
+keybinding-desc-pane-group-split-up = Split pane up
+keybinding-desc-pane-group-split-down = Split pane down
+keybinding-desc-pane-group-split-right = Split pane right
+keybinding-desc-pane-group-switch-left = Switch panes left
+keybinding-desc-pane-group-switch-right = Switch panes right
+keybinding-desc-pane-group-switch-up = Switch panes up
+keybinding-desc-pane-group-switch-down = Switch panes down
+keybinding-desc-pane-group-resize-left = Resize pane > Move divider left
+keybinding-desc-pane-group-resize-right = Resize pane > Move divider right
+keybinding-desc-pane-group-resize-up = Resize pane > Move divider up
+keybinding-desc-pane-group-resize-down = Resize pane > Move divider down
+keybinding-desc-pane-group-toggle-maximize = Toggle Maximize Active Pane
+
+# Root view bindings
+keybinding-desc-root-view-toggle-fullscreen = Toggle fullscreen
+keybinding-desc-root-view-enter-onboarding-state = [Debug] Enter Onboarding State
+
+# Workflow view bindings
+keybinding-desc-workflow-view-save = Save workflow
+keybinding-desc-workflow-view-close = Close
