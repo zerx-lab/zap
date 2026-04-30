@@ -1,0 +1,12 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Roadmap from '../components/Roadmap.astro';
+import { t } from '../i18n';
+
+const locale = 'zh-CN' as const;
+const d = t(locale);
+---
+
+<Layout locale={locale} title={d.roadmap.meta_title} description={d.roadmap.meta_description}>
+  <Roadmap locale={locale} />
+</Layout>

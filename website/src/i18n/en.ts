@@ -223,6 +223,79 @@ export const en: Dict = {
       links: ['View source', 'Read LICENSE', 'Open an issue'],
     },
   },
+  roadmap: {
+    meta_title: 'OpenWarp Roadmap — Shipped & in-flight enhancements',
+    meta_description:
+      'The OpenWarp roadmap on top of upstream Warp: i18n, multilingual client tokenizer, expanded provider support.',
+    eyebrow: 'Roadmap',
+    title: 'Opening Warp up, one merge at a time',
+    subtitle:
+      'Every status below maps to merged code or commits — no marketing language. Green = shipped, blue = in flight, gray = planned.',
+    legend: {
+      shipped: 'Shipped',
+      in_progress: 'In flight',
+      planned: 'Planned',
+    },
+    progress_label: 'progress',
+    tracks: [
+      {
+        id: 'i18n',
+        eyebrow: '01 · Internationalization',
+        title: 'First-class multilingual UI',
+        summary:
+          'A Fluent (.ftl) infrastructure is in place. English and Simplified Chinese ship in lockstep; the community can extend the locale set from there.',
+        progress: 80,
+        items: [
+          { status: 'shipped', text: 'Fluent infrastructure + ANCHOR protocol (en + zh-CN updated together)' },
+          { status: 'shipped', text: 'AI / Features / Teams / Code / MCP Servers / Settings pages translated end-to-end' },
+          { status: 'shipped', text: 'workspace keybinding descriptions translated (116 keys, ~156 call sites)' },
+          { status: 'in_progress', text: 'Remaining settings_view subdirectories and keybinding-desc backfill' },
+          { status: 'planned', text: 'Terminal context menus, command palette, and Drive views' },
+          { status: 'planned', text: 'Community: Japanese / Spanish / others — locale templates & contributor guide' },
+        ],
+      },
+      {
+        id: 'tokenizer',
+        eyebrow: '02 · Client-side tokenizer',
+        title: 'Input classification beyond English',
+        summary:
+          'The terminal input classifier was trained on English only. We are extending it to CJK and other scripts so that non-English input is not misrouted as a shell command.',
+        progress: 35,
+        items: [
+          { status: 'shipped', text: 'CJK early-return: Han / Ext-A / Hiragana / Katakana / Hangul / fullwidth punctuation routed to AI' },
+          { status: 'shipped', text: 'contains_cjk wired into input.rs / agent.rs / universal.rs hot paths' },
+          { status: 'in_progress', text: 'Other non-Latin scripts: Arabic / Cyrillic / Thai / Devanagari early-return rules' },
+          { status: 'planned', text: 'Probabilistic weighting for mixed-script input (e.g. CJK + English) instead of hard rules' },
+          { status: 'planned', text: 'Replace or augment natural_language_detection dictionaries with multilingual data' },
+        ],
+      },
+      {
+        id: 'providers',
+        eyebrow: '03 · More providers',
+        title: 'BYOP coverage',
+        summary:
+          'BYOP supports several native protocols via the genai adapter layer — not just OpenAI Chat Completions. Each native protocol means one less gateway and less token loss.',
+        progress: 60,
+        items: [
+          { status: 'shipped', text: 'OpenAI Chat Completions (GPT-4o / GPT-5 / any compatible endpoint)' },
+          { status: 'shipped', text: 'OpenAI Responses (native reasoning / built-in tools)' },
+          { status: 'shipped', text: 'Anthropic native (Claude 4.x / 1M context / cache_control)' },
+          { status: 'shipped', text: 'Google Gemini native protocol' },
+          { status: 'shipped', text: 'DeepSeek native (deepseek-r1 reasoning)' },
+          { status: 'shipped', text: 'Ollama local (no key, localhost direct)' },
+          { status: 'shipped', text: 'base_url normalization: host-only entries auto-append /v1/ etc.' },
+          { status: 'in_progress', text: 'Providers subpage: models.dev data source + quick-add search' },
+          { status: 'planned', text: 'xAI Grok / Mistral / Cohere native protocols' },
+          { status: 'planned', text: 'One-click templates for Azure OpenAI / Bedrock / Vertex enterprise gateways' },
+        ],
+      },
+    ],
+    footnote_title: 'How to read this roadmap',
+    footnote_body:
+      'This roadmap is maintained against merged commits, not a wishlist. Every ✓ maps to actual code; in-flight items have an open issue or draft PR. To contribute, head to GitHub.',
+    cta_repo: 'Open repository',
+    cta_issues: 'File an issue',
+  },
   footer: {
     project: 'Project',
     community: 'Community',

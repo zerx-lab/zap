@@ -6,9 +6,13 @@ import { t, type Locale } from '../i18n';
 
 interface Props {
   locale: Locale;
+  title?: string;
+  description?: string;
 }
-const { locale } = Astro.props;
+const { locale, title, description } = Astro.props;
 const dict = t(locale);
+const pageTitle = title ?? dict.meta.title;
+const pageDescription = description ?? dict.meta.description;
 ---
 
 <!doctype html>
@@ -17,10 +21,10 @@ const dict = t(locale);
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="generator" content={Astro.generator} />
-    <title>{dict.meta.title}</title>
-    <meta name="description" content={dict.meta.description} />
-    <meta property="og:title" content={dict.meta.title} />
-    <meta property="og:description" content={dict.meta.description} />
+    <title>{pageTitle}</title>
+    <meta name="description" content={pageDescription} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
     <meta property="og:type" content="website" />
     <meta name="theme-color" content="#06070b" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -48,7 +52,9 @@ const dict = t(locale);
           var lang = (navigator.language || (navigator.languages && navigator.languages[0]) || '').toLowerCase();
           if (lang && !lang.startsWith('zh')) {
             try { localStorage.setItem(KEY, 'en'); } catch (_) {}
-            location.replace('/en/');
+            // 保留当前路径,只把语言段切成 /en
+            var target = '/en' + (path === '/' ? '/' : path);
+            location.replace(target);
           }
         } catch (_) {}
       })();

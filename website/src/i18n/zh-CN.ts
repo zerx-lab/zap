@@ -220,6 +220,77 @@ export const zhCN = {
       links: ['查看源代码', '阅读 LICENSE', '提交 Issue'],
     },
   },
+  roadmap: {
+    meta_title: 'OpenWarp 路线图 — 进行中与计划中的增强',
+    meta_description: 'OpenWarp 在 Warp 上游之上的增强路线图:国际化、客户端分词器多语言、提供商扩展。',
+    eyebrow: '路线图',
+    title: '我们正在把 Warp 进一步打开',
+    subtitle: '所有进度都基于已合并的代码与提交,没有营销话术。绿色=已交付,蓝色=进行中,灰色=计划中。',
+    legend: {
+      shipped: '已交付',
+      in_progress: '进行中',
+      planned: '计划中',
+    },
+    progress_label: '完成度',
+    tracks: [
+      {
+        id: 'i18n',
+        eyebrow: '01 · 国际化',
+        title: '原生多语言界面',
+        summary:
+          '基于 Fluent (.ftl) 的 i18n 基础设施已落地,英文与简体中文双轨并行,后续依靠社区扩展更多语种。',
+        progress: 80,
+        items: [
+          { status: 'shipped', text: 'Fluent 基础设施 + ANCHOR 锚点协议(英文与中文同步追加)' },
+          { status: 'shipped', text: 'AI / Features / Teams / Code / MCP Servers / Settings 等设置页端到端翻译' },
+          { status: 'shipped', text: 'workspace 快捷键描述全译(116 key,约 156 处 call site)' },
+          { status: 'in_progress', text: '剩余 settings_view 子目录与 keybinding-desc 续补' },
+          { status: 'planned', text: '终端右键菜单、命令面板、Drive 视图等运行时文案补全' },
+          { status: 'planned', text: '社区扩展:日本語 / Español / 其它语言模板与贡献指南' },
+        ],
+      },
+      {
+        id: 'tokenizer',
+        eyebrow: '02 · 客户端分词器',
+        title: '不只是英文的输入分类',
+        summary:
+          '终端输入分类器(input_classifier)历史上只为英文训练。我们正在把它扩展到 CJK 与更多脚本,避免中文输入被误判为 shell 命令。',
+        progress: 35,
+        items: [
+          { status: 'shipped', text: 'CJK 早返回:基本汉字 / 扩展 A / 平假名 / 片假名 / 韩文音节 / 全角标点统一判 AI' },
+          { status: 'shipped', text: '在 input.rs / agent.rs / universal.rs 等热路径接入 contains_cjk' },
+          { status: 'in_progress', text: '其他非拉丁脚本:阿拉伯语 / 西里尔字母 / 泰语 / 天城文等的早返回规则' },
+          { status: 'planned', text: '多脚本混排输入(中英混合)的概率加权,而非硬规则' },
+          { status: 'planned', text: '替换或补强 natural_language_detection 词典为多语种数据源' },
+        ],
+      },
+      {
+        id: 'providers',
+        eyebrow: '03 · 更多提供商',
+        title: 'BYOP 适配范围',
+        summary:
+          'BYOP 通过 genai 适配层支持多种原生协议,而不只是 OpenAI Chat Completions。每多支持一种,就少一层网关与 token 损耗。',
+        progress: 60,
+        items: [
+          { status: 'shipped', text: 'OpenAI Chat Completions(GPT-4o / GPT-5 / 任意兼容端点)' },
+          { status: 'shipped', text: 'OpenAI Responses(原生 reasoning / built-in tools)' },
+          { status: 'shipped', text: 'Anthropic 原生(Claude 4.x / 1M context / cache_control)' },
+          { status: 'shipped', text: 'Google Gemini 原生协议' },
+          { status: 'shipped', text: 'DeepSeek 原生(推理模型 deepseek-r1)' },
+          { status: 'shipped', text: 'Ollama 本地(零密钥,localhost 直连)' },
+          { status: 'shipped', text: 'base_url 规范化:host-only 填法自动补 /v1/ 等版本路径' },
+          { status: 'in_progress', text: 'Provider 子页 models.dev 数据源 + 搜索框快速添加' },
+          { status: 'planned', text: 'xAI Grok / Mistral / Cohere 原生协议' },
+          { status: 'planned', text: 'Azure OpenAI / Bedrock / Vertex 等企业网关一键配置模板' },
+        ],
+      },
+    ],
+    footnote_title: '路线图怎么读',
+    footnote_body:
+      '路线图按"已合并的提交"维护,不是 PM 的愿望清单。每个 ✓ 都对应代码库里的具体文件与函数;进行中条目代表已开 issue / 已起草 PR。希望参与的话,直接来 GitHub 提 issue 或 PR。',
+    cta_repo: '查看仓库',
+    cta_issues: '提交 issue',
+  },
   footer: {
     project: '项目',
     community: '社区',

@@ -1,9 +1,10 @@
 ---
-import { t, type Locale } from '../i18n';
+import { t, type Locale, localizedPath } from '../i18n';
 interface Props { locale: Locale }
 const { locale } = Astro.props;
 const dict = t(locale);
 const year = new Date().getFullYear();
+const roadmapHref = localizedPath(locale, '/roadmap');
 ---
 
 <footer class="mt-12 border-t border-white/5 bg-ink-950">
@@ -27,7 +28,7 @@ const year = new Date().getFullYear();
         <ul class="mt-4 space-y-2 text-sm">
           <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.docs}</a></li>
           <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.changelog}</a></li>
-          <li><a class="text-zinc-400 transition hover:text-white" href="#">{dict.footer.roadmap}</a></li>
+          <li><a class="text-zinc-400 transition hover:text-white" href={roadmapHref}>{dict.footer.roadmap}</a></li>
         </ul>
       </div>
 
