@@ -1531,3 +1531,24 @@ keybinding-desc-set-input-mode-terminal = 切换输入模式为终端模式
 keybinding-desc-toggle-hide-cli-responses = 切换隐藏 CLI 回应
 keybinding-desc-slash-command = 斜杠命令:{ $name }
 keybinding-desc-take-control-of-running-command = 接管正在运行的命令
+
+# --- 终端零状态块(欢迎提示) ---
+terminal-zero-state-title = 新建终端会话
+terminal-zero-state-start-agent = 开始新的 Agent 对话
+terminal-zero-state-cycle-history = 翻阅历史命令与对话
+terminal-zero-state-open-code-review = 打开代码评审
+terminal-zero-state-autodetect-prompts = 在终端会话中自动检测 Agent 提示
+terminal-zero-state-dismiss = 不再显示
+
+# --- Rules 页面(ai/facts/view/rule.rs) ---
+rules-description = Rules 通过提供结构化指引来增强 Agent,帮助保持一致性、贯彻最佳实践,并适应特定工作流,包括代码库或更宏观的任务。
+rules-search-placeholder = 搜索规则
+rules-zero-state-global = 添加规则后,它将显示在这里。
+rules-zero-state-project = 为项目生成 WARP.md 规则文件后,它将显示在这里。
+rules-disabled-banner-prefix = 你的规则已禁用,不会在会话中作为上下文使用。你可以随时
+rules-disabled-banner-link = 重新开启
+rules-disabled-banner-suffix = 。
+rules-tab-global = 全局
+rules-tab-project = 项目级
+rules-add-button = 添加
+rules-init-project-button = 初始化项目

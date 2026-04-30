@@ -247,23 +247,10 @@ impl AuthManager {
     }
 
     /// Refreshes the user's auth state using their existing credentials.
-    pub fn refresh_user(&self, ctx: &mut ModelContext<Self>) {
-        let Some(credentials) = self.auth_state.credentials() else {
-            log::warn!("Attempted to refresh user without credentials");
-            return;
-        };
-
-        let Some(token) = credentials.login_token() else {
-            log::info!("Attempted to refresh a user with no login token, skipping");
-            return;
-        };
-
-        let auth_client = self.auth_client.clone();
-        let _ = ctx.spawn(
-            async move { auth_client.fetch_user(token, true).await },
-            Self::on_user_fetched,
-        );
-    }
+    ///
+    /// OpenWarp:整体禁用 —— 无 Warp Inc 账号体系,没有可刷新的远端用户记录;
+    /// 任何调用都直接 no-op,避免向 https://app.warp.dev 发 fetch_user 请求。
+    pub fn refresh_user(&self, _ctx: &mut ModelContext<Self>) {}
 
     /// Authenticate asynchronously using the OAuth2 device authorization flow.
     ///
@@ -528,25 +515,11 @@ impl AuthManager {
 
     /// Persists (or removes) the current user and credentials to/from secure storage,
     /// based on the current auth state.
-    fn persist(&self, ctx: &mut ModelContext<Self>) {
-        match self.auth_state.persist_action() {
-            PersistAction::Persist(persisted_user) => {
-                if persisted_user.auth_tokens.refresh_token.is_empty() {
-                    log::warn!("Skipping user persistence due to empty refresh token");
-                    return;
-                }
-                let _ = persisted_user.write_to_secure_storage(ctx).map_err(|err| {
-                    log::warn!("Unable to persist user to secure storage: {err:?}");
-                });
-            }
-            PersistAction::Remove => {
-                let _ = PersistedUser::remove_from_secure_storage(ctx).map_err(|err| {
-                    log::warn!("Unable to clear user from secure storage: {err:?}");
-                });
-            }
-            PersistAction::DoNothing => {}
-        }
-    }
+    ///
+    /// OpenWarp:整体禁用 —— 不再向 secure storage 写入或清理 `USER_STORAGE_KEY`
+    /// 下的 Warp Inc 账号条目。BYOP 的 API key (`crates/ai/api_keys.rs`) 与
+    /// MCP credentials 走各自独立的 key,完全不受影响。
+    fn persist(&self, _ctx: &mut ModelContext<Self>) {}
 
     /// Helper function for logging out the user.
     /// NOTE: You probably want to call auth::log_out instead; this only manages the auth state,

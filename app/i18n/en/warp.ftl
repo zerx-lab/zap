@@ -1603,3 +1603,24 @@ keybinding-desc-set-input-mode-terminal = Set Input Mode to Terminal Mode
 keybinding-desc-toggle-hide-cli-responses = Toggle Hide CLI Responses
 keybinding-desc-slash-command = Slash command: { $name }
 keybinding-desc-take-control-of-running-command = Take control of running command
+
+# --- Terminal zero-state block (welcome chips) ---
+terminal-zero-state-title = New terminal session
+terminal-zero-state-start-agent = start a new agent conversation
+terminal-zero-state-cycle-history = cycle past commands and conversations
+terminal-zero-state-open-code-review = open code review
+terminal-zero-state-autodetect-prompts = autodetect agent prompts in terminal sessions
+terminal-zero-state-dismiss = Don't show again
+
+# --- Rules page (ai/facts/view/rule.rs) ---
+rules-description = Rules enhance the agent by providing structured guidelines that help maintain consistency, enforce best practices, and adapt to specific workflows, including codebases or broader tasks.
+rules-search-placeholder = Search rules
+rules-zero-state-global = Once you add a rule, it will be shown here.
+rules-zero-state-project = Once you generate a WARP.md rules file for a project, it will appear here.
+rules-disabled-banner-prefix = Your rules are disabled and won't be used as context in sessions. You can {" "}
+rules-disabled-banner-link = turn it back on
+rules-disabled-banner-suffix = {" "}anytime.
+rules-tab-global = Global
+rules-tab-project = Project based
+rules-add-button = Add
+rules-init-project-button = Initialize Project

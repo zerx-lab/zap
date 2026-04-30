@@ -111,24 +111,9 @@ impl AuthState {
             return state;
         }
 
-        // Try reading from secure storage.
-        match PersistedUser::from_secure_storage(ctx) {
-            Ok(persisted) => {
-                if persisted.auth_tokens.refresh_token.is_empty() {
-                    log::warn!(
-                        "Found persisted user with empty refresh token; clearing secure storage entry"
-                    );
-                    let _ = PersistedUser::remove_from_secure_storage(ctx).map_err(|err| {
-                        log::warn!("Unable to clear invalid user from secure storage: {err:?}");
-                    });
-                } else {
-                    state.apply_persisted_user(persisted);
-                }
-            }
-            Err(err) => {
-                log::info!("Unable to read user from secure storage: {err:?}");
-            }
-        }
+        // OpenWarp:不再从 secure storage 读取 Warp Inc 账号条目(USER_STORAGE_KEY)。
+        // BYOP API key 与 MCP credentials 由各自模块独立加载,不依赖此处。
+        let _ = ctx;
 
         state
     }
