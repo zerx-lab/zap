@@ -26,7 +26,11 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   CONFIG_FILE: ".github/workflows/release_configurations.json"
-  CHANNEL: preview
+  # OpenWarp fork 用 oss channel(对应 app/src/bin/oss.rs 内联 ChannelConfig,
+  # 不依赖 warp-channel-config 私有二进制),preview 等内部 channel 走
+  # channel_config::load_config!() 宏 → build.rs 调 warp-channel-config 失败 →
+  # *_config.json 不生成 → include_str! 编译失败。
+  CHANNEL: oss
 
 jobs:
   prepare_release:

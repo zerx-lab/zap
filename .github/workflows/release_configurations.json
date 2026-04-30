@@ -28,6 +28,19 @@
             "web_gcs_bucket_prefix": "warp"
         },
         {
+            "channel": "oss",
+            "type": "weekly",
+            "is_prerelease": true,
+            "is_autopush": false,
+            "release_base_name": "OpenWarp",
+            "release_body_text": "OpenWarp release (fork of Warp Terminal, oss channel)",
+            "sentry_project": "",
+            "sentry_environment": "oss_release",
+            "changelog_slack_channel": "",
+            "gcs_cache_control_value": "",
+            "web_gcs_bucket_prefix": ""
+        },
+        {
             "channel": "stable",
             "type": "weekly",
             "is_prerelease": false,
