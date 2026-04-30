@@ -1552,3 +1552,15 @@ rules-tab-global = 全局
 rules-tab-project = 项目级
 rules-add-button = 添加
 rules-init-project-button = 初始化项目
+
+# --- Agent 视图零状态 + 消息栏 ---
+agent-zero-state-title = 新建 Oz Agent 对话
+agent-zero-state-title-cloud = 新建 Oz 云端 Agent 对话
+agent-zero-state-description = 在下方输入提示开始新的对话
+agent-zero-state-description-with-location = 在下方输入提示,于 `{ $location }` 开始新的对话
+agent-zero-state-switch-model = 切换模型
+agent-zero-state-go-back-to-terminal = 返回终端
+agent-message-bar-for-help = 查看帮助
+agent-message-bar-for-commands = 查看命令
+agent-message-bar-open-conversation = 打开对话
+agent-message-bar-for-code-review = 进入代码评审

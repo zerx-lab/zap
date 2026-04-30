@@ -1624,3 +1624,15 @@ rules-tab-global = Global
 rules-tab-project = Project based
 rules-add-button = Add
 rules-init-project-button = Initialize Project
+
+# --- Agent view zero-state + message bar ---
+agent-zero-state-title = New Oz agent conversation
+agent-zero-state-title-cloud = New Oz cloud agent conversation
+agent-zero-state-description = Send a prompt below to start a new conversation
+agent-zero-state-description-with-location = Send a prompt below to start a new conversation in `{ $location }`
+agent-zero-state-switch-model = switch model
+agent-zero-state-go-back-to-terminal = go back to terminal
+agent-message-bar-for-help = for help
+agent-message-bar-for-commands = for commands
+agent-message-bar-open-conversation = open conversation
+agent-message-bar-for-code-review = for code review

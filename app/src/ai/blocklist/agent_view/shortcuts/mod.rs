@@ -237,7 +237,7 @@ pub fn render_agent_shortcuts_view(
                 key: "escape".to_owned(),
                 ..Default::default()
             },
-            text: "go back to terminal".into(),
+            text: crate::t!("agent-zero-state-go-back-to-terminal").into(),
             ..Default::default()
         },
         app,
