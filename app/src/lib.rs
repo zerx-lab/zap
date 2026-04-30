@@ -41,6 +41,7 @@ mod external_secrets;
 mod font_fallback;
 mod global_resource_handles;
 mod gpu_state;
+pub mod i18n;
 mod input_classifier;
 mod interval_timer;
 mod linear;
@@ -501,6 +502,10 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 pub fn run() -> Result<()> {
     // Perform any necessary platform-specific initialization.
     platform::init();
+
+    // i18n 必须早于 UI 任何 t!() 调用初始化;先按系统 locale,后续 settings 加载完会用
+    // LanguageSettings 覆盖。OnceLock 重入安全。
+    i18n::init(None);
 
     // Ensure feature flags are initialized before parsing command-line arguments.
     init_feature_flags();

@@ -148,15 +148,7 @@ const PRIMARY_HEADER_FONT_SIZE: f32 = 24.;
 
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
 const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
-const NEXT_COMMAND_DESCRIPTION: &str = "Let AI suggest the next command to run based on your command history, outputs, and common workflows.";
-const PROMPT_SUGGESTIONS_DESCRIPTION: &str = "Let AI suggest natural language prompts, as inline banners in the input, based on recent commands and their outputs.";
-const SUGGESTED_CODE_BANNERS_DESCRIPTION: &str = "Let AI suggest code diffs and queries as inline banners in the blocklist, based on recent commands and their outputs.";
-const NATURAL_LANGUAGE_AUTOSUGGESTIONS: &str =
-    "Let AI suggest natural language autosuggestions, based on recent commands and their outputs.";
-const SHARED_BLOCK_TITLE_GENERATION_DESCRIPTION: &str =
-    "Let AI generate a title for your shared block based on the command and output.";
-const GIT_OPERATIONS_AUTOGEN_DESCRIPTION: &str =
-    "Let AI generate commit messages and pull request titles and descriptions.";
+// AI 设置页描述文本走 i18n,key 见 app/i18n/{en,zh-CN}/warp.ftl 的 settings-ai-* 段。
 const WISPR_FLOW_URL: &str = "https://wisprflow.ai/";
 
 pub fn init_actions_from_parent_view<T: Action + Clone>(
@@ -2161,6 +2153,13 @@ pub enum AISettingsPageAction {
         provider_id: String,
         api_type: crate::settings::AgentProviderApiType,
     },
+    /// Provider 级 reasoning effort(思考深度)切换。
+    /// `Auto` = genai 默认(模型名后缀推断,仅 OpenAI/Anthropic 协议有效);
+    /// 其他档位经 client capability gate 过滤,不支持的模型自动跳过。
+    SetAgentProviderReasoningEffort {
+        provider_id: String,
+        effort: crate::settings::ReasoningEffortSetting,
+    },
     UpdateAgentProviderApiKey {
         provider_id: String,
         api_key: String,
@@ -2991,6 +2990,19 @@ impl TypedActionView for AISettingsPageView {
                         if p.base_url.trim().is_empty() {
                             p.base_url = api_type.default_base_url().to_owned();
                         }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                self.rebuild_current_page(ctx);
+            }
+            AISettingsPageAction::SetAgentProviderReasoningEffort {
+                provider_id,
+                effort,
+            } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        p.reasoning_effort = *effort;
                     }
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });
@@ -4031,7 +4043,7 @@ impl ActiveAIWidget {
                 ),
             )
             .with_child(render_ai_setting_description(
-                NEXT_COMMAND_DESCRIPTION,
+                crate::t!("settings-ai-next-command-description"),
                 is_toggleable,
                 app,
             ))
@@ -4058,7 +4070,7 @@ impl ActiveAIWidget {
                 ),
             )
             .with_child(render_ai_setting_description(
-                PROMPT_SUGGESTIONS_DESCRIPTION,
+                crate::t!("settings-ai-prompt-suggestions-description"),
                 is_toggleable,
                 app,
             ))
@@ -4085,7 +4097,7 @@ impl ActiveAIWidget {
                 ),
             )
             .with_child(render_ai_setting_description(
-                SUGGESTED_CODE_BANNERS_DESCRIPTION,
+                crate::t!("settings-ai-suggested-code-banners-description"),
                 is_toggleable,
                 app,
             ))
@@ -4112,7 +4124,7 @@ impl ActiveAIWidget {
                 app,
             ))
             .with_child(render_ai_setting_description(
-                NATURAL_LANGUAGE_AUTOSUGGESTIONS,
+                crate::t!("settings-ai-natural-language-autosuggestions"),
                 is_toggleable,
                 app,
             ))
@@ -4139,7 +4151,7 @@ impl ActiveAIWidget {
                 ),
             )
             .with_child(render_ai_setting_description(
-                SHARED_BLOCK_TITLE_GENERATION_DESCRIPTION,
+                crate::t!("settings-ai-shared-block-title-generation-description"),
                 is_toggleable,
                 app,
             ))
@@ -4164,7 +4176,7 @@ impl ActiveAIWidget {
                 app,
             ))
             .with_child(render_ai_setting_description(
-                GIT_OPERATIONS_AUTOGEN_DESCRIPTION,
+                crate::t!("settings-ai-git-operations-autogen-description"),
                 is_toggleable,
                 app,
             ))

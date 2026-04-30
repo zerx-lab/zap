@@ -13,6 +13,7 @@ mod editor;
 mod emacs_bindings;
 pub mod font;
 mod gpu;
+pub mod language;
 pub mod import;
 mod init;
 pub mod initializer;
@@ -52,6 +53,7 @@ pub use gpu::*;
 pub use init::*;
 pub use input::*;
 pub use input_mode::*;
+pub use language::*;
 #[cfg(target_os = "linux")]
 pub use linux::*;
 pub use native_preference::*;

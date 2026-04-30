@@ -34,12 +34,12 @@ use warp_core::semantic_selection::SemanticSelection;
 use super::{
     app_icon::AppIconSettings, app_installation_detection::UserAppInstallDetectionSettings,
     cloud_preferences::CloudPreferencesSettings, initializer::SettingsInitializer,
-    native_preference::NativePreferenceSettings, AISettings, AccessibilitySettings,
-    AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings, ChangelogSettings,
-    CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent,
-    GPUSettings, InputBoxType, InputModeSettings, InputSettings, PaneSettings,
-    SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
-    VimBannerSettings, WarpDrivePrivacySettings,
+    language::LanguageSettings, native_preference::NativePreferenceSettings, AISettings,
+    AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
+    ChangelogSettings, CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings,
+    FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputSettings,
+    PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings,
+    ThemeSettings, VimBannerSettings, WarpDrivePrivacySettings,
 };
 
 pub struct UserDefaultsOnStartup {
@@ -85,6 +85,7 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     WarpDrivePrivacySettings::register(ctx);
     UserAppInstallDetectionSettings::register(ctx);
     AppIconSettings::register(ctx);
+    LanguageSettings::register(ctx);
     AppEditorSettings::register(ctx);
     InputSettings::register(ctx);
     WarpifySettings::register(ctx);
@@ -124,6 +125,15 @@ pub fn init(
     // when the settings file feature is first enabled.
     if needs_settings_file_migration(ctx) {
         migrate_native_settings_to_settings_file(ctx);
+    }
+
+    // 应用持久化语言设置到 i18n loader。run() 早期已用系统 locale 初始化,此处覆盖到
+    // 用户显式选择;Language::System 时不动。
+    {
+        let lang = *super::language::LanguageSettings::as_ref(ctx).language;
+        if let Some(locale) = lang.to_locale_str() {
+            crate::i18n::set_locale(locale);
+        }
     }
 
     let use_thin_strokes = *FontSettings::as_ref(ctx).use_thin_strokes;

@@ -238,6 +238,12 @@ reqwest = { version = "0.12.28", default-features = false, features = [
 reqwest-eventsource = "0.6.0"
 resvg = "0.47.0"
 rust-embed = { version = "8.7.0", features = ["include-exclude"] }
+# i18n: Fluent-based localization with fallback chain (zh-CN → zh → en)
+i18n-embed = { version = "0.15", features = ["fluent-system", "desktop-requester"] }
+i18n-embed-fl = "0.9"
+fluent = "0.16"
+unic-langid = { version = "0.9", features = ["macros"] }
+sys-locale = "0.3"
 rustc-hash = "2.1.1"
 rustls = "0.23.39"
 schemars = { version = "1", features = ["chrono04"] }

@@ -36,7 +36,9 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
-use crate::settings::{AISettings, AgentProvider, AgentProviderApiType, AgentProviderModel};
+use crate::settings::{
+    AISettings, AgentProvider, AgentProviderApiType, AgentProviderModel, ReasoningEffortSetting,
+};
 use strum::IntoEnumIterator;
 
 use super::ai_page::{AISettingsPageAction, AISettingsPageView};
@@ -70,6 +72,8 @@ struct ProviderRow {
     add_model_button_state: MouseStateHandle,
     /// 5 个 ApiType chip 各自的鼠标状态。HashMap 由 chip 显示名映射。
     api_type_chip_states: RefCell<HashMap<AgentProviderApiType, MouseStateHandle>>,
+    /// Reasoning effort 8 档 chip 的鼠标状态(Auto / Off / Minimal / Low / Medium / High / XHigh / Max)。
+    reasoning_chip_states: RefCell<HashMap<ReasoningEffortSetting, MouseStateHandle>>,
     model_rows: Vec<ModelRow>,
 }
 
@@ -104,7 +108,7 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("搜索提供商…", ctx);
+            editor.set_placeholder_text(crate::t!("settings-agent-providers-search-placeholder"), ctx);
             if !initial_query.is_empty() {
                 editor.set_buffer_text(&initial_query, ctx);
             }
@@ -142,7 +146,7 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("显示名(例如: DS-V3 通用)", ctx);
+            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-name-placeholder"), ctx);
             if !initial_name.is_empty() {
                 editor.set_buffer_text(&initial_name, ctx);
             }
@@ -168,7 +172,7 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("模型 ID(发给 API 的 model 字段, 如: deepseek-chat)", ctx);
+            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-id-placeholder"), ctx);
             if !initial_id.is_empty() {
                 editor.set_buffer_text(&initial_id, ctx);
             }
@@ -198,7 +202,7 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("上下文 (tokens)", ctx);
+            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-context-placeholder"), ctx);
             if !initial_context.is_empty() {
                 editor.set_buffer_text(&initial_context, ctx);
             }
@@ -229,7 +233,7 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("输出 (tokens)", ctx);
+            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-output-placeholder"), ctx);
             if !initial_output.is_empty() {
                 editor.set_buffer_text(&initial_output, ctx);
             }
@@ -272,7 +276,7 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("自定义提供商名称(例如: DeepSeek、本地 Ollama)", ctx);
+            editor.set_placeholder_text(crate::t!("settings-agent-providers-name-placeholder"), ctx);
             if !initial_name.is_empty() {
                 editor.set_buffer_text(&initial_name, ctx);
             }
@@ -321,7 +325,7 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, true);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("sk-... (失焦或按 Enter 保存到系统 keychain)", ctx);
+            editor.set_placeholder_text(crate::t!("settings-agent-providers-api-key-placeholder"), ctx);
             if !initial_api_key.is_empty() {
                 editor.set_buffer_text(&initial_api_key, ctx);
             }
@@ -355,6 +359,7 @@ impl AgentProvidersWidget {
             remove_button_state: MouseStateHandle::default(),
             add_model_button_state: MouseStateHandle::default(),
             api_type_chip_states: RefCell::new(HashMap::new()),
+            reasoning_chip_states: RefCell::new(HashMap::new()),
             model_rows,
         }
     }
@@ -370,7 +375,7 @@ impl AgentProvidersWidget {
     ) -> Box<dyn Element> {
         let label_text = Container::new(
             Text::new(
-                "API Type".to_string(),
+                crate::t!("settings-agent-providers-field-api-type"),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -410,10 +415,98 @@ impl AgentProvidersWidget {
 
         let hint_text = Container::new(
             Text::new(
-                format!(
-                    "(genai 据此显式绑定 adapter,避免按模型名误识别。Base URL 留空将使用默认: {})",
-                    provider.api_type.default_base_url()
+                crate::t!(
+                    "settings-agent-providers-api-type-hint",
+                    url = provider.api_type.default_base_url()
                 ),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(appearance.theme().disabled_ui_text_color().into())
+            .soft_wrap(true)
+            .finish(),
+        )
+        .with_margin_top(2.)
+        .finish();
+
+        Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(label_text)
+            .with_child(chip_row.finish())
+            .with_child(hint_text)
+            .finish()
+    }
+
+    /// 渲染 "Reasoning Effort" 行:8 个 chip 横排,可换行。
+    /// `Auto` 让 genai 按模型名后缀(`-low`/`-high`/`-zero`)推断;其他档位经
+    /// `reasoning::model_supports_reasoning` 过滤,不支持的模型自动跳过。
+    fn render_reasoning_field(
+        &self,
+        provider: &AgentProvider,
+        row: &ProviderRow,
+        label_color: warp_core::ui::theme::Fill,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        let label_text = Container::new(
+            Text::new(
+                "Reasoning Effort".to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(label_color.into())
+            .finish(),
+        )
+        .with_margin_top(FIELD_LABEL_MARGIN_TOP)
+        .with_margin_bottom(FIELD_LABEL_MARGIN_BOTTOM)
+        .finish();
+
+        let mut chip_row = Wrap::row()
+            .with_spacing(6.)
+            .with_run_spacing(4.)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center);
+        {
+            let mut states = row.reasoning_chip_states.borrow_mut();
+            for variant in ReasoningEffortSetting::iter() {
+                let state = states
+                    .entry(variant)
+                    .or_insert_with(MouseStateHandle::default)
+                    .clone();
+                let is_selected = provider.reasoning_effort == variant;
+                let label = if is_selected {
+                    format!("● {}", variant.display_name())
+                } else {
+                    variant.display_name().to_owned()
+                };
+                let chip = Self::render_card_button(
+                    label,
+                    state,
+                    AISettingsPageAction::SetAgentProviderReasoningEffort {
+                        provider_id: provider.id.clone(),
+                        effort: variant,
+                    },
+                    appearance,
+                );
+                chip_row = chip_row.with_child(chip);
+            }
+        }
+
+        let hint = match provider.reasoning_effort {
+            ReasoningEffortSetting::Auto => {
+                "Auto:跟随 genai 默认。OpenAI / Anthropic 协议会按模型名后缀(-low / -medium / \
+                 -high / -xhigh / -max / -zero)自动推断思考档位;Gemini / DeepSeek 不发送 \
+                 thinking 参数。"
+            }
+            ReasoningEffortSetting::Off => {
+                "Off:对支持 reasoning 的模型显式发送 none(关闭思考);不支持的模型自动跳过。"
+            }
+            _ => {
+                "强制档位:仅当模型在能力名单内(Anthropic claude-3.7+/4.x、OpenAI o1-o4 / gpt-5 / \
+                 codex、Gemini 2.5+)才发送 thinking 参数;不支持的模型自动跳过,避免上游 400。"
+            }
+        };
+        let hint_text = Container::new(
+            Text::new(
+                hint.to_string(),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -518,7 +611,7 @@ impl AgentProvidersWidget {
             None => {
                 return Container::new(
                     Text::new(
-                        format!("(此 provider 还未关联编辑器: {})", provider.id),
+                        crate::t!("settings-agent-providers-row-missing", id = provider.id.as_str()),
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
@@ -531,29 +624,33 @@ impl AgentProvidersWidget {
         };
 
         let name_field = field_block(
-            "Name",
+            &crate::t!("settings-agent-providers-field-name"),
             ChildView::new(&row.name_editor).finish(),
             label_color,
             appearance,
         );
         let api_type_field = self.render_api_type_field(provider, row, label_color, appearance);
         let base_url_field = field_block(
-            "Base URL",
+            &crate::t!("settings-agent-providers-field-base-url"),
             ChildView::new(&row.base_url_editor).finish(),
             label_color,
             appearance,
         );
         let api_key_field = field_block(
-            "API Key",
+            &crate::t!("settings-agent-providers-field-api-key"),
             ChildView::new(&row.api_key_editor).finish(),
             label_color,
             appearance,
         );
+        let reasoning_field = self.render_reasoning_field(provider, row, label_color, appearance);
 
         // ---- 模型列表区 ----
         let models_label = Container::new(
             Text::new(
-                format!("模型列表 ({} 个)", provider.models.len()),
+                crate::t!(
+                    "settings-agent-providers-models-label",
+                    count = provider.models.len()
+                ),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -571,7 +668,7 @@ impl AgentProvidersWidget {
         if provider.models.is_empty() {
             let empty_hint = Container::new(
                 Text::new(
-                    "还未配置模型。点 [+ 添加模型] 手动添加,或点 [Fetch from API] 自动抓取。",
+                    crate::t!("settings-agent-providers-models-empty-hint"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -605,10 +702,10 @@ impl AgentProvidersWidget {
             let header = Container::new(
                 Flex::row()
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(header_cell(2., "显示名"))
-                    .with_child(header_cell(2., "模型 ID"))
-                    .with_child(header_cell(1., "上下文 (tok)"))
-                    .with_child(header_cell(1., "输出 (tok)"))
+                    .with_child(header_cell(2., &crate::t!("settings-agent-providers-models-header-name")))
+                    .with_child(header_cell(2., &crate::t!("settings-agent-providers-models-header-id")))
+                    .with_child(header_cell(1., &crate::t!("settings-agent-providers-models-header-context")))
+                    .with_child(header_cell(1., &crate::t!("settings-agent-providers-models-header-output")))
                     // 占位,与下方 × 按钮对齐
                     .with_child(
                         Text::new(
@@ -637,7 +734,7 @@ impl AgentProvidersWidget {
 
         // ---- 底部按钮行 ----
         let add_model_button = Self::render_card_button(
-            "+ 添加模型",
+            crate::t!("settings-agent-providers-add-model"),
             row.add_model_button_state.clone(),
             AISettingsPageAction::AddAgentProviderModel {
                 provider_id: provider.id.clone(),
@@ -645,7 +742,7 @@ impl AgentProvidersWidget {
             appearance,
         );
         let fetch_button = Self::render_card_button(
-            "Fetch from API",
+            crate::t!("settings-agent-providers-fetch-from-api"),
             row.fetch_button_state.clone(),
             AISettingsPageAction::FetchAgentProviderModels {
                 provider_id: provider.id.clone(),
@@ -653,7 +750,7 @@ impl AgentProvidersWidget {
             appearance,
         );
         let sync_models_dev_button = Self::render_card_button(
-            "Sync from models.dev",
+            crate::t!("settings-agent-providers-sync-models-dev"),
             row.sync_models_dev_button_state.clone(),
             AISettingsPageAction::SyncProviderModelsFromModelsDev {
                 provider_id: provider.id.clone(),
@@ -661,7 +758,7 @@ impl AgentProvidersWidget {
             appearance,
         );
         let remove_button = Self::render_card_button(
-            "Remove",
+            crate::t!("settings-agent-providers-remove"),
             row.remove_button_state.clone(),
             AISettingsPageAction::RemoveAgentProvider {
                 provider_id: provider.id.clone(),
@@ -693,6 +790,7 @@ impl AgentProvidersWidget {
                 .with_child(api_type_field)
                 .with_child(base_url_field)
                 .with_child(api_key_field)
+                .with_child(reasoning_field)
                 .with_child(Container::new(models_column.finish()).with_margin_top(8.).finish())
                 .with_child(Container::new(bottom_row).with_margin_top(10.).finish())
                 .finish(),
@@ -793,7 +891,7 @@ impl AgentProvidersWidget {
         let dim_color = appearance.theme().disabled_ui_text_color();
 
         let title = Text::new(
-            "快速添加".to_string(),
+            crate::t!("settings-agent-providers-quick-add-title"),
             appearance.ui_font_family(),
             appearance.ui_font_size(),
         )
@@ -801,7 +899,7 @@ impl AgentProvidersWidget {
         .finish();
 
         let refresh_button = Self::render_card_button(
-            "刷新目录",
+            crate::t!("settings-agent-providers-refresh-catalog"),
             self.refresh_catalog_button_state.clone(),
             AISettingsPageAction::RefreshModelsDev,
             appearance,
@@ -831,7 +929,7 @@ impl AgentProvidersWidget {
                 body.add_child(
                     Container::new(
                         Text::new(
-                            "正在拉取 models.dev 目录…(第一次可能需要几秒)".to_string(),
+                            crate::t!("settings-agent-providers-loading-catalog"),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -846,7 +944,7 @@ impl AgentProvidersWidget {
                 body.add_child(
                     Container::new(
                         Text::new(
-                            "models.dev 目录为空,点 [刷新目录] 重试。".to_string(),
+                            crate::t!("settings-agent-providers-catalog-empty"),
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
@@ -905,7 +1003,7 @@ impl AgentProvidersWidget {
                     body.add_child(
                         Container::new(
                             Text::new(
-                                format!("无匹配 \"{query}\""),
+                                crate::t!("settings-agent-providers-no-match", query = query.as_str()),
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )
@@ -920,9 +1018,13 @@ impl AgentProvidersWidget {
                 // 展开/收起按钮(只在无搜索 + catalog 比折叠上限多时才展示)。
                 if !has_query && total > COLLAPSED_LIMIT {
                     let toggle_label = if expanded {
-                        "收起 ▲".to_string()
+                        crate::t!("settings-agent-providers-collapse")
                     } else {
-                        format!("展开剩余 {} 个 ▼", total - COLLAPSED_LIMIT)
+                        let count: i64 = (total - COLLAPSED_LIMIT) as i64;
+                        crate::t!(
+                            "settings-agent-providers-expand-remaining",
+                            count = count
+                        )
                     };
                     let toggle_button = Self::render_card_button(
                         toggle_label,
@@ -971,7 +1073,7 @@ impl SettingsWidget for AgentProvidersWidget {
 
         let header = build_sub_header(
             appearance,
-            "Agent 提供商",
+            crate::t!("settings-agent-providers-title"),
             Some(if is_any_ai_enabled {
                 appearance.theme().active_ui_text_color()
             } else {
@@ -981,11 +1083,7 @@ impl SettingsWidget for AgentProvidersWidget {
         .with_padding_bottom(HEADER_PADDING)
         .finish();
 
-        let description_text =
-            "配置自定义 OpenAI 兼容的 Agent 提供商(如 DeepSeek、智谱 GLM、Moonshot、\
-            通义千问 DashScope、SiliconFlow、OpenRouter、本地 Ollama 等)。\
-            可以手动添加模型(显示名 + 模型 ID 映射),也可以从 API 自动抓取。\
-            提供商元数据存储在本地 settings.toml,API key 安全存储在系统密钥库。";
+        let description_text = crate::t!("settings-agent-providers-description");
         let description = Container::new(
             Text::new(
                 description_text,
@@ -1011,7 +1109,7 @@ impl SettingsWidget for AgentProvidersWidget {
         if providers.is_empty() {
             let empty = Container::new(
                 Text::new(
-                    "尚未配置任何提供商。点击下面按钮添加。",
+                    crate::t!("settings-agent-providers-empty"),
                     appearance.ui_font_family(),
                     appearance.ui_font_size(),
                 )
@@ -1028,7 +1126,7 @@ impl SettingsWidget for AgentProvidersWidget {
         }
 
         let add_button = render_full_pane_width_ai_button(
-            "+ 添加 OpenAI 兼容提供商",
+            &crate::t!("settings-agent-providers-add-button"),
             is_any_ai_enabled,
             self.add_button_state.clone(),
             AISettingsPageAction::AddAgentProvider,
