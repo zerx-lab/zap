@@ -1178,6 +1178,10 @@ fn initialize_app(
         manager
     });
 
+    // 自定义 Agent Provider 的 API key 由独立单例存到 secure storage,
+    // 与 ApiKeyManager (BYOK 转发给 warp-server) 解耦。
+    ctx.add_singleton_model(crate::ai::agent_providers::AgentProviderSecrets::new);
+
     ctx.add_singleton_model(AntivirusInfo::new);
 
     cfg_if::cfg_if! {

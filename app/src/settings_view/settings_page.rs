@@ -1329,6 +1329,66 @@ impl<V: warpui::View> PageType<V> {
         }
     }
 
+    /// 取出当前 page 的滚动状态 handle(垂直、水平),用于 rebuild 时跨实例保留滚动位置。
+    /// `Monolith` 的 scroll state 是可选的,这里只在两个非空 handle 都存在时返回。
+    pub(super) fn scroll_states(
+        &self,
+    ) -> Option<(ClippedScrollStateHandle, ClippedScrollStateHandle)> {
+        match self {
+            Self::Uncategorized {
+                vertical_scroll_state,
+                horizontal_scroll_state,
+                ..
+            }
+            | Self::Categorized {
+                vertical_scroll_state,
+                horizontal_scroll_state,
+                ..
+            } => Some((vertical_scroll_state.clone(), horizontal_scroll_state.clone())),
+            Self::Monolith {
+                vertical_scroll_state: Some(v),
+                horizontal_scroll_state: Some(h),
+                ..
+            } => Some((v.clone(), h.clone())),
+            Self::Monolith { .. } => None,
+        }
+    }
+
+    /// 用旧 page 的 scroll handle 替换当前 page 的内部 handle,保留滚动位置。
+    pub(super) fn replace_scroll_states(
+        &mut self,
+        v: ClippedScrollStateHandle,
+        h: ClippedScrollStateHandle,
+    ) {
+        match self {
+            Self::Uncategorized {
+                vertical_scroll_state,
+                horizontal_scroll_state,
+                ..
+            }
+            | Self::Categorized {
+                vertical_scroll_state,
+                horizontal_scroll_state,
+                ..
+            } => {
+                *vertical_scroll_state = v;
+                *horizontal_scroll_state = h;
+            }
+            Self::Monolith {
+                vertical_scroll_state,
+                horizontal_scroll_state,
+                ..
+            } => {
+                if vertical_scroll_state.is_some() {
+                    *vertical_scroll_state = Some(v);
+                }
+                if horizontal_scroll_state.is_some() {
+                    *horizontal_scroll_state = Some(h);
+                }
+            }
+        }
+    }
+
     /// Apply the search query by matching against all the widgets and storing the results.
     /// Uses all-words matching: every word in the query must appear somewhere in the
     /// widget's search terms (but not necessarily contiguously).

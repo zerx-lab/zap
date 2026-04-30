@@ -5,7 +5,7 @@ use chrono::{DateTime, Local, TimeDelta};
 use futures::channel::oneshot;
 use uuid::Uuid;
 use warp_multi_agent_api::response_event;
-use warpui::{Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, ModelContext};
 
 use crate::{
     ai::agent::{
@@ -13,10 +13,49 @@ use crate::{
         conversation::AIConversationId,
         AIIdentifiers, CancellationReason,
     },
+    ai::blocklist::BlocklistAIHistoryModel,
     network::NetworkStatus,
     report_error, send_telemetry_from_ctx,
     server::server_api::ServerApiProvider,
 };
+use warpui::SingletonEntity;
+
+/// BYOP 路径的请求分流参数。从 LLMId、settings、conversation 中提取后
+/// 一次性塞给 spawn closure(ctx 不能跨 await 边界)。
+struct ByopDispatch {
+    base_url: String,
+    api_key: String,
+    model_id: String,
+    /// conversation 的 root task id — 必须用本地已注册的 id,
+    /// 否则下游 `Action::AddMessagesToTask` 在 task_store 找不到会 `TaskNotFound`。
+    task_id: String,
+    /// 是否需要 emit `CreateTask` 把 Optimistic root 升级为 Server task。
+    /// 仅首轮(root task 还没 source)需要;再次发会触发 `UnexpectedUpgrade`。
+    needs_create_task: bool,
+}
+
+fn byop_dispatch_info(
+    params: &api::RequestParams,
+    ai_identifiers: &AIIdentifiers,
+    ctx: &warpui::AppContext,
+) -> Option<ByopDispatch> {
+    let (provider, api_key, model_id) =
+        crate::ai::agent_providers::lookup_byop(ctx, &params.model)?;
+    let conversation_id = ai_identifiers.client_conversation_id.as_ref()?;
+    let history = BlocklistAIHistoryModel::as_ref(ctx);
+    let conversation = history.conversation(conversation_id)?;
+    let task_id = conversation.get_root_task_id().to_string();
+    // compute_active_tasks 只返回 `task.source().is_some()` 的 task —
+    // 因此非空 ⇒ root 已经升级为 Server 状态,不要再 emit CreateTask。
+    let needs_create_task = conversation.compute_active_tasks().is_empty();
+    Some(ByopDispatch {
+        base_url: provider.base_url,
+        api_key,
+        model_id,
+        task_id,
+        needs_create_task,
+    })
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResponseStreamId(String);
@@ -91,15 +130,31 @@ impl ResponseStream {
 
         let request_id = Uuid::new_v4();
         let params_clone = params.clone();
-        let _ =
-            ctx.spawn(
-                async move {
+        // BYOP 路径: 若选中的 base model 是用户自定义 provider 编码的 LLMId,
+        // 则在 spawn 前从 ctx 中取出 (provider, api_key, model_id, root_task_id),
+        // 走自定义 chat completions。否则走 warp 自家 multi-agent 端点(原有路径)。
+        let byop_dispatch = byop_dispatch_info(&params, &ai_identifiers, ctx);
+        let _ = ctx.spawn(
+            async move {
+                if let Some(byop) = byop_dispatch {
+                    crate::ai::agent_providers::chat_stream::generate_byop_output(
+                        params_clone,
+                        byop.base_url,
+                        byop.api_key,
+                        byop.model_id,
+                        byop.task_id,
+                        byop.needs_create_task,
+                        cancellation_rx,
+                    )
+                    .await
+                } else {
                     generate_multi_agent_output(server_api, params_clone, cancellation_rx).await
-                },
-                move |me, stream, ctx| {
-                    me.handle_response_stream_result(request_id, stream, ctx);
-                },
-            );
+                }
+            },
+            move |me, stream, ctx| {
+                me.handle_response_stream_result(request_id, stream, ctx);
+            },
+        );
         Self {
             id: ResponseStreamId(Uuid::new_v4().to_string()),
             params: params.clone(),
@@ -156,8 +211,24 @@ impl ResponseStream {
         self.current_request_id = Some(request_id);
         let params = self.params.clone();
         let server_api = ServerApiProvider::as_ref(ctx).get();
+        let byop_dispatch = byop_dispatch_info(&params, &self.ai_identifiers, ctx);
         let _ = ctx.spawn(
-            async move { generate_multi_agent_output(server_api, params, cancellation_rx).await },
+            async move {
+                if let Some(byop) = byop_dispatch {
+                    crate::ai::agent_providers::chat_stream::generate_byop_output(
+                        params,
+                        byop.base_url,
+                        byop.api_key,
+                        byop.model_id,
+                        byop.task_id,
+                        byop.needs_create_task,
+                        cancellation_rx,
+                    )
+                    .await
+                } else {
+                    generate_multi_agent_output(server_api, params, cancellation_rx).await
+                }
+            },
             move |me, stream, ctx| {
                 me.handle_response_stream_result(request_id, stream, ctx);
             },

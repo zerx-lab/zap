@@ -14,8 +14,6 @@ use crate::{
         AuthStateProvider,
     },
     network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind},
-    report_error,
-    server::server_api::ServerApiProvider,
     workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent},
 };
 
@@ -507,7 +505,25 @@ pub struct LLMPreferences {
 
 impl LLMPreferences {
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        let models_by_feature = get_cached_models(ctx).unwrap_or_default();
+        // BYOP-only 模式: picker 完全由用户配置的 agent_providers 填充,
+        // 完全不再消费 warp 后端的 GraphQL 模型列表。
+        // 缓存(MODELS_BY_FEATURE_CACHE_KEY)也跳过 — 启动时直接从 settings 重建。
+        let models_by_feature = crate::ai::agent_providers::build_byop_models_by_feature(&*ctx);
+
+        // 监听 settings.agent_providers 变更 → 重建 byop 模型列表。
+        ctx.subscribe_to_model(
+            &crate::settings::AISettings::handle(ctx),
+            |me, _event, ctx| {
+                me.refresh_byop_models(ctx);
+            },
+        );
+        // 监听 secrets 变更(API key 增删) → 重建,因为合法性依赖 api_key 是否存在。
+        ctx.subscribe_to_model(
+            &crate::ai::agent_providers::AgentProviderSecrets::handle(ctx),
+            |me, _event, ctx| {
+                me.refresh_byop_models(ctx);
+            },
+        );
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |me, event, ctx| {
             if let NetworkStatusEvent::NetworkStatusChanged {
@@ -846,45 +862,20 @@ impl LLMPreferences {
         *last_update.popup_visibility_state.lock() = UpdatePopupVisibilityState::Hidden;
     }
 
-    /// Fetches the latest set of models from the server for the currently logged in user, and updates the model.
-    pub fn refresh_authed_models(&self, ctx: &mut ModelContext<Self>) {
-        // Don't try to fetch auth'd models if the user is not logged in yet.
-        if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            return;
+    /// BYOP-only 模式: picker 完全由本地 `agent_providers` 填充,不再去 warp 后端拉模型。
+    /// 这两个 refresh 函数保留签名供既有调用点(NetworkOnline / AuthComplete / TeamsChanged)
+    /// 触发,但内部 noop。
+    pub fn refresh_authed_models(&self, _ctx: &mut ModelContext<Self>) {}
+
+    fn refresh_public_models(&self, _ctx: &mut ModelContext<Self>) {}
+
+    /// 从 settings.agent_providers + AgentProviderSecrets 重建 `models_by_feature`,
+    /// 在 settings 或 secrets 变化时调用。
+    pub fn refresh_byop_models(&mut self, ctx: &mut ModelContext<Self>) {
+        let new = crate::ai::agent_providers::build_byop_models_by_feature(&*ctx);
+        if new != self.models_by_feature {
+            self.on_server_update(new, ctx);
         }
-
-        let ai_api_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-        ctx.spawn(
-            async move { ai_api_client.get_feature_model_choices().await },
-            |me, result, ctx| match result {
-                Ok(update) => {
-                    if update != me.models_by_feature {
-                        me.on_server_update(update, ctx);
-                    }
-                }
-                Err(e) => {
-                    report_error!(e.context("Failed to fetch LLMs from server"));
-                }
-            },
-        );
-    }
-
-    /// No auth required (i.e. to populate the pre-login onboarding picker).
-    fn refresh_public_models(&self, ctx: &mut ModelContext<Self>) {
-        let ai_api_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-        ctx.spawn(
-            async move { ai_api_client.get_free_available_models(None).await },
-            |me, result, ctx| match result {
-                Ok(update) => {
-                    if update != me.models_by_feature {
-                        me.on_server_update(update, ctx);
-                    }
-                }
-                Err(e) => {
-                    report_error!(e.context("Failed to fetch free-tier LLMs from server"));
-                }
-            },
-        );
     }
 
     pub fn refresh_available_models(&self, ctx: &mut ModelContext<Self>) {

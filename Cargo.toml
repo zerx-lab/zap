@@ -212,6 +212,12 @@ prost-reflect = "0.16.3"
 prost-types = "0.14.3"
 rand = "0.8.2"
 rangemap = "1.3.0"
+# BYOP(Bring Your Own Provider)模式下用 async-openai 调用用户配置的
+# OpenAI 兼容端点。features:
+#   - chat-completion: 启用 _api(client/config) + chat completions 类型
+#   - byot:           启用 create_byot 等泛型方法,允许用 serde_json::Value
+#                     处理 DeepSeek 的 reasoning_content 等非标准字段
+async-openai = { version = "0.32", features = ["chat-completion", "byot"] }
 reqwest = { version = "0.12.28", default-features = false, features = [
   "blocking",
   "brotli",

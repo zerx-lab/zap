@@ -627,6 +627,128 @@ cfg_if! {
 }
 
 /// Maps custom toolbar command regex patterns to CLI agent names.
+// ---------------------------------------------------------------------------
+// 自定义 Agent 提供商配置(进程内 Provider)
+// ---------------------------------------------------------------------------
+
+/// Agent 提供商支持的协议类型。
+///
+/// 第一阶段仅支持 OpenAI 兼容协议(适用于 OpenAI、DeepSeek、智谱 GLM、
+/// Moonshot、通义千问 DashScope-OpenAI 兼容端点、SiliconFlow、OpenRouter、
+/// 任何 OpenAI 兼容的本地服务等)。后续可在此扩展 Anthropic、Google、Bedrock。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentProviderKind {
+    /// OpenAI 兼容的 Chat Completions / `/v1/models` 协议。
+    OpenAiCompatible,
+}
+
+impl Default for AgentProviderKind {
+    fn default() -> Self {
+        Self::OpenAiCompatible
+    }
+}
+
+/// 一条用户自定义的 Agent 提供商配置。
+///
+/// `api_key` **不**保存在这里,而是保存在 `AgentProviderSecrets` 单例(secure storage),
+/// 通过 `id` 关联。这样设置文件 (settings.toml) 不会泄漏敏感信息。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct AgentProvider {
+    /// 提供商唯一 ID,首次创建时生成,持久化到设置中作为 secret 的关联键。
+    #[serde(default = "AgentProvider::default_id")]
+    pub id: String,
+
+    /// 用户给这个提供商起的显示名(例如 "DeepSeek 官方"、"本地 Ollama")。
+    pub name: String,
+
+    /// 协议类型,目前固定为 OpenAI 兼容。
+    #[serde(default)]
+    pub kind: AgentProviderKind,
+
+    /// API base URL,例如 `https://api.deepseek.com/v1`、`http://localhost:11434/v1`。
+    /// 不要带尾随斜杠,但代码侧会做容错。
+    pub base_url: String,
+
+    /// 用户配置的、希望暴露给 Agent 选择的模型列表。
+    /// 每条同时含 `name`(显示名) 与 `id`(发送给上游 API 的 model 字段值)。
+    #[serde(default)]
+    pub models: Vec<AgentProviderModel>,
+}
+
+impl AgentProvider {
+    fn default_id() -> String {
+        uuid::Uuid::new_v4().to_string()
+    }
+
+    /// 构造一个新的、空的提供商。
+    pub fn new_empty() -> Self {
+        Self {
+            id: Self::default_id(),
+            name: String::new(),
+            kind: AgentProviderKind::default(),
+            base_url: String::new(),
+            models: Vec::new(),
+        }
+    }
+}
+
+impl settings_value::SettingsValue for AgentProvider {}
+
+/// 单条模型条目: `name` 是用户在 model picker 中看到的显示名,
+/// `id` 是真正发给上游 OpenAI 兼容 API 的 `model` 字段值。
+///
+/// 序列化为 toml 时形如:
+/// ```toml
+/// [[agent_providers.models]]
+/// name = "DS V3 通用"
+/// id   = "deepseek-chat"
+/// ```
+///
+/// 反序列化兼容老格式 `models = ["deepseek-chat", "deepseek-coder"]`
+/// (每个字符串视为 `{ name = id, id = id }`),便于现有用户无痛升级。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, schemars::JsonSchema)]
+pub struct AgentProviderModel {
+    pub name: String,
+    pub id: String,
+}
+
+impl AgentProviderModel {
+    pub fn from_id(id: String) -> Self {
+        Self {
+            name: id.clone(),
+            id,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for AgentProviderModel {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Either {
+            Plain(String),
+            Full {
+                #[serde(default)]
+                name: String,
+                id: String,
+            },
+        }
+        match Either::deserialize(deserializer)? {
+            Either::Plain(id) => Ok(AgentProviderModel::from_id(id)),
+            Either::Full { name, id } => {
+                let name = if name.is_empty() { id.clone() } else { name };
+                Ok(AgentProviderModel { name, id })
+            }
+        }
+    }
+}
+
+impl settings_value::SettingsValue for AgentProviderModel {}
+
 /// Keys are regex patterns (insertion-ordered), values are serialized CLIAgent names (e.g. "Claude").
 /// An empty string value means "Any CLI Agent" (CLIAgent::Unknown).
 ///
@@ -1459,6 +1581,19 @@ define_settings_group!(AISettings, settings: [
         private: false,
         toml_path: "agents.warp_agent.other.agent_attribution_enabled",
         description: "Whether the Warp Agent adds an attribution co-author line to commit messages and pull requests it creates.",
+    },
+
+    // 用户自定义 Agent 提供商列表。第一阶段仅支持 OpenAI 兼容协议。
+    //
+    // 注意: 提供商的 `api_key` 不在这里持久化,见 `AgentProviderSecrets`。
+    agent_providers: AgentProviders {
+        type: Vec<AgentProvider>,
+        default: Vec::new(),
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Never,
+        private: false,
+        toml_path: "agents.warp_agent.providers",
+        description: "User-configured custom Agent providers (OpenAI-compatible).",
     }
 ]);
 
