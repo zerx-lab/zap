@@ -212,6 +212,8 @@ pub enum SettingsSection {
     WarpAgent,
     AgentProfiles,
     AgentMCPServers,
+    /// 自定义 AI 提供商配置(BYOP),Agents 二级菜单的 Providers 子页。
+    AgentProviders,
     Knowledge,
     ThirdPartyCLIAgents,
     /// Internal backing-page identifier for CodeSettingsPageView. Multiple subpages
@@ -241,6 +243,7 @@ impl Display for SettingsSection {
             SettingsSection::WarpAgent => write!(f, "Warp Agent"),
             SettingsSection::AgentProfiles => write!(f, "Profiles"),
             SettingsSection::AgentMCPServers => write!(f, "MCP servers"),
+            SettingsSection::AgentProviders => write!(f, "Providers"),
             SettingsSection::Knowledge => write!(f, "Knowledge"),
             SettingsSection::ThirdPartyCLIAgents => write!(f, "Third party CLI agents"),
             SettingsSection::CodeIndexing => write!(f, "Indexing and projects"),
@@ -265,6 +268,7 @@ impl SettingsSection {
             Self::WarpAgent
                 | Self::AgentProfiles
                 | Self::AgentMCPServers
+                | Self::AgentProviders
                 | Self::Knowledge
                 | Self::ThirdPartyCLIAgents
         )
@@ -301,6 +305,7 @@ impl SettingsSection {
         &[
             Self::WarpAgent,
             Self::AgentProfiles,
+            Self::AgentProviders,
             Self::AgentMCPServers,
             Self::Knowledge,
             Self::ThirdPartyCLIAgents,
@@ -342,6 +347,7 @@ impl FromStr for SettingsSection {
             "Oz" | "Warp Agent" => Ok(Self::WarpAgent),
             "Profiles" | "AgentProfiles" => Ok(Self::AgentProfiles),
             "MCP servers" | "AgentMCPServers" => Ok(Self::AgentMCPServers),
+            "Providers" | "AgentProviders" => Ok(Self::AgentProviders),
             "Knowledge" => Ok(Self::Knowledge),
             "Third party CLI agents" | "ThirdPartyCLIAgents" => Ok(Self::ThirdPartyCLIAgents),
             "Indexing and projects" | "CodeIndexing" => Ok(Self::CodeIndexing),

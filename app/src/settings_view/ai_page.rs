@@ -96,6 +96,8 @@ pub enum AISubpage {
     WarpAgent,
     /// Agent profiles and permissions.
     Profiles,
+    /// 自定义 AI 提供商(BYOP) 配置子页。
+    Providers,
     /// Knowledge / Rules settings.
     Knowledge,
     /// Third-party CLI agent settings.
@@ -107,6 +109,7 @@ impl AISubpage {
         match section {
             SettingsSection::WarpAgent => Some(Self::WarpAgent),
             SettingsSection::AgentProfiles => Some(Self::Profiles),
+            SettingsSection::AgentProviders => Some(Self::Providers),
             SettingsSection::Knowledge => Some(Self::Knowledge),
             SettingsSection::ThirdPartyCLIAgents => Some(Self::ThirdPartyCLIAgents),
             // AgentMCPServers renders the standalone MCPServers page, not an AI subpage.
@@ -1482,7 +1485,6 @@ impl AISettingsPageView {
                     widgets.push(Box::new(VoiceWidget::default()));
                 }
                 widgets.push(Box::new(CLIAgentWidget::default()));
-                widgets.push(Box::new(AgentProvidersWidget::new(ctx)));
                 widgets.push(Box::new(AwsBedrockWidget::new(ctx)));
                 widgets.push(Box::new(AgentAttributionWidget::default()));
                 widgets.push(Box::new(OtherAIWidget::default()));
@@ -1522,13 +1524,15 @@ impl AISettingsPageView {
                 if voice_supported {
                     widgets.push(Box::new(VoiceWidget::default()));
                 }
-                widgets.push(Box::new(AgentProvidersWidget::new(ctx)));
                 widgets.push(Box::new(AwsBedrockWidget::new(ctx)));
                 widgets.push(Box::new(AgentAttributionWidget::default()));
                 widgets.push(Box::new(OtherAIWidget::default()));
                 if FeatureFlag::AgentModeComputerUse.is_enabled() {
                     widgets.push(Box::new(CloudAgentComputerUseWidget::default()));
                 }
+            }
+            Some(AISubpage::Providers) => {
+                widgets.push(Box::new(AgentProvidersWidget::new(ctx)));
             }
             Some(AISubpage::Profiles) => {
                 if !FeatureFlag::UsageBasedPricing.is_enabled() {
@@ -2178,9 +2182,38 @@ pub enum AISettingsPageAction {
         model_index: usize,
         id: String,
     },
+    /// 更新单条模型的 context_window(tokens),0 = 未指定。
+    UpdateAgentProviderModelContextWindow {
+        provider_id: String,
+        model_index: usize,
+        context_window: u32,
+    },
+    /// 更新单条模型的 max_output_tokens,0 = 未指定。
+    UpdateAgentProviderModelMaxOutput {
+        provider_id: String,
+        model_index: usize,
+        max_output_tokens: u32,
+    },
     FetchAgentProviderModels {
         provider_id: String,
     },
+    /// 触发一次 models.dev 目录加载(磁盘缓存 + 必要时网络刷新)。Providers 子页打开即触发。
+    EnsureModelsDevLoaded,
+    /// 强制刷新 models.dev 目录(忽略 TTL)。"刷新" 按钮触发。
+    RefreshModelsDev,
+    /// 从 models.dev 目录创建一个新 provider:回填 name/base_url/全部模型(含 context)。
+    AddProviderFromModelsDev {
+        catalog_provider_id: String,
+    },
+    /// 把现有 provider 的模型列表与 models.dev 同步(按 base_url 匹配),
+    /// 用 catalog 提供的 context_window / reasoning / tool_call 等元数据填充本地条目。
+    SyncProviderModelsFromModelsDev {
+        provider_id: String,
+    },
+    /// 折叠/展开 "快速添加" chip 行。
+    ToggleModelsDevChipsExpanded,
+    /// 设置 "快速添加" chip 行的搜索 query(子串过滤 provider name/id)。
+    SetModelsDevSearchQuery(String),
 }
 
 impl From<&AISettingsPageAction> for LoginGatedFeature {
@@ -2970,10 +3003,9 @@ impl TypedActionView for AISettingsPageView {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     let mut providers = settings.agent_providers.value().clone();
                     if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
-                        p.models.push(crate::settings::AgentProviderModel {
-                            name: String::new(),
-                            id: String::new(),
-                        });
+                        p.models.push(crate::settings::AgentProviderModel::from_id(
+                            String::new(),
+                        ));
                     }
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });
@@ -3021,6 +3053,38 @@ impl TypedActionView for AISettingsPageView {
                     if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
                         if let Some(m) = p.models.get_mut(*model_index) {
                             m.id = id.clone();
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::UpdateAgentProviderModelContextWindow {
+                provider_id,
+                model_index,
+                context_window,
+            } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        if let Some(m) = p.models.get_mut(*model_index) {
+                            m.context_window = *context_window;
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                ctx.notify();
+            }
+            AISettingsPageAction::UpdateAgentProviderModelMaxOutput {
+                provider_id,
+                model_index,
+                max_output_tokens,
+            } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        if let Some(m) = p.models.get_mut(*model_index) {
+                            m.max_output_tokens = *max_output_tokens;
                         }
                     }
                     let _ = settings.agent_providers.set_value(providers, ctx);
@@ -3080,6 +3144,146 @@ impl TypedActionView for AISettingsPageView {
                         }
                     },
                 );
+            }
+            AISettingsPageAction::EnsureModelsDevLoaded => {
+                use crate::ai::agent_providers::models_dev;
+                let had_disk = models_dev::load_from_disk();
+                if !had_disk || models_dev::is_stale() {
+                    let client = http_client::Client::new();
+                    ctx.spawn(
+                        async move { models_dev::fetch_and_cache(client).await },
+                        |view, result, ctx| {
+                            if let Err(e) = result {
+                                log::warn!("[models.dev] 拉取失败: {e}");
+                            }
+                            view.rebuild_current_page(ctx);
+                        },
+                    );
+                } else {
+                    ctx.notify();
+                }
+            }
+            AISettingsPageAction::RefreshModelsDev => {
+                use crate::ai::agent_providers::models_dev;
+                let client = http_client::Client::new();
+                ctx.spawn(
+                    async move { models_dev::fetch_and_cache(client).await },
+                    |view, result, ctx| {
+                        if let Err(e) = result {
+                            log::warn!("[models.dev] 刷新失败: {e}");
+                        }
+                        view.rebuild_current_page(ctx);
+                    },
+                );
+            }
+            AISettingsPageAction::AddProviderFromModelsDev {
+                catalog_provider_id,
+            } => {
+                use crate::ai::agent_providers::models_dev;
+                let Some(catalog) = models_dev::cached() else {
+                    log::warn!("[models.dev] 目录尚未加载,无法添加 {catalog_provider_id}");
+                    return;
+                };
+                let Some(cat_provider) = catalog.get(catalog_provider_id) else {
+                    log::warn!("[models.dev] 目录中无 provider id: {catalog_provider_id}");
+                    return;
+                };
+                let mut new_provider = crate::settings::AgentProvider::new_empty();
+                new_provider.name = if cat_provider.name.is_empty() {
+                    catalog_provider_id.clone()
+                } else {
+                    cat_provider.name.clone()
+                };
+                if let Some(api) = &cat_provider.api {
+                    new_provider.base_url = api.clone();
+                }
+                new_provider.models = cat_provider
+                    .models
+                    .values()
+                    .map(models_dev::into_agent_provider_model)
+                    .collect();
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    providers.push(new_provider);
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                self.rebuild_current_page(ctx);
+            }
+            AISettingsPageAction::SyncProviderModelsFromModelsDev { provider_id } => {
+                use crate::ai::agent_providers::models_dev;
+                let Some(catalog) = models_dev::cached() else {
+                    log::warn!("[models.dev] 目录未加载,无法同步 {provider_id}");
+                    return;
+                };
+                let providers_snapshot = AISettings::as_ref(ctx).agent_providers.value().clone();
+                let Some(local) = providers_snapshot.iter().find(|p| p.id == *provider_id) else {
+                    return;
+                };
+                // 匹配策略:先按 base_url 完全相等 / 包含;否则按 name (大小写无关) 匹配 catalog provider id 或 name。
+                let target_url = local.base_url.trim().trim_end_matches('/').to_lowercase();
+                let target_name = local.name.trim().to_lowercase();
+                let cat_provider = catalog.iter().find(|(_, p)| {
+                    if let Some(api) = &p.api {
+                        let api_norm = api.trim().trim_end_matches('/').to_lowercase();
+                        if !target_url.is_empty()
+                            && (api_norm == target_url
+                                || api_norm.contains(&target_url)
+                                || target_url.contains(&api_norm))
+                        {
+                            return true;
+                        }
+                    }
+                    !target_name.is_empty()
+                        && (p.name.to_lowercase() == target_name
+                            || p.id.to_lowercase() == target_name)
+                });
+                let Some((_, cat_provider)) = cat_provider else {
+                    log::warn!(
+                        "[models.dev] 未在目录中找到匹配 (base_url={}, name={})",
+                        local.base_url,
+                        local.name
+                    );
+                    return;
+                };
+                let cat_models = cat_provider.models.clone();
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        // 既有 id 用 catalog 元数据覆盖;catalog 多出的追加;本地多出的(用户自定义)保留。
+                        for local_model in p.models.iter_mut() {
+                            if let Some(cat_m) = cat_models.get(&local_model.id) {
+                                let merged = models_dev::into_agent_provider_model(cat_m);
+                                local_model.context_window = merged.context_window;
+                                local_model.max_output_tokens = merged.max_output_tokens;
+                                local_model.reasoning = merged.reasoning;
+                                local_model.tool_call = merged.tool_call;
+                                if local_model.name.trim().is_empty() {
+                                    local_model.name = merged.name;
+                                }
+                            }
+                        }
+                        let existing: std::collections::HashSet<String> =
+                            p.models.iter().map(|m| m.id.clone()).collect();
+                        for cat_m in cat_models.values() {
+                            if !existing.contains(&cat_m.id) {
+                                p.models
+                                    .push(models_dev::into_agent_provider_model(cat_m));
+                            }
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                self.rebuild_current_page(ctx);
+            }
+            AISettingsPageAction::ToggleModelsDevChipsExpanded => {
+                use crate::ai::agent_providers::models_dev;
+                models_dev::toggle_chips_expanded();
+                ctx.notify();
+            }
+            AISettingsPageAction::SetModelsDevSearchQuery(q) => {
+                use crate::ai::agent_providers::models_dev;
+                models_dev::set_search_query(q.clone());
+                ctx.notify();
             }
         }
     }

@@ -23,7 +23,7 @@ use std::collections::HashMap;
 use settings::Setting;
 use warpui::elements::{
     ChildView, Container, CornerRadius, CrossAxisAlignment, Expanded, Flex, MainAxisAlignment,
-    MouseStateHandle, ParentElement, Radius, Text,
+    MouseStateHandle, ParentElement, Radius, Text, Wrap,
 };
 use warpui::ui_components::{
     button::ButtonVariant,
@@ -49,10 +49,12 @@ const FIELD_LABEL_MARGIN_TOP: f32 = 6.0;
 const FIELD_LABEL_MARGIN_BOTTOM: f32 = 2.0;
 const MODEL_ROW_GAP: f32 = 6.0;
 
-/// 一条模型条目(name + id)的可编辑 view handle。
+/// 一条模型条目(name + id + context + output)的可编辑 view handle。
 struct ModelRow {
     name_editor: ViewHandle<EditorView>,
     id_editor: ViewHandle<EditorView>,
+    context_editor: ViewHandle<EditorView>,
+    output_editor: ViewHandle<EditorView>,
     remove_button_state: MouseStateHandle,
 }
 
@@ -62,6 +64,7 @@ struct ProviderRow {
     base_url_editor: ViewHandle<EditorView>,
     api_key_editor: ViewHandle<EditorView>,
     fetch_button_state: MouseStateHandle,
+    sync_models_dev_button_state: MouseStateHandle,
     remove_button_state: MouseStateHandle,
     add_model_button_state: MouseStateHandle,
     model_rows: Vec<ModelRow>,
@@ -70,6 +73,12 @@ struct ProviderRow {
 /// 自定义 Agent Provider 设置 widget。
 pub(super) struct AgentProvidersWidget {
     add_button_state: MouseStateHandle,
+    refresh_catalog_button_state: MouseStateHandle,
+    expand_chips_button_state: MouseStateHandle,
+    /// 快速添加 chip 行的搜索框。
+    search_editor: ViewHandle<EditorView>,
+    /// 每个 catalog provider id 一个按钮 state — chip 行使用。
+    quick_add_button_states: RefCell<HashMap<String, MouseStateHandle>>,
     rows: RefCell<HashMap<String, ProviderRow>>,
 }
 
@@ -82,8 +91,14 @@ impl AgentProvidersWidget {
             rows.insert(provider.id.clone(), row);
         }
 
+        // 进入页面即触发一次目录加载(磁盘缓存 + 必要时网络)。
+        ctx.dispatch_typed_action_deferred(AISettingsPageAction::EnsureModelsDevLoaded);
+
         Self {
             add_button_state: MouseStateHandle::default(),
+            refresh_catalog_button_state: MouseStateHandle::default(),
+            expand_chips_button_state: MouseStateHandle::default(),
+            quick_add_button_states: RefCell::new(HashMap::new()),
             rows: RefCell::new(rows),
         }
     }
@@ -147,9 +162,73 @@ impl AgentProvidersWidget {
             }
         });
 
+        // ---- context_window 编辑器(数字,空 = 0 = 未指定) ----
+        let initial_context = if model.context_window == 0 {
+            String::new()
+        } else {
+            model.context_window.to_string()
+        };
+        let context_editor = ctx.add_typed_action_view(move |ctx| {
+            let appearance = Appearance::handle(ctx).as_ref(ctx);
+            let options = single_line_editor_options(&appearance, false);
+            let mut editor = EditorView::single_line(options, ctx);
+            editor.set_placeholder_text("上下文 (tokens)", ctx);
+            if !initial_context.is_empty() {
+                editor.set_buffer_text(&initial_context, ctx);
+            }
+            editor
+        });
+        let provider_id_for_ctx = provider_id.to_owned();
+        ctx.subscribe_to_view(&context_editor, move |_, editor, event, ctx| {
+            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
+                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
+                let value = parse_token_count(&buffer_text);
+                ctx.dispatch_typed_action_deferred(
+                    AISettingsPageAction::UpdateAgentProviderModelContextWindow {
+                        provider_id: provider_id_for_ctx.clone(),
+                        model_index,
+                        context_window: value,
+                    },
+                );
+            }
+        });
+
+        // ---- max_output_tokens 编辑器 ----
+        let initial_output = if model.max_output_tokens == 0 {
+            String::new()
+        } else {
+            model.max_output_tokens.to_string()
+        };
+        let output_editor = ctx.add_typed_action_view(move |ctx| {
+            let appearance = Appearance::handle(ctx).as_ref(ctx);
+            let options = single_line_editor_options(&appearance, false);
+            let mut editor = EditorView::single_line(options, ctx);
+            editor.set_placeholder_text("输出 (tokens)", ctx);
+            if !initial_output.is_empty() {
+                editor.set_buffer_text(&initial_output, ctx);
+            }
+            editor
+        });
+        let provider_id_for_out = provider_id.to_owned();
+        ctx.subscribe_to_view(&output_editor, move |_, editor, event, ctx| {
+            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
+                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
+                let value = parse_token_count(&buffer_text);
+                ctx.dispatch_typed_action_deferred(
+                    AISettingsPageAction::UpdateAgentProviderModelMaxOutput {
+                        provider_id: provider_id_for_out.clone(),
+                        model_index,
+                        max_output_tokens: value,
+                    },
+                );
+            }
+        });
+
         ModelRow {
             name_editor,
             id_editor,
+            context_editor,
+            output_editor,
             remove_button_state: MouseStateHandle::default(),
         }
     }
@@ -246,6 +325,7 @@ impl AgentProvidersWidget {
             base_url_editor,
             api_key_editor,
             fetch_button_state: MouseStateHandle::default(),
+            sync_models_dev_button_state: MouseStateHandle::default(),
             remove_button_state: MouseStateHandle::default(),
             add_model_button_state: MouseStateHandle::default(),
             model_rows,
@@ -253,7 +333,7 @@ impl AgentProvidersWidget {
     }
 
     fn render_card_button(
-        label: &'static str,
+        label: impl Into<String>,
         mouse_state: MouseStateHandle,
         action: AISettingsPageAction,
         appearance: &Appearance,
@@ -290,27 +370,23 @@ impl AgentProvidersWidget {
             appearance,
         );
 
+        let cell = |flex: f32, view: &ViewHandle<EditorView>| -> Box<dyn Element> {
+            Expanded::new(
+                flex,
+                Container::new(ChildView::new(view).finish())
+                    .with_margin_right(MODEL_ROW_GAP)
+                    .finish(),
+            )
+            .finish()
+        };
+
         Container::new(
             Flex::row()
                 .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    Expanded::new(
-                        1.,
-                        Container::new(ChildView::new(&row.name_editor).finish())
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
-                    )
-                    .finish(),
-                )
-                .with_child(
-                    Expanded::new(
-                        1.,
-                        Container::new(ChildView::new(&row.id_editor).finish())
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
-                    )
-                    .finish(),
-                )
+                .with_child(cell(2., &row.name_editor))
+                .with_child(cell(2., &row.id_editor))
+                .with_child(cell(1., &row.context_editor))
+                .with_child(cell(1., &row.output_editor))
                 .with_child(remove_button)
                 .finish(),
         )
@@ -406,44 +482,32 @@ impl AgentProvidersWidget {
             .finish();
             models_column.add_child(empty_hint);
         } else {
-            // 表头: 显示名 | 模型 ID
+            // 表头: 显示名 | 模型 ID | 上下文 | 输出
+            let dim = appearance.theme().disabled_ui_text_color();
+            let header_cell = |flex: f32, label: &str| -> Box<dyn Element> {
+                Expanded::new(
+                    flex,
+                    Container::new(
+                        Text::new(
+                            label.to_string(),
+                            appearance.ui_font_family(),
+                            appearance.ui_font_size(),
+                        )
+                        .with_color(dim.into())
+                        .finish(),
+                    )
+                    .with_margin_right(MODEL_ROW_GAP)
+                    .finish(),
+                )
+                .finish()
+            };
             let header = Container::new(
                 Flex::row()
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(
-                        Expanded::new(
-                            1.,
-                            Container::new(
-                                Text::new(
-                                    "显示名".to_string(),
-                                    appearance.ui_font_family(),
-                                    appearance.ui_font_size(),
-                                )
-                                .with_color(appearance.theme().disabled_ui_text_color().into())
-                                .finish(),
-                            )
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
-                        )
-                        .finish(),
-                    )
-                    .with_child(
-                        Expanded::new(
-                            1.,
-                            Container::new(
-                                Text::new(
-                                    "模型 ID".to_string(),
-                                    appearance.ui_font_family(),
-                                    appearance.ui_font_size(),
-                                )
-                                .with_color(appearance.theme().disabled_ui_text_color().into())
-                                .finish(),
-                            )
-                            .with_margin_right(MODEL_ROW_GAP)
-                            .finish(),
-                        )
-                        .finish(),
-                    )
+                    .with_child(header_cell(2., "显示名"))
+                    .with_child(header_cell(2., "模型 ID"))
+                    .with_child(header_cell(1., "上下文 (tok)"))
+                    .with_child(header_cell(1., "输出 (tok)"))
                     // 占位,与下方 × 按钮对齐
                     .with_child(
                         Text::new(
@@ -451,7 +515,7 @@ impl AgentProvidersWidget {
                             appearance.ui_font_family(),
                             appearance.ui_font_size(),
                         )
-                        .with_color(appearance.theme().disabled_ui_text_color().into())
+                        .with_color(dim.into())
                         .finish(),
                     )
                     .finish(),
@@ -487,6 +551,14 @@ impl AgentProvidersWidget {
             },
             appearance,
         );
+        let sync_models_dev_button = Self::render_card_button(
+            "Sync from models.dev",
+            row.sync_models_dev_button_state.clone(),
+            AISettingsPageAction::SyncProviderModelsFromModelsDev {
+                provider_id: provider.id.clone(),
+            },
+            appearance,
+        );
         let remove_button = Self::render_card_button(
             "Remove",
             row.remove_button_state.clone(),
@@ -503,7 +575,8 @@ impl AgentProvidersWidget {
                 Flex::row()
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(Container::new(add_model_button).with_margin_right(8.).finish())
-                    .with_child(fetch_button)
+                    .with_child(Container::new(fetch_button).with_margin_right(8.).finish())
+                    .with_child(sync_models_dev_button)
                     .finish(),
             )
             .with_child(remove_button)
@@ -528,6 +601,32 @@ impl AgentProvidersWidget {
         .with_margin_bottom(8.)
         .finish()
     }
+}
+
+/// 把用户输入解析成 token 数。容忍 `128k` / `128K` / `128 000` / `128,000` / 空白,
+/// 解析失败一律返回 0(语义:未指定)。
+fn parse_token_count(input: &str) -> u32 {
+    let cleaned: String = input
+        .chars()
+        .filter(|c| !c.is_whitespace() && *c != ',' && *c != '_')
+        .collect();
+    if cleaned.is_empty() {
+        return 0;
+    }
+    let lower = cleaned.to_lowercase();
+    let (num_part, multiplier): (&str, u64) = if let Some(stripped) = lower.strip_suffix('k') {
+        (stripped, 1_000)
+    } else if let Some(stripped) = lower.strip_suffix('m') {
+        (stripped, 1_000_000)
+    } else {
+        (lower.as_str(), 1)
+    };
+    num_part
+        .parse::<f64>()
+        .ok()
+        .map(|n| (n * multiplier as f64).round() as u64)
+        .and_then(|v| u32::try_from(v).ok())
+        .unwrap_or(0)
 }
 
 fn single_line_editor_options(
@@ -574,6 +673,156 @@ fn field_block(
         .with_child(label_text)
         .with_child(editor_element)
         .finish()
+}
+
+impl AgentProvidersWidget {
+    /// 渲染 "来自 models.dev 的已知 provider 快速添加" 区:
+    /// - 标题 + "刷新目录" 按钮
+    /// - 一行 chip(每个对应一个 catalog provider id),点击即新建本地 provider 并预填模型
+    /// - 目录尚未加载时,显示 "正在拉取..."
+    fn render_models_dev_section(
+        &self,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        use crate::ai::agent_providers::models_dev;
+
+        let label_color = appearance.theme().active_ui_text_color();
+        let dim_color = appearance.theme().disabled_ui_text_color();
+
+        let title = Container::new(
+            Text::new(
+                "从 models.dev 快速添加".to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(label_color.into())
+            .finish(),
+        )
+        .with_margin_bottom(4.)
+        .finish();
+
+        let refresh_button = Self::render_card_button(
+            "刷新目录",
+            self.refresh_catalog_button_state.clone(),
+            AISettingsPageAction::RefreshModelsDev,
+            appearance,
+        );
+
+        let header_row = Flex::row()
+            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(Expanded::new(1., title).finish())
+            .with_child(refresh_button)
+            .finish();
+
+        let mut body = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+        body.add_child(header_row);
+
+        // 收起时显示前 N 个(够撑约 1 行 — 实际换行交给 Wrap layout 处理)。
+        const COLLAPSED_LIMIT: usize = 8;
+        let expanded = models_dev::chips_expanded();
+
+        match models_dev::cached() {
+            None => {
+                body.add_child(
+                    Container::new(
+                        Text::new(
+                            "正在拉取 models.dev 目录…(第一次可能需要几秒)".to_string(),
+                            appearance.ui_font_family(),
+                            appearance.ui_font_size(),
+                        )
+                        .with_color(dim_color.into())
+                        .finish(),
+                    )
+                    .with_margin_top(4.)
+                    .finish(),
+                );
+            }
+            Some(catalog) if catalog.is_empty() => {
+                body.add_child(
+                    Container::new(
+                        Text::new(
+                            "models.dev 目录为空,点 [刷新目录] 重试。".to_string(),
+                            appearance.ui_font_family(),
+                            appearance.ui_font_size(),
+                        )
+                        .with_color(dim_color.into())
+                        .finish(),
+                    )
+                    .with_margin_top(4.)
+                    .finish(),
+                );
+            }
+            Some(catalog) => {
+                let total = catalog.len();
+                let visible_count = if expanded { total } else { COLLAPSED_LIMIT.min(total) };
+
+                let mut wrap = Wrap::row()
+                    .with_spacing(6.)
+                    .with_run_spacing(6.)
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center);
+                {
+                    let mut states = self.quick_add_button_states.borrow_mut();
+                    for (cat_id, cat_provider) in catalog.iter().take(visible_count) {
+                        let label = if cat_provider.name.is_empty() {
+                            cat_id.clone()
+                        } else {
+                            cat_provider.name.clone()
+                        };
+                        let state = states
+                            .entry(cat_id.clone())
+                            .or_insert_with(MouseStateHandle::default)
+                            .clone();
+                        let model_count = cat_provider.models.len();
+                        let display_label = format!("+ {label} ({model_count})");
+                        let chip = Self::render_card_button(
+                            display_label,
+                            state,
+                            AISettingsPageAction::AddProviderFromModelsDev {
+                                catalog_provider_id: cat_id.clone(),
+                            },
+                            appearance,
+                        );
+                        wrap = wrap.with_child(chip);
+                    }
+                }
+                body.add_child(Container::new(wrap.finish()).with_margin_top(4.).finish());
+
+                // 展开/收起按钮(catalog 比折叠上限多时才展示)。
+                if total > COLLAPSED_LIMIT {
+                    let toggle_label = if expanded {
+                        "收起 ▲".to_string()
+                    } else {
+                        format!("展开剩余 {} 个 ▼", total - COLLAPSED_LIMIT)
+                    };
+                    let toggle_button = Self::render_card_button(
+                        toggle_label,
+                        self.expand_chips_button_state.clone(),
+                        AISettingsPageAction::ToggleModelsDevChipsExpanded,
+                        appearance,
+                    );
+                    body.add_child(
+                        Container::new(
+                            Flex::row()
+                                .with_main_axis_alignment(MainAxisAlignment::Start)
+                                .with_child(toggle_button)
+                                .finish(),
+                        )
+                        .with_margin_top(6.)
+                        .finish(),
+                    );
+                }
+            }
+        }
+
+        Container::new(body.finish())
+            .with_background(appearance.theme().surface_1())
+            .with_uniform_padding(10.)
+            .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.)))
+            .with_margin_bottom(10.)
+            .finish()
+    }
 }
 
 impl SettingsWidget for AgentProvidersWidget {
@@ -627,6 +876,9 @@ impl SettingsWidget for AgentProvidersWidget {
         .finish();
 
         let mut column = Flex::column().with_child(header).with_child(description);
+
+        // ---- 来自 models.dev 的快速添加 chip 行 ----
+        column.add_child(self.render_models_dev_section(appearance, app));
 
         if providers.is_empty() {
             let empty = Container::new(

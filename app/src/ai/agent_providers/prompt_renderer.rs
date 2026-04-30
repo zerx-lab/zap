@@ -8,19 +8,19 @@
 //! 1. 从 `params.input` 抽出最近一条 `UserQuery.context: Arc<[AIAgentContext]>`
 //!    (warp `convert_to.rs::convert_input` 取的也是同一份)
 //! 2. `collect_prompt_context` 把每个 enum variant 拍成扁平 `PromptContext` struct
-//! 3. 按 `LLMId` 模型族选 `system/<family>.j2`(仿 opencode `system.ts:19-33`)
+//! 3. 渲染 `system/default.j2`(BYOP 不按模型族分发 — 用户配置的 model id
+//!    是任意字符串,子串匹配既不可靠又导致行为不一致)
 //! 4. minijinja 渲染
 //!
-//! ## 模板 loader 选择
+//! ## 模板加载
 //!
-//! - release: 全部模板 `include_str!` 编进二进制(零运行时 IO)
-//! - debug 且设置了 `WARP_PROMPT_DIR` 环境变量: 走文件 loader,改 .j2 不用重编
+//! 全部模板 `include_str!` 编进二进制(零运行时 IO),改模板需重编。
 
 use std::sync::OnceLock;
 
 use ai::LLMId;
 use chrono::Local;
-use minijinja::{context, Environment, Value};
+use minijinja::{Environment, Value};
 use serde::Serialize;
 
 use crate::ai::agent::AIAgentContext;
@@ -61,41 +61,15 @@ fn build_env() -> Environment<'static> {
     )
     .expect("footer partial parses");
 
-    // System prompts (one per model family)
+    // BYOP 不按模型分发 system prompt:用户配置的模型 id 是任意字符串
+    // (deepseek-chat / glm-4 / qwen2.5 / openrouter 路径下的 anthropic/claude-3 等),
+    // 子串匹配既不可靠又会让行为不一致。一份合并好的 default.j2 已涵盖所有
+    // 必要约束(CLI 风格、工具规约、长运行命令、git 安全、文件编辑规则等)。
     env.add_template(
         "system/default.j2",
         include_str!("prompts/system/default.j2"),
     )
     .expect("default system parses");
-    env.add_template(
-        "system/anthropic.j2",
-        include_str!("prompts/system/anthropic.j2"),
-    )
-    .expect("anthropic system parses");
-    env.add_template("system/gpt.j2", include_str!("prompts/system/gpt.j2"))
-        .expect("gpt system parses");
-    env.add_template(
-        "system/beast.j2",
-        include_str!("prompts/system/beast.j2"),
-    )
-    .expect("beast system parses");
-    env.add_template(
-        "system/gemini.j2",
-        include_str!("prompts/system/gemini.j2"),
-    )
-    .expect("gemini system parses");
-    env.add_template("system/kimi.j2", include_str!("prompts/system/kimi.j2"))
-        .expect("kimi system parses");
-    env.add_template(
-        "system/codex.j2",
-        include_str!("prompts/system/codex.j2"),
-    )
-    .expect("codex system parses");
-    env.add_template(
-        "system/trinity.j2",
-        include_str!("prompts/system/trinity.j2"),
-    )
-    .expect("trinity system parses");
 
     env
 }
@@ -105,34 +79,12 @@ fn env() -> &'static Environment<'static> {
 }
 
 // ---------------------------------------------------------------------------
-// 模型 → 模板 选择(仿 opencode session/system.ts:19-33)
+// 模板选择
 // ---------------------------------------------------------------------------
 
-/// 给定模型 id 字符串(BYOP 解码后的 user-facing 部分),挑模板。
-/// 不做语言族过分细分:跟 opencode 同步策略,只看模型名子串。
-pub fn pick_template(model_id: &str) -> &'static str {
-    let m = model_id.to_ascii_lowercase();
-    if m.contains("gpt-4") || m.contains("o1") || m.contains("o3") {
-        return "system/beast.j2";
-    }
-    if m.contains("gpt") {
-        if m.contains("codex") {
-            return "system/codex.j2";
-        }
-        return "system/gpt.j2";
-    }
-    if m.contains("gemini-") {
-        return "system/gemini.j2";
-    }
-    if m.contains("claude") {
-        return "system/anthropic.j2";
-    }
-    if m.contains("trinity") {
-        return "system/trinity.j2";
-    }
-    if m.contains("kimi") {
-        return "system/kimi.j2";
-    }
+/// 当前 BYOP 永远使用同一份 system prompt(`system/default.j2`)。
+/// 保留函数以便后续真要按模型族分发时不动调用方。
+pub fn pick_template(_model_id: &str) -> &'static str {
     "system/default.j2"
 }
 
@@ -307,7 +259,7 @@ pub fn render_system(model: &LLMId, ctx: &[AIAgentContext]) -> String {
             return fallback_system(&model_id);
         }
     };
-    match tmpl.render(context! { ..Value::from_serialize(&prompt_ctx) }) {
+    match tmpl.render(Value::from_serialize(&prompt_ctx)) {
         Ok(s) => s,
         Err(e) => {
             log::error!("[byop prompt] render {template_name} failed: {e}");
@@ -333,14 +285,21 @@ mod tests {
     use crate::ai_assistant::execution_context::{WarpAiExecutionContext, WarpAiOsContext};
 
     #[test]
-    fn pick_template_picks_family() {
-        assert_eq!(pick_template("claude-sonnet-4-5"), "system/anthropic.j2");
-        assert_eq!(pick_template("gpt-4o"), "system/beast.j2");
-        assert_eq!(pick_template("gpt-5.2"), "system/gpt.j2");
-        assert_eq!(pick_template("gpt-5-codex"), "system/codex.j2");
-        assert_eq!(pick_template("gemini-2.0-flash"), "system/gemini.j2");
-        assert_eq!(pick_template("kimi-k2"), "system/kimi.j2");
-        assert_eq!(pick_template("deepseek-chat"), "system/default.j2");
+    fn pick_template_always_returns_default() {
+        // BYOP 不按模型分发 — 任何 model id 都拿同一份。
+        for id in [
+            "claude-sonnet-4-5",
+            "gpt-4o",
+            "gpt-5-codex",
+            "gemini-2.0-flash",
+            "kimi-k2",
+            "deepseek-chat",
+            "qwen2.5-coder",
+            "my-custom-model",
+            "",
+        ] {
+            assert_eq!(pick_template(id), "system/default.j2", "id={id}");
+        }
     }
 
     #[test]
@@ -368,14 +327,15 @@ mod tests {
     }
 
     #[test]
-    fn render_picks_anthropic_for_claude_byop() {
-        let ctx: Vec<AIAgentContext> = vec![];
-        let out = render_system(
-            &LLMId::from("byop:p:claude-sonnet-4-5"),
-            &ctx,
-        );
-        // anthropic.j2 顶部独有句
-        assert!(out.contains("the best coding agent on the planet"), "{out}");
+    fn render_uses_default_regardless_of_model() {
+        // 任何 model id 都走 default.j2 — 内容里都应有"interactive CLI coding agent"开头。
+        for id in ["claude-sonnet-4-5", "gpt-4o", "deepseek-chat", "weird-model"] {
+            let out = render_system(&LLMId::from(format!("byop:p:{id}").as_str()), &[]);
+            assert!(
+                out.contains("interactive CLI coding agent"),
+                "id={id} out={out}"
+            );
+        }
     }
 
     #[test]

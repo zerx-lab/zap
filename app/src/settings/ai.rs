@@ -711,6 +711,38 @@ impl settings_value::SettingsValue for AgentProvider {}
 pub struct AgentProviderModel {
     pub name: String,
     pub id: String,
+
+    /// 上下文窗口(tokens)。来源:用户填或 models.dev 自动带入。
+    /// 0 表示未知 — chat_stream 退化到不做主动截断,完全交给上游服务报错。
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub context_window: u32,
+
+    /// 单次最大输出 tokens。0 表示未指定。
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub max_output_tokens: u32,
+
+    /// 是否支持 reasoning(思考/CoT)输出。
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub reasoning: bool,
+
+    /// 是否支持 function/tool calling。
+    /// 默认 `true` — 老配置升级 + 用户手填新 model 时不要默认禁工具,
+    /// 不支持工具调用的模型由 models.dev 数据带入显式 false。
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub tool_call: bool,
+}
+
+fn is_zero_u32(v: &u32) -> bool {
+    *v == 0
+}
+fn is_false(v: &bool) -> bool {
+    !*v
+}
+fn is_true(v: &bool) -> bool {
+    *v
+}
+fn default_true() -> bool {
+    true
 }
 
 impl AgentProviderModel {
@@ -718,6 +750,10 @@ impl AgentProviderModel {
         Self {
             name: id.clone(),
             id,
+            context_window: 0,
+            max_output_tokens: 0,
+            reasoning: false,
+            tool_call: true,
         }
     }
 }
@@ -735,13 +771,35 @@ impl<'de> Deserialize<'de> for AgentProviderModel {
                 #[serde(default)]
                 name: String,
                 id: String,
+                #[serde(default)]
+                context_window: u32,
+                #[serde(default)]
+                max_output_tokens: u32,
+                #[serde(default)]
+                reasoning: bool,
+                #[serde(default = "default_true")]
+                tool_call: bool,
             },
         }
         match Either::deserialize(deserializer)? {
             Either::Plain(id) => Ok(AgentProviderModel::from_id(id)),
-            Either::Full { name, id } => {
+            Either::Full {
+                name,
+                id,
+                context_window,
+                max_output_tokens,
+                reasoning,
+                tool_call,
+            } => {
                 let name = if name.is_empty() { id.clone() } else { name };
-                Ok(AgentProviderModel { name, id })
+                Ok(AgentProviderModel {
+                    name,
+                    id,
+                    context_window,
+                    max_output_tokens,
+                    reasoning,
+                    tool_call,
+                })
             }
         }
     }

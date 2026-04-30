@@ -1,0 +1,35 @@
+{%- if previous_summary %}
+<previous-summary>
+{{ previous_summary }}
+</previous-summary>
+
+{% endif -%}
+Below is the conversation history that needs to be compacted. Produce an anchored summary that lets a fresh agent continue the work without re-reading the original turns.
+
+<conversation-history>
+{{ history }}
+</conversation-history>
+
+Output the summary using EXACTLY this structure (keep every section heading, even if a section is empty — write `(none)` for empty sections):
+
+## Goal
+[One sentence: what is the user trying to build / fix / understand in this session.]
+
+## Instructions
+[User preferences, constraints, or conventions discovered. Things a future agent must know about HOW the user wants things done. `(none)` if nothing notable.]
+
+## Discoveries
+- [Technical finding, gotcha, learning. Preserve exact file paths and identifiers.]
+- [Another finding…]
+
+## Accomplished
+- ✅ [Completed task — include key implementation details / files changed]
+- ✅ [Another completed task]
+- 🔲 [Identified-but-not-done — what remains for next turn]
+
+## Relevant Files
+- `path/to/file.ext` — [its role / what changed]
+- `path/to/other.ext` — [role]
+
+## Open Questions / Pending
+[Anything the user asked that has not been answered, OR any imperative request to the user (e.g. "please run X and paste the output") — preserve those VERBATIM.]
