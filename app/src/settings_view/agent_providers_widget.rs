@@ -94,10 +94,33 @@ impl AgentProvidersWidget {
         // 进入页面即触发一次目录加载(磁盘缓存 + 必要时网络)。
         ctx.dispatch_typed_action_deferred(AISettingsPageAction::EnsureModelsDevLoaded);
 
+        // ---- 搜索框 ----
+        let initial_query =
+            crate::ai::agent_providers::models_dev::search_query();
+        let search_editor = ctx.add_typed_action_view(move |ctx| {
+            let appearance = Appearance::handle(ctx).as_ref(ctx);
+            let options = single_line_editor_options(&appearance, false);
+            let mut editor = EditorView::single_line(options, ctx);
+            editor.set_placeholder_text("搜索提供商…", ctx);
+            if !initial_query.is_empty() {
+                editor.set_buffer_text(&initial_query, ctx);
+            }
+            editor
+        });
+        ctx.subscribe_to_view(&search_editor, move |_, editor, event, ctx| {
+            if matches!(event, EditorEvent::Edited(_)) {
+                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
+                ctx.dispatch_typed_action_deferred(
+                    AISettingsPageAction::SetModelsDevSearchQuery(buffer_text),
+                );
+            }
+        });
+
         Self {
             add_button_state: MouseStateHandle::default(),
             refresh_catalog_button_state: MouseStateHandle::default(),
             expand_chips_button_state: MouseStateHandle::default(),
+            search_editor,
             quick_add_button_states: RefCell::new(HashMap::new()),
             rows: RefCell::new(rows),
         }
@@ -690,16 +713,12 @@ impl AgentProvidersWidget {
         let label_color = appearance.theme().active_ui_text_color();
         let dim_color = appearance.theme().disabled_ui_text_color();
 
-        let title = Container::new(
-            Text::new(
-                "从 models.dev 快速添加".to_string(),
-                appearance.ui_font_family(),
-                appearance.ui_font_size(),
-            )
-            .with_color(label_color.into())
-            .finish(),
+        let title = Text::new(
+            "快速添加".to_string(),
+            appearance.ui_font_family(),
+            appearance.ui_font_size(),
         )
-        .with_margin_bottom(4.)
+        .with_color(label_color.into())
         .finish();
 
         let refresh_button = Self::render_card_button(
@@ -709,10 +728,15 @@ impl AgentProvidersWidget {
             appearance,
         );
 
+        let search_box = Container::new(ChildView::new(&self.search_editor).finish())
+            .with_margin_left(8.)
+            .with_margin_right(8.)
+            .finish();
+
         let header_row = Flex::row()
-            .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(Expanded::new(1., title).finish())
+            .with_child(title)
+            .with_child(Expanded::new(1., search_box).finish())
             .with_child(refresh_button)
             .finish();
 
@@ -755,8 +779,17 @@ impl AgentProvidersWidget {
                 );
             }
             Some(catalog) => {
-                let total = catalog.len();
-                let visible_count = if expanded { total } else { COLLAPSED_LIMIT.min(total) };
+                // 按搜索 query 过滤;空 query → 全部条目顺序。
+                let query = models_dev::search_query();
+                let filtered = models_dev::filter_catalog(&catalog, &query);
+                let total = filtered.len();
+                let has_query = !query.trim().is_empty();
+                // 搜索激活时一律展开全部匹配,不做折叠(否则结果数 ≤ 折叠上限就看不全)。
+                let visible_count = if expanded || has_query {
+                    total
+                } else {
+                    COLLAPSED_LIMIT.min(total)
+                };
 
                 let mut wrap = Wrap::row()
                     .with_spacing(6.)
@@ -764,7 +797,7 @@ impl AgentProvidersWidget {
                     .with_cross_axis_alignment(CrossAxisAlignment::Center);
                 {
                     let mut states = self.quick_add_button_states.borrow_mut();
-                    for (cat_id, cat_provider) in catalog.iter().take(visible_count) {
+                    for (cat_id, cat_provider) in filtered.iter().take(visible_count) {
                         let label = if cat_provider.name.is_empty() {
                             cat_id.clone()
                         } else {
@@ -789,8 +822,24 @@ impl AgentProvidersWidget {
                 }
                 body.add_child(Container::new(wrap.finish()).with_margin_top(4.).finish());
 
-                // 展开/收起按钮(catalog 比折叠上限多时才展示)。
-                if total > COLLAPSED_LIMIT {
+                if has_query && total == 0 {
+                    body.add_child(
+                        Container::new(
+                            Text::new(
+                                format!("无匹配 \"{query}\""),
+                                appearance.ui_font_family(),
+                                appearance.ui_font_size(),
+                            )
+                            .with_color(dim_color.into())
+                            .finish(),
+                        )
+                        .with_margin_top(4.)
+                        .finish(),
+                    );
+                }
+
+                // 展开/收起按钮(只在无搜索 + catalog 比折叠上限多时才展示)。
+                if !has_query && total > COLLAPSED_LIMIT {
                     let toggle_label = if expanded {
                         "收起 ▲".to_string()
                     } else {
