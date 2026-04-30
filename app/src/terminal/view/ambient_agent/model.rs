@@ -688,7 +688,7 @@ impl AmbientAgentViewModel {
                         }
 
                         if matches!(me.status, Status::WaitingForSession { .. }) {
-                            ctx.emit(AmbientAgentViewModelEvent::ShowCloudAgentCapacityModal);
+                            // 去云端分支:不再展示 cloud agent capacity 模态
                         }
                     }
                     AmbientAgentEvent::TimedOut => {}
@@ -720,7 +720,7 @@ impl AmbientAgentViewModel {
                     }
                     if let Some(capacity_error) = err.downcast_ref::<CloudAgentCapacityError>() {
                         me.handle_spawn_error(capacity_error.error.clone(), ctx);
-                        ctx.emit(AmbientAgentViewModelEvent::ShowCloudAgentCapacityModal);
+                        // 去云端分支:不再展示 cloud agent capacity 模态
                         return;
                     }
                     if let Some(ai_api_error) = err.downcast_ref::<AIApiError>() {
@@ -938,8 +938,6 @@ pub enum AmbientAgentViewModelEvent {
     Failed {
         error_message: String,
     },
-    /// Request to show the cloud agent concurrency/capacity modal.
-    ShowCloudAgentCapacityModal,
     /// Request to show the cloud agent AI credits modal.
     ShowAICreditModal,
     /// The ambient agent needs GitHub authentication.

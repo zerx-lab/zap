@@ -697,6 +697,71 @@ impl Default for AgentProviderApiType {
     }
 }
 
+/// Provider 级别的 reasoning effort(思考深度)偏好。
+///
+/// 语义说明:
+/// - `Auto`(默认):不向 genai 传 effort。OpenAI / Anthropic adapter 内部会按
+///   模型名后缀(`-low` / `-high` / `-zero` 等)自动推断;Gemini / DeepSeek 不推断。
+/// - `Off`:对支持 reasoning 的模型显式发送 `none`,关闭思考链。
+/// - 其他档位:client 端先用 `reasoning::model_supports_reasoning` 判定,**仅在该
+///   模型支持时**注入,避免向 claude-3-5-haiku / gpt-4o / gemini-1.5-pro 等老模型
+///   注入 thinking 参数被上游 400 拒绝。
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+    EnumIter,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum ReasoningEffortSetting {
+    #[default]
+    Auto,
+    Off,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    XHigh,
+    Max,
+}
+
+impl ReasoningEffortSetting {
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Self::Auto => "Auto",
+            Self::Off => "Off",
+            Self::Minimal => "Minimal",
+            Self::Low => "Low",
+            Self::Medium => "Medium",
+            Self::High => "High",
+            Self::XHigh => "XHigh",
+            Self::Max => "Max",
+        }
+    }
+
+    /// 转成 genai `ReasoningEffort`。`Auto` 返回 None(调用方不要 set)。
+    pub fn to_genai(self) -> Option<genai::chat::ReasoningEffort> {
+        use genai::chat::ReasoningEffort as GE;
+        Some(match self {
+            Self::Auto => return None,
+            Self::Off => GE::None,
+            Self::Minimal => GE::Minimal,
+            Self::Low => GE::Low,
+            Self::Medium => GE::Medium,
+            Self::High => GE::High,
+            Self::XHigh => GE::XHigh,
+            Self::Max => GE::Max,
+        })
+    }
+}
+
 impl AgentProviderApiType {
     /// 设置 UI dropdown 显示文字。
     pub fn display_name(&self) -> &'static str {
@@ -712,14 +777,19 @@ impl AgentProviderApiType {
 
     /// 当用户没填 base_url 时使用的默认 endpoint。新建 provider / 切换 ApiType
     /// 时,UI 可调用此方法预填,便于新手。
+    ///
+    /// **必须以 `/` 结尾**:genai 0.6.x 的 adapter 内部用 `format!("{base_url}messages")` /
+    /// `Url::join` 拼接 service path,缺尾随 `/` 会拼出乱地址(Anthropic 是 `.devmessages` 直接连)
+    /// 或被 `Url::join` 吃掉 path 最后一段。client 端 `build_client` 也会兜底补 `/`,
+    /// 这里依然要求显式尾随 `/`,保证 UI 预填值落到 settings.toml 后即使绕过 client 兜底也是对的。
     pub fn default_base_url(&self) -> &'static str {
         match self {
-            Self::OpenAi => "https://api.openai.com/v1",
-            Self::OpenAiResp => "https://api.openai.com/v1",
-            Self::Gemini => "https://generativelanguage.googleapis.com/v1beta",
-            Self::Anthropic => "https://api.anthropic.com",
-            Self::Ollama => "http://localhost:11434",
-            Self::DeepSeek => "https://api.deepseek.com",
+            Self::OpenAi => "https://api.openai.com/v1/",
+            Self::OpenAiResp => "https://api.openai.com/v1/",
+            Self::Gemini => "https://generativelanguage.googleapis.com/v1beta/",
+            Self::Anthropic => "https://api.anthropic.com/v1/",
+            Self::Ollama => "http://localhost:11434/v1/",
+            Self::DeepSeek => "https://api.deepseek.com/v1/",
         }
     }
 }
@@ -755,6 +825,12 @@ pub struct AgentProvider {
     /// 每条同时含 `name`(显示名) 与 `id`(发送给上游 API 的 model 字段值)。
     #[serde(default)]
     pub models: Vec<AgentProviderModel>,
+
+    /// Provider 级 reasoning effort 偏好。`Auto` 时跟随 genai 默认(模型名后缀推断)。
+    /// 其他档位会经 client 端 `reasoning::model_supports_reasoning` 判定,
+    /// **仅对支持 reasoning 的模型**注入 thinking 参数。
+    #[serde(default)]
+    pub reasoning_effort: ReasoningEffortSetting,
 }
 
 impl AgentProvider {
@@ -771,6 +847,7 @@ impl AgentProvider {
             api_type: AgentProviderApiType::default(),
             base_url: String::new(),
             models: Vec::new(),
+            reasoning_effort: ReasoningEffortSetting::default(),
         }
     }
 }

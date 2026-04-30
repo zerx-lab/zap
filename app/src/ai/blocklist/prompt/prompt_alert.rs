@@ -56,7 +56,6 @@ pub enum PromptAlertAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PromptAlertEvent {
     SignupAnonymousUser,
-    OpenBillingAndUsagePage,
     OpenPrivacyPage,
     OpenBillingPortal { team_uid: ServerId },
 }
@@ -451,11 +450,7 @@ impl View for PromptAlertView {
             );
 
         if suggest_buy_credits {
-            text_fragments.push(FormattedTextFragment::plain_text("  "));
-            text_fragments.push(FormattedTextFragment::hyperlink_action(
-                "Add credits",
-                WorkspaceAction::ShowSettingsPage(SettingsSection::BillingAndUsage),
-            ));
+            // 去云端分支:不再展示购买额度入口
         } else {
             self.action_hyperlink(&state, &mut text_fragments, app);
         }
@@ -525,7 +520,7 @@ impl TypedActionView for PromptAlertView {
                 ctx.emit(PromptAlertEvent::SignupAnonymousUser);
             }
             PromptAlertAction::OpenSettingsClicked => {
-                ctx.emit(PromptAlertEvent::OpenBillingAndUsagePage);
+                // 去云端分支:不再跳转 billing & usage
             }
             PromptAlertAction::OpenPrivacySettingsClicked => {
                 ctx.emit(PromptAlertEvent::OpenPrivacyPage);

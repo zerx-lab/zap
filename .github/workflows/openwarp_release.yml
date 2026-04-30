@@ -1,0 +1,162 @@
+# OpenWarp 发布流水线 — 在 openWarp 分支上 push tag (v*) 即触发
+#
+# 与上游 create_release.yml 的差异:
+# - 仅 macOS (arm64 + x86_64) + Windows (x64),Linux/Web/CLI/Universal/Win-arm64 全砍
+# - 单 channel: preview(由 release_configurations.json 提供配置)
+# - 不签名:不传 --read-passwords-from-env(macOS) / 不设 SIGN_TOOL_CMD(Windows)
+# - 不上传 GCS / Sentry / Slack / changelog,不调 channel-versions repository_dispatch
+# - 复用 ./.github/actions/{prepare_environment,get_channel_config}
+#
+# Pro 配额参考:单次 release ≈ mac arm64 + mac x64 + win x64,
+# 约 (35min × 10) × 2 + (30min × 2) × 1 = 760 配额,Pro 3000/月 ≈ 4 次。
+
+name: OpenWarp Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CONFIG_FILE: ".github/workflows/release_configurations.json"
+  CHANNEL: preview
+
+jobs:
+  prepare_release:
+    name: Prepare release
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.compute_tag.outputs.tag }}
+      release_branch: ${{ steps.compute_tag.outputs.branch }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Get channel configuration
+        id: get-config
+        uses: ./.github/actions/get_channel_config/
+        with:
+          config_file: ${{ env.CONFIG_FILE }}
+          channel: ${{ env.CHANNEL }}
+
+      - name: Compute release tag and branch
+        id: compute_tag
+        shell: bash
+        run: |
+          # tag-触发场景:GITHUB_REF=refs/tags/<tag>
+          # workflow_dispatch:GITHUB_REF=refs/heads/<branch>,无 tag,生成临时 tag
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            BRANCH="$TAG"
+          else
+            TAG="v0.$(date +%Y.%m.%d.%H.%M).preview_00"
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG / build ref: $BRANCH"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          name: ${{ steps.get-config.outputs.release_base_name }} ${{ steps.compute_tag.outputs.tag }}
+          tag_name: ${{ steps.compute_tag.outputs.tag }}
+          body: ${{ steps.get-config.outputs.release_body_text }}
+          draft: false
+          prerelease: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release_macos:
+    name: Build Release (macOS ${{ matrix.dmg_name_suffix }})
+    runs-on: ${{ matrix.runner }}
+    needs: prepare_release
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            dmg_name_suffix: arm64
+            runner: macos-26          # Pro standard arm64 (M2 Pro)
+          - arch: x86_64
+            dmg_name_suffix: x86_64
+            runner: macos-26-intel    # Pro standard x64
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.prepare_release.outputs.release_branch }}
+
+      - uses: ./.github/actions/prepare_environment
+        with:
+          target_os: macos
+          is_self_hosted: false
+          install_release_deps: true
+
+      - name: Ensure rust target is installed
+        run: rustup target add ${{ matrix.arch }}-apple-darwin
+        shell: bash
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: stable
+
+      - name: Install cargo-bundle
+        run: script/install_cargo_bundle
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Build ${{ matrix.arch }} bundle (unsigned)
+        id: bundle_app
+        run: |
+          script/bundle --channel "$CHANNEL" --arch ${{ matrix.arch }} --dmg-name-suffix "${{ matrix.dmg_name_suffix }}"
+        shell: bash
+        env:
+          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+
+      - name: Add DMG to GitHub release assets
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: ${{ needs.prepare_release.outputs.release_tag }}
+          files: ${{ steps.bundle_app.outputs.dmg_path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release_windows:
+    name: Build Release (Windows x64)
+    runs-on: windows-latest
+    needs: prepare_release
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.prepare_release.outputs.release_branch }}
+
+      - uses: ./.github/actions/prepare_environment
+        with:
+          target_os: windows
+          cache_key: x64
+          is_self_hosted: false
+          install_release_deps: true
+
+      - name: Build binary (unsigned)
+        id: build_binary
+        run: script/bundle -Channel $CHANNEL -skip_build_installer --arch x64
+        shell: bash
+        env:
+          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+
+      - name: Bundle app (unsigned installer)
+        id: bundle_app
+        run: script/bundle -Channel $CHANNEL -skip_build_binary --arch x64
+        shell: bash
+        env:
+          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+
+      - name: Add installer to GitHub release assets
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: ${{ needs.prepare_release.outputs.release_tag }}
+          files: ${{ steps.bundle_app.outputs.installer_path }}
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -28,6 +28,9 @@ struct ByopDispatch {
     model_id: String,
     /// 显式指定的 API 协议类型,chat_stream 据此映射 genai AdapterKind。
     api_type: crate::settings::AgentProviderApiType,
+    /// Provider 级 reasoning effort 偏好。`Auto` 时不向 genai 传 effort,
+    /// 由 adapter 自己按模型名后缀推断;非 Auto 经 client capability gate 后注入。
+    reasoning_effort: crate::settings::ReasoningEffortSetting,
     /// conversation 的 root task id — 必须用本地已注册的 id,
     /// 否则下游 `Action::AddMessagesToTask` 在 task_store 找不到会 `TaskNotFound`。
     task_id: String,
@@ -55,6 +58,7 @@ fn byop_dispatch_info(
         api_key,
         model_id,
         api_type: provider.api_type,
+        reasoning_effort: provider.reasoning_effort,
         task_id,
         needs_create_task,
     })
@@ -146,6 +150,7 @@ impl ResponseStream {
                         byop.api_key,
                         byop.model_id,
                         byop.api_type,
+                        byop.reasoning_effort,
                         byop.task_id,
                         byop.needs_create_task,
                         cancellation_rx,
@@ -225,6 +230,7 @@ impl ResponseStream {
                         byop.api_key,
                         byop.model_id,
                         byop.api_type,
+                        byop.reasoning_effort,
                         byop.task_id,
                         byop.needs_create_task,
                         cancellation_rx,

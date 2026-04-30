@@ -306,9 +306,9 @@ elif [[ $RELEASE_CHANNEL = "stable" ]]; then
     WARP_SCHEME_NAME="warp"
 elif [[ $RELEASE_CHANNEL = "oss" ]]; then
     WARP_BIN="warp-oss"
-    BUNDLE_ID="dev.warp.WarpOss"
-    WARP_APP_NAME="WarpOss"
-    WARP_SCHEME_NAME="warposs"
+    BUNDLE_ID="dev.openwarp.OpenWarp"
+    WARP_APP_NAME="OpenWarp"
+    WARP_SCHEME_NAME="openwarp"
     # The OSS channel does not ship Sentry, so drop the cocoa_sentry feature
     # (which would otherwise pull in the Sentry framework dependency).
     FEATURES="release_bundle,extern_plist"

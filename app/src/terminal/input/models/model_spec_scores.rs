@@ -30,6 +30,76 @@ pub struct ModelSpecScoresLayout {
     pub bg_bar_color: ColorU,
 }
 
+/// 给 BYOP(自定义 provider)模型渲染的 spec 面板。
+///
+/// 视觉与 [`render_model_spec_scores`] 完全一致(同样的 `render_score_row` 私有 helper),
+/// 只是行的语义不同:
+/// - Context — 上下文窗口,bar 用 log2 归一化映射到 4K..2M
+/// - Output  — 单次最大输出,bar 用 log2 归一化映射到 1K..128K
+/// - Cost    — 强制走 `BilledToApi` 分支(BYOP 用户用自己的 key,不走 Warp 计费)
+///
+/// `context_window` / `max_output_tokens` 为 0(未填) 时传 None,显示默认 "?" 占位,
+/// 与 Warp 默认面板缺失数据时的视觉行为一致。
+pub fn render_byop_spec_scores(
+    context_window: Option<u32>,
+    max_output_tokens: Option<u32>,
+    manage_button: Box<dyn Element>,
+    layout: ModelSpecScoresLayout,
+    app: &AppContext,
+) -> Box<dyn Element> {
+    let rows = vec![
+        render_score_row(
+            "Context",
+            ScoreRowKind::Bar {
+                value: context_window.map(normalize_context_window),
+            },
+            layout.bg_bar_color,
+            app,
+        ),
+        render_score_row(
+            "Output",
+            ScoreRowKind::Bar {
+                value: max_output_tokens.map(normalize_max_output),
+            },
+            layout.bg_bar_color,
+            app,
+        ),
+        render_score_row(
+            "Cost",
+            ScoreRowKind::BilledToApi { manage_button },
+            layout.bg_bar_color,
+            app,
+        ),
+    ];
+
+    Flex::column()
+        .with_spacing(ROW_SPACING)
+        .with_children(rows)
+        .finish()
+}
+
+/// log2 归一化: 4K..2M tokens → 0..1。0 / 越界由 caller 用 `Option<u32>` 控制。
+fn normalize_context_window(ctx: u32) -> f32 {
+    if ctx == 0 {
+        return 0.0;
+    }
+    let l = (ctx as f32).log2();
+    let lo = 12.0; // log2(4096) = 4K
+    let hi = 21.0; // log2(2 097 152) ≈ 2M
+    ((l - lo) / (hi - lo)).clamp(0.0, 1.0)
+}
+
+/// log2 归一化: 1K..128K tokens → 0..1。
+fn normalize_max_output(out: u32) -> f32 {
+    if out == 0 {
+        return 0.0;
+    }
+    let l = (out as f32).log2();
+    let lo = 10.0; // log2(1024) = 1K
+    let hi = 17.0; // log2(131 072) = 128K
+    ((l - lo) / (hi - lo)).clamp(0.0, 1.0)
+}
+
 pub fn render_model_spec_scores(
     spec: Option<&LLMSpec>,
     cost_row: CostRow,

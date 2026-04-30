@@ -1,0 +1,5 @@
+# i18n-embed 在 app crate 内查找 i18n.toml 决定 fallback / locale 目录
+fallback_language = "en"
+
+[fluent]
+assets_dir = "i18n"

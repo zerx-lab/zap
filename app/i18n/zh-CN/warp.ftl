@@ -217,6 +217,18 @@ settings-warpify-use-tmux = 使用 Tmux Warpify
 settings-warpify-tmux-description = tmux ssh 包装器在许多默认方式无效的场景下能正常工作,但可能需要你手动点击按钮才能 Warpify。在新标签页中生效。
 settings-warpify-ssh-tmux-toggle-binding-label = 用于 Warpify 的 SSH 会话检测
 
+# --- ANCHOR-SUB-CODE (agent-settings-code) ---
+# (待 agent-settings-code 填充中文)
+
+# --- ANCHOR-SUB-PRIVACY (agent-settings-privacy) ---
+# (待 agent-settings-privacy 填充中文)
+
+# --- ANCHOR-SUB-EXEC-MODAL-BLOCKS (agent-settings-misc) ---
+# (待 agent-settings-misc 填充中文)
+
+# --- ANCHOR-SUB-APPEARANCE (agent-settings-appearance) ---
+# (待 agent-settings-appearance 填充中文)
+
 # --- ANCHOR-SUB-ENVIRONMENTS (agent-settings-environments) ---
 settings-environments-page-title = 环境
 settings-environments-page-description = 环境定义了你的 ambient agent 在哪里运行。可通过 GitHub(推荐)、Warp 辅助配置或手动配置在几分钟内创建一个。

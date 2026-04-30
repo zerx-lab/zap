@@ -228,6 +228,26 @@ settings-warpify-use-tmux = Use Tmux Warpification
 settings-warpify-tmux-description = The tmux ssh wrapper works in many situations where the default one does not, but may require you to hit a button to warpify. Takes effect in new tabs.
 settings-warpify-ssh-tmux-toggle-binding-label = SSH session detection for Warpification
 
+# --- ANCHOR-SUB-CODE (agent-settings-code) ---
+# 此锚点下放 settings_view/code_page.rs 字符串
+# 命名前缀:settings-code-*
+# (待 agent-settings-code 填充)
+
+# --- ANCHOR-SUB-PRIVACY (agent-settings-privacy) ---
+# 此锚点下放 settings_view/privacy_page.rs 字符串
+# 命名前缀:settings-privacy-*
+# (待 agent-settings-privacy 填充)
+
+# --- ANCHOR-SUB-EXEC-MODAL-BLOCKS (agent-settings-misc) ---
+# 此锚点下放 execution_profile_view.rs / agent_assisted_environment_modal.rs / show_blocks_view.rs 字符串
+# 命名前缀:settings-exec-profile-* / settings-env-modal-* / settings-show-blocks-*
+# (待 agent-settings-misc 填充)
+
+# --- ANCHOR-SUB-APPEARANCE (agent-settings-appearance) ---
+# 此锚点下放 settings_view/appearance_page.rs 剩余字符串(不含已完成的 Language widget)
+# 命名前缀:settings-appearance-*
+# (待 agent-settings-appearance 填充)
+
 # --- ANCHOR-SUB-ENVIRONMENTS (agent-settings-environments) ---
 settings-environments-page-title = Environments
 settings-environments-page-description = Environments define where your ambient agents run. Set one up in minutes via GitHub (recommended), Warp-assisted setup, or manual configuration.

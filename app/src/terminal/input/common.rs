@@ -3,12 +3,11 @@ use std::sync::Arc;
 use crate::{
     ai::{
         llms::{is_using_api_key_for_provider, LLMPreferences},
-        AIRequestUsageModel, BuyCreditsBannerDisplayState,
+        AIRequestUsageModel,
     },
     appearance::Appearance,
     settings::{AISettings, InputSettings},
     terminal::{
-        buy_credits_banner::BuyCreditsBanner,
         input::{Input, InputAction, InputSuggestionsMode, MenuPositioning},
         model::TerminalModel,
         view::{TerminalAction, PADDING_LEFT},
@@ -475,69 +474,3 @@ fn render_command_token_description(
     .finish()
 }
 
-/// Conditionally adds the "buy credits" banner overlay.
-/// The overlay only is shown if all of the following is true:
-/// - The user is on a team that can purchase addon credits
-/// - The user is out of credits (or at their auto-reload limit)
-/// - The input is focused
-/// - There is not a BYO API key for the current model
-pub(super) fn maybe_add_buy_credits_banner(
-    stack: &mut Stack,
-    buy_credits_banner: &ViewHandle<BuyCreditsBanner>,
-    is_focused: bool,
-    terminal_view_id: EntityId,
-    is_input_at_top: bool,
-    app: &AppContext,
-) {
-    let can_purchase_addon_credits = UserWorkspaces::as_ref(app)
-        .current_team()
-        .and_then(|team| team.billing_metadata.tier.purchase_add_on_credits_policy)
-        .is_some_and(|policy| policy.enabled);
-
-    // Show buy credits banner if billing policy allows purchasing, input is focused,
-    // and either:
-    // 1. OutOfCredits: for users that are not auto-reload enabled
-    // 2. MonthlyLimitReached: Auto-reload enabled and is blocked by monthly limit
-    let ai_request_usage = AIRequestUsageModel::as_ref(app);
-    let should_show_banner = !matches!(
-        ai_request_usage.compute_buy_addon_credits_banner_display_state(app),
-        BuyCreditsBannerDisplayState::Hidden
-    );
-    let is_using_api_key_for_current_model = is_using_api_key_for_provider(
-        &LLMPreferences::as_ref(app)
-            .get_active_base_model(app, Some(terminal_view_id))
-            .provider,
-        app,
-    );
-    if can_purchase_addon_credits
-        && is_focused
-        && should_show_banner
-        && !is_using_api_key_for_current_model
-    {
-        add_buy_credits_banner_overlay(stack, buy_credits_banner, is_input_at_top);
-    }
-}
-
-/// Adds buy credits banner overlay to stack
-fn add_buy_credits_banner_overlay(
-    stack: &mut Stack,
-    buy_credits_banner: &ViewHandle<BuyCreditsBanner>,
-    is_input_at_top: bool,
-) {
-    use pathfinder_geometry::vector::vec2f;
-
-    let (parent_anchor, child_anchor, y_offset) = if is_input_at_top {
-        (ParentAnchor::BottomLeft, ChildAnchor::TopLeft, 8.)
-    } else {
-        (ParentAnchor::TopLeft, ChildAnchor::BottomLeft, -8.)
-    };
-    stack.add_positioned_child(
-        ChildView::new(buy_credits_banner).finish(),
-        OffsetPositioning::offset_from_parent(
-            vec2f(0., y_offset),
-            ParentOffsetBounds::Unbounded,
-            parent_anchor,
-            child_anchor,
-        ),
-    );
-}

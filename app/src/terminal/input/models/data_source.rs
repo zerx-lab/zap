@@ -17,6 +17,7 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{AppContext, Element, Entity, EntityId, SingletonEntity as _};
 
+use crate::ai::agent_providers::{llm_id as byop_llm_id, lookup_byop};
 use crate::ai::llms::{
     is_using_api_key_for_provider, DisableReason, LLMId, LLMInfo, LLMPreferences, LLMProvider,
     LLMSpec,
@@ -39,8 +40,9 @@ use warpui::keymap::Keystroke;
 use warpui::platform::OperatingSystem;
 
 use super::model_spec_scores::{
-    render_model_spec_header, render_model_spec_scores, CostRow, ModelSpecScoresLayout,
-    MODEL_SPECS_DESCRIPTION, MODEL_SPECS_TITLE, REASONING_LEVEL_DESCRIPTION, REASONING_LEVEL_TITLE,
+    render_byop_spec_scores, render_model_spec_header, render_model_spec_scores, CostRow,
+    ModelSpecScoresLayout, MODEL_SPECS_DESCRIPTION, MODEL_SPECS_TITLE, REASONING_LEVEL_DESCRIPTION,
+    REASONING_LEVEL_TITLE,
 };
 
 #[derive(Clone, Debug)]
@@ -423,6 +425,67 @@ impl SearchItem for ModelSearchItem {
             (MODEL_SPECS_TITLE, MODEL_SPECS_DESCRIPTION)
         };
         let header = render_model_spec_header(title, description, app);
+
+        // BYOP 走专用 score 渲染:Context / Output (bar 用 log2 归一化) + Cost = BilledToApi。
+        // 视觉与默认 Warp 面板完全一致,只是行的语义不同。
+        if byop_llm_id::is_byop(&self.id) {
+            if let Some((provider, _api_key, model_id)) = lookup_byop(app, &self.id) {
+                let model_entry = provider.models.iter().find(|m| m.id == model_id);
+                let context_window = model_entry
+                    .map(|m| m.context_window)
+                    .filter(|n| *n > 0);
+                let max_output_tokens = model_entry
+                    .map(|m| m.max_output_tokens)
+                    .filter(|n| *n > 0);
+
+                let manage_button = appearance
+                    .ui_builder()
+                    .button(
+                        ButtonVariant::Outlined,
+                        self.manage_api_key_mouse_state.clone(),
+                    )
+                    .with_text_label("Manage".to_string())
+                    .with_style(UiComponentStyles {
+                        height: Some(24.),
+                        padding: Some(Coords {
+                            top: 2.,
+                            bottom: 2.,
+                            left: 4.,
+                            right: 4.,
+                        }),
+                        ..Default::default()
+                    })
+                    .with_cursor(Some(Cursor::PointingHand))
+                    .build()
+                    .on_click(|ctx, _, _| {
+                        ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPageWithSearch {
+                            search_query: "agent provider".to_string(),
+                            section: Some(SettingsSection::WarpAgent),
+                        });
+                    })
+                    .finish();
+
+                let scores = render_byop_spec_scores(
+                    context_window,
+                    max_output_tokens,
+                    Container::new(manage_button).finish(),
+                    ModelSpecScoresLayout {
+                        bg_bar_color: internal_colors::neutral_3(theme),
+                    },
+                    app,
+                );
+
+                let column = Flex::column()
+                    .with_child(Container::new(header).with_margin_bottom(12.).finish())
+                    .with_child(scores);
+
+                return Some(
+                    ConstrainedBox::new(column.finish())
+                        .with_width(model_specs_width(app))
+                        .finish(),
+                );
+            }
+        }
 
         let is_using_api_key = is_using_api_key_for_provider(&self.provider, app);
         let cost_row = if is_using_api_key {

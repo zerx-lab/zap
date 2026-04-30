@@ -20,7 +20,6 @@ use crate::terminal::view::ambient_agent::CloudModeInitialUserQuery;
 use crate::terminal::view::rich_content::{RichContentInsertionPosition, RichContentMetadata};
 use crate::terminal::view::TerminalView;
 use crate::terminal::CLIAgent;
-use crate::workspace::view::cloud_agent_capacity_modal::CloudAgentCapacityModalVariant;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::Align;
@@ -81,9 +80,7 @@ impl TerminalView {
             .is_some_and(|workspace| workspace.billing_metadata.is_user_on_paid_plan());
 
         if is_on_paid_plan {
-            ctx.emit(crate::terminal::view::Event::ShowCloudAgentCapacityModal {
-                variant: CloudAgentCapacityModalVariant::OutOfCredits,
-            });
+            // 去云端分支:不再展示 cloud agent capacity 模态
         } else {
             AIRequestUsageModel::handle(ctx).update(ctx, |model, ctx| {
                 model.refresh_request_usage_async(ctx);
@@ -220,18 +217,6 @@ impl TerminalView {
                     self.fetch_and_update_cloud_mode_details_panel(ctx);
                 }
                 // Re-render to show the error state in the footer.
-                ctx.notify();
-            }
-            AmbientAgentViewModelEvent::ShowCloudAgentCapacityModal => {
-                if FeatureFlag::CloudMode.is_enabled()
-                    && self.ambient_agent_view_model.as_ref(ctx).is_ambient_agent()
-                    && !self.model.lock().is_shared_ambient_agent_session()
-                {
-                    ctx.emit(crate::terminal::view::Event::ShowCloudAgentCapacityModal {
-                        variant: CloudAgentCapacityModalVariant::ConcurrentLimit,
-                    });
-                }
-
                 ctx.notify();
             }
             AmbientAgentViewModelEvent::ShowAICreditModal => {

@@ -627,12 +627,20 @@ fn build_client(
     api_key: String,
 ) -> Client {
     let adapter_kind = adapter_kind_for(api_type);
+    // genai 0.6.x 所有 adapter 的 URL 拼接策略都要求 base_url 以 `/` 结尾:
+    // - Anthropic / Gemini:`format!("{base_url}messages")` / `format!("{base_url}models/...")` 纯字符串拼接
+    // - OpenAI / DeepSeek:`Url::join("chat/completions")`,缺尾随 `/` 会吃掉 path 最后一段
+    // 用户填 `https://ai.zerx.dev` 没有尾随 / → 静默拼成 `https://ai.zerx.devmessages` → 请求错误地址
+    // 这里统一兜底:无论用户填什么、是否有 `/`,都补上一个尾随 `/`。
     let endpoint_url = if base_url.trim().is_empty() {
         api_type.default_base_url().to_owned()
     } else {
-        // 去掉尾随 /,有的 adapter 实现对此挑剔
-        base_url.trim_end_matches('/').to_owned()
+        let trimmed = base_url.trim().trim_end_matches('/');
+        format!("{trimmed}/")
     };
+    log::info!(
+        "[byop] build_client: adapter={adapter_kind:?} endpoint_url={endpoint_url}"
+    );
     let key_for_resolver = api_key.clone();
     let resolver = ServiceTargetResolver::from_resolver_fn(
         move |service_target: ServiceTarget| -> Result<ServiceTarget, genai::resolver::Error> {
@@ -654,15 +662,38 @@ fn build_client(
         .build()
 }
 
-fn build_chat_options() -> ChatOptions {
-    ChatOptions::default()
+fn build_chat_options(
+    api_type: AgentProviderApiType,
+    model_id: &str,
+    effort_setting: crate::settings::ReasoningEffortSetting,
+) -> ChatOptions {
+    let mut opts = ChatOptions::default()
         .with_capture_content(true)
         .with_capture_tool_calls(true)
         .with_capture_reasoning_content(true)
         .with_capture_usage(true)
         // 让 genai 把 DeepSeek-style 模型在 content 中夹带的 <think>...</think>
         // 段抽出来归到 reasoning chunk,UI 显示更干净。仅对支持该格式的 adapter 生效。
-        .with_normalize_reasoning_content(true)
+        .with_normalize_reasoning_content(true);
+
+    // 仅在用户显式选了非 Auto 档位 **且** 模型支持 reasoning 时才注入。
+    // - Auto:不传,让 genai 走"模型名后缀推断"(OpenAI/Anthropic adapter 内部)。
+    // - 非 Auto + 模型不支持:也不传,避免向 claude-3-5-haiku / gpt-4o / gemini-1.5-pro
+    //   等老模型注入 thinking 参数被上游 400 拒绝。
+    if let Some(effort) = effort_setting.to_genai() {
+        if super::reasoning::model_supports_reasoning(api_type, model_id) {
+            log::info!(
+                "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
+            );
+            opts = opts.with_reasoning_effort(effort);
+        } else {
+            log::info!(
+                "[byop] reasoning_effort SKIPPED: model={model_id} not in capability list \
+                 (api_type={api_type:?} setting={effort_setting:?}); request sent without thinking params"
+            );
+        }
+    }
+    opts
 }
 
 fn map_genai_error(err: genai::Error) -> OpenAiCompatibleError {
@@ -681,12 +712,13 @@ pub async fn generate_byop_output(
     api_key: String,
     model_id: String,
     api_type: AgentProviderApiType,
+    reasoning_effort: crate::settings::ReasoningEffortSetting,
     task_id: String,
     needs_create_task: bool,
     _cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let chat_req = build_chat_request(&params);
-    let chat_opts = build_chat_options();
+    let chat_opts = build_chat_options(api_type, &model_id, reasoning_effort);
     let client = build_client(api_type, base_url, api_key);
     let conversation_id = params
         .conversation_token
@@ -796,14 +828,18 @@ pub async fn generate_byop_output(
             yield Ok(make_add_messages_event(&task_id, persistence_messages));
         }
 
+        log::info!("[byop] opening stream: model={model_id}");
         let mut sdk_stream = match client
             .exec_chat_stream(&model_id, chat_req, Some(&chat_opts))
             .await
         {
-            Ok(resp) => resp.stream,
+            Ok(resp) => {
+                log::info!("[byop] stream opened OK (HTTP request accepted)");
+                resp.stream
+            }
             Err(e) => {
                 let mapped = map_genai_error(e);
-                log::error!("BYOP open stream failed: {mapped:#}");
+                log::error!("[byop] open stream failed: {mapped:#}");
                 yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
                     "BYOP open stream failed: {mapped}"
                 ))));
@@ -819,13 +855,23 @@ pub async fn generate_byop_output(
         // (since 0.4.0 行为),但跨 chunk 同一 call_id 可能多次出现 args 增量,
         // 用 HashMap 按 id 累积后在流末统一 emit。
         let mut tool_bufs: HashMap<String, ToolCall> = HashMap::new();
+        // 诊断:统计 stream 各类事件计数,流末打 INFO log。
+        // 用于排查"消息静默消失"——如果 chunk_count=0 且 tool_count=0,说明上游返回空内容。
+        let mut start_count: u32 = 0;
+        let mut chunk_count: u32 = 0;
+        let mut chunk_bytes: usize = 0;
+        let mut reasoning_count: u32 = 0;
+        let mut reasoning_bytes: usize = 0;
+        let mut tool_chunk_count: u32 = 0;
+        let mut end_count: u32 = 0;
+        let mut other_count: u32 = 0;
 
         while let Some(item) = sdk_stream.next().await {
             let event = match item {
                 Ok(ev) => ev,
                 Err(e) => {
                     let mapped = map_genai_error(e);
-                    log::error!("BYOP stream chunk error: {mapped:#}");
+                    log::error!("[byop] stream chunk error: {mapped:#}");
                     yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
                         "BYOP stream error: {mapped}"
                     ))));
@@ -836,8 +882,11 @@ pub async fn generate_byop_output(
             match event {
                 ChatStreamEvent::Start => {
                     // unit event;UI 已通过 StreamInit 显示 thinking,这里 no-op
+                    start_count += 1;
                 }
                 ChatStreamEvent::Chunk(c) if !c.content.is_empty() => {
+                    chunk_count += 1;
+                    chunk_bytes += c.content.len();
                     if let Some(id) = text_msg_id.clone() {
                         yield Ok(make_append_event(&task_id, &id, AppendKind::Text(c.content)));
                     } else {
@@ -850,6 +899,8 @@ pub async fn generate_byop_output(
                 }
                 ChatStreamEvent::Chunk(_) => {}
                 ChatStreamEvent::ReasoningChunk(c) if !c.content.is_empty() => {
+                    reasoning_count += 1;
+                    reasoning_bytes += c.content.len();
                     if let Some(id) = reasoning_msg_id.clone() {
                         yield Ok(make_append_event(&task_id, &id, AppendKind::Reasoning(c.content)));
                     } else {
@@ -862,6 +913,7 @@ pub async fn generate_byop_output(
                 }
                 ChatStreamEvent::ReasoningChunk(_) => {}
                 ChatStreamEvent::ToolCallChunk(tc) => {
+                    tool_chunk_count += 1;
                     let mut call = tc.tool_call;
                     // 极个别 provider(自建 ollama 代理等)不发 call_id,本地 uuid 兜底。
                     if call.call_id.is_empty() {
@@ -871,6 +923,7 @@ pub async fn generate_byop_output(
                     tool_bufs.insert(call.call_id.clone(), call);
                 }
                 ChatStreamEvent::End(end) => {
+                    end_count += 1;
                     // genai >= 0.4.0 的 captured_content 含 tool_calls。
                     // 优先用 captured_content 里的 tool_calls(更完整),
                     // 否则用 streaming 中累积的 tool_bufs。
@@ -881,10 +934,26 @@ pub async fn generate_byop_output(
                     }
                 }
                 _ => {
+                    other_count += 1;
                     // ThoughtSignatureChunk 等暂不处理(Gemini 3 thoughts 需要回传给后续轮次,
                     // 当前 BYOP 不持久化 thought_signatures,接受降级)
                 }
             }
+        }
+
+        // 流统计 INFO log。chunk_count=0 && tool_count=0 时上游返回为空,
+        // 大概率是 model_id 不被识别 / max_tokens 缺失 / Anthropic API 兼容代理返回 200 但 body 空。
+        let total_tools = tool_bufs.len();
+        log::info!(
+            "[byop] stream stats: start={start_count} chunks={chunk_count} ({chunk_bytes}B) \
+             reasoning={reasoning_count} ({reasoning_bytes}B) tool_chunks={tool_chunk_count} \
+             ends={end_count} other={other_count} captured_tools={total_tools}"
+        );
+        if chunk_count == 0 && reasoning_count == 0 && total_tools == 0 {
+            log::warn!(
+                "[byop] stream returned 0 content / 0 reasoning / 0 tool_calls — \
+                 上游可能返回空响应(model_id 错? max_tokens 缺? proxy 异常?)"
+            );
         }
 
         // 流结束:把累积的 tool_calls 一次性发出。

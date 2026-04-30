@@ -9,7 +9,8 @@ use crate::{
     ClassificationResult, Context, InputClassifier, InputType,
     parser::parse_query_into_tokens,
     util::{
-        is_installed_binary, is_likely_shell_command, is_one_off_natural_language_word_or_prefix,
+        contains_cjk, is_installed_binary, is_likely_shell_command,
+        is_one_off_natural_language_word_or_prefix,
     },
 };
 
@@ -40,6 +41,12 @@ pub struct HeuristicClassifier;
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl InputClassifier for HeuristicClassifier {
     async fn detect_input_type(&self, input: ParsedTokensSnapshot, context: &Context) -> InputType {
+        // 输入含 CJK 字符直接判 AI:底层词典与 ML 模型皆英文训练,
+        // 中/日/韩文走默认逻辑会被误判为 Shell。
+        if contains_cjk(input.buffer_text.as_str()) {
+            return InputType::AI;
+        }
+
         let word_tokens = parse_query_into_tokens(input.buffer_text.as_str());
         let total_word_token_count = word_tokens.len();
 
@@ -64,6 +71,10 @@ impl InputClassifier for HeuristicClassifier {
         input: warp_completer::ParsedTokensSnapshot,
         context: &Context,
     ) -> anyhow::Result<super::ClassificationResult> {
+        if contains_cjk(input.buffer_text.as_str()) {
+            return Ok(ClassificationResult::pure_ai());
+        }
+
         let word_tokens = parse_query_into_tokens(input.buffer_text.as_str());
 
         // Try autodetecting both including and not including the last token,
