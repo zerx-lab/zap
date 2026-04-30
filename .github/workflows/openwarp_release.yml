@@ -18,6 +18,11 @@ on:
       - "v*"
   workflow_dispatch:
 
+# 创建 release + 上传 asset 需要写权限。默认 GITHUB_TOKEN 在 fork/受限仓库下是只读,
+# 这里显式声明 contents: write 兜底 403 "Resource not accessible by integration"。
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
   CONFIG_FILE: ".github/workflows/release_configurations.json"
