@@ -109,21 +109,21 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-s"),
         EditableBinding::new(
             "code_view:save_as",
-            "Save file as",
+            crate::t!("keybinding-desc-code-save-as"),
             CodeViewAction::SaveFileAs,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("cmdorctrl-shift-S"),
         EditableBinding::new(
             "code_view:close_all_tabs",
-            "Close all tabs",
+            crate::t!("keybinding-desc-code-close-all-tabs"),
             CodeViewAction::CloseAll,
         )
         .with_context_predicate(id!("CodeEditorView"))
         .with_key_binding("cmdorctrl-r w"),
         EditableBinding::new(
             "code_view:close_saved_tabs",
-            "Close saved tabs",
+            crate::t!("keybinding-desc-code-close-saved-tabs"),
             CodeViewAction::CloseSaved,
         )
         .with_context_predicate(id!("CodeEditorView"))

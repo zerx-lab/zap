@@ -788,7 +788,7 @@ pub fn init(app: &mut AppContext) {
         // this is a block selection or text selection later on.
         EditableBinding::new(
             "terminal:ask_ai_assistant",
-            "Ask Warp AI about Selection",
+            crate::t!("keybinding-desc-terminal-ask-ai-selection"),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::SelectedBlockOrText)),
         )
         .with_enabled(|| !FeatureFlag::AgentMode.is_enabled())
@@ -806,7 +806,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:ask_ai_assistant_last_block",
-            "Ask Warp AI about last block",
+            crate::t!("keybinding-desc-terminal-ask-ai-last-block"),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::LastBlock)),
         )
         .with_enabled(|| !FeatureFlag::AgentMode.is_enabled())
@@ -817,7 +817,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:ask_ai_assistant",
-            "Ask Warp AI",
+            crate::t!("keybinding-desc-terminal-ask-ai"),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(AskAISource::SelectedInputText)),
         )
         .with_enabled(|| !FeatureFlag::AgentMode.is_enabled())
@@ -1048,7 +1048,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:load_agent_mode_conversation",
-        "Load agent mode conversation (from debug link in clipboard)",
+        crate::t!("keybinding-desc-terminal-load-agent-conversation"),
         TerminalAction::LoadAgentModeConversation,
     )
     .with_enabled(ChannelState::enable_debug_features)
@@ -1056,7 +1056,7 @@ pub fn init(app: &mut AppContext) {
 
     app.register_editable_bindings([EditableBinding::new(
         "terminal:toggle_session_recording",
-        "Toggle PTY Recording for Session",
+        crate::t!("keybinding-desc-terminal-toggle-session-recording"),
         TerminalAction::ToggleSessionRecording,
     )
     .with_enabled(|| cfg!(feature = "local_fs") && ChannelState::enable_debug_features())

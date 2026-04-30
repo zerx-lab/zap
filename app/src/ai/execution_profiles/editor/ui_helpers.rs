@@ -227,6 +227,12 @@ pub fn render_models_section(
             "Full terminal use model",
             "The model used when the agent operates inside interactive terminal applications like database shells, debuggers, REPLs, or dev servers—reading live output and writing commands to the PTY.",
             &view.full_terminal_use_model_dropdown,
+        ))
+        .with_child(render_filterable_dropdown_row(
+            appearance,
+            "Title generation model",
+            "The model used to generate concise conversation titles. Defaults to the base model — pick a cheaper/faster model here to save tokens on title summarization without affecting the agent's main reasoning.",
+            &view.title_model_dropdown,
         ));
 
     if FeatureFlag::LocalComputerUse.is_enabled() {

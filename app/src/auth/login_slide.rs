@@ -68,7 +68,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Paste,
             LoginSlideAction::PasteAuthUrl,
-            "Paste",
+            crate::t!("keybinding-desc-auth-paste-token"),
             id!(LoginSlideView::ui_name()),
         ),
         FixedBinding::standard(

@@ -720,6 +720,7 @@ settings-exec-profile-section-models = 模型
 settings-exec-profile-section-permissions = 权限
 settings-exec-profile-base-model = 基础模型:
 settings-exec-profile-full-terminal-use = 完整终端使用:
+settings-exec-profile-title-model = 标题生成:
 settings-exec-profile-computer-use = 电脑使用:
 settings-exec-profile-apply-code-diffs = 应用代码 diff:
 settings-exec-profile-read-files = 读取文件:
@@ -1351,3 +1352,171 @@ keybinding-desc-root-view-enter-onboarding-state = [调试] 进入引导状态
 # 工作流视图相关 binding
 keybinding-desc-workflow-view-save = 保存工作流
 keybinding-desc-workflow-view-close = 关闭
+
+# 编辑器视图 binding desc(由 editor/view/mod.rs、code/editor/view/actions.rs、notebooks/editor/view.rs 共用)
+keybinding-desc-editor-copy = 复制
+keybinding-desc-editor-cut = 剪切
+keybinding-desc-editor-paste = 粘贴
+keybinding-desc-editor-undo = 撤销
+keybinding-desc-editor-redo = 重做
+keybinding-desc-editor-select-left-by-word = 向左按词选择
+keybinding-desc-editor-select-right-by-word = 向右按词选择
+keybinding-desc-editor-select-left = 向左选中一个字符
+keybinding-desc-editor-select-right = 向右选中一个字符
+keybinding-desc-editor-select-up = 向上选择
+keybinding-desc-editor-select-down = 向下选择
+keybinding-desc-editor-select-all = 全选
+keybinding-desc-editor-select-to-line-start = 选中到行首
+keybinding-desc-editor-select-to-line-end = 选中到行尾
+keybinding-desc-editor-select-to-line-start-cap = 选中到行首
+keybinding-desc-editor-select-to-line-end-cap = 选中到行尾
+keybinding-desc-editor-clear-and-copy-lines = 复制并清除选中行
+keybinding-desc-editor-add-next-occurrence = 添加下一处匹配到选区
+keybinding-desc-editor-up = 光标上移
+keybinding-desc-editor-down = 光标下移
+keybinding-desc-editor-left = 光标左移
+keybinding-desc-editor-right = 光标右移
+keybinding-desc-editor-move-to-line-start = 移动到行首
+keybinding-desc-editor-move-to-line-end = 移动到行尾
+keybinding-desc-editor-move-to-line-start-short = 移动到行首
+keybinding-desc-editor-move-to-line-end-short = 移动到行尾
+keybinding-desc-editor-home = Home
+keybinding-desc-editor-end = End
+keybinding-desc-editor-cmd-down = 移动到末尾
+keybinding-desc-editor-cmd-up = 移动到开头
+keybinding-desc-editor-move-to-and-select-buffer-start = 选中并移动到开头
+keybinding-desc-editor-move-to-and-select-buffer-end = 选中并移动到末尾
+keybinding-desc-editor-move-forward-one-word = 向后移动一个词
+keybinding-desc-editor-move-backward-one-word = 向前移动一个词
+keybinding-desc-editor-move-forward-one-word-cap = 向后移动一个词
+keybinding-desc-editor-move-backward-one-word-cap = 向前移动一个词
+keybinding-desc-editor-move-to-paragraph-start = 移动到段落开头
+keybinding-desc-editor-move-to-paragraph-end = 移动到段落末尾
+keybinding-desc-editor-move-to-paragraph-start-short = 移动到段落开头
+keybinding-desc-editor-move-to-paragraph-end-short = 移动到段落末尾
+keybinding-desc-editor-move-to-buffer-start = 移动到缓冲区开头
+keybinding-desc-editor-move-to-buffer-end = 移动到缓冲区末尾
+keybinding-desc-editor-cursor-at-buffer-start = 光标移到缓冲区开头
+keybinding-desc-editor-cursor-at-buffer-end = 光标移到缓冲区末尾
+keybinding-desc-editor-backspace = 删除前一个字符
+keybinding-desc-editor-cut-word-left = 剪切左侧词
+keybinding-desc-editor-cut-word-right = 剪切右侧词
+keybinding-desc-editor-delete-word-left = 删除左侧词
+keybinding-desc-editor-delete-word-right = 删除右侧词
+keybinding-desc-editor-cut-all-left = 剪切左侧全部
+keybinding-desc-editor-cut-all-right = 剪切右侧全部
+keybinding-desc-editor-delete-all-left = 删除左侧全部
+keybinding-desc-editor-delete-all-right = 删除右侧全部
+keybinding-desc-editor-delete = 删除
+keybinding-desc-editor-clear-lines = 清除选中行
+keybinding-desc-editor-insert-newline = 插入换行
+keybinding-desc-editor-fold = 折叠
+keybinding-desc-editor-unfold = 展开
+keybinding-desc-editor-fold-selected-ranges = 折叠选中范围
+keybinding-desc-editor-insert-last-word-prev-cmd = 插入上一条命令的最后一个词
+keybinding-desc-editor-move-backward-one-subword = 向前移动一个子词
+keybinding-desc-editor-move-forward-one-subword = 向后移动一个子词
+keybinding-desc-editor-select-left-by-subword = 向左按子词选择
+keybinding-desc-editor-select-right-by-subword = 向右按子词选择
+keybinding-desc-editor-accept-autosuggestion = 接受自动建议
+keybinding-desc-editor-inspect-command = 检查命令
+keybinding-desc-editor-clear-buffer = 清空命令编辑器
+keybinding-desc-editor-add-cursor-above = 在上方添加光标
+keybinding-desc-editor-add-cursor-below = 在下方添加光标
+keybinding-desc-editor-insert-nonexpanding-space = 插入不可扩展空格
+keybinding-desc-editor-vim-exit-insert-mode = 退出 Vim 插入模式
+keybinding-desc-editor-toggle-comment = 切换注释
+keybinding-desc-editor-go-to-line = 跳转到行
+keybinding-desc-editor-find-in-code-editor = 在代码编辑器中查找
+
+# 代码编辑器(Code)binding desc
+keybinding-desc-code-save-as = 文件另存为
+keybinding-desc-code-close-all-tabs = 关闭所有标签页
+keybinding-desc-code-close-saved-tabs = 关闭已保存的标签页
+
+# 欢迎视图 binding desc
+keybinding-desc-welcome-terminal-session = 终端会话
+keybinding-desc-welcome-add-repository = 添加仓库
+
+# AI 助手面板 binding desc
+keybinding-desc-ai-assistant-close = 关闭 Warp AI
+keybinding-desc-ai-assistant-focus-terminal-input = 从 Warp AI 切回终端输入
+keybinding-desc-ai-assistant-restart = 重启 Warp AI
+
+# 代码审阅 binding desc
+keybinding-desc-code-review-save-all = 保存代码审阅中所有未保存的文件
+keybinding-desc-code-review-show-find = 在代码审阅中显示查找栏
+
+# 项目按钮 binding desc
+keybinding-desc-project-buttons-open-repository = 打开仓库
+keybinding-desc-project-buttons-create-new-project = 创建新项目
+
+# 查找视图 binding desc
+keybinding-desc-find-next-occurrence = 查找下一处匹配
+keybinding-desc-find-prev-occurrence = 查找上一处匹配
+
+# Notebook 文件 / 笔记本 binding desc
+keybinding-desc-notebook-focus-terminal-input-from-file = 从文件切回终端输入
+keybinding-desc-notebook-reload-file = 重新加载文件
+keybinding-desc-notebook-increase-font-size = 增大笔记本字号
+keybinding-desc-notebook-decrease-font-size = 减小笔记本字号
+keybinding-desc-notebook-reset-font-size = 重置笔记本字号
+keybinding-desc-notebook-focus-terminal-input = 从笔记本切回终端输入
+keybinding-desc-notebook-fb-increase-font-size = 增大字号
+keybinding-desc-notebook-fb-decrease-font-size = 减小字号
+
+# Notebook 编辑器 binding desc(在共享编辑器 key 之外的)
+keybinding-desc-nbeditor-deselect-command = 取消选中 shell 命令
+keybinding-desc-nbeditor-select-command = 选中光标处的 shell 命令
+keybinding-desc-nbeditor-select-previous-command = 选中上一条命令
+keybinding-desc-nbeditor-select-next-command = 选中下一条命令
+keybinding-desc-nbeditor-run-commands = 运行选中的命令
+keybinding-desc-nbeditor-toggle-debug = 切换富文本调试模式
+keybinding-desc-nbeditor-debug-copy-buffer = 复制富文本缓冲区
+keybinding-desc-nbeditor-debug-copy-selection = 复制富文本选区
+keybinding-desc-nbeditor-log-state = 输出编辑器状态日志
+keybinding-desc-nbeditor-edit-link = 创建或编辑链接
+keybinding-desc-nbeditor-inline-code = 切换行内代码样式
+keybinding-desc-nbeditor-strikethrough = 切换删除线样式
+keybinding-desc-nbeditor-underline = 切换下划线样式
+keybinding-desc-nbeditor-find = 在笔记本中查找
+keybinding-desc-nbeditor-next-find-match = 聚焦下一处匹配
+keybinding-desc-nbeditor-previous-find-match = 聚焦上一处匹配
+keybinding-desc-nbeditor-toggle-regex-find = 切换正则表达式搜索
+keybinding-desc-nbeditor-toggle-case-sensitive-find = 切换大小写敏感搜索
+
+# 面板组 / 撤销关闭 binding desc
+keybinding-desc-get-started-terminal-session = 终端会话
+keybinding-desc-undo-close-reopen-session = 重新打开已关闭的会话
+keybinding-desc-pane-share-pane = 分享面板
+keybinding-desc-right-panel-toggle-maximize-code-review = 切换最大化代码审阅面板
+
+# 工作区输入同步 binding desc
+keybinding-desc-workspace-disable-sync-inputs = 停止同步所有面板
+keybinding-desc-workspace-toggle-sync-inputs-tab = 切换同步当前标签页所有面板
+keybinding-desc-workspace-toggle-sync-inputs-all-tabs = 切换同步所有标签页中的所有面板
+
+# 工作区辅助功能 / 调试 binding desc
+keybinding-desc-workspace-a11y-concise = [a11y] 设为简洁辅助播报
+keybinding-desc-workspace-a11y-verbose = [a11y] 设为详细辅助播报
+keybinding-desc-workspace-copy-access-token = 复制访问令牌到剪贴板
+
+# 环境变量集合 binding desc
+keybinding-desc-env-var-collection-close = 关闭
+
+# 鉴权 / 分享模态 binding desc
+keybinding-desc-share-block-copy = 复制
+keybinding-desc-auth-paste-token = 粘贴
+keybinding-desc-conversation-details-copy = 复制
+
+# 终端补充 binding desc
+keybinding-desc-terminal-show-history = 显示历史
+keybinding-desc-terminal-ask-ai-selection = 就所选内容询问 Warp AI
+keybinding-desc-terminal-ask-ai-last-block = 就最近的命令块询问 Warp AI
+keybinding-desc-terminal-ask-ai = 询问 Warp AI
+keybinding-desc-terminal-load-agent-conversation = 加载智能体模式会话(从剪贴板调试链接)
+keybinding-desc-terminal-toggle-session-recording = 切换会话 PTY 录制
+
+# Notebook 编辑器补充
+keybinding-desc-nbeditor-select-to-paragraph-start = 选中到段落开头
+keybinding-desc-nbeditor-select-to-paragraph-end = 选中到段落末尾

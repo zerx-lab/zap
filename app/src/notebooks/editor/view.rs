@@ -261,14 +261,14 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Copy,
             EditorViewAction::Copy,
-            "Copy",
+            crate::t!("keybinding-desc-editor-copy"),
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
         // Bindings for paste require the StandardAction and CustomAction binding to work on all platforms.
         FixedBinding::custom(
             CustomAction::Paste,
             EditorViewAction::Paste,
-            "Paste",
+            crate::t!("keybinding-desc-editor-paste"),
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::standard(
@@ -280,32 +280,32 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::WindowsPaste,
             EditorViewAction::Paste,
-            "Paste",
+            crate::t!("keybinding-desc-editor-paste"),
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
         #[cfg(windows)]
         FixedBinding::custom(
             CustomAction::WindowsCopy,
             EditorViewAction::Copy,
-            "Copy",
+            crate::t!("keybinding-desc-editor-copy"),
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::custom(
             CustomAction::Cut,
             EditorViewAction::Cut,
-            "Cut",
+            crate::t!("keybinding-desc-editor-cut"),
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::custom(
             CustomAction::Undo,
             EditorViewAction::Undo,
-            "Undo",
+            crate::t!("keybinding-desc-editor-undo"),
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
         FixedBinding::custom(
             CustomAction::Redo,
             EditorViewAction::Redo,
-            "Redo",
+            crate::t!("keybinding-desc-editor-redo"),
             id!("RichTextEditorView") & !id!("IMEOpen"),
         ),
     ]);
@@ -314,14 +314,14 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "editor_view:deselect_command",
-            "De-select shell commands",
+            crate::t!("keybinding-desc-nbeditor-deselect-command"),
             EditorViewAction::ExitCommandSelection,
         )
         .with_context_predicate(id!("RichTextEditorView") & id!("HasCommandSelection"))
         .with_key_binding("escape"),
         EditableBinding::new(
             "editor_view:select_command",
-            "Select shell command at cursor",
+            crate::t!("keybinding-desc-nbeditor-select-command"),
             EditorViewAction::SelectCommandAtCursor,
         )
         .with_context_predicate(
@@ -332,21 +332,21 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("escape"),
         EditableBinding::new(
             "editor_view:select_previous_command",
-            "Select previous command",
+            crate::t!("keybinding-desc-nbeditor-select-previous-command"),
             EditorViewAction::CommandUp,
         )
         .with_context_predicate(id!("RichTextEditorView"))
         .with_key_binding("cmdorctrl-up"),
         EditableBinding::new(
             "editor_view:select_next_command",
-            "Select next command",
+            crate::t!("keybinding-desc-nbeditor-select-next-command"),
             EditorViewAction::CommandDown,
         )
         .with_context_predicate(id!("RichTextEditorView"))
         .with_key_binding("cmdorctrl-down"),
         EditableBinding::new(
             "editor_view:run_commands",
-            "Run selected commands",
+            crate::t!("keybinding-desc-nbeditor-run-commands"),
             EditorViewAction::RunSelectedCommands,
         )
         .with_context_predicate(id!("RichTextEditorView") & id!("CanExecuteShellCommands"))
@@ -379,28 +379,28 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "editor_view:toggle_debug_mode",
-            "Toggle rich-text debug mode",
+            crate::t!("keybinding-desc-nbeditor-toggle-debug"),
             EditorViewAction::ToggleDebugMode,
         )
         .with_context_predicate(id!("RichTextEditorView"))
         .with_enabled(debug_notebooks_enabled),
         EditableBinding::new(
             "editor_view:debug_copy_buffer",
-            "Copy rich-text buffer",
+            crate::t!("keybinding-desc-nbeditor-debug-copy-buffer"),
             EditorViewAction::DebugCopyBuffer,
         )
         .with_context_predicate(id!("RichTextEditorView"))
         .with_enabled(debug_notebooks_enabled),
         EditableBinding::new(
             "editor_view:debug_copy_selection",
-            "Copy rich-text selection",
+            crate::t!("keybinding-desc-nbeditor-debug-copy-selection"),
             EditorViewAction::DebugCopySelection,
         )
         .with_context_predicate(id!("RichTextEditorView"))
         .with_enabled(debug_notebooks_enabled),
         EditableBinding::new(
             "editor_view:log_state",
-            "Log editor state",
+            crate::t!("keybinding-desc-nbeditor-log-state"),
             EditorViewAction::DebugLogState,
         )
         .with_context_predicate(id!("RichTextEditorView"))
@@ -411,7 +411,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "editor_view:move_backward_one_word",
-            "Move Backward One Word",
+            crate::t!("keybinding-desc-editor-move-backward-one-word-cap"),
             EditorViewAction::MoveBackwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
@@ -419,7 +419,7 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-left"),
         EditableBinding::new(
             "editor_view:move_forward_one_word",
-            "Move Forward One Word",
+            crate::t!("keybinding-desc-editor-move-forward-one-word-cap"),
             EditorViewAction::MoveForwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
@@ -427,38 +427,38 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-right"),
         EditableBinding::new(
             "editor_view:move_forward_one_word",
-            "Move forward one word",
+            crate::t!("keybinding-desc-editor-move-forward-one-word"),
             EditorViewAction::MoveForwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("meta-f"),
         EditableBinding::new(
             "editor_view:move_backward_one_word",
-            "Move backward one word",
+            crate::t!("keybinding-desc-editor-move-backward-one-word"),
             EditorViewAction::MoveBackwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("meta-b"),
-        EditableBinding::new("editor_view:up", "Move cursor up", EditorViewAction::MoveUp)
+        EditableBinding::new("editor_view:up", crate::t!("keybinding-desc-editor-up"), EditorViewAction::MoveUp)
             .with_context_predicate(text_entry.clone())
             .with_key_binding("ctrl-p"),
         EditableBinding::new(
             "editor_view:down",
-            "Move cursor down",
+            crate::t!("keybinding-desc-editor-down"),
             EditorViewAction::MoveDown,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("ctrl-n"),
         EditableBinding::new(
             "editor_view:left",
-            "Move cursor left",
+            crate::t!("keybinding-desc-editor-left"),
             EditorViewAction::MoveLeft,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("ctrl-b"),
         EditableBinding::new(
             "editor_view:right",
-            "Move cursor right",
+            crate::t!("keybinding-desc-editor-right"),
             EditorViewAction::MoveRight,
         )
         .with_context_predicate(text_entry.clone())
@@ -467,7 +467,7 @@ pub fn init(app: &mut AppContext) {
             // This doesn't reuse the move_to_line_start naming from the terminal input editor to
             // distinguish between soft-wrappped line and hard-wrapped line (paragraph) movement.
             "editor_view:move_to_paragraph_start",
-            "Move to start of paragraph",
+            crate::t!("keybinding-desc-editor-move-to-paragraph-start-short"),
             EditorViewAction::MoveToParagraphStart,
         )
         .with_context_predicate(text_entry.clone())
@@ -475,7 +475,7 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("ctrl-a"),
         EditableBinding::new(
             "editor_view:home",
-            "Home",
+            crate::t!("keybinding-desc-editor-home"),
             EditorViewAction::MoveToLineStart,
         )
         .with_context_predicate(text_entry.clone())
@@ -483,12 +483,12 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("home"),
         EditableBinding::new(
             "editor_view:move_to_paragraph_end",
-            "Move to end of paragraph",
+            crate::t!("keybinding-desc-editor-move-to-paragraph-end-short"),
             EditorViewAction::MoveToParagraphEnd,
         )
         .with_context_predicate(text_entry.clone())
         .with_mac_key_binding("ctrl-e"),
-        EditableBinding::new("editor_view:end", "End", EditorViewAction::MoveToLineEnd)
+        EditableBinding::new("editor_view:end", crate::t!("keybinding-desc-editor-end"), EditorViewAction::MoveToLineEnd)
             .with_context_predicate(text_entry.clone())
             .with_mac_key_binding("cmd-right")
             .with_linux_or_windows_key_binding("end"),
@@ -498,35 +498,35 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "editor_view:select_left_by_word",
-            "Select one word to the left",
+            crate::t!("keybinding-desc-editor-select-left-by-word"),
             EditorViewAction::SelectBackwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("shift-meta-B"),
         EditableBinding::new(
             "editor_view:select_right_by_word",
-            "Select one word to the right",
+            crate::t!("keybinding-desc-editor-select-right-by-word"),
             EditorViewAction::SelectForwardsByWord,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("shift-meta-F"),
         EditableBinding::new(
             "editor_view:select_left",
-            "Select one character to the left",
+            crate::t!("keybinding-desc-editor-select-left"),
             EditorViewAction::SelectLeft,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("shift-ctrl-B"),
         EditableBinding::new(
             "editor_view:select_right",
-            "Select one character to the right",
+            crate::t!("keybinding-desc-editor-select-right"),
             EditorViewAction::SelectRight,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("shift-ctrl-F"),
         EditableBinding::new(
             "editor_view:select_up",
-            "Select up",
+            crate::t!("keybinding-desc-editor-select-up"),
             EditorViewAction::SelectUp,
         )
         .with_context_predicate(text_entry.clone())
@@ -535,28 +535,28 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("shift-ctrl-P"),
         EditableBinding::new(
             "editor_view:select_down",
-            "Select down",
+            crate::t!("keybinding-desc-editor-select-down"),
             EditorViewAction::SelectDown,
         )
         .with_context_predicate(text_entry.clone())
         .with_mac_key_binding("shift-ctrl-N"),
         EditableBinding::new(
             "editor_view:select_all",
-            "Select all",
+            crate::t!("keybinding-desc-editor-select-all"),
             EditorViewAction::SelectAll,
         )
         .with_context_predicate(text_entry.clone())
         .with_custom_action(CustomAction::SelectAll),
         EditableBinding::new(
             "editor:select_to_paragraph_start",
-            "Select to start of paragraph",
+            crate::t!("keybinding-desc-nbeditor-select-to-paragraph-start"),
             EditorViewAction::SelectToParagraphStart,
         )
         .with_context_predicate(text_entry.clone())
         .with_mac_key_binding("shift-ctrl-A"),
         EditableBinding::new(
             "editor:select_to_paragraph_end",
-            "Select to end of paragraph",
+            crate::t!("keybinding-desc-nbeditor-select-to-paragraph-end"),
             EditorViewAction::SelectToParagraphEnd,
         )
         .with_context_predicate(text_entry.clone())
@@ -564,7 +564,7 @@ pub fn init(app: &mut AppContext) {
         // `shift-end` is registered on all platforms for this action.
         EditableBinding::new(
             "editor_view:select_to_line_end",
-            "Select To Line End",
+            crate::t!("keybinding-desc-editor-select-to-line-end-cap"),
             EditorViewAction::SelectToLineEnd,
         )
         .with_context_predicate(text_entry.clone())
@@ -572,7 +572,7 @@ pub fn init(app: &mut AppContext) {
         // `end` is registered on all platforms for this action.
         EditableBinding::new(
             "editor_view:select_to_line_start",
-            "Select To Line Start",
+            crate::t!("keybinding-desc-editor-select-to-line-start-cap"),
             EditorViewAction::SelectToLineStart,
         )
         .with_context_predicate(text_entry.clone())
@@ -596,24 +596,24 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "editor_view:backspace",
-            "Remove the previous character",
+            crate::t!("keybinding-desc-editor-backspace"),
             EditorViewAction::Backspace,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("ctrl-h"),
-        EditableBinding::new("editor_view:delete", "Delete", EditorViewAction::Delete)
+        EditableBinding::new("editor_view:delete", crate::t!("keybinding-desc-editor-delete"), EditorViewAction::Delete)
             .with_context_predicate(text_entry.clone())
             .with_key_binding("ctrl-d"),
         EditableBinding::new(
             "editor_view:cut_word_left",
-            "Cut word left",
+            crate::t!("keybinding-desc-editor-cut-word-left"),
             EditorViewAction::CutWordLeft,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("ctrl-w"),
         EditableBinding::new(
             "editor:delete_word_left",
-            "Delete word left",
+            crate::t!("keybinding-desc-editor-delete-word-left"),
             EditorViewAction::DeleteWordLeft,
         )
         .with_context_predicate(text_entry.clone())
@@ -621,14 +621,14 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-backspace"),
         EditableBinding::new(
             "editor_view:cut_word_right",
-            "Cut word right",
+            crate::t!("keybinding-desc-editor-cut-word-right"),
             EditorViewAction::CutWordRight,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("alt-d"),
         EditableBinding::new(
             "editor:delete_word_right",
-            "Delete word right",
+            crate::t!("keybinding-desc-editor-delete-word-right"),
             EditorViewAction::DeleteWordRight,
         )
         .with_context_predicate(text_entry.clone())
@@ -636,13 +636,13 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-delete"),
         EditableBinding::new(
             "editor_view:cut_all_left",
-            "Cut all left",
+            crate::t!("keybinding-desc-editor-cut-all-left"),
             EditorViewAction::CutLineLeft,
         )
         .with_context_predicate(text_entry.clone()),
         EditableBinding::new(
             "editor_view:delete_all_left",
-            "Delete all left",
+            crate::t!("keybinding-desc-editor-delete-all-left"),
             EditorViewAction::DeleteLineLeft,
         )
         .with_context_predicate(text_entry.clone())
@@ -653,14 +653,14 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("ctrl-y"),
         EditableBinding::new(
             "editor_view:cut_all_right",
-            "Cut all right",
+            crate::t!("keybinding-desc-editor-cut-all-right"),
             EditorViewAction::CutLineRight,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("ctrl-k"),
         EditableBinding::new(
             "editor_view:delete_all_right",
-            "Delete all right",
+            crate::t!("keybinding-desc-editor-delete-all-right"),
             EditorViewAction::DeleteLineRight,
         )
         .with_context_predicate(text_entry.clone())
@@ -674,14 +674,14 @@ pub fn init(app: &mut AppContext) {
         // editable for users who are used to something else.
         EditableBinding::new(
             "editor:edit_link",
-            "Create or edit link",
+            crate::t!("keybinding-desc-nbeditor-edit-link"),
             EditorViewAction::CreateOrEditLink,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("cmdorctrl-k"),
         EditableBinding::new(
             "editor_view:inline_code",
-            "Toggle inline code styling",
+            crate::t!("keybinding-desc-nbeditor-inline-code"),
             EditorViewAction::InlineCode,
         )
         .with_context_predicate(text_entry.clone())
@@ -692,14 +692,14 @@ pub fn init(app: &mut AppContext) {
         .with_mac_key_binding("cmd-shift-C"),
         EditableBinding::new(
             "editor_view:strikethrough",
-            "Toggle strikethrough styling",
+            crate::t!("keybinding-desc-nbeditor-strikethrough"),
             EditorViewAction::StrikeThrough,
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("cmdorctrl-shift-X"),
         EditableBinding::new(
             "editor_view:underline",
-            "Toggle underline styling",
+            crate::t!("keybinding-desc-nbeditor-underline"),
             EditorViewAction::Underline,
         )
         .with_context_predicate(text_entry.clone())
@@ -710,7 +710,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "editor:find",
-            "Find in Notebook",
+            crate::t!("keybinding-desc-nbeditor-find"),
             EditorViewAction::ShowFindBar,
         )
         .with_key_binding(cmd_or_ctrl_shift("f"))
@@ -718,25 +718,25 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("RichTextEditorView")),
         EditableBinding::new(
             "editor:next_find_match",
-            "Focus next match",
+            crate::t!("keybinding-desc-nbeditor-next-find-match"),
             FindBarAction::FocusNextMatch,
         )
         .with_context_predicate(id!("FindBar")),
         EditableBinding::new(
             "editor:previous_find_match",
-            "Focus previous match",
+            crate::t!("keybinding-desc-nbeditor-previous-find-match"),
             FindBarAction::FocusPreviousMatch,
         )
         .with_context_predicate(id!("FindBar")),
         EditableBinding::new(
             "editor:toggle_regex_find",
-            "Toggle regular expression search",
+            crate::t!("keybinding-desc-nbeditor-toggle-regex-find"),
             FindBarAction::ToggleRegex,
         )
         .with_context_predicate(id!("FindBar")),
         EditableBinding::new(
             "editor:toggle_case_sensitive_find",
-            "Toggle case-sensitive search",
+            crate::t!("keybinding-desc-nbeditor-toggle-case-sensitive-find"),
             FindBarAction::ToggleCaseSensitive,
         )
         .with_context_predicate(id!("FindBar")),

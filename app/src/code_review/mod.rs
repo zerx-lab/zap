@@ -56,14 +56,14 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "code_review:save_all_unsaved_files",
-            "Save all unsaved files in code review",
+            crate::t!("keybinding-desc-code-review-save-all"),
             CodeReviewAction::SaveAllUnsavedFiles,
         )
         .with_context_predicate(id!("CodeReviewView"))
         .with_key_binding("cmdorctrl-s"),
         EditableBinding::new(
             "code_review:show_find_bar",
-            "Show find bar in code review",
+            crate::t!("keybinding-desc-code-review-show-find"),
             CodeReviewAction::ShowFindBar,
         )
         .with_context_predicate(id!("CodeReviewView"))
@@ -74,7 +74,7 @@ pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings([FixedBinding::custom(
         CustomAction::Undo,
         CodeReviewAction::UndoRevert,
-        "Undo",
+        crate::t!("keybinding-desc-editor-undo"),
         id!("CodeReviewView") & !id!("IMEOpen"),
     )]);
 

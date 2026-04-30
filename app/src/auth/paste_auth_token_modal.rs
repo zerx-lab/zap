@@ -53,7 +53,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Paste,
             PasteAuthTokenModalAction::PasteIntoEditor,
-            "Paste",
+            crate::t!("keybinding-desc-auth-paste-token"),
             id!(PasteAuthTokenModalView::ui_name()),
         ),
         FixedBinding::standard(

@@ -151,28 +151,28 @@ pub fn init(app: &mut AppContext) {
     app.register_fixed_bindings([FixedBinding::custom(
         CustomAction::CloseCurrentSession,
         AIAssistantAction::ClosePanel,
-        "Close Warp AI",
+        crate::t!("keybinding-desc-ai-assistant-close"),
         id!("AIAssistantPanel"),
     )]);
 
     app.register_editable_bindings([
         EditableBinding::new(
             "ai_assistant_panel:focus_terminal_input",
-            "Focus Terminal Input From Warp AI",
+            crate::t!("keybinding-desc-ai-assistant-focus-terminal-input"),
             AIAssistantAction::FocusTerminalInput,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding(cmd_or_ctrl_shift("l")),
         EditableBinding::new(
             "ai_assistant_panel:reset_context",
-            "Restart Warp AI",
+            crate::t!("keybinding-desc-ai-assistant-restart"),
             AIAssistantAction::ResetContext,
         )
         .with_context_predicate(id!("AIAssistantPanel"))
         .with_key_binding("ctrl-l"),
         EditableBinding::new(
             "ai_assistant_panel:reset_context",
-            "Restart Warp AI",
+            crate::t!("keybinding-desc-ai-assistant-restart"),
             AIAssistantAction::ResetContext,
         )
         .with_context_predicate(id!("AIAssistantPanel"))

@@ -106,7 +106,7 @@ pub(super) const ERROR_ALERT_MARGIN_TOP: f32 = 8.;
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(
         "Close Env Var Collection",
-        "Close",
+        crate::t!("keybinding-desc-env-var-collection-close"),
         EnvVarCollectionAction::Close,
     )
     .with_custom_action(CustomAction::CloseCurrentSession)

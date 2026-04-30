@@ -88,6 +88,9 @@ pub enum ExecutionProfileEditorViewAction {
     SetFullTerminalUseModel {
         id: LLMId,
     },
+    SetTitleModel {
+        id: LLMId,
+    },
     SetComputerUseModel {
         id: LLMId,
     },
@@ -162,6 +165,7 @@ pub struct ExecutionProfileEditorView {
     coding_model_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     full_terminal_use_model_dropdown:
         ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
+    title_model_dropdown: ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
     computer_use_model_dropdown: ViewHandle<FilterableDropdown<ExecutionProfileEditorViewAction>>,
     apply_code_diffs_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
     read_files_dropdown: ViewHandle<Dropdown<ExecutionProfileEditorViewAction>>,
@@ -430,6 +434,11 @@ impl ExecutionProfileEditorView {
             dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
             dropdown
         });
+        let title_model_dropdown = ctx.add_typed_action_view(|ctx| {
+            let mut dropdown = FilterableDropdown::new(ctx);
+            dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
+            dropdown
+        });
         let computer_use_model_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = FilterableDropdown::new(ctx);
             dropdown.set_menu_width(MODEL_MENU_WIDTH, ctx);
@@ -513,6 +522,7 @@ impl ExecutionProfileEditorView {
             base_model_dropdown,
             coding_model_dropdown,
             full_terminal_use_model_dropdown,
+            title_model_dropdown,
             computer_use_model_dropdown,
             apply_code_diffs_dropdown,
             read_files_dropdown,
@@ -625,6 +635,15 @@ impl ExecutionProfileEditorView {
                         ctx,
                     );
                     Self::refresh_filterable_model_dropdown(
+                        &me.title_model_dropdown,
+                        current_permissions.title_model.clone(),
+                        |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
+                        |id| ExecutionProfileEditorViewAction::SetTitleModel { id },
+                        |prefs| prefs.get_default_base_model().id.clone(),
+                        &me.upgrade_footer_mouse_state,
+                        ctx,
+                    );
+                    Self::refresh_filterable_model_dropdown(
                         &me.computer_use_model_dropdown,
                         current_permissions.computer_use_model.clone(),
                         |prefs| prefs.get_computer_use_llm_choices().collect_vec(),
@@ -640,6 +659,16 @@ impl ExecutionProfileEditorView {
                         current_permissions.base_model.clone(),
                         |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
                         |id| ExecutionProfileEditorViewAction::SetBaseModel { id },
+                        |prefs| prefs.get_default_base_model().id.clone(),
+                        &me.upgrade_footer_mouse_state,
+                        ctx,
+                    );
+                    // title 模型 fallback 到 base,base 变更时也要刷新展示。
+                    Self::refresh_filterable_model_dropdown(
+                        &me.title_model_dropdown,
+                        current_permissions.title_model.clone(),
+                        |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
+                        |id| ExecutionProfileEditorViewAction::SetTitleModel { id },
                         |prefs| prefs.get_default_base_model().id.clone(),
                         &me.upgrade_footer_mouse_state,
                         ctx,
@@ -667,6 +696,15 @@ impl ExecutionProfileEditorView {
                     current_permissions.base_model.clone(),
                     |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
                     |id| ExecutionProfileEditorViewAction::SetBaseModel { id },
+                    |prefs| prefs.get_default_base_model().id.clone(),
+                    &me.upgrade_footer_mouse_state,
+                    ctx,
+                );
+                Self::refresh_filterable_model_dropdown(
+                    &me.title_model_dropdown,
+                    current_permissions.title_model.clone(),
+                    |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
+                    |id| ExecutionProfileEditorViewAction::SetTitleModel { id },
                     |prefs| prefs.get_default_base_model().id.clone(),
                     &me.upgrade_footer_mouse_state,
                     ctx,
@@ -781,6 +819,15 @@ impl ExecutionProfileEditorView {
             |prefs| prefs.get_cli_agent_llm_choices().collect_vec(),
             |id| ExecutionProfileEditorViewAction::SetFullTerminalUseModel { id },
             |prefs| prefs.get_default_cli_agent_model().id.clone(),
+            &self.upgrade_footer_mouse_state,
+            ctx,
+        );
+        Self::refresh_filterable_model_dropdown(
+            &self.title_model_dropdown,
+            current_permissions.title_model.clone(),
+            |prefs| prefs.get_base_llm_choices_for_agent_mode().collect_vec(),
+            |id| ExecutionProfileEditorViewAction::SetTitleModel { id },
+            |prefs| prefs.get_default_base_model().id.clone(),
             &self.upgrade_footer_mouse_state,
             ctx,
         );
@@ -1259,6 +1306,12 @@ impl TypedActionView for ExecutionProfileEditorView {
             ExecutionProfileEditorViewAction::SetFullTerminalUseModel { id } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     profiles_model.set_cli_agent_model(self.profile_id, Some(id.clone()), ctx);
+                });
+                ctx.notify();
+            }
+            ExecutionProfileEditorViewAction::SetTitleModel { id } => {
+                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
+                    profiles_model.set_title_model(self.profile_id, Some(id.clone()), ctx);
                 });
                 ctx.notify();
             }

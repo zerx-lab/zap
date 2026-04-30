@@ -219,14 +219,14 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "notebookview:focus_terminal_input",
-            "Focus Terminal Input from File",
+            crate::t!("keybinding-desc-notebook-focus-terminal-input-from-file"),
             FileNotebookAction::FocusTerminalInput,
         )
         .with_context_predicate(id!("FileNotebookView"))
         .with_key_binding(cmd_or_ctrl_shift("l")),
         EditableBinding::new(
             "notebookview:reload_file",
-            "Reload file",
+            crate::t!("keybinding-desc-notebook-reload-file"),
             FileNotebookAction::ReloadFile,
         )
         .with_context_predicate(id!("FileNotebookView")),

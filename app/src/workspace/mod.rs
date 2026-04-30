@@ -942,14 +942,14 @@ pub fn init(app: &mut AppContext) {
         app.register_editable_bindings([
             EditableBinding::new(
                 "workspace:set_a11y_concise_verbosity_level",
-                "[a11y] Set concise accessibility announcements",
+                crate::t!("keybinding-desc-workspace-a11y-concise"),
                 WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Concise),
             )
             .with_context_predicate(id!("Workspace"))
             .with_key_binding("cmdorctrl-alt-c"),
             EditableBinding::new(
                 "workspace:set_a11y_verbose_verbosity_level",
-                "[a11y] Set verbose accessibility announcements",
+                crate::t!("keybinding-desc-workspace-a11y-verbose"),
                 WorkspaceAction::SetA11yVerbosityLevel(AccessibilityVerbosity::Verbose),
             )
             .with_context_predicate(id!("Workspace"))
@@ -1319,7 +1319,7 @@ pub fn init(app: &mut AppContext) {
     if ChannelState::enable_debug_features() {
         app.register_editable_bindings([EditableBinding::new(
             "workspace:copy_access_token_to_clipboard",
-            "Copy access token to clipboard",
+            crate::t!("keybinding-desc-workspace-copy-access-token"),
             WorkspaceAction::CopyAccessTokenToClipboard,
         )
         .with_context_predicate(id!("Workspace"))]);

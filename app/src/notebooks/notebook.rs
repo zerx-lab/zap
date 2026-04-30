@@ -161,7 +161,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "notebookview:increase_font_size",
-            "Increase notebook font size",
+            crate::t!("keybinding-desc-notebook-increase-font-size"),
             NotebookAction::IncreaseFontSize,
         )
         .with_context_predicate(id!("NotebookView") & id!("NotMatchNotebookToMonospaceSize"))
@@ -169,7 +169,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl-="),
         EditableBinding::new(
             "notebookview:decrease_font_size",
-            "Decrease notebook font size",
+            crate::t!("keybinding-desc-notebook-decrease-font-size"),
             NotebookAction::DecreaseFontSize,
         )
         .with_context_predicate(id!("NotebookView") & id!("NotMatchNotebookToMonospaceSize"))
@@ -177,7 +177,7 @@ pub fn init(app: &mut AppContext) {
         .with_key_binding("cmdorctrl--"),
         EditableBinding::new(
             "notebookview:reset_font_size",
-            "Reset notebook font size",
+            crate::t!("keybinding-desc-notebook-reset-font-size"),
             NotebookAction::ResetFontSize,
         )
         .with_context_predicate(id!("NotebookView") & id!("NotMatchNotebookToMonospaceSize"))
@@ -185,7 +185,7 @@ pub fn init(app: &mut AppContext) {
         .with_custom_action(CustomAction::ResetFontSize),
         EditableBinding::new(
             "notebookview:focus_terminal_input",
-            "Focus Terminal Input from Notebook",
+            crate::t!("keybinding-desc-notebook-focus-terminal-input"),
             NotebookAction::FocusTerminalInput,
         )
         .with_context_predicate(id!("NotebookView"))
@@ -200,14 +200,14 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::IncreaseFontSize,
             NotebookAction::IncreaseFontSize,
-            "Increase font size",
+            crate::t!("keybinding-desc-notebook-fb-increase-font-size"),
             id!("NotebookView") & id!("NotMatchNotebookToMonospaceSize"),
         )
         .with_group(bindings::BindingGroup::Settings.as_str()),
         FixedBinding::custom(
             CustomAction::DecreaseFontSize,
             NotebookAction::DecreaseFontSize,
-            "Decrease font size",
+            crate::t!("keybinding-desc-notebook-fb-decrease-font-size"),
             id!("NotebookView") & id!("NotMatchNotebookToMonospaceSize"),
         )
         .with_group(bindings::BindingGroup::Settings.as_str()),

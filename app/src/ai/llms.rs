@@ -610,6 +610,35 @@ impl LLMPreferences {
         self.get_preferred_coding_model(app, terminal_view_id)
     }
 
+    /// 返回当前用于"会话标题生成"的 LLM。
+    ///
+    /// 优先级:profile 显式设置的 `title_model` → 否则 fallback 到 `base_model`(active)。
+    /// 候选集合复用 `get_base_llm_choices_for_agent_mode()`。
+    pub fn get_active_title_model<'a>(
+        &'a self,
+        app: &'a AppContext,
+        terminal_view_id: Option<EntityId>,
+    ) -> &'a LLMInfo {
+        let profile = AIExecutionProfilesModel::as_ref(app).active_profile(terminal_view_id, app);
+
+        if let Some(id) = profile.data().title_model.clone() {
+            if let Some(info) = self.models_by_feature.agent_mode.info_for_id(&id) {
+                return info;
+            }
+        }
+
+        self.get_preferred_base_model(app, terminal_view_id)
+    }
+
+    /// 默认 title 模型 — 没有独立设置时使用,与 base 模型一致。
+    pub fn get_default_title_model<'a>(
+        &'a self,
+        app: &'a AppContext,
+        terminal_view_id: Option<EntityId>,
+    ) -> &'a LLMInfo {
+        self.get_preferred_base_model(app, terminal_view_id)
+    }
+
     /// Returns `LLMInfo` for user's preferred coding model.
     fn get_preferred_coding_model(
         &self,

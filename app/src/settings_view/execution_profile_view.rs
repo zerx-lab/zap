@@ -123,6 +123,19 @@ impl View for ExecutionProfileView {
             .map(|info| info.display_name.clone())
             .unwrap_or_else(|| crate::t!("settings-exec-profile-auto"));
 
+        // title 模型 fallback 到 base 的显示名,与 base 一致表示"未独立设置"。
+        let title_model = profile
+            .title_model
+            .as_ref()
+            .and_then(|id| llm_preferences.get_llm_info(id))
+            .map(|info| info.display_name.clone())
+            .unwrap_or_else(|| {
+                llm_preferences
+                    .get_default_base_model()
+                    .display_name
+                    .clone()
+            });
+
         let computer_use_model = profile
             .computer_use_model
             .as_ref()
@@ -175,6 +188,15 @@ impl View for ExecutionProfileView {
                             Icon::Terminal,
                             crate::t!("settings-exec-profile-full-terminal-use"),
                             cli_agent_model,
+                            appearance,
+                            is_any_ai_enabled,
+                        ),
+                    ));
+                    model_flex.add_child(with_standard_vertical_margin(
+                        render_model_line_with_icon(
+                            Icon::Pencil,
+                            crate::t!("settings-exec-profile-title-model"),
+                            title_model,
                             appearance,
                             is_any_ai_enabled,
                         ),

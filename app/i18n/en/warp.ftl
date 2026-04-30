@@ -737,6 +737,7 @@ settings-exec-profile-section-models = MODELS
 settings-exec-profile-section-permissions = PERMISSIONS
 settings-exec-profile-base-model = Base model:
 settings-exec-profile-full-terminal-use = Full terminal use:
+settings-exec-profile-title-model = Title generation:
 settings-exec-profile-computer-use = Computer use:
 settings-exec-profile-apply-code-diffs = Apply code diffs:
 settings-exec-profile-read-files = Read files:
@@ -1423,3 +1424,171 @@ keybinding-desc-root-view-enter-onboarding-state = [Debug] Enter Onboarding Stat
 # Workflow view bindings
 keybinding-desc-workflow-view-save = Save workflow
 keybinding-desc-workflow-view-close = Close
+
+# Editor view binding desc (shared by editor/view/mod.rs, code/editor/view/actions.rs, notebooks/editor/view.rs)
+keybinding-desc-editor-copy = Copy
+keybinding-desc-editor-cut = Cut
+keybinding-desc-editor-paste = Paste
+keybinding-desc-editor-undo = Undo
+keybinding-desc-editor-redo = Redo
+keybinding-desc-editor-select-left-by-word = Select one word to the left
+keybinding-desc-editor-select-right-by-word = Select one word to the right
+keybinding-desc-editor-select-left = Select one character to the left
+keybinding-desc-editor-select-right = Select one character to the right
+keybinding-desc-editor-select-up = Select up
+keybinding-desc-editor-select-down = Select down
+keybinding-desc-editor-select-all = Select all
+keybinding-desc-editor-select-to-line-start = Select to start of line
+keybinding-desc-editor-select-to-line-end = Select to end of line
+keybinding-desc-editor-select-to-line-start-cap = Select To Line Start
+keybinding-desc-editor-select-to-line-end-cap = Select To Line End
+keybinding-desc-editor-clear-and-copy-lines = Copy and clear selected lines
+keybinding-desc-editor-add-next-occurrence = Add selection for next occurrence
+keybinding-desc-editor-up = Move cursor up
+keybinding-desc-editor-down = Move cursor down
+keybinding-desc-editor-left = Move cursor left
+keybinding-desc-editor-right = Move cursor right
+keybinding-desc-editor-move-to-line-start = Move to start of line
+keybinding-desc-editor-move-to-line-end = Move to end of line
+keybinding-desc-editor-move-to-line-start-short = Move to line start
+keybinding-desc-editor-move-to-line-end-short = Move to line end
+keybinding-desc-editor-home = Home
+keybinding-desc-editor-end = End
+keybinding-desc-editor-cmd-down = Move cursor to the bottom
+keybinding-desc-editor-cmd-up = Move cursor to the top
+keybinding-desc-editor-move-to-and-select-buffer-start = Select and move to the top
+keybinding-desc-editor-move-to-and-select-buffer-end = Select and move to the bottom
+keybinding-desc-editor-move-forward-one-word = Move forward one word
+keybinding-desc-editor-move-backward-one-word = Move backward one word
+keybinding-desc-editor-move-forward-one-word-cap = Move Forward One Word
+keybinding-desc-editor-move-backward-one-word-cap = Move Backward One Word
+keybinding-desc-editor-move-to-paragraph-start = Move to the start of the paragraph
+keybinding-desc-editor-move-to-paragraph-end = Move to the end of the paragraph
+keybinding-desc-editor-move-to-paragraph-start-short = Move to start of paragraph
+keybinding-desc-editor-move-to-paragraph-end-short = Move to end of paragraph
+keybinding-desc-editor-move-to-buffer-start = Move to the start of the buffer
+keybinding-desc-editor-move-to-buffer-end = Move to the end of the buffer
+keybinding-desc-editor-cursor-at-buffer-start = Cursor at buffer start
+keybinding-desc-editor-cursor-at-buffer-end = Cursor at buffer end
+keybinding-desc-editor-backspace = Remove the previous character
+keybinding-desc-editor-cut-word-left = Cut word left
+keybinding-desc-editor-cut-word-right = Cut word right
+keybinding-desc-editor-delete-word-left = Delete word left
+keybinding-desc-editor-delete-word-right = Delete word right
+keybinding-desc-editor-cut-all-left = Cut all left
+keybinding-desc-editor-cut-all-right = Cut all right
+keybinding-desc-editor-delete-all-left = Delete all left
+keybinding-desc-editor-delete-all-right = Delete all right
+keybinding-desc-editor-delete = Delete
+keybinding-desc-editor-clear-lines = Clear selected lines
+keybinding-desc-editor-insert-newline = Insert newline
+keybinding-desc-editor-fold = Fold
+keybinding-desc-editor-unfold = Unfold
+keybinding-desc-editor-fold-selected-ranges = Fold selected ranges
+keybinding-desc-editor-insert-last-word-prev-cmd = Insert last word of previous command
+keybinding-desc-editor-move-backward-one-subword = Move Backward One Subword
+keybinding-desc-editor-move-forward-one-subword = Move Forward One Subword
+keybinding-desc-editor-select-left-by-subword = Select one subword to the left
+keybinding-desc-editor-select-right-by-subword = Select one subword to the right
+keybinding-desc-editor-accept-autosuggestion = Accept autosuggestion
+keybinding-desc-editor-inspect-command = Inspect Command
+keybinding-desc-editor-clear-buffer = Clear command editor
+keybinding-desc-editor-add-cursor-above = Add cursor above
+keybinding-desc-editor-add-cursor-below = Add cursor below
+keybinding-desc-editor-insert-nonexpanding-space = Insert non-expanding space
+keybinding-desc-editor-vim-exit-insert-mode = Exit Vim insert mode
+keybinding-desc-editor-toggle-comment = Toggle comment
+keybinding-desc-editor-go-to-line = Go to line
+keybinding-desc-editor-find-in-code-editor = Find in code editor
+
+# Code editor (Code) binding desc
+keybinding-desc-code-save-as = Save file as
+keybinding-desc-code-close-all-tabs = Close all tabs
+keybinding-desc-code-close-saved-tabs = Close saved tabs
+
+# Welcome view binding desc
+keybinding-desc-welcome-terminal-session = Terminal session
+keybinding-desc-welcome-add-repository = Add repository
+
+# AI assistant panel binding desc
+keybinding-desc-ai-assistant-close = Close Warp AI
+keybinding-desc-ai-assistant-focus-terminal-input = Focus Terminal Input From Warp AI
+keybinding-desc-ai-assistant-restart = Restart Warp AI
+
+# Code review binding desc
+keybinding-desc-code-review-save-all = Save all unsaved files in code review
+keybinding-desc-code-review-show-find = Show find bar in code review
+
+# Project buttons binding desc
+keybinding-desc-project-buttons-open-repository = Open repository
+keybinding-desc-project-buttons-create-new-project = Create new project
+
+# Find view binding desc
+keybinding-desc-find-next-occurrence = Find the next occurrence of your search query
+keybinding-desc-find-prev-occurrence = Find the previous occurrence of your search query
+
+# Notebook file / notebook binding desc
+keybinding-desc-notebook-focus-terminal-input-from-file = Focus Terminal Input from File
+keybinding-desc-notebook-reload-file = Reload file
+keybinding-desc-notebook-increase-font-size = Increase notebook font size
+keybinding-desc-notebook-decrease-font-size = Decrease notebook font size
+keybinding-desc-notebook-reset-font-size = Reset notebook font size
+keybinding-desc-notebook-focus-terminal-input = Focus Terminal Input from Notebook
+keybinding-desc-notebook-fb-increase-font-size = Increase font size
+keybinding-desc-notebook-fb-decrease-font-size = Decrease font size
+
+# Notebook editor binding desc (extra to shared editor keys)
+keybinding-desc-nbeditor-deselect-command = De-select shell commands
+keybinding-desc-nbeditor-select-command = Select shell command at cursor
+keybinding-desc-nbeditor-select-previous-command = Select previous command
+keybinding-desc-nbeditor-select-next-command = Select next command
+keybinding-desc-nbeditor-run-commands = Run selected commands
+keybinding-desc-nbeditor-toggle-debug = Toggle rich-text debug mode
+keybinding-desc-nbeditor-debug-copy-buffer = Copy rich-text buffer
+keybinding-desc-nbeditor-debug-copy-selection = Copy rich-text selection
+keybinding-desc-nbeditor-log-state = Log editor state
+keybinding-desc-nbeditor-edit-link = Create or edit link
+keybinding-desc-nbeditor-inline-code = Toggle inline code styling
+keybinding-desc-nbeditor-strikethrough = Toggle strikethrough styling
+keybinding-desc-nbeditor-underline = Toggle underline styling
+keybinding-desc-nbeditor-find = Find in Notebook
+keybinding-desc-nbeditor-next-find-match = Focus next match
+keybinding-desc-nbeditor-previous-find-match = Focus previous match
+keybinding-desc-nbeditor-toggle-regex-find = Toggle regular expression search
+keybinding-desc-nbeditor-toggle-case-sensitive-find = Toggle case-sensitive search
+
+# Pane group / undo close binding desc
+keybinding-desc-get-started-terminal-session = Terminal session
+keybinding-desc-undo-close-reopen-session = Reopen closed session
+keybinding-desc-pane-share-pane = Share pane
+keybinding-desc-right-panel-toggle-maximize-code-review = Toggle Maximize Code Review Panel
+
+# Workspace sync inputs binding desc
+keybinding-desc-workspace-disable-sync-inputs = Stop Synchronizing Any Panes
+keybinding-desc-workspace-toggle-sync-inputs-tab = Toggle Synchronizing All Panes in Current Tab
+keybinding-desc-workspace-toggle-sync-inputs-all-tabs = Toggle Synchronizing All Panes in All Tabs
+
+# Workspace a11y / debug binding desc
+keybinding-desc-workspace-a11y-concise = [a11y] Set concise accessibility announcements
+keybinding-desc-workspace-a11y-verbose = [a11y] Set verbose accessibility announcements
+keybinding-desc-workspace-copy-access-token = Copy access token to clipboard
+
+# Env var collection binding desc
+keybinding-desc-env-var-collection-close = Close
+
+# Auth / share modal binding desc
+keybinding-desc-share-block-copy = Copy
+keybinding-desc-auth-paste-token = Paste
+keybinding-desc-conversation-details-copy = Copy
+
+# Terminal extras binding desc
+keybinding-desc-terminal-show-history = Show History
+keybinding-desc-terminal-ask-ai-selection = Ask Warp AI about Selection
+keybinding-desc-terminal-ask-ai-last-block = Ask Warp AI about last block
+keybinding-desc-terminal-ask-ai = Ask Warp AI
+keybinding-desc-terminal-load-agent-conversation = Load agent mode conversation (from debug link in clipboard)
+keybinding-desc-terminal-toggle-session-recording = Toggle PTY Recording for Session
+
+# Notebook editor extra
+keybinding-desc-nbeditor-select-to-paragraph-start = Select to start of paragraph
+keybinding-desc-nbeditor-select-to-paragraph-end = Select to end of paragraph

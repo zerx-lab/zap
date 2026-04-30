@@ -1740,7 +1740,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::History,
             InputAction::Up,
-            "Show History",
+            crate::t!("keybinding-desc-terminal-show-history"),
             // We need to ensure the workflow info box is not open as the "up" arrow
             // key is used to navigate the environment variables dropdown.
             // Same goes with the LLM menu.

@@ -108,7 +108,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "find:find_next_occurrence",
-            "Find the next occurrence of your search query",
+            crate::t!("keybinding-desc-find-next-occurrence"),
             FindAction::CmdG,
         )
         .with_context_predicate(id!("CodeEditorFind"))
@@ -118,7 +118,7 @@ pub fn init(app: &mut AppContext) {
         .with_linux_or_windows_key_binding("f3"),
         EditableBinding::new(
             "find:find_prev_occurrence",
-            "Find the previous occurrence of your search query",
+            crate::t!("keybinding-desc-find-prev-occurrence"),
             FindAction::CmdShiftG,
         )
         .with_context_predicate(id!("CodeEditorFind"))

@@ -247,6 +247,8 @@ pub struct AIExecutionProfile {
     pub coding_model: Option<LLMId>,
     pub cli_agent_model: Option<LLMId>,
     pub computer_use_model: Option<LLMId>,
+    /// 用于生成会话标题的模型。`None` 时回退到 `base_model`。
+    pub title_model: Option<LLMId>,
 
     /// Whether plans created by the agent should be automatically synced to Warp Drive
     pub autosync_plans_to_warp_drive: bool,
@@ -276,6 +278,7 @@ impl Default for AIExecutionProfile {
             coding_model: None,
             cli_agent_model: None,
             computer_use_model: None,
+            title_model: None,
             autosync_plans_to_warp_drive: true,
             web_search_enabled: true,
         }
@@ -327,6 +330,7 @@ impl AIExecutionProfile {
             coding_model: None,
             cli_agent_model: None,
             computer_use_model: None,
+            title_model: None,
             autosync_plans_to_warp_drive: false,
             web_search_enabled: true,
         }
@@ -381,6 +385,7 @@ impl AIExecutionProfile {
             coding_model: None,
             cli_agent_model: None,
             computer_use_model: None,
+            title_model: None,
             autosync_plans_to_warp_drive: FeatureFlag::SyncAmbientPlans.is_enabled(),
             web_search_enabled: true,
         }

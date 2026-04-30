@@ -349,7 +349,7 @@ impl RightPanelView {
 
         app.register_editable_bindings([EditableBinding::new(
             "workspace:toggle_maximize_code_review_panel",
-            "Toggle Maximize Code Review Panel",
+            crate::t!("keybinding-desc-right-panel-toggle-maximize-code-review"),
             RightPanelAction::ToggleMaximize,
         )
         .with_enabled(|| cfg!(feature = "local_fs"))

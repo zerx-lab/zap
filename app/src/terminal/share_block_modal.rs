@@ -163,7 +163,7 @@ pub fn init(app: &mut AppContext) {
         FixedBinding::custom(
             CustomAction::Copy,
             ShareBlockModalAction::CopyLink,
-            "Copy",
+            crate::t!("keybinding-desc-share-block-copy"),
             id!(ShareBlockModal::ui_name()),
         ),
         FixedBinding::new(

@@ -571,6 +571,35 @@ impl AIExecutionProfilesModel {
         }
     }
 
+    pub fn set_title_model(
+        &mut self,
+        profile_id: ClientProfileId,
+        model_id: Option<LLMId>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.edit_profile_internal(
+            profile_id,
+            |profile| {
+                if profile.title_model != model_id {
+                    profile.title_model = model_id.clone();
+                    return true;
+                }
+                false
+            },
+            ctx,
+        );
+
+        if let Some(model_id) = &model_id {
+            send_telemetry_from_ctx!(
+                TelemetryEvent::AIExecutionProfileModelSelected {
+                    model_type: "title".to_string(),
+                    model_value: model_id.to_string(),
+                },
+                ctx
+            );
+        }
+    }
+
     pub fn set_computer_use_model(
         &mut self,
         profile_id: ClientProfileId,
