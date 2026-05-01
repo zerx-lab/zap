@@ -1209,7 +1209,36 @@ fn build_chat_options(
 }
 
 fn map_genai_error(err: genai::Error) -> OpenAiCompatibleError {
-    OpenAiCompatibleError::Decode(format!("{err}"))
+    use genai::Error as G;
+    match err {
+        // 真·解析失败:JSON 反序列化阶段
+        G::StreamParse { .. }
+        | G::SerdeJson(_)
+        | G::JsonValueExt(_)
+        | G::InvalidJsonResponseElement { .. } => OpenAiCompatibleError::Decode(format!("{err}")),
+
+        // 网络/流式发送阶段失败(reqwest 连接、TLS、DNS、超时、流中断等)
+        G::WebStream { .. } | G::WebAdapterCall { .. } | G::WebModelCall { .. } => {
+            OpenAiCompatibleError::Stream(format!("{err}"))
+        }
+
+        // 服务端返回的 HTTP 错误状态
+        G::HttpError {
+            status,
+            body,
+            canonical_reason,
+        } => OpenAiCompatibleError::Status {
+            status: status.as_u16(),
+            body: if canonical_reason.is_empty() {
+                body
+            } else {
+                format!("{canonical_reason}: {body}")
+            },
+        },
+
+        // 其余(请求构造、鉴权、能力不支持等)归为通用错误,避免误导成"解析失败"
+        other => OpenAiCompatibleError::Other(format!("{other}")),
+    }
 }
 
 // ---------------------------------------------------------------------------

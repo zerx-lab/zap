@@ -39,6 +39,12 @@ pub enum OpenAiCompatibleError {
 
     #[error("响应解析失败: {0}")]
     Decode(String),
+
+    #[error("网络/流式请求失败: {0}")]
+    Stream(String),
+
+    #[error("调用失败: {0}")]
+    Other(String),
 }
 
 /// 把用户输入的 base_url 规范化成绝对 URL 形式,
