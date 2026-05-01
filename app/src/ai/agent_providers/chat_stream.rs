@@ -275,6 +275,13 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
     // 上游若未保留 ToolCallResult,会让 tool_calls 配对失败。
     sanitize_tool_call_pairs(&mut messages);
 
+    // 防御性 sanitize: 确保 messages 末尾不是 assistant。
+    // Anthropic / 部分网关不接受末尾为 assistant 的请求(prefill 仅特定模型支持),
+    // 而 warp 的 `AIAgentInput::ResumeConversation`(handoff/auto-resume after error 等)
+    // 不附加新 user 消息,会让序列末尾停在历史 assistant 上。
+    // 这里统一兜底:末尾若是 assistant,追加一条隐式 user 消息让上游继续。
+    ensure_ends_with_user(&mut messages);
+
     let tools_array = build_tools_array(params);
 
     let mut req = ChatRequest::from_messages(messages).with_system(system_text);
@@ -335,6 +342,25 @@ fn sanitize_tool_call_pairs(messages: &mut Vec<ChatMessage>) {
         messages.splice(i + 1..i + 1, inserts);
 
         i = i + 1 + (scan - (i + 1)) + inserted;
+    }
+}
+
+/// 兜底:确保 messages 末尾是 user(或 tool 响应)。
+///
+/// 触发场景:`AIAgentInput::ResumeConversation` 不附加新 user 消息,直接重发历史。
+/// Anthropic 原生 API 拒绝末尾为 assistant 的请求(`This model does not support
+/// assistant message prefill. The conversation must end with a user message.`),
+/// 重试 3 次都同 payload → UI 渲染 error block 触发 flex panic。
+///
+/// 末尾是 assistant 时追加 `ChatMessage::user("Continue.")`,提示模型继续即可。
+/// Tool 角色作为 user 输入的一种(模型会把 tool 响应当作下一轮起点)不动。
+/// 空 messages 不触发,避免给空对话凭空塞内容。
+fn ensure_ends_with_user(messages: &mut Vec<ChatMessage>) {
+    use genai::chat::ChatRole;
+    if let Some(last) = messages.last() {
+        if last.role == ChatRole::Assistant {
+            messages.push(ChatMessage::user("Continue."));
+        }
     }
 }
 
