@@ -1773,3 +1773,6 @@ menu-filetree-copy-relative-path = 复制相对路径
 # --- 代码编辑器右键菜单(code/local_code_editor.rs) ---
 menu-codeeditor-go-to-definition = 跳转到定义
 menu-codeeditor-find-references = 查找引用
+
+# --- 共享标签:附加为 agent 上下文(blocklist/view_util.rs) ---
+menu-attach-as-agent-context = 附加为 agent 上下文

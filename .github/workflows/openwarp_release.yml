@@ -1,14 +1,12 @@
 # OpenWarp 发布流水线 — 在 openWarp 分支上 push tag (v*) 即触发
 #
 # 与上游 create_release.yml 的差异:
-# - 仅 macOS (arm64 + x86_64) + Windows (x64),Linux/Web/CLI/Universal/Win-arm64 全砍
+# - 仅 macOS arm64 + Windows x64,Linux/Web/CLI/Universal/Win-arm64/macOS x86_64 全砍
+#   (macOS x86_64 在 macos-26-intel 上 release 编译稳定爆 3h job 上限,直接砍掉)
 # - 单 channel: preview(由 release_configurations.json 提供配置)
 # - 不签名:不传 --read-passwords-from-env(macOS) / 不设 SIGN_TOOL_CMD(Windows)
 # - 不上传 GCS / Sentry / Slack / changelog,不调 channel-versions repository_dispatch
 # - 复用 ./.github/actions/{prepare_environment,get_channel_config}
-#
-# Pro 配额参考:单次 release ≈ mac arm64 + mac x64 + win x64,
-# 约 (35min × 10) × 2 + (30min × 2) × 1 = 760 配额,Pro 3000/月 ≈ 4 次。
 
 name: OpenWarp Release
 
@@ -90,9 +88,6 @@ jobs:
           - arch: aarch64
             dmg_name_suffix: arm64
             runner: macos-26 # Pro standard arm64 (M2 Pro)
-          - arch: x86_64
-            dmg_name_suffix: x86_64
-            runner: macos-26-intel # Pro standard x64
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:

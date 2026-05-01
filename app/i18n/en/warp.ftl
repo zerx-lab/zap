@@ -1844,3 +1844,6 @@ menu-filetree-copy-relative-path = Copy relative path
 # --- 代码编辑器右键菜单(code/local_code_editor.rs) ---
 menu-codeeditor-go-to-definition = Go to definition
 menu-codeeditor-find-references = Find references
+
+# --- 共享标签:附加为 agent 上下文(blocklist/view_util.rs) ---
+menu-attach-as-agent-context = Attach as agent context

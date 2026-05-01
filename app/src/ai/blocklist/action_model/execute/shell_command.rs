@@ -190,19 +190,30 @@ impl ShellCommandExecutor {
         }
     }
 
-    /// Decorate the command so that we can turn off pager.
+    /// 用一组通用 pager 环境变量包裹命令,让命令在不进 pager 的同时**保留真实退出码**。
+    ///
+    /// 之前的实现是 `(cmd) | cat`,虽然能让 stdout 不再是 tty(从而 git/man/less 等不调 pager),
+    /// 但 bash/zsh 下 `$?` 会被 `cat` 的退出码(几乎总是 0)覆盖,导致 agent 看到 `cargo check`
+    /// 失败时仍然得到 exit_code=0,做出错误判断。
+    ///
+    /// 这里改用 `PAGER=cat GIT_PAGER=cat MANPAGER=cat` 并在子壳/script block 里执行,
+    /// 既能覆盖 git/man/bat/kubectl/psql/gh 等绝大多数 CLI 的 pager 行为,又让外层 `$?` /
+    /// `$LASTEXITCODE` 取自命令本身。
     fn turn_off_pager_for_command(&self, command: &String, ctx: &mut ModelContext<Self>) -> String {
         match self.active_session.as_ref(ctx).shell_type(ctx) {
-            // If it's a posix shell, we can use parentheses as the grouping character. Add command to
-            // avoid cases with aliases.
-            Some(ShellType::Zsh) | Some(ShellType::Bash) => format!("({command}) | command cat"),
-            // Fish doesn't have grouping characters. We need to use begin; and end; to ensure the command
-            // gets evaluated first.
-            Some(ShellType::Fish) => format!("begin; {command} ;end | command cat"),
-            // For powershell, we use Out-Host to send paged output to the
-            // console. Add a backslash to avoid executing an alias.
-            Some(ShellType::PowerShell) => format!("({command}) | \\Out-Host"),
-            // If we can't determine a shell type, run command as it is.
+            // 子壳里 export,子壳退出码 = 最后一条命令的退出码,从而保留真实 $?。
+            Some(ShellType::Zsh) | Some(ShellType::Bash) => format!(
+                "(export PAGER=cat GIT_PAGER=cat MANPAGER=cat; {command})"
+            ),
+            // fish: set -lx 在 begin/end 块内是局部 export, $status 取最后一条命令。
+            Some(ShellType::Fish) => format!(
+                "begin; set -lx PAGER cat; set -lx GIT_PAGER cat; set -lx MANPAGER cat; {command}; end"
+            ),
+            // pwsh: script block 局部 $env: 不污染外层会话, $LASTEXITCODE 透出。
+            Some(ShellType::PowerShell) => format!(
+                "& {{ $env:PAGER='cat'; $env:GIT_PAGER='cat'; $env:MANPAGER='cat'; {command} }}"
+            ),
+            // 未知 shell 无法安全装饰,直接放过。
             None => command.clone(),
         }
     }
@@ -241,15 +252,24 @@ impl ShellCommandExecutor {
                         RequestCommandOutputResult::CancelledBeforeExecution,
                     ));
                 }
-                // If the command might use pager and can't be interacted with,
-                // we pipe its output to cat so we can prevent activating the altscreen.
-                // The parentheses here ensures the command always gets evaluated first.
-                let decorated_command =
-                    if uses_pager.is_some_and(|uses_pager| uses_pager) && *wait_until_completion {
-                        self.turn_off_pager_for_command(command, ctx)
-                    } else {
-                        command.clone()
-                    };
+                // OpenWarp:同步等待型命令(wait_until_completion=true)无条件禁用 pager。
+                //
+                // 模型自报的 `uses_pager` 不可靠 —— deepseek-v4-flash 等小模型几乎不会主动标,
+                // 一旦命中 `git diff`/`git log`/`man` 等隐式 pager 就会卡在 less 提示符,
+                // warp 把命令降级成 LongRunningCommandSnapshot 返回,但 agent 不知道这种契约
+                // 切换、继续并行发新 tool call,导致 PTY 和 UI 双重锁死(输入框消失)。
+                //
+                // 治本逻辑:既然 agent 显式说"等到完成",pager 提示符违反这个契约,warp
+                // 必须确保 pager 一定不被触发,而不是让模型来预判每个 CLI 的分页行为。
+                //
+                // 不影响显式异步路径(wait_until_completion=false),tail -f / dev server
+                // 等真正长运行命令仍走原有 LongRunningCommandSnapshot 链路。
+                let _ = uses_pager; // 字段保留作 API 兼容,但语义已不再依赖
+                let decorated_command = if *wait_until_completion {
+                    self.turn_off_pager_for_command(command, ctx)
+                } else {
+                    command.clone()
+                };
                 ctx.emit(ShellCommandExecutorEvent::ExecuteCommand {
                     action_id: action_id.clone(),
                     command: decorated_command,
