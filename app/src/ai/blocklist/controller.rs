@@ -1993,6 +1993,24 @@ impl BlocklistAIController {
         request_params.parent_agent_id = parent_agent_id;
         request_params.agent_name = agent_name;
 
+        // OpenWarp BYOP:检测当前是否处于 LRC(alt-screen 长命令)tagged-in 状态。
+        // 是则把 LRC block id 当 `command_id` 注入 RequestParams,chat_stream 在流头
+        // 合成虚拟 subagent tool_call,触发 `CreatedSubtask` → CLI subagent 浮窗 spawn。
+        // 上游云端是 server 端 emit 这条 tool_call 的,BYOP 没云端必须客户端自管。
+        //
+        // 注意:`is_agent_tagged_in()` 对应 `InteractionMode::User { did_user_tag_in_agent: true }`,
+        // 此时 `agent_interaction_metadata()` 还是 None(metadata 仅在 InteractionMode::Agent 时存在),
+        // 所以无法做"conversation_id 是否匹配"的反向校验。但 controller 是 per-terminal、
+        // active_block 也是 per-terminal,在 tag-in 状态下用户唯一的发送目标就是当前 conversation,
+        // 直接信任即可。passive / unit-test 路径下 active_block 不会 tagged-in,不会误注入。
+        {
+            let terminal_model = self.terminal_model.lock();
+            let active_block = terminal_model.block_list().active_block();
+            if active_block.is_agent_tagged_in() {
+                request_params.lrc_command_id = Some(active_block.id().to_string());
+            }
+        }
+
         let server_conversation_token_for_identifiers =
             conversation_data.server_conversation_token.clone();
 
@@ -2456,9 +2474,25 @@ impl BlocklistAIController {
                         );
                     });
                 } else if !actions_to_queue.is_empty() {
+                    log::info!(
+                        "[byop-diag] queue_actions: count={} ids=[{}] conversation_id={:?}",
+                        actions_to_queue.len(),
+                        actions_to_queue
+                            .iter()
+                            .map(|a| format!("{}", a.id))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        conversation_id,
+                    );
                     self.action_model.update(ctx, |action_model, ctx| {
                         action_model.queue_actions(actions_to_queue, conversation_id, ctx);
                     });
+                } else {
+                    log::info!(
+                        "[byop-diag] AfterStreamFinished: actions_to_queue is EMPTY (\
+                         was_passive={was_passive_request}, unfinished={is_any_exchange_unfinished}) \
+                         conversation_id={conversation_id:?}"
+                    );
                 }
 
                 // Cancelled streams will handle pending_response_stream updates synchronously.

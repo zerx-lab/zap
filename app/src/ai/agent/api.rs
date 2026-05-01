@@ -128,6 +128,13 @@ pub struct RequestParams {
     pub parent_agent_id: Option<String>,
     /// The display name for this agent (e.g. "Agent 1"), assigned by the orchestrator.
     pub agent_name: Option<String>,
+    /// OpenWarp BYOP 专用:发起本请求时,关联的 LRC(Long Running Command)block id。
+    /// 仅在用户处于 "alt-screen 长命令 + agent tagged-in" 状态发起对话时填充,
+    /// 由 controller `send_request_input` 检测 active block 后注入。
+    /// chat_stream 据此合成虚拟 `tool_call::Subagent { metadata: Cli { command_id } }`,
+    /// 触发 `BlocklistAIHistoryEvent::CreatedSubtask` → CLI subagent 浮窗 spawn(对齐
+    /// 上游云端的注入流程,见 `cli_controller.rs::handle_history_model_event`)。
+    pub lrc_command_id: Option<String>,
 }
 
 pub type Event = Result<warp_multi_agent_api::ResponseEvent, Arc<AIApiError>>;
@@ -309,6 +316,7 @@ impl RequestParams {
             supported_tools_override: request_input.supported_tools_override.clone(),
             parent_agent_id: None,
             agent_name: None,
+            lrc_command_id: None,
         }
     }
 }

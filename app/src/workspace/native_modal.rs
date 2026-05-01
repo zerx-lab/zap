@@ -122,7 +122,7 @@ impl View for NativeModal {
 
     fn render(&self, app: &warpui::AppContext) -> Box<dyn warpui::Element> {
         let Some(alert_dialog) = self.alert_dialog.as_ref() else {
-            log::warn!("No alert dialog was set for the native modal");
+            // 常驻 view + 按需填充,空状态 = 渲染 Empty 是合法预期分支,不打 warn。
             return Empty::new().finish();
         };
         let appearance = Appearance::as_ref(app);

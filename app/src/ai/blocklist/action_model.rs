@@ -808,21 +808,38 @@ impl BlocklistAIActionModel {
 
         let action_id = action.id.clone();
         let phase = self.action_phase_for_action(&action, ctx);
+        log::info!(
+            "[byop-diag] try_to_execute_action: enter action_id={action_id:?} \
+             is_user_initiated={is_user_initiated} phase={phase:?}"
+        );
         let execute_result = self.executor.update(ctx, |executor, ctx| {
             executor.try_to_execute_action(action, conversation_id, is_user_initiated, ctx)
         });
 
         match execute_result {
             TryExecuteResult::ExecutedAsync => {
+                log::info!(
+                    "[byop-diag] try_to_execute_action: ExecutedAsync action_id={action_id:?}"
+                );
                 self.update_conversation_in_progress_status(conversation_id, ctx);
                 self.add_running_action(conversation_id, action_id, phase);
                 Some(StartedAction::Async { phase })
             }
             TryExecuteResult::ExecutedSync => {
+                log::info!(
+                    "[byop-diag] try_to_execute_action: ExecutedSync action_id={action_id:?}"
+                );
                 self.update_conversation_in_progress_status(conversation_id, ctx);
                 Some(StartedAction::Sync)
             }
             TryExecuteResult::NotExecuted { reason, action } => {
+                log::info!(
+                    "[byop-diag] try_to_execute_action: NotExecuted action_id={:?} reason={:?} \
+                     → 入 pending_actions[{:?}]",
+                    action.id,
+                    reason,
+                    conversation_id
+                );
                 self.pending_actions
                     .entry(conversation_id)
                     .or_default()
@@ -1107,10 +1124,24 @@ impl BlocklistAIActionModel {
         }
 
         let Some(conversation_id) = found_conversation_id else {
+            log::error!(
+                "[byop-diag] handle_requested_command_accepted: action_id={action_id:?} NOT FOUND \
+                 in pending_actions. pending_conversations=[{}] (action 没正确入 pending_actions,\
+                 chain 在 controller.queue_actions → action_model.try_to_execute_action 这一段断了)",
+                self.pending_actions
+                    .iter()
+                    .map(|(c, q)| format!("{c:?}:{}", q.len()))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
             debug_assert!(false, "Expected action to be requested command.");
             return;
         };
 
+        log::info!(
+            "[byop-diag] handle_requested_command_accepted: action_id={action_id:?} found in \
+             conversation_id={conversation_id:?}, calling execute_action"
+        );
         self.execute_action(action_id, conversation_id, ctx);
     }
 

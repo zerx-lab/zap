@@ -21860,10 +21860,17 @@ impl TerminalView {
         let render_context = self.get_terminal_view_render_context(model, app);
 
         let enforce_minimum_contrast = *FontSettings::as_ref(app).enforce_minimum_contrast;
+        // OpenWarp:alt-screen 渲染 cli subagent 浮窗的判定从原 `is_agent_in_control()`
+        // 放宽到 `is_agent_in_control_or_tagged_in()`。原来的判定只考虑 handoff 路径
+        // (agent 拿走 LRC 控制权),漏掉了用户主动 tag-in 路径(`SetInputModeAgent` →
+        // `tag_in_agent_for_user_long_running_command`)。后者是 OpenWarp BYOP 链路下
+        // 浮窗的主要入口(controller `send_request_input` 检测 tagged-in → 注入
+        // `lrc_command_id` → chat_stream 合成虚拟 subagent → spawn CLISubagentView),
+        // 不放宽就算 view 已建,alt-screen 仍不挂载,模型回复永远看不到。
         let active_cli_subagent_view = model
             .block_list()
             .active_block()
-            .is_agent_in_control()
+            .is_agent_in_control_or_tagged_in()
             .then(|| self.cli_subagent_views.get(model.active_block_id()))
             .flatten();
         let mut alt_screen_element = AltScreenElement::new(

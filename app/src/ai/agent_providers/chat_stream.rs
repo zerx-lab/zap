@@ -190,6 +190,17 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
                 buf.text = Some(a.text.clone());
             }
             api::message::Message::ToolCall(tc) => {
+                // OpenWarp BYOP:**虚拟 subagent tool_call 不发给上游模型**。
+                // LRC tag-in 场景下,我们在 chat_stream 流头合成 `Tool::Subagent { metadata: Cli }`
+                // 写入 root.task.messages,只用于触发 conversation 创建 cli subtask + spawn 浮窗,
+                // 它不是模型实际产出的工具调用,模型看到会 confused(多余 tool call + 没法回应)。
+                // 同样它对应的 placeholder ToolResponse(由 sanitize_tool_call_pairs 补的)
+                // 也要由下面 ToolCallResult 分支的 skip 逻辑配合过滤,避免出现
+                // "tool_response 找不到匹配的 tool_call" 的不平衡。
+                use crate::ai::agent::task::helper::ToolCallExt;
+                if tc.subagent().is_some() {
+                    continue;
+                }
                 let (name, args_json) =
                     serialize_outgoing_tool_call(tc, params.mcp_context.as_ref());
                 buf.tool_calls.push(ToolCall {
@@ -789,6 +800,12 @@ pub async fn generate_byop_output(
     task_id: String,
     needs_create_task: bool,
     title_gen: Option<TitleGenInput>,
+    // LRC tag-in 场景下需要 spawn 的 CLI subagent `command_id`(= LRC block id 字符串)。
+    // 非 None 时,流头会合成虚拟 `tool_call::Subagent { metadata: Cli { command_id } }`,
+    // 触发 conversation 创建 cli subtask、emit `CreatedSubtask` → CLI subagent 浮窗 spawn。
+    // 之后所有模型 chunk(reasoning / agent_output / tool_call)都 emit 到该 subtask,
+    // 让回复在浮窗内渲染(对齐上游云端注入路径)。
+    lrc_command_id: Option<String>,
     _cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let chat_req = build_chat_request(&params);
@@ -867,6 +884,77 @@ pub async fn generate_byop_output(
         );
     }
 
+    // 诊断:构造接近 Anthropic wire body 的 JSON dump,保存到 stream 闭包,
+    // chunk error 时按错误消息中的 "column N" 定位非法转义位置。
+    // 仅含 model + system + messages.text(不含 tools / tool_calls 序列化),
+    // 字节布局与真实 body 有几十~几百字节 framing 差异,但足够定位 char 12179 这种位置。
+    let diag_body_json: String = {
+        let msgs: Vec<Value> = chat_req
+            .messages
+            .iter()
+            .map(|m| {
+                let role = format!("{:?}", m.role).to_lowercase();
+                let text = m.content.first_text().unwrap_or("").to_string();
+                json!({ "role": role, "content": text })
+            })
+            .collect();
+        serde_json::to_string(&json!({
+            "model": &model_id,
+            "system": chat_req.system.as_deref().unwrap_or(""),
+            "messages": msgs,
+        }))
+        .unwrap_or_default()
+    };
+    log::info!("[byop] diag_body_approx_len={}", diag_body_json.len());
+
+    // 主动扫描原始文本里的"可疑反斜杠序列":虽然 serde_json 序列化时会把
+    // `\` escape 成 `\\`(合法 JSON),但若出现在 base64 / 已 escape 字符串等场景,
+    // 上游 proxy 若做"把 `\\u` 误解析回 `\u`"的转换,就会触发 invalid escape。
+    // 这里只扫描 raw 字符串里的 `\u` `\x` `\0`-`\9` 等模式,辅助定位嫌疑文本。
+    fn scan_suspicious_backslash(label: &str, s: &str) {
+        let bytes = s.as_bytes();
+        let mut bs_hits: Vec<(usize, String)> = Vec::new();
+        let mut ctrl_hits: Vec<(usize, u8)> = Vec::new();
+        for (i, &b) in bytes.iter().enumerate() {
+            // 1) 字面 `\u` `\x` `\a` `\v` 序列(serde_json 会输出 `\\X`,合法,
+            //    但 proxy 若做"`\\u` 还原 `\u`"误处理会触发 invalid escape)
+            if b == b'\\' && i + 1 < bytes.len() {
+                let next = bytes[i + 1];
+                if matches!(next, b'u' | b'x' | b'a' | b'v') {
+                    let end = (i + 8).min(bytes.len());
+                    let snippet = String::from_utf8_lossy(&bytes[i..end]).to_string();
+                    if bs_hits.len() < 5 {
+                        bs_hits.push((i, snippet));
+                    }
+                }
+            }
+            // 2) raw 控制字符(byte 0x00-0x08, 0x0B-0x0C, 0x0E-0x1F)
+            //    serde_json 会 escape 为 `\u00XX`,合法 JSON;但部分 strict proxy
+            //    或经过 base64 / 中间编码层时这些字节最容易出错。
+            if (b < 0x20 && !matches!(b, b'\t' | b'\n' | b'\r')) && ctrl_hits.len() < 10 {
+                ctrl_hits.push((i, b));
+            }
+        }
+        if !bs_hits.is_empty() {
+            log::warn!(
+                "[byop] {label} suspicious literal '\\X' patterns: {bs_hits:?}"
+            );
+        }
+        if !ctrl_hits.is_empty() {
+            log::warn!(
+                "[byop] {label} contains raw control chars (offset, byte): {ctrl_hits:?}"
+            );
+        }
+    }
+    if let Some(sys) = chat_req.system.as_deref() {
+        scan_suspicious_backslash("system", sys);
+    }
+    for (idx, m) in chat_req.messages.iter().enumerate() {
+        if let Some(t) = m.content.first_text() {
+            scan_suspicious_backslash(&format!("msg[{idx}]"), t);
+        }
+    }
+
     let stream = async_stream::stream! {
         // 1) StreamInit — 始终先发,UI 能立刻显示 "thinking..."
         yield Ok(api::ResponseEvent {
@@ -900,6 +988,65 @@ pub async fn generate_byop_output(
         }
         if !persistence_messages.is_empty() {
             yield Ok(make_add_messages_event(&task_id, persistence_messages));
+        }
+
+        // 3.5) LRC subagent spawn(对齐上游云端的 cli subagent 注入路径)。
+        //
+        // 当请求来自 alt-screen + agent tagged-in 状态时,`lrc_command_id` 携带当前 LRC
+        // block 的 id 字符串。此处客户端合成两条事件:
+        //   a) AddMessagesToTask(root, [<虚拟 subagent tool_call>])
+        //      在 root.messages 里挂一条 ToolCall::Subagent { task_id=<新 subtask>,
+        //      metadata: Cli { command_id }, payload: "" }。
+        //      conversation `Task::new_subtask` 会从 parent.messages 里按 task_id 匹配
+        //      这条 subagent_call,提取出 SubagentParams 挂到 subtask。
+        //   b) CreateTask(api::Task { id=<新 subtask>, dependencies.parent_task_id=root })
+        //      触发 `apply_client_action::CreateTask`,因 parent_id 非空走 `new_subtask`,
+        //      接着 emit `BlocklistAIHistoryEvent::CreatedSubtask` →
+        //      `cli_controller::handle_history_model_event` 看到 cli_subagent_block_id
+        //      非空,emit `CLISubagentEvent::SpawnedSubagent` → terminal_view 创建
+        //      `CLISubagentView` 浮窗,挂进 `cli_subagent_views` map。
+        //
+        // 切换后续 chunk emit 的 task_id 到 subtask_id,让模型 reasoning/output/tool_call
+        // 全部进 subtask,subagent_view 据此渲染浮窗内容。
+        //
+        // 时序约束:必须在 root CreateTask + UserQuery 持久化之后,模型流之前。
+        // 否则 conversation 找不到 root task / 找不到 user query 引用对。
+        let mut current_task_id = task_id.clone();
+        if let Some(command_id) = lrc_command_id.clone() {
+            let subtask_id = Uuid::new_v4().to_string();
+            let tool_call_id = Uuid::new_v4().to_string();
+            log::info!(
+                "[byop] LRC tag-in: spawning cli subagent subtask={subtask_id} \
+                 command_id={command_id} parent={task_id}"
+            );
+
+            let subagent_tool = api::message::tool_call::Tool::Subagent(
+                api::message::tool_call::Subagent {
+                    task_id: subtask_id.clone(),
+                    payload: String::new(),
+                    metadata: Some(
+                        api::message::tool_call::subagent::Metadata::Cli(
+                            api::message::tool_call::subagent::CliSubagent {
+                                command_id,
+                            },
+                        ),
+                    ),
+                },
+            );
+            let subagent_msg = make_tool_call_message(
+                &task_id,
+                &request_id,
+                &tool_call_id,
+                subagent_tool,
+            );
+            // a) 把 subagent tool_call 挂到 root.messages,供 new_subtask 反查 SubagentParams。
+            yield Ok(make_add_messages_event(&task_id, vec![subagent_msg]));
+            // b) 创建带 parent_task_id 的 subtask;conversation 检测 parent_id 非空 →
+            //    走 `Task::new_subtask` 路径,自动绑定 SubagentParams。
+            yield Ok(create_subtask_event(&subtask_id, &task_id));
+
+            // 后续 chunk emit 切到 subtask。
+            current_task_id = subtask_id;
         }
 
         log::info!("[byop] opening stream: model={model_id}");
@@ -945,7 +1092,28 @@ pub async fn generate_byop_output(
                 Ok(ev) => ev,
                 Err(e) => {
                     let mapped = map_genai_error(e);
-                    log::error!("[byop] stream chunk error: {mapped:#}");
+                    let err_text = format!("{mapped:#}");
+                    log::error!("[byop] stream chunk error: {err_text}");
+                    // 从错误消息里 parse "column N",dump diag_body_json 该位置 ±200 char 上下文 + 字节 hex。
+                    if let Some(col) = err_text
+                        .split("column ")
+                        .nth(1)
+                        .and_then(|s| s.chars().take_while(|c| c.is_ascii_digit()).collect::<String>().parse::<usize>().ok())
+                    {
+                        let body = &diag_body_json;
+                        let byte_len = body.len();
+                        let start = col.saturating_sub(200).min(byte_len);
+                        let end = (col + 200).min(byte_len);
+                        let context = body.get(start..end).unwrap_or("(slice failed: 非 char 边界)");
+                        log::error!(
+                            "[byop] error column={col} diag_body_len={byte_len} context[{start}..{end}]={context:?}"
+                        );
+                        let hex_start = col.saturating_sub(20).min(byte_len);
+                        let hex_end = (col + 20).min(byte_len);
+                        if let Some(slice) = body.as_bytes().get(hex_start..hex_end) {
+                            log::error!("[byop] error bytes[{hex_start}..{hex_end}] hex={slice:02x?}");
+                        }
+                    }
                     yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
                         "BYOP stream error: {mapped}"
                     ))));
@@ -962,13 +1130,13 @@ pub async fn generate_byop_output(
                     chunk_count += 1;
                     chunk_bytes += c.content.len();
                     if let Some(id) = text_msg_id.clone() {
-                        yield Ok(make_append_event(&task_id, &id, AppendKind::Text(c.content)));
+                        yield Ok(make_append_event(&current_task_id, &id, AppendKind::Text(c.content)));
                     } else {
                         let new_id = Uuid::new_v4().to_string();
-                        let mut msg = make_agent_output_message(&task_id, &request_id, c.content);
+                        let mut msg = make_agent_output_message(&current_task_id, &request_id, c.content);
                         msg.id = new_id.clone();
                         text_msg_id = Some(new_id);
-                        yield Ok(make_add_messages_event(&task_id, vec![msg]));
+                        yield Ok(make_add_messages_event(&current_task_id, vec![msg]));
                     }
                 }
                 ChatStreamEvent::Chunk(_) => {}
@@ -976,13 +1144,13 @@ pub async fn generate_byop_output(
                     reasoning_count += 1;
                     reasoning_bytes += c.content.len();
                     if let Some(id) = reasoning_msg_id.clone() {
-                        yield Ok(make_append_event(&task_id, &id, AppendKind::Reasoning(c.content)));
+                        yield Ok(make_append_event(&current_task_id, &id, AppendKind::Reasoning(c.content)));
                     } else {
                         let new_id = Uuid::new_v4().to_string();
-                        let mut msg = make_reasoning_message(&task_id, &request_id, c.content);
+                        let mut msg = make_reasoning_message(&current_task_id, &request_id, c.content);
                         msg.id = new_id.clone();
                         reasoning_msg_id = Some(new_id);
-                        yield Ok(make_add_messages_event(&task_id, vec![msg]));
+                        yield Ok(make_add_messages_event(&current_task_id, vec![msg]));
                     }
                 }
                 ChatStreamEvent::ReasoningChunk(_) => {}
@@ -1062,7 +1230,7 @@ pub async fn generate_byop_output(
             match parse_incoming_tool_call(&call, mcp_context.as_ref()) {
                 Ok(warp_tool) => {
                     final_messages.push(make_tool_call_message(
-                        &task_id,
+                        &current_task_id,
                         &request_id,
                         &call.call_id,
                         warp_tool,
@@ -1071,7 +1239,7 @@ pub async fn generate_byop_output(
                 Err(e) => {
                     log::warn!("BYOP: failed to parse tool_call args for {}: {e:#}", call.fn_name);
                     final_messages.push(make_agent_output_message(
-                        &task_id,
+                        &current_task_id,
                         &request_id,
                         format!("(byop:工具 `{}` 的参数解析失败: {})", call.fn_name, e),
                     ));
@@ -1079,7 +1247,7 @@ pub async fn generate_byop_output(
             }
         }
         if !final_messages.is_empty() {
-            yield Ok(make_add_messages_event(&task_id, final_messages));
+            yield Ok(make_add_messages_event(&current_task_id, final_messages));
         }
 
         // 标题生成:首轮在所有主流消息发完之后,用 title_model 单独发一次短请求,
@@ -1401,6 +1569,36 @@ fn create_task_event(task_id: &str) -> api::ResponseEvent {
                                 id: task_id.to_owned(),
                                 description: String::new(),
                                 dependencies: None,
+                                messages: vec![],
+                                summary: String::new(),
+                                server_data: String::new(),
+                            }),
+                        },
+                    )),
+                }],
+            },
+        )),
+    }
+}
+
+/// 构造一条 `Action::CreateTask` 表示新 subtask,带 `dependencies.parent_task_id`。
+/// conversation 在 `apply_client_action::CreateTask` 看到 `task.parent_id()` 非空 →
+/// 走 `Task::new_subtask` 路径,从 parent.messages 找匹配的 subagent tool_call、
+/// 抽 `SubagentParams` 挂到 subtask、emit `BlocklistAIHistoryEvent::CreatedSubtask`。
+/// LRC tag-in 浮窗 spawn 链路依赖此事件。
+fn create_subtask_event(subtask_id: &str, parent_task_id: &str) -> api::ResponseEvent {
+    api::ResponseEvent {
+        r#type: Some(api::response_event::Type::ClientActions(
+            api::response_event::ClientActions {
+                actions: vec![api::ClientAction {
+                    action: Some(api::client_action::Action::CreateTask(
+                        api::client_action::CreateTask {
+                            task: Some(api::Task {
+                                id: subtask_id.to_owned(),
+                                description: String::new(),
+                                dependencies: Some(api::task::Dependencies {
+                                    parent_task_id: parent_task_id.to_owned(),
+                                }),
                                 messages: vec![],
                                 summary: String::new(),
                                 server_data: String::new(),

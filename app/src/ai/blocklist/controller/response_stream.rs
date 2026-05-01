@@ -40,6 +40,10 @@ struct ByopDispatch {
     /// 标题生成模型参数。仅在首轮(needs_create_task)且 active title_model
     /// 解码为合法 BYOP id 时填充;否则 `None`,chat_stream 跳过摘要步骤。
     title_gen: Option<TitleGenParams>,
+    /// LRC tag-in 场景下需要 spawn 的 CLI subagent `command_id`(= LRC block id 字符串)。
+    /// 由 controller `send_request_input` 检测 active block tagged-in 时注入,
+    /// chat_stream 据此合成虚拟 subagent tool_call,模拟上游云端的 spawn 链路。
+    lrc_command_id: Option<String>,
 }
 
 /// 标题生成专用的 BYOP 配置(可能与主 base 模型同 provider 也可能不同)。
@@ -95,6 +99,7 @@ fn byop_dispatch_info(
         task_id,
         needs_create_task,
         title_gen,
+        lrc_command_id: params.lrc_command_id.clone(),
     })
 }
 
@@ -196,6 +201,7 @@ impl ResponseStream {
                                 reasoning_effort: t.reasoning_effort,
                             }
                         }),
+                        byop.lrc_command_id,
                         cancellation_rx,
                     )
                     .await
@@ -285,6 +291,7 @@ impl ResponseStream {
                                 reasoning_effort: t.reasoning_effort,
                             }
                         }),
+                        byop.lrc_command_id,
                         cancellation_rx,
                     )
                     .await

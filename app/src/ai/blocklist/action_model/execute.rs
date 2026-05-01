@@ -507,8 +507,17 @@ impl BlocklistAIActionExecutor {
         is_user_initiated: bool,
         ctx: &mut ModelContext<Self>,
     ) -> TryExecuteResult {
+        log::info!(
+            "[byop-diag] executor.try_to_execute_action: enter action_id={:?} \
+             is_user_initiated={is_user_initiated}",
+            action.id
+        );
         // We should never actually execute actions in view-only mode.
         if self.is_shared_session_viewer() {
+            log::info!(
+                "[byop-diag] executor: NotExecuted (shared_session_viewer) action_id={:?}",
+                action.id
+            );
             return TryExecuteResult::NotExecuted {
                 reason: NotExecutedReason::WaitingOnSharer,
                 action: Box::new(action),
@@ -521,6 +530,11 @@ impl BlocklistAIActionExecutor {
         };
         let can_auto_execute = self.should_autoexecute(input, ctx);
         let is_agent_autonomous = AppExecutionMode::as_ref(ctx).is_autonomous();
+        log::info!(
+            "[byop-diag] executor: action_id={:?} can_auto_execute={can_auto_execute} \
+             is_agent_autonomous={is_agent_autonomous}",
+            action.id
+        );
 
         // The agent cannot auto execute and either:
         // - the agent is interactive, OR
@@ -674,12 +688,25 @@ impl BlocklistAIActionExecutor {
         };
 
         let action_id = action_clone.id.clone();
+        log::info!(
+            "[byop-diag] executor: dispatched action_id={action_id:?} → execution variant: {}",
+            match &execution {
+                AnyActionExecution::NotReady => "NotReady",
+                AnyActionExecution::InvalidAction => "InvalidAction",
+                AnyActionExecution::Async { .. } => "Async",
+                AnyActionExecution::Sync(_) => "Sync",
+            }
+        );
         match execution {
             AnyActionExecution::NotReady => TryExecuteResult::NotExecuted {
                 reason: NotExecutedReason::NotReady,
                 action: Box::new(action_clone),
             },
             AnyActionExecution::InvalidAction => {
+                log::error!(
+                    "[byop-diag] executor: InvalidAction action_id={action_id:?} \
+                     (走错 executor — wrong tool dispatch)"
+                );
                 debug_assert!(false, "Tried to execute AIAgentAction with wrong executor.");
                 TryExecuteResult::NotExecuted {
                     reason: NotExecutedReason::NotReady,
