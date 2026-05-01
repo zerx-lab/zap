@@ -117,6 +117,69 @@ struct RelevantFilesDto {
     paths: Vec<String>,
 }
 
+/// workflow_metadata 子链路的纯 DTO(避免本模块依赖 drive::workflows 上层类型)。
+#[derive(Debug, Clone)]
+pub struct WorkflowMetadataDto {
+    pub title: String,
+    pub description: String,
+    pub command: String,
+    pub arguments: Vec<WorkflowArgumentDto>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkflowArgumentDto {
+    pub name: String,
+    pub description: String,
+    pub default_value: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkflowMetadataRaw {
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    command: String,
+    #[serde(default)]
+    arguments: Vec<WorkflowArgumentRaw>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkflowArgumentRaw {
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    default_value: String,
+}
+
+/// 解析 workflow_metadata 的 JSON 输出。
+/// 失败 / `command` 为空 → `None`(调用方映射为 BadCommand)。
+pub fn parse_workflow_metadata(raw: &str) -> Option<WorkflowMetadataDto> {
+    let cleaned = strip_code_fence(raw);
+    let parsed: WorkflowMetadataRaw = serde_json::from_str(cleaned).ok()?;
+    if parsed.command.trim().is_empty() {
+        return None;
+    }
+    Some(WorkflowMetadataDto {
+        title: parsed.title,
+        description: parsed.description,
+        command: parsed.command,
+        arguments: parsed
+            .arguments
+            .into_iter()
+            .filter(|a| !a.name.trim().is_empty())
+            .map(|a| WorkflowArgumentDto {
+                name: a.name,
+                description: a.description,
+                default_value: a.default_value,
+            })
+            .collect(),
+    })
+}
+
 /// 解析 relevant_files 的 JSON 输出,与输入路径取交集过滤幻觉。
 pub fn parse_relevant_files(raw: &str, input_paths: &[String]) -> Vec<String> {
     let cleaned = strip_code_fence(raw);

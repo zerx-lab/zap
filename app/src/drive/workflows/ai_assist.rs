@@ -3,15 +3,13 @@ use serde::{Deserialize, Serialize};
 use warp_graphql::mutations::generate_metadata_for_command::{
     GenerateMetadataForCommandFailureType, GenerateMetadataForCommandSuccess,
 };
-use warpui::{SingletonEntity, ViewContext};
+use warpui::ViewContext;
 
 use crate::{
-    ai::AIRequestUsageModel,
-    auth::AuthStateProvider,
+    ai::agent_providers::active_ai::workflow_metadata,
     send_telemetry_from_ctx,
     server::telemetry::TelemetryEvent,
     workflows::workflow::{Argument, Workflow},
-    workspaces::user_workspaces::UserWorkspaces,
 };
 
 use super::{
@@ -92,17 +90,29 @@ impl From<GenerateMetadataForCommandFailureType> for GeneratedCommandMetadataErr
 }
 
 impl WorkflowModal {
-    /// Send request to generate metadata for the command in command editor.
+    /// 通过 BYOP one-shot completion 为命令生成 metadata,并把 AI 反馈
+    /// 直接落到 modal 编辑器对应字段。无 BYOP 配置 → 直接 emit 错误事件。
     pub(super) fn issue_request(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_client = self.ai_client.clone();
         let content = self.content_editor.as_ref(ctx).buffer_text(ctx);
         let raw_request = content.trim().to_string();
 
+        let Some(rendered) = workflow_metadata::dispatch(
+            ctx,
+            None,
+            workflow_metadata::Input { command: raw_request },
+        ) else {
+            ctx.emit(WorkflowModalEvent::AiAssistError(
+                "Autofill 需要 BYOP 模型。请到 Settings → AI 中配置一个 provider 与模型。"
+                    .to_string(),
+            ));
+            return;
+        };
+
         ctx.spawn(
-            async move { ai_client.generate_metadata_for_command(raw_request).await },
+            async move { workflow_metadata::run(rendered).await },
             move |modal, response, ctx| {
                 match response {
-                    Ok(metadata) => {
+                    Some(metadata) => {
                         modal.ai_metadata_assist_state = AiAssistState::Generated;
                         modal.enable_editors(ctx);
 
@@ -113,7 +123,7 @@ impl WorkflowModal {
                                 name: parameter.name,
                                 description: Some(parameter.description),
                                 default_value: Some(parameter.default_value),
-                                arg_type: Default::default()
+                                arg_type: Default::default(),
                             })
                             .collect_vec();
 
@@ -138,34 +148,15 @@ impl WorkflowModal {
                         modal.populate_missing_field_with_suggestion(workflow, ctx);
                         ctx.notify();
                     }
-                    Err(err) => {
-                        let message = err.user_facing_message();
-                        if let GeneratedCommandMetadataError::RateLimited = err {
-                            let auth_state = AuthStateProvider::as_ref(ctx).get();
-                            let current_user_id = auth_state.user_id().unwrap_or_default();
-                            if let Some(team) = UserWorkspaces::as_ref(ctx).current_team() {
-                                let current_user_email =
-                                    auth_state.user_email().unwrap_or_default();
-                                let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-                                if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
-                                    if has_admin_permissions {
-                                        ctx.emit(WorkflowModalEvent::AiAssistUpgradeError(Some(team.uid), current_user_id));
-                                    } else {
-                                        ctx.emit(WorkflowModalEvent::AiAssistError("Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.".to_string()));
-                                    }
-                                } else {
-                                    ctx.emit(WorkflowModalEvent::AiAssistError(message.clone()));
-                                }
-                            } else {
-                                ctx.emit(WorkflowModalEvent::AiAssistUpgradeError(None, current_user_id));
-                            }
-                        } else {
-                            ctx.emit(WorkflowModalEvent::AiAssistError(message.clone()));
-                        }
+                    None => {
+                        let message = GeneratedCommandMetadataError::BadCommand.user_facing_message();
+                        ctx.emit(WorkflowModalEvent::AiAssistError(message));
 
                         send_telemetry_from_ctx!(
                             TelemetryEvent::AutoGenerateMetadataError {
-                                error_payload: serde_json::json!(err)
+                                error_payload: serde_json::json!(
+                                    GeneratedCommandMetadataError::BadCommand
+                                )
                             },
                             ctx
                         );
@@ -175,10 +166,7 @@ impl WorkflowModal {
                         ctx.notify();
                     }
                 }
-                AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
-                    request_usage_model.refresh_request_usage_async(ctx);
-                });
-            }
+            },
         );
 
         self.ai_metadata_assist_state = AiAssistState::RequestInFlight;

@@ -74,6 +74,16 @@ fn build_env() -> Environment<'static> {
         include_str!("../prompts/active_ai/next_command_user.j2"),
     )
     .expect("next_command_user parses");
+    env.add_template(
+        "workflow_metadata_system.j2",
+        include_str!("../prompts/active_ai/workflow_metadata_system.j2"),
+    )
+    .expect("workflow_metadata_system parses");
+    env.add_template(
+        "workflow_metadata_user.j2",
+        include_str!("../prompts/active_ai/workflow_metadata_user.j2"),
+    )
+    .expect("workflow_metadata_user parses");
     env
 }
 
@@ -301,6 +311,63 @@ pub mod relevant_files {
             }
         };
         parsing::parse_relevant_files(&raw, &prepared.input_paths)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// workflow_metadata(Workflow Editor 的 Autofill 按钮:命令 → 参数化 metadata)
+// ---------------------------------------------------------------------------
+
+pub mod workflow_metadata {
+    use super::*;
+    use warpui::{AppContext, EntityId};
+
+    pub use parsing::{WorkflowArgumentDto, WorkflowMetadataDto};
+
+    pub struct Input {
+        pub command: String,
+    }
+
+    /// Spawn 前调用:解 BYOP 配置 + 渲染 prompt。`None` ⇒ 调用方提示用户配置 BYOP。
+    pub fn dispatch(
+        app: &AppContext,
+        terminal_view_id: Option<EntityId>,
+        input: Input,
+    ) -> Option<RenderedRequest> {
+        let cfg = resolve_active_ai_oneshot(app, terminal_view_id)?;
+        let system = render("workflow_metadata_system.j2", context! {});
+        let user = render(
+            "workflow_metadata_user.j2",
+            context! {
+                command => input.command,
+            },
+        );
+        Some(RenderedRequest {
+            cfg,
+            system,
+            user,
+            opts: OneshotOptions {
+                response_format_json: true,
+                max_chars: Some(4000),
+                ..Default::default()
+            },
+        })
+    }
+
+    /// Spawn 内执行:发请求 + 解析。失败 → `None`(调用方映射为 BadCommand)。
+    pub async fn run(req: RenderedRequest) -> Option<WorkflowMetadataDto> {
+        let raw = match byop_oneshot_completion(&req.cfg, &req.system, &req.user, &req.opts).await {
+            Ok(s) => s,
+            Err(e) => {
+                log::debug!("[active_ai] workflow_metadata oneshot failed: {e:#}");
+                return None;
+            }
+        };
+        log::debug!(
+            "[active_ai] workflow_metadata raw response ({} chars): {raw}",
+            raw.len()
+        );
+        parsing::parse_workflow_metadata(&raw)
     }
 }
 

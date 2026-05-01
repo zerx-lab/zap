@@ -725,9 +725,7 @@ fn block_maximum_rows_description() -> String {
         "1 million"
     };
 
-    format!(
-        "Setting the limit above 100k lines may impact performance. Maximum rows supported is {max_rows}."
-    )
+    crate::t!("settings-features-block-rows-description", max_rows = max_rows)
 }
 
 fn to_string(b: bool) -> String {
@@ -4993,7 +4991,7 @@ impl SettingsWidget for DesktopNotificationsWidget {
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_child(
                         Text::new_inline(
-                            "Toast notifications stay visible for",
+                            crate::t!("settings-features-toast-duration-label"),
                             appearance.ui_font_family(),
                             font_size,
                         )
@@ -6251,7 +6249,7 @@ impl SettingsWidget for TabKeyBehaviorWidget {
             .with_child(
                 appearance
                     .ui_builder()
-                    .span("Tab key behavior")
+                    .span(crate::t!("settings-features-tab-key-behavior"))
                     .with_style(UiComponentStyles {
                         font_size: Some(CONTENT_FONT_SIZE + 1.),
                         ..Default::default()
@@ -6816,7 +6814,7 @@ impl SettingsWidget for DefaultSessionModeWidget {
         app: &AppContext,
     ) -> Box<dyn Element> {
         let label = render_dropdown_item_label(
-            "Default mode for new sessions".to_string(),
+            crate::t!("settings-features-default-session-mode"),
             None,
             LocalOnlyIconState::for_setting(
                 DefaultSessionMode::storage_key(),
@@ -7125,7 +7123,7 @@ impl SettingsWidget for GraphicsBackendWidget {
         let theme = appearance.theme();
         let dropdown = render_dropdown_item(
             appearance,
-            "Preferred graphics backend",
+            &crate::t!("settings-features-graphics-backend-label"),
             None,
             None,
             LocalOnlyIconState::for_setting(
@@ -7146,7 +7144,7 @@ impl SettingsWidget for GraphicsBackendWidget {
             col.add_child(
                 appearance
                     .ui_builder()
-                    .wrappable_text(format!("Current backend: {}", backend.to_label()), true)
+                    .wrappable_text(crate::t!("settings-features-graphics-backend-current", backend = backend.to_label()), true)
                     .with_style(UiComponentStyles {
                         font_color: Some(theme.sub_text_color(theme.background()).into_solid()),
                         ..Default::default()

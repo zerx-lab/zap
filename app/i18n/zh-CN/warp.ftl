@@ -511,6 +511,17 @@ settings-features-working-directory-header = 新会话工作目录
 settings-features-notify-agent-task-completed = Agent 完成任务时通知
 settings-features-notify-needs-attention = 命令或 Agent 需要继续操作时通知
 settings-features-play-notification-sounds = 播放通知声音
+settings-features-default-session-mode = 新会话默认模式
+settings-features-block-rows-description = 将上限设置为超过 10 万行可能影响性能。最大支持行数为 { $max_rows }。
+settings-features-toast-duration-label = Toast 通知保持显示时长
+settings-features-tab-key-behavior = Tab 键行为
+settings-features-graphics-backend-label = 首选图形后端
+settings-features-graphics-backend-current = 当前后端:{ $backend }
+settings-features-working-dir-home = 用户主目录
+settings-features-working-dir-previous = 上一个会话的目录
+settings-features-working-dir-custom = 自定义目录
+settings-features-undo-close-enable = 启用重新打开已关闭的会话
+settings-features-undo-close-grace-period = 宽限期(秒)
 
 # --- ANCHOR-SUB-TEAMS (agent-settings-teams) ---
 settings-teams-page-title = 团队

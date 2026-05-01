@@ -2612,15 +2612,31 @@ impl WorkflowView {
     }
 
     fn issue_request(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_client = self.ai_client.clone();
+        use crate::ai::agent_providers::active_ai::workflow_metadata;
+
         let command = self.content_editor.as_ref(ctx).buffer_text(ctx);
         let raw_request = command.trim().to_string();
 
+        let Some(rendered) = workflow_metadata::dispatch(
+            ctx,
+            None,
+            workflow_metadata::Input {
+                command: raw_request,
+            },
+        ) else {
+            self.display_error_toast(
+                "Autofill 需要 BYOP 模型。请到 Settings → AI 中配置一个 provider 与模型。"
+                    .to_string(),
+                ctx,
+            );
+            return;
+        };
+
         ctx.spawn(
-            async move { ai_client.generate_metadata_for_command(raw_request).await },
+            async move { workflow_metadata::run(rendered).await },
             move |pane, response, ctx| {
                 match response {
-                    Ok(metadata) => {
+                    Some(metadata) => {
                         pane.ai_metadata_assist_state = AiAssistState::Generated;
                         pane.enable_editors(ctx);
 
@@ -2656,38 +2672,9 @@ impl WorkflowView {
                         pane.populate_missing_field_with_suggestion(workflow, ctx);
                         ctx.notify();
                     }
-                    Err(err) => {
-                        let message = err.user_facing_message();
-                        if let GeneratedCommandMetadataError::RateLimited = err {
-                            let current_user_id = pane.auth_state.user_id().unwrap_or_default();
-                            if let Some(team) = UserWorkspaces::as_ref(ctx).current_team() {
-                                let current_user_email =
-                                    pane.auth_state.user_email().unwrap_or_default();
-                                let has_admin_permissions = team.has_admin_permissions(&current_user_email);
-                                if team.billing_metadata.can_upgrade_to_higher_tier_plan() {
-                                    if has_admin_permissions {
-                                        pane.display_upgrade_error(Some(team.uid), current_user_id, ctx);
-                                    } else {
-                                        pane.display_error_toast(
-                                            "Looks like you're out of AI credits. Contact a team admin to upgrade for more credits.".to_string(),
-                                            ctx,
-                                        );
-                                    }
-                                } else {
-                                    pane.display_error_toast(
-                                        message.clone(),
-                                        ctx,
-                                    );
-                                }
-                            } else {
-                                pane.display_upgrade_error(None, current_user_id, ctx);
-                            }
-                        } else {
-                            pane.display_error_toast(
-                                message.clone(),
-                                ctx,
-                            );
-                        }
+                    None => {
+                        let err = GeneratedCommandMetadataError::BadCommand;
+                        pane.display_error_toast(err.user_facing_message(), ctx);
 
                         send_telemetry_from_ctx!(
                             TelemetryEvent::AutoGenerateMetadataError {
@@ -2701,40 +2688,12 @@ impl WorkflowView {
                         ctx.notify();
                     }
                 }
-                AIRequestUsageModel::handle(ctx).update(ctx, |request_usage_model, ctx| {
-                    request_usage_model.refresh_request_usage_async(ctx);
-                });
-            }
+            },
         );
 
         self.ai_metadata_assist_state = AiAssistState::RequestInFlight;
         self.disable_editors(ctx);
         ctx.notify();
-    }
-
-    fn display_upgrade_error(
-        &mut self,
-        team_uid: Option<ServerId>,
-        user_id: UserUid,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let upgrade_link = team_uid
-            .map(UserWorkspaces::upgrade_link_for_team)
-            .unwrap_or_else(|| UserWorkspaces::upgrade_link(user_id));
-
-        let window_id = ctx.window_id();
-        // 去中心化分支:`AttemptLoginGatedAIUpgrade` 已删除,统一走 href 跳转。
-        let toast_link = ToastLink::new("Upgrade for more credits.".into()).with_href(upgrade_link);
-
-        crate::workspace::ToastStack::handle(ctx).update(ctx, |stack, ctx| {
-            stack.add_ephemeral_toast(
-                DismissibleToast::error("Looks like you're out of AI credits.".into())
-                    .with_link(toast_link),
-                window_id,
-                ctx,
-            );
-            ctx.notify();
-        });
     }
 
     // Populate only the missing field in the workflow editor with the generated suggestion from AI.

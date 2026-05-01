@@ -524,6 +524,17 @@ settings-features-working-directory-header = Working directory for new sessions
 settings-features-notify-agent-task-completed = Notify when an agent completes a task
 settings-features-notify-needs-attention = Notify when a command or agent needs your attention to continue
 settings-features-play-notification-sounds = Play notification sounds
+settings-features-default-session-mode = Default mode for new sessions
+settings-features-block-rows-description = Setting the limit above 100k lines may impact performance. Maximum rows supported is { $max_rows }.
+settings-features-toast-duration-label = Toast notifications stay visible for
+settings-features-tab-key-behavior = Tab key behavior
+settings-features-graphics-backend-label = Preferred graphics backend
+settings-features-graphics-backend-current = Current backend: { $backend }
+settings-features-working-dir-home = Home directory
+settings-features-working-dir-previous = Previous session's directory
+settings-features-working-dir-custom = Custom directory
+settings-features-undo-close-enable = Enable reopening of closed sessions
+settings-features-undo-close-grace-period = Grace period (seconds)
 
 # --- ANCHOR-SUB-TEAMS (agent-settings-teams) ---
 # settings_view/teams_page.rs strings (P0 + P1)
