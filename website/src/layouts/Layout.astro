@@ -26,7 +26,7 @@ const pageDescription = description ?? dict.meta.description;
     <meta property="og:title" content={pageTitle} />
     <meta property="og:description" content={pageDescription} />
     <meta property="og:type" content="website" />
-    <meta name="theme-color" content="#06070b" />
+    <meta name="theme-color" content="#05050a" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="alternate" hreflang="zh-CN" href="/" />
     <link rel="alternate" hreflang="en" href="/en/" />
@@ -38,21 +38,17 @@ const pageDescription = description ?? dict.meta.description;
           var KEY = 'ow-lang';
           var path = location.pathname;
           var isEnPage = /^\/en(\/|$)/.test(path);
-          // 切换器点击 → 写入用户主动偏好
           document.addEventListener('click', function (e) {
             var a = e.target && e.target.closest && e.target.closest('a[data-locale-switch]');
             if (a) {
               try { localStorage.setItem(KEY, a.getAttribute('data-locale-switch')); } catch (_) {}
             }
           });
-          // 已记忆偏好,跳过自动检测
           if (localStorage.getItem(KEY)) return;
-          // 仅在中文默认页做一次性自动重定向
           if (isEnPage) return;
           var lang = (navigator.language || (navigator.languages && navigator.languages[0]) || '').toLowerCase();
           if (lang && !lang.startsWith('zh')) {
             try { localStorage.setItem(KEY, 'en'); } catch (_) {}
-            // 保留当前路径,只把语言段切成 /en
             var target = '/en' + (path === '/' ? '/' : path);
             location.replace(target);
           }
@@ -61,20 +57,17 @@ const pageDescription = description ?? dict.meta.description;
     </script>
   </head>
   <body class="min-h-screen overflow-x-hidden bg-ink-950 font-sans">
-    <!-- Decorative background layers -->
     <div class="pointer-events-none fixed inset-0 -z-10 bg-gradient-hero"></div>
-    <div class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[700px] grid-bg opacity-50"></div>
-
-    <!-- Single subtle accent orb -->
+    <div class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[760px] grid-bg opacity-45"></div>
     <div aria-hidden="true" class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      <div class="absolute -top-40 left-1/2 h-[480px] w-[680px] -translate-x-1/2 rounded-full bg-brand-500/12 blur-[140px]"></div>
+      <div class="absolute -top-56 left-1/2 h-[620px] w-[940px] -translate-x-1/2 rounded-full bg-brand-500/20 blur-[170px]"></div>
+      <div class="absolute top-[28rem] -left-40 h-[420px] w-[420px] rounded-full bg-accent-pink/10 blur-[130px]"></div>
+      <div class="absolute top-[34rem] -right-40 h-[420px] w-[420px] rounded-full bg-accent-cyan/10 blur-[130px]"></div>
     </div>
-
-    <!-- Top hairline -->
-    <div aria-hidden="true" class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent"></div>
+    <div aria-hidden="true" class="pointer-events-none fixed inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
 
     <Header locale={locale} />
-    <main>
+    <main class="relative z-0">
       <slot />
     </main>
     <Footer locale={locale} />

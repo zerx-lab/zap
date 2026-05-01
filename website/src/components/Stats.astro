@@ -5,16 +5,19 @@ const { locale } = Astro.props;
 const d = t(locale);
 ---
 
-<section class="relative py-10">
+<section class="relative py-10 lg:py-14">
   <div class="container-page">
-    <div class="surface-card relative overflow-hidden">
-      <div class="grid grid-cols-2 divide-y divide-white/5 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+    <div class="surface-card overflow-hidden p-2">
+      <div class="grid grid-cols-2 gap-px overflow-hidden rounded-[22px] bg-white/5 lg:grid-cols-4">
         {d.stats.items.map((it) => (
-          <div class="relative flex flex-col items-center justify-center gap-1 px-3 py-5 text-center sm:px-6 sm:py-7">
-            <span class="font-display text-2xl font-semibold tracking-tight text-white sm:text-4xl">
+          <div class="relative min-h-[150px] bg-ink-950/70 px-5 py-6 sm:px-7 sm:py-8">
+            <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
+            <span class="font-display text-3xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
               {it.value}
             </span>
-            <span class="text-[10.5px] uppercase tracking-[0.14em] text-zinc-500 sm:text-[12px] sm:tracking-[0.16em]">{it.label}</span>
+            <p class="mt-3 max-w-[12rem] text-[11px] font-semibold uppercase leading-5 tracking-[0.18em] text-zinc-500">
+              {it.label}
+            </p>
           </div>
         ))}
       </div>

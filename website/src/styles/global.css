@@ -7,20 +7,43 @@
     color-scheme: dark;
   }
 
+  html {
+    scroll-behavior: smooth;
+    background: #05050a;
+  }
+
   html,
   body {
     @apply bg-ink-950 text-zinc-200 antialiased;
-    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
-    /* 移动端最小宽度兜底:小于 400px 出横向滚动而不是布局错乱 */
-    min-width: 400px;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    min-width: 320px;
+  }
+
+  body {
+    background:
+      radial-gradient(
+        circle at 50% -10%,
+        rgba(141, 125, 255, 0.18),
+        transparent 34rem
+      ),
+      radial-gradient(
+        circle at 8% 16%,
+        rgba(255, 95, 162, 0.1),
+        transparent 24rem
+      ),
+      radial-gradient(
+        circle at 92% 18%,
+        rgba(70, 224, 255, 0.1),
+        transparent 24rem
+      ),
+      #05050a;
   }
 
   ::selection {
-    background: rgba(22, 119, 255, 0.35);
+    background: rgba(141, 125, 255, 0.35);
     color: #fff;
   }
 
-  /* Subtle scrollbar in dark theme */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -29,82 +52,133 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.16);
   }
 }
 
 @layer components {
   .container-page {
-    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
   }
 
   .text-gradient {
-    background: linear-gradient(180deg, #ffffff 0%, #c9c9d4 100%);
+    background: linear-gradient(180deg, #ffffff 0%, #d7d4ff 58%, #9b94c8 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
 
   .text-accent {
-    color: #69b1ff;
+    background: linear-gradient(135deg, #a999ff 0%, #ff83b8 48%, #78e7ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
   .surface-card {
-    @apply relative rounded-2xl border border-white/5 bg-ink-800/60 backdrop-blur-sm shadow-card;
+    @apply relative border border-white/10 bg-white/[0.045] shadow-card backdrop-blur-xl;
+    border-radius: 28px;
   }
 
-  /* Subtle border glow on hover */
+  .surface-soft {
+    @apply relative border border-white/10 bg-white/[0.03] shadow-card backdrop-blur-xl;
+    border-radius: 24px;
+  }
+
+  .section-eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-zinc-400 backdrop-blur-md;
+  }
+
+  .section-heading {
+    @apply font-display text-3xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl;
+  }
+
+  .section-copy {
+    @apply text-base leading-8 text-zinc-400 sm:text-lg;
+  }
+
   .ring-gradient {
     position: relative;
-    transition: border-color 300ms ease;
+    transition:
+      border-color 300ms ease,
+      background-color 300ms ease,
+      transform 300ms ease;
   }
   .ring-gradient:hover {
-    border-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.2);
+    background-color: rgba(255, 255, 255, 0.055);
+    transform: translateY(-2px);
   }
 
-  /* Glassmorphic pill */
   .glass-pill {
-    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-zinc-300 backdrop-blur-md;
+    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-medium text-zinc-300 shadow-card backdrop-blur-xl;
   }
 
   .btn-primary {
-    @apply inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-ink-950 transition hover:bg-zinc-200 sm:px-5 sm:py-2.5;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-ink-950 shadow-glow transition hover:-translate-y-0.5 hover:bg-zinc-200 sm:px-6 sm:py-3;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.06] hover:border-white/20 sm:px-5 sm:py-2.5;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-5 py-2.5 text-sm font-semibold text-zinc-100 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.08] sm:px-6 sm:py-3;
   }
 
   .chip {
     @apply inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-zinc-300;
   }
 
+  .command-pill {
+    @apply inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-2 font-mono text-xs text-zinc-300 shadow-card backdrop-blur-xl;
+  }
+
   .grid-bg {
-    background-image: var(--tw-gradient-grid, theme('backgroundImage.grid-faint'));
+    background-image: var(
+      --tw-gradient-grid,
+      theme("backgroundImage.grid-faint")
+    );
     background-size: 48px 48px;
-    mask-image: radial-gradient(ellipse 60% 60% at 50% 0%, #000 30%, transparent 75%);
+    mask-image: radial-gradient(
+      ellipse 62% 58% at 50% 0%,
+      #000 28%,
+      transparent 78%
+    );
   }
 }
 
-/* Marquee container */
 .marquee {
   display: flex;
   width: max-content;
   animation: marquee 40s linear infinite;
 }
 .marquee-mask {
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-          mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 12%,
+    #000 88%,
+    transparent
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 12%,
+    #000 88%,
+    transparent
+  );
 }
 
-/* Caret blink for terminal */
 @keyframes caret-blink {
-  0%, 49% { opacity: 1; }
-  50%, 100% { opacity: 0; }
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 .caret {
   display: inline-block;
