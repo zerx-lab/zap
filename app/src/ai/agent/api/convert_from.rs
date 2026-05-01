@@ -540,7 +540,15 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
         params: ConversionParams,
     ) -> Result<MaybeAIAgentAction, ToolToAIAgentActionError> {
         let Some(tool) = self.tool else {
-            return Err(ToolToAIAgentActionError::MissingTool);
+            // OpenWarp BYOP:`make_tool_call_carrier_message` 在 from_args 解析失败时
+            // 故意 emit `tool: None` 的 ToolCall,仅作为下一轮 build_chat_request 还原
+            // 原 fn_name + args_str 给上游模型的载体(server_message_data 携带原始内容),
+            // 紧随其后的 synthetic error ToolCallResult 才是要展示给用户看的内容。
+            // 返回 MissingTool 会让整个 conversation 更新被拒(`UpdateTask(ConversionError)`),
+            // 紧跟的 ToolCallResult 也无法应用 → exchange 永远卡在 "Warping..."。
+            // 这里改为 NoClientRepresentation:UI 不渲染这条空 ToolCall,
+            // task.messages 仍持久化(server_message_data 完整),下轮上游重发链路完整。
+            return Ok(MaybeAIAgentAction::NoClientRepresentation);
         };
 
         let create_standard_action = |action: AIAgentActionType| {

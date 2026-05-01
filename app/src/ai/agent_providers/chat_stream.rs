@@ -657,129 +657,94 @@ fn sanitize_tool_for_request(mut tool: GenaiTool) -> GenaiTool {
     tool
 }
 
-/// 扫描 messages,对每个 assistant 含 tool_calls 的 message,确保其后面紧跟对应每个
-/// call_id 的 tool message。缺失的合成 placeholder。
+/// 重排 messages 中所有 Tool 消息,确保:
+/// 每个含 tool_calls 的 Assistant message 后面紧跟**且仅紧跟**一条 Tool message,
+/// 内含该 Assistant **每个** call_id 的 ToolResponse(按 tool_calls 顺序,缺失补 placeholder)。
 ///
-/// **双向 sanitize**:
-/// - 前置 pass:剔除孤儿 ToolResponse(call_id 在整个 messages 序列里没有任何 Assistant
-///   tool_calls 与之匹配)。否则 Anthropic 400 `unexpected tool_use_id ... no
-///   corresponding tool_use block in the previous message`,重试 3 次后 UI 渲染 error
-///   block 触发 flex panic。常见来源:被 skip 的 subagent 虚拟 ToolCall 对应的 result、
-///   `params.input` ActionResult 与历史 ToolCallResult 同 call_id 重复 push。
-/// - 主 pass:每个 Assistant 含 tool_calls 后面缺失的 ToolResponse 用 placeholder 补齐。
+/// **为什么需要重排,而不是只补 placeholder / 剔孤儿**:
+/// `build_chat_request` 按时间戳 chronological 排序合并所有 task 的历史 messages。
+/// 当模型在一轮内发起多个 tool_call,且这些 tool 的执行时长差异较大时(如 read_skill
+/// 立即返回错误,而 git/PowerShell 命令稍慢),后到的 ToolCallResult 时间戳可能晚于
+/// 模型紧接着发起的**下一轮** Assistant tool_calls,导致历史 messages 被排成:
+///
+/// ```text
+/// Asst-X(tc_a, tc_b, tc_c)
+/// Tool(tc_c real)         ← read_skill 错误,快
+/// Asst-Y(tc_d, tc_e)      ← 模型基于 tc_c 错误立刻发了下一轮
+/// Tool(tc_a real)         ← git 命令慢,落到 Asst-Y 后面
+/// Tool(tc_b real)
+/// ```
+///
+/// Anthropic API 把连续 Tool block 合并视作"上一条 Assistant 的 tool_results",
+/// 于是 Asst-Y 后面的 Tool block 含 tc_a/tc_b 这种 Asst-Y 不认识的 call_id → 400
+/// `unexpected tool_use_id ... no corresponding tool_use block in the previous message`。
+///
+/// 旧实现只做"剔孤儿(整序列匹配)+补 placeholder(向前看相邻 Tool)",前者不会剔除
+/// 这类**位置错误但 call_id 合法**的 ToolResponse,后者也不会重定位 — 所以 400 重现。
+///
+/// 新实现:抽出所有 ToolResponse 进 `call_id → response` 表,然后按每个 Assistant
+/// tool_calls 的 call_id 顺序重新组装紧随其后的 Tool message。剩余未消费的 ToolResponse
+/// (call_id 完全不在历史 Assistant tool_calls 里)即真孤儿,丢弃。
 fn sanitize_tool_call_pairs(messages: &mut Vec<ChatMessage>) {
-    use std::collections::HashSet;
+    use std::collections::HashMap;
 
-    // ---- 前置 pass:剔除孤儿 ToolResponse ----
-    let valid_call_ids: HashSet<String> = messages
-        .iter()
-        .filter(|m| m.role == genai::chat::ChatRole::Assistant)
-        .flat_map(|m| {
-            m.content
-                .tool_calls()
-                .iter()
-                .map(|tc| tc.call_id.clone())
-                .collect::<Vec<_>>()
-        })
-        .collect();
-
-    let mut dropped_orphans: Vec<String> = Vec::new();
+    // 抽取所有 ToolResponse(同 call_id 后到的覆盖前面,符合"最新结果优先"语义)。
+    let mut response_by_call_id: HashMap<String, ToolResponse> = HashMap::new();
     let original = std::mem::take(messages);
+    let mut non_tool_msgs: Vec<ChatMessage> = Vec::with_capacity(original.len());
     for msg in original {
-        if msg.role != genai::chat::ChatRole::Tool {
-            messages.push(msg);
-            continue;
-        }
-        let kept: Vec<ToolResponse> = msg
-            .content
-            .tool_responses()
-            .iter()
-            .filter_map(|r| {
-                if valid_call_ids.contains(&r.call_id) {
-                    Some((*r).clone())
-                } else {
-                    dropped_orphans.push(r.call_id.clone());
-                    None
-                }
-            })
-            .collect();
-        if kept.is_empty() {
-            // 整条 Tool message 都是孤儿 → 整条丢弃,避免空 content 报错。
-            continue;
-        }
-        if kept.len() == msg.content.tool_responses().len() {
-            // 没动过 → 原样保留(避免不必要的 ChatMessage 重建)。
-            messages.push(msg);
+        if msg.role == genai::chat::ChatRole::Tool {
+            for resp in msg.content.tool_responses() {
+                response_by_call_id.insert(resp.call_id.clone(), (*resp).clone());
+            }
         } else {
-            messages.push(ChatMessage::from(kept));
+            non_tool_msgs.push(msg);
         }
     }
-    if !dropped_orphans.is_empty() {
-        log::warn!(
-            "[byop-diag] sanitize_tool_call_pairs: 剔除 {} 个孤儿 ToolResponse: \
-             orphan_call_ids={:?}",
-            dropped_orphans.len(),
-            dropped_orphans
-        );
-    }
 
-    // ---- 主 pass:补缺失 placeholder ----
-    let mut i = 0;
-    while i < messages.len() {
-        // 仅处理 assistant 且 content 含 tool_calls 的 message
-        let ids: Vec<String> = match (&messages[i].role, messages[i].content.tool_calls()) {
-            (genai::chat::ChatRole::Assistant, calls) if !calls.is_empty() => {
-                calls.iter().map(|tc| tc.call_id.clone()).collect()
-            }
-            _ => {
-                i += 1;
-                continue;
-            }
-        };
-
-        // 收集后面紧跟的 Tool 消息已 cover 的 call_id
-        let mut covered: HashSet<String> = HashSet::new();
-        let mut scan = i + 1;
-        while scan < messages.len() && messages[scan].role == genai::chat::ChatRole::Tool {
-            for resp in messages[scan].content.tool_responses() {
-                covered.insert(resp.call_id.clone());
-            }
-            scan += 1;
-        }
-
-        let missing: Vec<String> = ids.into_iter().filter(|id| !covered.contains(id)).collect();
-        if missing.is_empty() {
-            i = scan;
-            continue;
-        }
-
-        // 占位 content 来源:紧随的下一个 assistant message 的 first_text(典型场景:
-        // warp 把 tool 结果消化成的下一轮 AgentOutput)。
-        let placeholder_content: String = messages
-            .get(scan)
-            .filter(|m| m.role == genai::chat::ChatRole::Assistant)
-            .and_then(|m| m.content.first_text().map(str::to_owned))
-            .map(|c| format!("(tool 执行结果已被对话消化为助手回答,内容摘要: {c})"))
-            .unwrap_or_else(|| "(tool 执行结果未保留)".to_owned());
-
-        let inserts: Vec<ChatMessage> = missing
+    // 重组:每个 Assistant 含 tool_calls 后紧跟一条 Tool message,按 call_id 顺序绑定。
+    let mut placeholders_inserted: Vec<String> = Vec::new();
+    for msg in non_tool_msgs {
+        let call_ids: Vec<String> = msg
+            .content
+            .tool_calls()
             .iter()
-            .map(|id| ChatMessage::from(ToolResponse::new(id.clone(), placeholder_content.clone())))
+            .map(|tc| tc.call_id.clone())
             .collect();
-        let inserted = inserts.len();
-        log::warn!(
-            "[byop-diag] sanitize_tool_call_pairs: 给 {inserted} 个 ToolCall 补 placeholder \
-             ToolResponse: missing_call_ids={:?} placeholder_kind={}",
-            missing,
-            if placeholder_content.starts_with("(tool 执行结果已被") {
-                "consumed_into_next_assistant"
-            } else {
-                "未保留"
-            }
-        );
-        messages.splice(i + 1..i + 1, inserts);
+        let is_assistant = msg.role == genai::chat::ChatRole::Assistant;
+        messages.push(msg);
 
-        i = i + 1 + (scan - (i + 1)) + inserted;
+        if is_assistant && !call_ids.is_empty() {
+            let bundled: Vec<ToolResponse> = call_ids
+                .iter()
+                .map(|cid| {
+                    response_by_call_id.remove(cid).unwrap_or_else(|| {
+                        placeholders_inserted.push(cid.clone());
+                        ToolResponse::new(cid.clone(), "(tool 执行结果未保留)".to_owned())
+                    })
+                })
+                .collect();
+            messages.push(ChatMessage::from(bundled));
+        }
+    }
+
+    // 剩余 response_by_call_id 是真孤儿(没有任何 Assistant tool_call 与之配对),丢弃。
+    if !response_by_call_id.is_empty() {
+        let orphan_ids: Vec<&String> = response_by_call_id.keys().collect();
+        log::warn!(
+            "[byop-diag] sanitize_tool_call_pairs: 丢弃 {} 个孤儿 ToolResponse: \
+             orphan_call_ids={:?}",
+            response_by_call_id.len(),
+            orphan_ids
+        );
+    }
+    if !placeholders_inserted.is_empty() {
+        log::warn!(
+            "[byop-diag] sanitize_tool_call_pairs: 给 {} 个 ToolCall 补 placeholder \
+             ToolResponse: missing_call_ids={:?}",
+            placeholders_inserted.len(),
+            placeholders_inserted
+        );
     }
 }
 

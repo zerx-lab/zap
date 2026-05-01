@@ -40,7 +40,7 @@ use crate::ai::{
     agent::{
         AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentExchangeId,
         AIAgentInput, AIAgentOutputStatus, AIIdentifiers, EntrypointType, FinishedAIAgentOutput,
-        RenderableAIError, RequestCost, RequestMetadata, StaticQueryType, UserQueryMode,
+        MessageId, RenderableAIError, RequestCost, RequestMetadata, StaticQueryType, UserQueryMode,
         conversation::AIConversationId,
     },
     llms::LLMPreferences,
@@ -2578,6 +2578,11 @@ impl BlocklistAIController {
                 let mut was_passive_request = false;
                 let mut is_any_exchange_unfinished = false;
                 let mut actions_to_queue = vec![];
+                // OpenWarp BYOP:收集本轮新加 message id,稍后用于在 EMPTY 分支检测
+                // synthetic invalid_arguments 错误标记。**只看本轮 added** 才能避免
+                // 在历史里反复命中导致 auto-resume 死循环(标记一旦持久化就永远在)。
+                let mut newly_added_message_ids: std::collections::HashSet<MessageId> =
+                    std::collections::HashSet::new();
 
                 for new_exchange_id in new_exchange_ids {
                     let Some(exchange) = conversation.exchange_with_id(new_exchange_id) else {
@@ -2586,6 +2591,7 @@ impl BlocklistAIController {
                     };
                     was_passive_request |= exchange.has_passive_request();
                     is_any_exchange_unfinished |= !exchange.output_status.is_finished();
+                    newly_added_message_ids.extend(exchange.added_message_ids.iter().cloned());
 
                     if let AIAgentOutputStatus::Finished {
                         finished_output: FinishedAIAgentOutput::Success { output },
@@ -2674,10 +2680,58 @@ impl BlocklistAIController {
                         );
                     });
                 } else {
+                    // OpenWarp BYOP:from_args 解析失败时,chat_stream 走 fallback emit
+                    // carrier ToolCall(tool=None) + synthetic error ToolCallResult(result=None,
+                    // server_message_data 是 invalid_arguments JSON)。两者都走 NoClientRepresentation,
+                    // 不入 actions_to_queue,exchange 静默结束 → 模型永远收不到错误反馈,
+                    // 用户必须手动再发消息才能让模型重试。
+                    //
+                    // 检测最近 ~16 条 messages 是否含 BYOP synthetic 错误标记;有的话复用
+                    // line 2695+ 的 auto-resume 路径触发重发,让模型立即基于 error tool_result
+                    // 修正参数重试。`can_attempt_resume_on_error=false` 防 LLM 持续输出坏 args 导致死循环。
+                    // 只在本轮新加的 messages 里查找 synthetic 错误标记,避免历史持久化的
+                    // 同标记反复命中导致死循环。
+                    let needs_byop_error_resume = conversation.all_tasks().any(|task| {
+                        task.messages().any(|msg| {
+                            newly_added_message_ids.contains(&MessageId::new(msg.id.clone()))
+                                && matches!(
+                                    msg.message,
+                                    Some(message::Message::ToolCallResult(
+                                        message::ToolCallResult { result: None, .. },
+                                    )),
+                                )
+                                && msg
+                                    .server_message_data
+                                    .contains(r#""error":"invalid_arguments""#)
+                        })
+                    });
+                    if needs_byop_error_resume {
+                        log::info!(
+                            "[byop] detected synthetic invalid_arguments tool_result without queued \
+                             action → schedule auto-resume so model receives error feedback. \
+                             conversation_id={conversation_id:?}"
+                        );
+                        let network_status = NetworkStatus::handle(ctx);
+                        let wait_for_online = network_status.as_ref(ctx).wait_until_online();
+                        let handle = ctx.spawn(wait_for_online, move |me, _, ctx| {
+                            me.pending_auto_resume_handles.remove(&conversation_id);
+                            me.resume_conversation(
+                                conversation_id,
+                                /*can_attempt_resume_on_error*/
+                                false,
+                                /*is_auto_resume_after_error*/
+                                true,
+                                vec![],
+                                ctx,
+                            );
+                        });
+                        self.pending_auto_resume_handles
+                            .insert(conversation_id, handle);
+                    }
                     log::info!(
                         "[byop-diag] AfterStreamFinished: actions_to_queue is EMPTY (\
-                         was_passive={was_passive_request}, unfinished={is_any_exchange_unfinished}) \
-                         conversation_id={conversation_id:?}"
+                         was_passive={was_passive_request}, unfinished={is_any_exchange_unfinished}, \
+                         byop_resume={needs_byop_error_resume}) conversation_id={conversation_id:?}"
                     );
                 }
 
