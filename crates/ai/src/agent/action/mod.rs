@@ -12,14 +12,12 @@ use crate::{
     agent::{
         action_result::{
             AIAgentActionResultType, AskUserQuestionResult, CallMCPToolResult,
-            CreateDocumentsResult, EditDocumentsResult, FetchConversationResult, FileGlobResult,
-            FileGlobV2Result, GrepResult, InsertReviewCommentsResult, ReadDocumentsResult,
-            ReadFilesResult, ReadMCPResourceResult, ReadShellCommandOutputResult, ReadSkillResult,
+            CreateDocumentsResult, EditDocumentsResult, FileGlobResult, FileGlobV2Result,
+            GrepResult, InsertReviewCommentsResult, ReadDocumentsResult, ReadFilesResult,
+            ReadMCPResourceResult, ReadShellCommandOutputResult, ReadSkillResult,
             RequestCommandOutputResult, RequestFileEditsResult, SearchCodebaseResult,
-            SendMessageToAgentResult, StartAgentResult, StartAgentVersion,
             SuggestNewConversationResult, SuggestPromptResult,
-            TransferShellCommandControlToUserResult, UploadArtifactResult,
-            WriteToLongRunningShellCommandResult,
+            TransferShellCommandControlToUserResult, WriteToLongRunningShellCommandResult,
         },
         AIAgentCitation, FileLocations,
     },
@@ -27,7 +25,6 @@ use crate::{
     document::AIDocumentId,
     skills::SkillReference,
 };
-pub use warp_multi_agent_api::LifecycleEventType;
 
 #[derive(Debug, Clone, Eq, PartialEq, EnumDiscriminants)]
 pub enum AIAgentActionType {
@@ -66,9 +63,6 @@ pub enum AIAgentActionType {
 
     /// AI requested getting the content of some files.
     ReadFiles(ReadFilesRequest),
-
-    /// AI requested uploading a local file as a conversation artifact.
-    UploadArtifact(UploadArtifactRequest),
 
     SearchCodebase(SearchCodebaseRequest),
 
@@ -137,23 +131,6 @@ pub enum AIAgentActionType {
     // AI requested to read a skill.
     ReadSkill(ReadSkillRequest),
 
-    FetchConversation {
-        conversation_id: String,
-    },
-
-    StartAgent {
-        version: StartAgentVersion,
-        name: String,
-        prompt: String,
-        execution_mode: StartAgentExecutionMode,
-        lifecycle_subscription: Option<Vec<LifecycleEventType>>,
-    },
-
-    SendMessageToAgent {
-        addresses: Vec<String>,
-        subject: String,
-        message: String,
-    },
     /// Transfer control of a running shell command to the user.
     TransferShellCommandControlToUser {
         /// The reason provided by the agent for transferring control.
@@ -165,49 +142,6 @@ pub enum AIAgentActionType {
     },
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum StartAgentExecutionMode {
-    Local {
-        /// `None` selects the legacy embedded local child-agent flow.
-        /// `Some(...)` selects a third-party CLI harness to launch locally.
-        harness_type: Option<String>,
-    },
-    Remote {
-        environment_id: String,
-        skill_references: Vec<SkillReference>,
-        model_id: String,
-        computer_use_enabled: bool,
-        worker_host: String,
-        harness_type: String,
-        title: String,
-    },
-}
-
-impl StartAgentExecutionMode {
-    /// Constructs a local execution mode using the legacy v1 default harness.
-    pub fn local_with_defaults() -> Self {
-        Self::Local { harness_type: None }
-    }
-    /// Constructs a local execution mode for a specific third-party harness.
-    pub fn local_harness(harness_type: String) -> Self {
-        Self::Local {
-            harness_type: Some(harness_type),
-        }
-    }
-    /// Constructs a remote execution mode using the legacy v1 defaults for
-    /// fields that were added later in StartAgentV2.
-    pub fn remote_with_defaults(environment_id: String) -> Self {
-        Self::Remote {
-            environment_id,
-            skill_references: Vec::new(),
-            model_id: String::new(),
-            computer_use_enabled: false,
-            worker_host: String::new(),
-            harness_type: String::new(),
-            title: String::new(),
-        }
-    }
-}
 impl AIAgentActionType {
     pub fn is_request_command_output(&self) -> bool {
         matches!(self, Self::RequestCommandOutput { .. })
@@ -242,9 +176,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
             }
             Self::ReadFiles(..) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
-            Self::UploadArtifact(..) => {
-                AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-            }
             Self::SearchCodebase(..) => {
                 AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
             }
@@ -288,17 +219,6 @@ impl AIAgentActionType {
                 AIAgentActionResultType::InsertReviewComments(InsertReviewCommentsResult::Cancelled)
             }
             Self::ReadSkill(_) => AIAgentActionResultType::ReadSkill(ReadSkillResult::Cancelled),
-            Self::FetchConversation { .. } => {
-                AIAgentActionResultType::FetchConversation(FetchConversationResult::Cancelled)
-            }
-            Self::StartAgent { version, .. } => {
-                AIAgentActionResultType::StartAgent(StartAgentResult::Cancelled {
-                    version: *version,
-                })
-            }
-            Self::SendMessageToAgent { .. } => {
-                AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Cancelled)
-            }
             Self::TransferShellCommandControlToUser { .. } => {
                 AIAgentActionResultType::TransferShellCommandControlToUser(
                     TransferShellCommandControlToUserResult::Cancelled,
@@ -319,7 +239,6 @@ impl AIAgentActionType {
                 "Write to long running shell command".to_string()
             }
             Self::ReadFiles(_) => "Read files".to_string(),
-            Self::UploadArtifact(_) => "Upload artifact".to_string(),
             Self::SearchCodebase(_) => "Search codebase".to_string(),
             Self::RequestFileEdits { file_edits, .. } => {
                 let file_names = file_edits.iter().filter_map(|edit| edit.file()).join(", ");
@@ -341,9 +260,6 @@ impl AIAgentActionType {
                 format!("Insert {} code review comments", comments.len())
             }
             Self::ReadSkill(_) => "Read skill".to_string(),
-            Self::FetchConversation { .. } => "Fetch conversation".to_string(),
-            Self::StartAgent { name, .. } => format!("Start agent: {name}"),
-            Self::SendMessageToAgent { subject, .. } => format!("Send message: {subject}"),
             Self::TransferShellCommandControlToUser { .. } => {
                 "Transfer shell command control to user".to_string()
             }
@@ -379,9 +295,6 @@ impl Display for AIAgentActionType {
                 )
             }
             AIAgentActionType::ReadFiles(request) => {
-                write!(f, "{request}")
-            }
-            AIAgentActionType::UploadArtifact(request) => {
                 write!(f, "{request}")
             }
             AIAgentActionType::SearchCodebase(request) => {
@@ -490,21 +403,6 @@ impl Display for AIAgentActionType {
             AIAgentActionType::ReadSkill(req) => {
                 write!(f, "ReadSkill: {}", req.skill)
             }
-            AIAgentActionType::FetchConversation { conversation_id } => {
-                write!(f, "FetchConversation: {conversation_id}")
-            }
-            AIAgentActionType::StartAgent { name, .. } => {
-                write!(f, "StartAgent: {name}")
-            }
-            AIAgentActionType::SendMessageToAgent {
-                addresses, subject, ..
-            } => {
-                write!(
-                    f,
-                    "SendMessageToAgent: to=[{}] subject={subject}",
-                    addresses.join(", ")
-                )
-            }
             AIAgentActionType::TransferShellCommandControlToUser { reason } => {
                 write!(f, "TransferShellCommandControlToUser: {reason}")
             }
@@ -577,18 +475,6 @@ impl Display for ReadFilesRequest {
             .collect::<Vec<_>>()
             .join(", ");
         write!(f, "ReadFiles: [{file_names}]")
-    }
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct UploadArtifactRequest {
-    pub file_path: String,
-    pub description: Option<String>,
-}
-
-impl Display for UploadArtifactRequest {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "UploadArtifact: {}", self.file_path)
     }
 }
 

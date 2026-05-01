@@ -11,8 +11,8 @@ use crate::ai::agent::todos::AIAgentTodoList;
 use crate::ai::agent::{
     util::parse_markdown_into_text_and_code_sections, AIAgentAction, AIAgentActionType,
     AIAgentCitation, AIAgentInput, AIAgentOutputMessage, AIAgentText, AIAgentTodo,
-    ArtifactCreatedData, MessageId, StartAgentExecutionMode, SuggestedAgentModeWorkflow,
-    SuggestedRule, Suggestions, TodoOperation,
+    ArtifactCreatedData, MessageId, SuggestedAgentModeWorkflow, SuggestedRule, Suggestions,
+    TodoOperation,
 };
 use crate::ai::agent::{
     CloneRepositoryURL, SubagentCall, SubagentType, SummarizationType, WebFetchStatus,
@@ -20,11 +20,8 @@ use crate::ai::agent::{
 };
 use crate::ai::artifact_download::sanitized_basename;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
-use ai::agent::action::LifecycleEventType as StartAgentLifecycleEventType;
-use ai::agent::action_result::StartAgentVersion;
 use ai::agent::convert::ToolToAIAgentActionError;
 use ai::agent::UnknownCitationTypeError;
-use ai::skills::SkillReference;
 use api::ask_user_question::question::QuestionType;
 use warp_core::channel::ChannelState;
 use warp_multi_agent_api as api;
@@ -63,73 +60,6 @@ pub(crate) fn convert_user_query_mode(mode: Option<&api::UserQueryMode>) -> User
         Some(api::user_query_mode::Type::Plan(_)) => UserQueryMode::Plan,
         Some(api::user_query_mode::Type::Orchestrate(_)) => UserQueryMode::Orchestrate,
         None => UserQueryMode::Normal,
-    }
-}
-
-fn convert_start_agent_lifecycle_event_type(
-    event_type: i32,
-) -> Option<StartAgentLifecycleEventType> {
-    let event_type = StartAgentLifecycleEventType::try_from(event_type).ok()?;
-    (event_type != StartAgentLifecycleEventType::Unspecified).then_some(event_type)
-}
-
-fn convert_start_agent_v2_harness_type(
-    harness: Option<api::start_agent_v2::execution_mode::Harness>,
-) -> Option<String> {
-    harness
-        .map(|harness| harness.r#type)
-        .filter(|harness_type| !harness_type.trim().is_empty())
-}
-
-fn convert_start_agent_execution_mode(
-    execution_mode: Option<api::start_agent::ExecutionMode>,
-) -> StartAgentExecutionMode {
-    match execution_mode.and_then(|execution_mode| execution_mode.mode) {
-        Some(api::start_agent::execution_mode::Mode::Remote(remote)) => {
-            StartAgentExecutionMode::remote_with_defaults(remote.environment_id)
-        }
-        Some(api::start_agent::execution_mode::Mode::Local(_)) | None => {
-            StartAgentExecutionMode::local_with_defaults()
-        }
-    }
-}
-
-fn convert_start_agent_v2_execution_mode(
-    execution_mode: Option<api::start_agent_v2::ExecutionMode>,
-) -> StartAgentExecutionMode {
-    match execution_mode.and_then(|execution_mode| execution_mode.mode) {
-        Some(api::start_agent_v2::execution_mode::Mode::Remote(remote)) => {
-            StartAgentExecutionMode::Remote {
-                environment_id: remote.environment_id,
-                skill_references: remote
-                    .skills
-                    .into_iter()
-                    .filter_map(convert_skill_reference)
-                    .collect(),
-                model_id: remote.model_id,
-                computer_use_enabled: remote.computer_use_enabled,
-                worker_host: remote.worker_host,
-                harness_type: convert_start_agent_v2_harness_type(remote.harness)
-                    .unwrap_or_default(),
-                title: remote.title,
-            }
-        }
-        Some(api::start_agent_v2::execution_mode::Mode::Local(local)) => {
-            convert_start_agent_v2_harness_type(local.harness)
-                .map(StartAgentExecutionMode::local_harness)
-                .unwrap_or_else(StartAgentExecutionMode::local_with_defaults)
-        }
-        None => StartAgentExecutionMode::local_with_defaults(),
-    }
-}
-
-fn convert_skill_reference(skill_ref: api::SkillRef) -> Option<SkillReference> {
-    match skill_ref.skill_reference {
-        Some(api::skill_ref::SkillReference::Path(path)) => Some(SkillReference::Path(path.into())),
-        Some(api::skill_ref::SkillReference::BundledSkillId(id)) => {
-            Some(SkillReference::BundledSkillId(id))
-        }
-        None => None,
     }
 }
 
@@ -632,9 +562,6 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::ReadFiles(read_files) => {
                 create_standard_action(read_files.into())
             }
-            api::message::tool_call::Tool::UploadFileArtifact(upload_file_artifact) => {
-                create_standard_action(upload_file_artifact.try_into()?)
-            }
             api::message::tool_call::Tool::SearchCodebase(search_codebase) => {
                 create_standard_action(search_codebase.into())
             }
@@ -723,57 +650,11 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
                     subagent_type,
                 }))
             }
-            api::message::tool_call::Tool::StartAgent(start_agent) => {
-                create_standard_action(AIAgentActionType::StartAgent {
-                    version: StartAgentVersion::V1,
-                    name: start_agent.name,
-                    prompt: start_agent.prompt,
-                    execution_mode: convert_start_agent_execution_mode(start_agent.execution_mode),
-                    lifecycle_subscription: start_agent.lifecycle_subscription.map(
-                        |subscription| {
-                            subscription
-                                .event_types
-                                .into_iter()
-                                .filter_map(convert_start_agent_lifecycle_event_type)
-                                .collect()
-                        },
-                    ),
-                })
-            }
-            api::message::tool_call::Tool::StartAgentV2(start_agent) => {
-                create_standard_action(AIAgentActionType::StartAgent {
-                    version: StartAgentVersion::V2,
-                    name: start_agent.name,
-                    prompt: start_agent.prompt,
-                    execution_mode: convert_start_agent_v2_execution_mode(
-                        start_agent.execution_mode,
-                    ),
-                    lifecycle_subscription: start_agent.lifecycle_subscription.map(
-                        |subscription| {
-                            subscription
-                                .event_types
-                                .into_iter()
-                                .filter_map(convert_start_agent_lifecycle_event_type)
-                                .collect()
-                        },
-                    ),
-                })
-            }
-            api::message::tool_call::Tool::SendMessageToAgent(send_message) => {
-                create_standard_action(AIAgentActionType::SendMessageToAgent {
-                    addresses: send_message.addresses,
-                    subject: send_message.subject,
-                    message: send_message.message,
-                })
-            }
             api::message::tool_call::Tool::InsertReviewComments(insert_review_comments) => {
                 create_standard_action(insert_review_comments.into())
             }
             api::message::tool_call::Tool::ReadSkill(read_skill) => {
                 create_standard_action(read_skill.try_into()?)
-            }
-            api::message::tool_call::Tool::FetchConversation(fetch_conversation) => {
-                create_standard_action(fetch_conversation.into())
             }
             api::message::tool_call::Tool::AskUserQuestion(ask) => {
                 let questions = ask

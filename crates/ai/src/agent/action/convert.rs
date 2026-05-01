@@ -9,7 +9,7 @@ use crate::{
         action::{
             AIAgentActionType, AIAgentPtyWriteMode, CommentSide, FileEdit, InsertReviewComment,
             InsertedCommentLine, InsertedCommentLocation, ReadFilesRequest, ReadSkillRequest,
-            SearchCodebaseRequest, ShellCommandDelay, SuggestPromptRequest, UploadArtifactRequest,
+            SearchCodebaseRequest, ShellCommandDelay, SuggestPromptRequest,
         },
         action_result::{AnyFileContent, FileContext},
         convert::ToolToAIAgentActionError,
@@ -134,22 +134,6 @@ impl From<api::message::tool_call::ReadFiles> for AIAgentActionType {
         AIAgentActionType::ReadFiles(ReadFilesRequest {
             locations: value.files.into_iter().map(Into::into).collect(),
         })
-    }
-}
-
-impl TryFrom<api::UploadFileArtifact> for AIAgentActionType {
-    type Error = ToolToAIAgentActionError;
-
-    fn try_from(value: api::UploadFileArtifact) -> Result<Self, Self::Error> {
-        let file = value
-            .file
-            .filter(|file| !file.file_path.is_empty())
-            .ok_or(ToolToAIAgentActionError::MissingUploadArtifactFileReference)?;
-
-        Ok(AIAgentActionType::UploadArtifact(UploadArtifactRequest {
-            file_path: file.file_path,
-            description: value.description.none_if_default(),
-        }))
     }
 }
 
@@ -427,14 +411,6 @@ impl TryFrom<api::message::tool_call::ReadSkill> for AIAgentActionType {
                 skill: SkillReference::from(reference),
             })),
             None => Err(ToolToAIAgentActionError::MissingSkillReference),
-        }
-    }
-}
-
-impl From<api::message::tool_call::FetchConversation> for AIAgentActionType {
-    fn from(value: api::message::tool_call::FetchConversation) -> Self {
-        AIAgentActionType::FetchConversation {
-            conversation_id: value.conversation_id,
         }
     }
 }

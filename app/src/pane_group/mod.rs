@@ -163,7 +163,6 @@ use crate::{
     terminal::{TerminalManager, TerminalModel, TerminalView},
 };
 
-mod child_agent;
 pub mod focus_state;
 pub mod pane;
 pub mod tree;

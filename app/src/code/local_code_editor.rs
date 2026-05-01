@@ -1891,10 +1891,10 @@ impl LocalCodeEditorView {
     /// Creates menu items for the context menu
     fn context_menu_items(&self) -> Vec<MenuItem<LocalCodeEditorAction>> {
         vec![
-            MenuItemFields::new("Go to definition")
+            MenuItemFields::new(crate::t!("menu-codeeditor-go-to-definition"))
                 .with_on_select_action(LocalCodeEditorAction::GotoDefinition)
                 .into_item(),
-            MenuItemFields::new("Find references")
+            MenuItemFields::new(crate::t!("menu-codeeditor-find-references"))
                 .with_on_select_action(LocalCodeEditorAction::FindReferences)
                 .into_item(),
         ]

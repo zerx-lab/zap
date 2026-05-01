@@ -1030,32 +1030,6 @@ impl<'a> std::fmt::Display for MarkdownActionResult<'a> {
                 ReadFilesResult::Error(error) => write!(f, "\n_Read files error: {error} _"),
                 ReadFilesResult::Cancelled => write!(f, "\n_Read files cancelled_"),
             },
-            AIAgentActionResultType::UploadArtifact(result) => match result {
-                UploadArtifactResult::Success {
-                    artifact_uid,
-                    filepath,
-                    mime_type,
-                    description,
-                    size_bytes,
-                } => {
-                    write!(f, "\n**Artifact Uploaded:** `{artifact_uid}`")?;
-                    if let Some(filepath) = filepath {
-                        write!(f, "\n\n**File:** `{filepath}`")?;
-                    }
-                    write!(
-                        f,
-                        "\n\n**MIME Type:** `{mime_type}`\n\n**Size:** `{size_bytes}` bytes"
-                    )?;
-                    if let Some(description) = description {
-                        write!(f, "\n\n**Description:** {description}")?;
-                    }
-                    Ok(())
-                }
-                UploadArtifactResult::Error(error) => {
-                    write!(f, "\n_Upload artifact error: {error} _")
-                }
-                UploadArtifactResult::Cancelled => write!(f, "\n_Upload artifact cancelled_"),
-            },
             AIAgentActionResultType::SearchCodebase(result) => match result {
                 SearchCodebaseResult::Success { files } => {
                     write!(f, "\n\n**Codebase Search Results:**\n\n")?;
@@ -1200,7 +1174,6 @@ impl AIAgentActionResult {
                     RequestCommandOutputResult::CancelledBeforeExecution
                 )
                 | AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled)
-                | AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
                 | AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
                 | AIAgentActionResultType::Grep(GrepResult::Cancelled)
                 | AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled)

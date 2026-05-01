@@ -1733,3 +1733,114 @@ settings-external-editor-prefer-markdown = Open Markdown files in Warp's Markdow
 settings-external-editor-layout-split-pane = Split Pane
 settings-external-editor-layout-new-tab = New Tab
 settings-external-editor-default-app = Default App
+
+# =============================================================================
+# SECTION: context-menu (Owner: agent-context-menu)
+# 鼠标右键弹出菜单。surface 前缀:menu-{block,input,ai-block,tab,pane,filetree,codeeditor}-*
+# =============================================================================
+
+# --- block 右键菜单(terminal/view.rs) ---
+menu-block-copy = Copy
+menu-block-copy-url = Copy URL
+menu-block-copy-path = Copy path
+menu-block-show-in-finder = Show in Finder
+menu-block-show-containing-folder = Show containing folder
+menu-block-open-in-warp = Open in Warp
+menu-block-open-in-editor = Open in editor
+menu-block-insert-into-input = Insert into input
+menu-block-copy-command = Copy command
+menu-block-copy-commands = Copy commands
+menu-block-find-within-block = Find within block
+menu-block-find-within-blocks = Find within blocks
+menu-block-scroll-to-top-of-block = Scroll to top of block
+menu-block-scroll-to-top-of-blocks = Scroll to top of blocks
+menu-block-scroll-to-bottom-of-block = Scroll to bottom of block
+menu-block-scroll-to-bottom-of-blocks = Scroll to bottom of blocks
+menu-block-save-as-workflow = Save as workflow
+menu-block-ask-warp-ai = Ask Warp AI
+menu-block-copy-output = Copy output
+menu-block-copy-filtered-output = Copy filtered output
+menu-block-toggle-block-filter = Toggle block filter
+menu-block-toggle-bookmark = Toggle bookmark
+menu-block-copy-prompt = Copy prompt
+menu-block-copy-right-prompt = Copy right prompt
+menu-block-copy-working-directory = Copy working directory
+menu-block-copy-git-branch = Copy git branch
+menu-block-edit-prompt = Edit prompt
+menu-block-edit-cli-agent-toolbelt = Edit CLI agent toolbelt
+menu-block-edit-agent-toolbelt = Edit agent toolbelt
+menu-block-split-pane-right = Split pane right
+menu-block-split-pane-left = Split pane left
+menu-block-split-pane-down = Split pane down
+menu-block-split-pane-up = Split pane up
+menu-block-close-pane = Close pane
+
+# --- input 右键菜单(terminal/view.rs) ---
+menu-input-cut = Cut
+menu-input-copy = Copy
+menu-input-paste = Paste
+menu-input-select-all = Select all
+menu-input-command-search = Command search
+menu-input-ai-command-search = AI command search
+menu-input-ask-warp-ai = Ask Warp AI
+menu-input-save-as-workflow = Save as workflow
+menu-input-hide-hint-text = Hide input hint text
+menu-input-show-hint-text = Show input hint text
+
+# --- AI block overflow 菜单(terminal/view.rs) ---
+menu-ai-block-copy = Copy
+menu-ai-block-copy-prompt = Copy prompt
+menu-ai-block-copy-output-as-markdown = Copy output as Markdown
+menu-ai-block-copy-url = Copy URL
+menu-ai-block-copy-path = Copy path
+menu-ai-block-copy-command = Copy command
+menu-ai-block-copy-git-branch = Copy git branch
+menu-ai-block-save-as-prompt = Save as prompt
+menu-ai-block-share-conversation = Share conversation
+menu-ai-block-copy-conversation-text = Copy conversation text
+menu-ai-block-fork-from-here = Fork from here
+menu-ai-block-rewind-to-before-here = Rewind to before here
+menu-ai-block-fork-from-last-query = Fork from last query
+menu-ai-block-fork-from-query = Fork from "{ $query }"
+
+# --- tab 右键菜单(tab.rs) ---
+menu-tab-stop-sharing = Stop sharing
+menu-tab-share-session = Share session
+menu-tab-stop-sharing-all = Stop sharing all
+menu-tab-copy-link = Copy link
+menu-tab-rename = Rename tab
+menu-tab-reset-name = Reset tab name
+menu-tab-move-down = Move Tab Down
+menu-tab-move-right = Move Tab Right
+menu-tab-move-up = Move Tab Up
+menu-tab-move-left = Move Tab Left
+menu-tab-close = Close tab
+menu-tab-close-other = Close other tabs
+menu-tab-close-below = Close Tabs Below
+menu-tab-close-right = Close Tabs to the Right
+menu-tab-save-as-new-config = Save as new config
+menu-tab-default-no-color = Default (no color)
+
+# --- pane header 溢出菜单(terminal/view/pane_impl.rs) ---
+menu-pane-copy-link = Copy link
+menu-pane-stop-sharing-session = Stop sharing session
+menu-pane-open-on-desktop = Open on Desktop
+
+# --- 文件树右键菜单(code/file_tree/view.rs) ---
+menu-filetree-open-in-new-pane = Open in new pane
+menu-filetree-open-in-new-tab = Open in new tab
+menu-filetree-open-file = Open file
+menu-filetree-new-file = New file
+menu-filetree-cd-to-directory = cd to directory
+menu-filetree-reveal-finder = Reveal in Finder
+menu-filetree-reveal-explorer = Reveal in Explorer
+menu-filetree-reveal-file-manager = Reveal in file manager
+menu-filetree-rename = Rename
+menu-filetree-delete = Delete
+menu-filetree-attach-as-context = Attach as context
+menu-filetree-copy-path = Copy path
+menu-filetree-copy-relative-path = Copy relative path
+
+# --- 代码编辑器右键菜单(code/local_code_editor.rs) ---
+menu-codeeditor-go-to-definition = Go to definition
+menu-codeeditor-find-references = Find references

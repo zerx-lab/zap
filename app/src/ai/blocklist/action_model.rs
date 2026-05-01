@@ -34,7 +34,6 @@ pub use execute::{
     EditResolvedEvent, EditStats, NewConversationDecision, PromptSuggestionExecutor,
     ReadFileContextResult, RequestFileEditsExecutor, RequestFileEditsFormatKind,
     RequestFileEditsTelemetryEvent, ShellCommandExecutor, ShellCommandExecutorEvent,
-    StartAgentExecutor, StartAgentExecutorEvent, StartAgentRequest,
 };
 
 use futures::future::{join_all, BoxFuture};
@@ -393,10 +392,6 @@ impl BlocklistAIActionModel {
         app: &AppContext,
     ) -> ModelHandle<PromptSuggestionExecutor> {
         self.executor.as_ref(app).suggest_prompt_executor().clone()
-    }
-
-    pub fn start_agent_executor(&self, app: &AppContext) -> ModelHandle<StartAgentExecutor> {
-        self.executor.as_ref(app).start_agent_executor().clone()
     }
 
     pub fn ask_user_question_executor(

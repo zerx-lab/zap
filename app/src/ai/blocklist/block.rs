@@ -1835,13 +1835,6 @@ impl AIBlock {
                     },
                 );
             }
-            if matches!(&action.action, AIAgentActionType::StartAgent { .. }) {
-                self.state_handles
-                    .orchestration_navigation_card_handles
-                    .entry(action.id.clone())
-                    .or_default();
-            }
-
             match action {
                 AIAgentAction {
                     id: action_id,
@@ -2015,11 +2008,7 @@ impl AIBlock {
             if FeatureFlag::Orchestration.is_enabled()
                 && matches!(
                     &message.message,
-                    AIAgentOutputMessageType::Action(AIAgentAction {
-                        action: AIAgentActionType::StartAgent { .. }
-                            | AIAgentActionType::SendMessageToAgent { .. },
-                        ..
-                    }) | AIAgentOutputMessageType::MessagesReceivedFromAgents { .. }
+                    AIAgentOutputMessageType::MessagesReceivedFromAgents { .. }
                 )
             {
                 self.collapsible_block_states

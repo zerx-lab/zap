@@ -215,8 +215,7 @@ use crate::ai::{
         InputType, LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel,
         MaaPassiveSuggestionsEvent, MaaPassiveSuggestionsModel, PRE_REWIND_PREFIX,
         PassiveSuggestionsModels, PendingQueryState, RequestFileEditsFormatKind,
-        ShellCommandExecutor, ShellCommandExecutorEvent, StartAgentExecutor,
-        StartAgentExecutorEvent, StartAgentRequest, ai_brand_color,
+        ShellCommandExecutor, ShellCommandExecutorEvent, ai_brand_color,
         get_ai_block_overflow_menu_element_position_id,
         get_attached_blocks_chip_element_position_id,
         inline_action::code_diff_view::{CodeDiffView, FileDiff},
@@ -1944,9 +1943,6 @@ pub enum Event {
         body: String,
     },
     FreeTierLimitCheckTriggered,
-    /// Emitted when the StartAgent executor needs the workspace to create a new child
-    /// agent conversation in a split pane.
-    StartAgentConversation(StartAgentRequest),
     /// Emitted when the user clicks a child agent row in the status card to reveal
     /// its hidden pane.
     RevealChildAgent {
@@ -3621,10 +3617,6 @@ impl TerminalView {
             Self::handle_shell_command_executor_event,
         );
 
-        ctx.subscribe_to_model(
-            &ai_action_model.as_ref(ctx).start_agent_executor(ctx),
-            Self::handle_start_agent_executor_event,
-        );
         let find_bar = ctx.add_typed_action_view(|ctx| Find::new(find_model.clone(), ctx));
         ctx.subscribe_to_view(&find_bar, move |me, _, event, ctx| {
             me.handle_find_event(event, ctx);
@@ -6284,18 +6276,6 @@ impl TerminalView {
         }
     }
 
-    fn handle_start_agent_executor_event(
-        &mut self,
-        _: ModelHandle<StartAgentExecutor>,
-        event: &StartAgentExecutorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            StartAgentExecutorEvent::CreateAgent(request) => {
-                ctx.emit(Event::StartAgentConversation(request.clone()));
-            }
-        }
-    }
 
     fn get_ai_notification_summary(
         &self,
@@ -12989,7 +12969,7 @@ fn build_onboarding_keybindings(ctx: &AppContext) -> OnboardingKeybindings {
 /// Builds the context-menu label for forking an AI conversation from a given query.
 fn fork_label_for_query(query: &str) -> String {
     if query.is_empty() {
-        "Fork from last query".to_string()
+        crate::t!("menu-ai-block-fork-from-last-query")
     } else {
         let first_line = query.lines().next().unwrap_or(query).trim();
         let chars: Vec<char> = first_line.chars().take(21).collect();
@@ -12998,7 +12978,8 @@ fn fork_label_for_query(query: &str) -> String {
         } else {
             (chars.iter().collect::<String>(), "")
         };
-        format!("Fork from \"{truncated}{suffix}\"")
+        let query = format!("{truncated}{suffix}");
+        crate::t!("menu-ai-block-fork-from-query", query = query.as_str())
     }
 }
 
@@ -14891,7 +14872,7 @@ impl TerminalView {
                         url_content
                             .map(|url_content| {
                                 vec![
-                                    MenuItemFields::new("Copy URL")
+                                    MenuItemFields::new(crate::t!("menu-block-copy-url"))
                                         .with_on_select_action(TerminalAction::ContextMenu(
                                             ContextMenuAction::CopyUrl { url_content },
                                         ))
@@ -14904,13 +14885,13 @@ impl TerminalView {
                     GridHighlightedLink::File(file_link) => {
                         let path = file_link.get_inner().absolute_path();
                         let show_in_file_explorer_menu_item_label = if cfg!(target_os = "macos") {
-                            "Show in Finder"
+                            crate::t!("menu-block-show-in-finder")
                         } else {
-                            "Show containing folder"
+                            crate::t!("menu-block-show-containing-folder")
                         };
                         path.map(|path| {
                             let mut items = vec![
-                                MenuItemFields::new("Copy path")
+                                MenuItemFields::new(crate::t!("menu-block-copy-path"))
                                     .with_on_select_action(TerminalAction::ContextMenu(
                                         ContextMenuAction::CopyUrl {
                                             url_content: path.to_string_lossy().into(),
@@ -14926,14 +14907,14 @@ impl TerminalView {
 
                             if is_markdown_file(&path) {
                                 items.push(
-                                    MenuItemFields::new("Open in Warp")
+                                    MenuItemFields::new(crate::t!("menu-block-open-in-warp"))
                                         .with_on_select_action(TerminalAction::OpenFileInWarp(path))
                                         .into_item(),
                                 );
                                 // Because the default for cmd-click is to open in Warp, we also
                                 // have an open-in-editor option.
                                 items.push(
-                                    MenuItemFields::new("Open in editor")
+                                    MenuItemFields::new(crate::t!("menu-block-open-in-editor"))
                                         .with_on_select_action(TerminalAction::OpenGridLink(
                                             highlighted_link.clone(),
                                         ))
@@ -14954,7 +14935,7 @@ impl TerminalView {
                 true,
             ) => {
                 let mut fields = vec![
-                    MenuItemFields::new("Copy")
+                    MenuItemFields::new(crate::t!("menu-block-copy"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopySelectedText,
                         ))
@@ -14963,7 +14944,7 @@ impl TerminalView {
                             ctx,
                         ))
                         .into_item(),
-                    MenuItemFields::new("Insert into input")
+                    MenuItemFields::new(crate::t!("menu-block-insert-into-input"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::InsertSelectedText,
                         ))
@@ -15019,25 +15000,25 @@ impl TerminalView {
                     .is_active_and_long_running();
 
                 let copy_commands_str = if is_single_selection {
-                    "Copy command"
+                    crate::t!("menu-block-copy-command")
                 } else {
-                    "Copy commands"
+                    crate::t!("menu-block-copy-commands")
                 };
-                let copy_str = "Copy";
+                let copy_str = crate::t!("menu-block-copy");
                 let find_str = if is_single_selection {
-                    "Find within block"
+                    crate::t!("menu-block-find-within-block")
                 } else {
-                    "Find within blocks"
+                    crate::t!("menu-block-find-within-blocks")
                 };
                 let scroll_to_top_str = if is_single_selection {
-                    "Scroll to top of block"
+                    crate::t!("menu-block-scroll-to-top-of-block")
                 } else {
-                    "Scroll to top of blocks"
+                    crate::t!("menu-block-scroll-to-top-of-blocks")
                 };
                 let scroll_to_bottom_str = if is_single_selection {
-                    "Scroll to bottom of block"
+                    crate::t!("menu-block-scroll-to-bottom-of-block")
                 } else {
-                    "Scroll to bottom of blocks"
+                    crate::t!("menu-block-scroll-to-bottom-of-blocks")
                 };
 
                 // currently, we don't support share for multi selections
@@ -15080,7 +15061,7 @@ impl TerminalView {
                 if WarpDriveSettings::is_warp_drive_enabled(ctx) {
                     items.push(MenuItem::Separator);
                     items.push(
-                        MenuItemFields::new("Save as workflow")
+                        MenuItemFields::new(crate::t!("menu-block-save-as-workflow"))
                             .with_on_select_action(TerminalAction::ContextMenu(
                                 ContextMenuAction::OpenWorkflowModal,
                             ))
@@ -15112,7 +15093,7 @@ impl TerminalView {
                     } else {
                         items.extend([
                             MenuItem::Separator,
-                            MenuItemFields::new("Ask Warp AI")
+                            MenuItemFields::new(crate::t!("menu-block-ask-warp-ai"))
                                 .with_on_select_action(TerminalAction::ContextMenu(
                                     ContextMenuAction::AskAI(AskAISource::SelectedBlockOrText),
                                 ))
@@ -15127,7 +15108,7 @@ impl TerminalView {
                 }
 
                 if is_single_selection {
-                    let mut copy_output_menu_item = MenuItemFields::new("Copy output")
+                    let mut copy_output_menu_item = MenuItemFields::new(crate::t!("menu-block-copy-output"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopyBlockOutputs,
                         ))
@@ -15138,7 +15119,7 @@ impl TerminalView {
                     if tail_block.has_active_filter() {
                         items.insert(
                             1,
-                            MenuItemFields::new("Copy filtered output")
+                            MenuItemFields::new(crate::t!("menu-block-copy-filtered-output"))
                                 .with_on_select_action(TerminalAction::ContextMenu(
                                     ContextMenuAction::CopyBlockFilteredOutputs,
                                 ))
@@ -15178,7 +15159,7 @@ impl TerminalView {
                         .into_item(),
                 ]);
                 items.append(&mut vec![
-                    MenuItemFields::new("Toggle block filter")
+                    MenuItemFields::new(crate::t!("menu-block-toggle-block-filter"))
                         .with_on_select_action(
                             TerminalAction::ToggleBlockFilterOnSelectedOrLastBlock(
                                 ToggleBlockFilterSource::ContextMenu,
@@ -15191,7 +15172,7 @@ impl TerminalView {
                         .into_item(),
                 ]);
                 items.append(&mut vec![
-                    MenuItemFields::new("Toggle bookmark")
+                    MenuItemFields::new(crate::t!("menu-block-toggle-bookmark"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::ToggleBookmark,
                         ))
@@ -15285,7 +15266,7 @@ impl TerminalView {
 
                             if ChannelState::channel().is_dogfood() {
                                 items.push(
-                                    MenuItemFields::new("Fork from here")
+                                    MenuItemFields::new(crate::t!("menu-ai-block-fork-from-here"))
                                         .with_on_select_action(TerminalAction::ContextMenu(
                                             ContextMenuAction::ForkAIConversationFromExactExchange {
                                                 ai_block_view_id: *rich_content_view_id,
@@ -15303,7 +15284,7 @@ impl TerminalView {
                             && !ai_metadata.ai_block_handle.as_ref(ctx).is_restored()
                         {
                             items.push(
-                                MenuItemFields::new("Rewind to before here")
+                                MenuItemFields::new(crate::t!("menu-ai-block-rewind-to-before-here"))
                                     .with_on_select_action(TerminalAction::RewindAIConversation {
                                         ai_block_view_id: *rich_content_view_id,
                                         exchange_id: ai_metadata.exchange_id,
@@ -15349,7 +15330,7 @@ impl TerminalView {
         position: PromptPosition,
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = vec![
-            MenuItemFields::new("Copy prompt")
+            MenuItemFields::new(crate::t!("menu-block-copy-prompt"))
                 .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
                     position,
                     part: PromptPart::EntirePrompt,
@@ -15359,7 +15340,7 @@ impl TerminalView {
 
         if is_rprompt_shown {
             items.push(
-                MenuItemFields::new("Copy right prompt")
+                MenuItemFields::new(crate::t!("menu-block-copy-right-prompt"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopyRprompt,
                     ))
@@ -15368,7 +15349,7 @@ impl TerminalView {
         }
 
         items.push(
-            MenuItemFields::new("Copy working directory")
+            MenuItemFields::new(crate::t!("menu-block-copy-working-directory"))
                 .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
                     position,
                     part: PromptPart::Pwd,
@@ -15378,7 +15359,7 @@ impl TerminalView {
 
         if is_on_git_branch {
             items.push(
-                MenuItemFields::new("Copy git branch")
+                MenuItemFields::new(crate::t!("menu-block-copy-git-branch"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopyPrompt {
                             position,
@@ -15400,28 +15381,28 @@ impl TerminalView {
 
         if ContextFlag::CreateNewSession.is_enabled() {
             items.extend(vec![
-                MenuItemFields::new("Split pane right")
+                MenuItemFields::new(crate::t!("menu-block-split-pane-right"))
                     .with_on_select_action(TerminalAction::SplitRight(shell.clone()))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_right",
                         ctx,
                     ))
                     .into_item(),
-                MenuItemFields::new("Split pane left")
+                MenuItemFields::new(crate::t!("menu-block-split-pane-left"))
                     .with_on_select_action(TerminalAction::SplitLeft(shell.clone()))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_left",
                         ctx,
                     ))
                     .into_item(),
-                MenuItemFields::new("Split pane down")
+                MenuItemFields::new(crate::t!("menu-block-split-pane-down"))
                     .with_on_select_action(TerminalAction::SplitDown(shell.clone()))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_down",
                         ctx,
                     ))
                     .into_item(),
-                MenuItemFields::new("Split pane up")
+                MenuItemFields::new(crate::t!("menu-block-split-pane-up"))
                     .with_on_select_action(TerminalAction::SplitUp(shell))
                     .with_key_shortcut_label(keybinding_name_to_display_string(
                         "pane_group:add_up",
@@ -15445,7 +15426,7 @@ impl TerminalView {
             );
 
             items.push(
-                MenuItemFields::new("Close pane")
+                MenuItemFields::new(crate::t!("menu-block-close-pane"))
                     .with_on_select_action(TerminalAction::Close)
                     .with_key_shortcut_label(
                         custom_tag_to_keystroke(CustomAction::CloseCurrentSession.into())
@@ -15494,7 +15475,7 @@ impl TerminalView {
     }
 
     fn prompt_context_menu_items(&self, ctx: &AppContext) -> Vec<MenuItem<TerminalAction>> {
-        let copy_prompt = MenuItemFields::new("Copy prompt")
+        let copy_prompt = MenuItemFields::new(crate::t!("menu-block-copy-prompt"))
             .with_on_select_action(TerminalAction::ContextMenu(ContextMenuAction::CopyPrompt {
                 position: PromptPosition::Input,
                 part: PromptPart::EntirePrompt,
@@ -15511,7 +15492,7 @@ impl TerminalView {
             .is_active();
         let edit_menu_item = if has_cli_agent_session {
             FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
-                MenuItemFields::new("Edit CLI agent toolbelt")
+                MenuItemFields::new(crate::t!("menu-block-edit-cli-agent-toolbelt"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::EditCLIAgentToolbar,
                     ))
@@ -15519,7 +15500,7 @@ impl TerminalView {
             })
         } else if is_agent_view_active {
             FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
-                MenuItemFields::new("Edit agent toolbelt")
+                MenuItemFields::new(crate::t!("menu-block-edit-agent-toolbelt"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::EditAgentToolbar,
                     ))
@@ -15527,7 +15508,7 @@ impl TerminalView {
             })
         } else {
             Some(
-                MenuItemFields::new("Edit prompt")
+                MenuItemFields::new(crate::t!("menu-block-edit-prompt"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::EditPrompt,
                     ))
@@ -15540,7 +15521,7 @@ impl TerminalView {
             let mut items = vec![copy_prompt];
             if self.is_rprompt_shown(&self.model.lock()) {
                 items.push(
-                    MenuItemFields::new("Copy right prompt")
+                    MenuItemFields::new(crate::t!("menu-block-copy-right-prompt"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::CopyRprompt,
                         ))
@@ -15599,12 +15580,12 @@ impl TerminalView {
 
         if !selected_input_text.is_empty() {
             items.extend([
-                MenuItemFields::new("Cut")
+                MenuItemFields::new(crate::t!("menu-input-cut"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::CutSelectedText,
                     ))
                     .into_item(),
-                MenuItemFields::new("Copy")
+                MenuItemFields::new(crate::t!("menu-input-copy"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::CopySelectedText,
                     ))
@@ -15618,7 +15599,7 @@ impl TerminalView {
 
         if !all_current_input_text.is_empty() & selected_input_text.is_empty() {
             items.push(
-                MenuItemFields::new("Select all")
+                MenuItemFields::new(crate::t!("menu-input-select-all"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::SelectAll,
                     ))
@@ -15632,7 +15613,7 @@ impl TerminalView {
         }
 
         items.push(
-            MenuItemFields::new("Paste")
+            MenuItemFields::new(crate::t!("menu-input-paste"))
                 .with_on_select_action(TerminalAction::InputContextMenuItem(
                     InputContextMenuAction::Paste,
                 ))
@@ -15646,7 +15627,7 @@ impl TerminalView {
         // Section 2: AI Command Search, Ask Warp AI
         items.extend([
             MenuItem::Separator,
-            MenuItemFields::new("Command search")
+            MenuItemFields::new(crate::t!("menu-input-command-search"))
                 .with_on_select_action(TerminalAction::InputContextMenuItem(
                     InputContextMenuAction::ShowCommandSearch,
                 ))
@@ -15660,7 +15641,7 @@ impl TerminalView {
 
         if AISettings::as_ref(ctx).is_any_ai_enabled(ctx) {
             items.push(
-                MenuItemFields::new("AI command search")
+                MenuItemFields::new(crate::t!("menu-input-ai-command-search"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::ShowAICommandSearch,
                     ))
@@ -15674,7 +15655,7 @@ impl TerminalView {
 
             if !selected_input_text.is_empty() && !FeatureFlag::AgentMode.is_enabled() {
                 items.push(
-                    MenuItemFields::new("Ask Warp AI")
+                    MenuItemFields::new(crate::t!("menu-input-ask-warp-ai"))
                         .with_on_select_action(TerminalAction::InputContextMenuItem(
                             InputContextMenuAction::AskWarpAI,
                         ))
@@ -15687,7 +15668,7 @@ impl TerminalView {
         if !all_current_input_text.is_empty() && WarpDriveSettings::is_warp_drive_enabled(ctx) {
             items.extend([
                 MenuItem::Separator,
-                MenuItemFields::new("Save as workflow")
+                MenuItemFields::new(crate::t!("menu-input-save-as-workflow"))
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::SaveAsWorkflow,
                     ))
@@ -15698,14 +15679,14 @@ impl TerminalView {
         // Section 4: input hint text toggle
         if !is_editor_disabled {
             let input_settings = InputSettings::as_ref(ctx);
-            let inverse_action = if *input_settings.show_hint_text {
-                "Hide"
+            let toggle_hint_text_label = if *input_settings.show_hint_text {
+                crate::t!("menu-input-hide-hint-text")
             } else {
-                "Show"
+                crate::t!("menu-input-show-hint-text")
             };
             items.push(MenuItem::Separator);
             items.push(
-                MenuItemFields::new(format!("{inverse_action} input hint text"))
+                MenuItemFields::new(toggle_hint_text_label)
                     .with_on_select_action(TerminalAction::InputContextMenuItem(
                         InputContextMenuAction::ToggleInputHintText,
                     ))
@@ -15851,7 +15832,7 @@ impl TerminalView {
             model.selection_to_string(semantic_selection, self.is_inverted_blocklist(ctx), ctx);
         if selection_string.is_some() {
             menu_items.push(
-                MenuItemFields::new("Copy")
+                MenuItemFields::new(crate::t!("menu-block-copy"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopySelectedText,
                     ))
@@ -16032,17 +16013,17 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) -> Vec<MenuItem<TerminalAction>> {
         let mut items = vec![
-            MenuItemFields::new("Copy")
+            MenuItemFields::new(crate::t!("menu-ai-block-copy"))
                 .with_on_select_action(TerminalAction::ContextMenu(
                     ContextMenuAction::CopyAIBlock { ai_block_view_id },
                 ))
                 .into_item(),
-            MenuItemFields::new("Copy prompt")
+            MenuItemFields::new(crate::t!("menu-ai-block-copy-prompt"))
                 .with_on_select_action(TerminalAction::ContextMenu(
                     ContextMenuAction::CopyAIBlockQuery { ai_block_view_id },
                 ))
                 .into_item(),
-            MenuItemFields::new("Copy output as Markdown")
+            MenuItemFields::new(crate::t!("menu-ai-block-copy-output-as-markdown"))
                 .with_on_select_action(TerminalAction::ContextMenu(
                     ContextMenuAction::CopyAIBlockOutput { ai_block_view_id },
                 ))
@@ -16053,7 +16034,7 @@ impl TerminalView {
             match link {
                 RichContentLink::Url(url) => {
                     items.push(
-                        MenuItemFields::new("Copy URL")
+                        MenuItemFields::new(crate::t!("menu-ai-block-copy-url"))
                             .with_on_select_action(TerminalAction::ContextMenu(
                                 ContextMenuAction::CopyUrl { url_content: url },
                             ))
@@ -16063,7 +16044,7 @@ impl TerminalView {
                 #[cfg(feature = "local_fs")]
                 RichContentLink::FilePath { absolute_path, .. } => {
                     items.push(
-                        MenuItemFields::new("Copy path")
+                        MenuItemFields::new(crate::t!("menu-ai-block-copy-path"))
                             .with_on_select_action(TerminalAction::ContextMenu(
                                 ContextMenuAction::CopyUrl {
                                     url_content: absolute_path.to_string_lossy().into_owned(),
@@ -16089,7 +16070,7 @@ impl TerminalView {
 
         if num_requested_commands > 0 {
             items.push(
-                MenuItemFields::new(String::from("Copy command"))
+                MenuItemFields::new(crate::t!("menu-ai-block-copy-command"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopyAgentCommand { ai_block_view_id },
                     ))
@@ -16123,7 +16104,7 @@ impl TerminalView {
         });
         if has_git_branch {
             items.push(
-                MenuItemFields::new(String::from("Copy git branch"))
+                MenuItemFields::new(crate::t!("menu-ai-block-copy-git-branch"))
                     .with_on_select_action(TerminalAction::ContextMenu(
                         ContextMenuAction::CopyAgentGitBranch { ai_block_view_id },
                     ))
@@ -16132,7 +16113,7 @@ impl TerminalView {
         }
         items.push(MenuItem::Separator);
         items.push(
-            MenuItemFields::new("Save as prompt")
+            MenuItemFields::new(crate::t!("menu-ai-block-save-as-prompt"))
                 .with_on_select_action(TerminalAction::ContextMenu(
                     ContextMenuAction::SavePromptAsAgentModeWorkflow { ai_block_view_id },
                 ))
@@ -16144,7 +16125,7 @@ impl TerminalView {
             let history_model = BlocklistAIHistoryModel::as_ref(ctx);
             if history_model.can_conversation_be_shared(&ai_conversation_id) {
                 items.push(
-                    MenuItemFields::new("Share conversation")
+                    MenuItemFields::new(crate::t!("menu-ai-block-share-conversation"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::OpenConversationShareDialog {
                                 conversation_id: ai_conversation_id,
@@ -16156,7 +16137,7 @@ impl TerminalView {
         }
 
         items.push(
-            MenuItemFields::new("Copy conversation text")
+            MenuItemFields::new(crate::t!("menu-ai-block-copy-conversation-text"))
                 .with_on_select_action(TerminalAction::ContextMenu(
                     ContextMenuAction::CopyAIBlockConversation { ai_block_view_id },
                 ))
@@ -16214,7 +16195,7 @@ impl TerminalView {
 
             if ChannelState::channel().is_dogfood() {
                 menu_items.push(
-                    MenuItemFields::new("Fork from here")
+                    MenuItemFields::new(crate::t!("menu-ai-block-fork-from-here"))
                         .with_on_select_action(TerminalAction::ContextMenu(
                             ContextMenuAction::ForkAIConversationFromExactExchange {
                                 ai_block_view_id,
@@ -16230,7 +16211,7 @@ impl TerminalView {
         // We can't revert restored blocks since we don't restore the full diff
         if FeatureFlag::RevertToCheckpoints.is_enabled() && !is_restored {
             menu_items.push(
-                MenuItemFields::new("Rewind to before here")
+                MenuItemFields::new(crate::t!("menu-ai-block-rewind-to-before-here"))
                     .with_on_select_action(TerminalAction::RewindAIConversation {
                         ai_block_view_id,
                         exchange_id: ai_exchange_id,

@@ -2,7 +2,6 @@ pub(super) mod ask_user_question;
 pub(super) mod call_mcp_tool;
 pub(super) mod create_documents;
 pub(super) mod edit_documents;
-pub(super) mod fetch_conversation;
 pub(super) mod file_glob;
 pub(super) mod grep;
 pub(super) mod read_documents;
@@ -11,12 +10,9 @@ pub(super) mod read_mcp_resource;
 pub(super) mod read_skill;
 pub(super) mod request_file_edits;
 pub(super) mod search_codebase;
-pub(super) mod send_message;
 pub(super) mod shell_command;
-pub(super) mod start_agent;
 pub(super) mod suggest_new_conversation;
 pub(super) mod suggest_prompt;
-pub(super) mod upload_artifact;
 
 use ai::agent::action_result::{InsertReviewCommentsResult, RequestCommandOutputResult};
 pub use ask_user_question::AskUserQuestionExecutor;
@@ -24,7 +20,6 @@ pub(crate) use call_mcp_tool::coerce_integer_args;
 use call_mcp_tool::CallMCPToolExecutor;
 use create_documents::CreateDocumentsExecutor;
 use edit_documents::EditDocumentsExecutor;
-use fetch_conversation::FetchConversationExecutor;
 use file_glob::FileGlobExecutor;
 use futures::{future::BoxFuture, FutureExt};
 use grep::GrepExecutor;
@@ -40,14 +35,11 @@ pub use request_file_edits::{
     EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent, EditResolvedEvent, EditStats,
     RequestFileEditsExecutor, RequestFileEditsFormatKind, RequestFileEditsTelemetryEvent,
 };
-pub use send_message::SendMessageToAgentExecutor;
 use serde::{Deserialize, Serialize};
 pub use shell_command::{ShellCommandExecutor, ShellCommandExecutorEvent};
-pub use start_agent::{StartAgentExecutor, StartAgentExecutorEvent, StartAgentRequest};
 pub use suggest_new_conversation::NewConversationDecision;
 use suggest_new_conversation::SuggestNewConversationExecutor;
 pub use suggest_prompt::PromptSuggestionExecutor;
-use upload_artifact::UploadArtifactExecutor;
 use warp_core::{execution_mode::AppExecutionMode, features::FeatureFlag};
 
 #[cfg(feature = "local_fs")]
@@ -237,7 +229,6 @@ impl AsyncExecutingAction {
 pub struct BlocklistAIActionExecutor {
     shell_command_executor: ModelHandle<ShellCommandExecutor>,
     read_files_executor: ModelHandle<ReadFilesExecutor>,
-    upload_artifact_executor: ModelHandle<UploadArtifactExecutor>,
     search_codebase_executor: ModelHandle<SearchCodebaseExecutor>,
     request_file_edits_executor: ModelHandle<RequestFileEditsExecutor>,
     grep_executor: ModelHandle<GrepExecutor>,
@@ -250,9 +241,6 @@ pub struct BlocklistAIActionExecutor {
     edit_documents_executor: ModelHandle<EditDocumentsExecutor>,
     create_documents_executor: ModelHandle<CreateDocumentsExecutor>,
     read_skill_executor: ModelHandle<ReadSkillExecutor>,
-    fetch_conversation_executor: ModelHandle<FetchConversationExecutor>,
-    start_agent_executor: ModelHandle<StartAgentExecutor>,
-    send_message_executor: ModelHandle<SendMessageToAgentExecutor>,
     ask_user_question_executor: ModelHandle<AskUserQuestionExecutor>,
     /// The actions currently executing asynchronously, keyed by action ID.
     /// We track them per action rather than as a single slot so multiple actions from the same
@@ -274,8 +262,6 @@ impl BlocklistAIActionExecutor {
     ) -> Self {
         let read_files_executor =
             ctx.add_model(|_| ReadFilesExecutor::new(active_session.clone(), terminal_view_id));
-        let upload_artifact_executor = ctx
-            .add_model(|_| UploadArtifactExecutor::new(active_session.clone(), terminal_view_id));
         let search_codebase_executor = ctx.add_model(|ctx| {
             SearchCodebaseExecutor::new(
                 active_session.clone(),
@@ -312,15 +298,11 @@ impl BlocklistAIActionExecutor {
         let create_documents_executor = ctx
             .add_model(|_| CreateDocumentsExecutor::new(active_session.clone(), terminal_view_id));
         let read_skill_executor = ctx.add_model(|_| ReadSkillExecutor::new());
-        let fetch_conversation_executor = ctx.add_model(|_| FetchConversationExecutor::new());
-        let start_agent_executor = ctx.add_model(StartAgentExecutor::new);
-        let send_message_executor = ctx.add_model(|_| SendMessageToAgentExecutor::new());
         let ask_user_question_executor =
             ctx.add_model(|_| AskUserQuestionExecutor::new(terminal_view_id));
         Self {
             shell_command_executor,
             read_files_executor,
-            upload_artifact_executor,
             search_codebase_executor,
             request_file_edits_executor,
             grep_executor,
@@ -335,9 +317,6 @@ impl BlocklistAIActionExecutor {
             async_executing_actions: Default::default(),
             terminal_model,
             read_skill_executor,
-            fetch_conversation_executor,
-            start_agent_executor,
-            send_message_executor,
             ask_user_question_executor,
         }
     }
@@ -368,10 +347,6 @@ impl BlocklistAIActionExecutor {
 
     pub fn suggest_prompt_executor(&self) -> &ModelHandle<PromptSuggestionExecutor> {
         &self.suggest_prompt_executor
-    }
-
-    pub fn start_agent_executor(&self) -> &ModelHandle<StartAgentExecutor> {
-        &self.start_agent_executor
     }
 
     pub fn action_phase(&self, action: &AIAgentAction, ctx: &AppContext) -> RunningActionPhase {
@@ -436,9 +411,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::ReadFiles(..) => self
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::UploadArtifact(..) => self
-                .upload_artifact_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::SearchCodebase(..) => self
                 .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
@@ -481,15 +453,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::ReadSkill(_) => self
                 .read_skill_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::FetchConversation { .. } => self
-                .fetch_conversation_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::StartAgent { .. } => self
-                .start_agent_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::SendMessageToAgent { .. } => self
-                .send_message_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
@@ -615,9 +578,6 @@ impl BlocklistAIActionExecutor {
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::UploadArtifact(..) => self
-                .upload_artifact_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx)),
             AIAgentActionType::SearchCodebase(..) => self
                 .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -670,17 +630,6 @@ impl BlocklistAIActionExecutor {
                 .read_skill_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
-            AIAgentActionType::FetchConversation { .. } => self
-                .fetch_conversation_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::StartAgent { .. } => self
-                .start_agent_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::SendMessageToAgent { .. } => self
-                .send_message_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx)),
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
@@ -838,9 +787,6 @@ impl BlocklistAIActionExecutor {
             AIAgentActionType::ReadFiles(_) => self
                 .read_files_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::UploadArtifact(_) => self
-                .upload_artifact_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::SearchCodebase(_) => self
                 .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
@@ -879,15 +825,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::ReadSkill(_) => self
                 .read_skill_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::FetchConversation { .. } => self
-                .fetch_conversation_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::StartAgent { .. } => self
-                .start_agent_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::SendMessageToAgent { .. } => self
-                .send_message_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::AskUserQuestion { .. } => self
                 .ask_user_question_executor

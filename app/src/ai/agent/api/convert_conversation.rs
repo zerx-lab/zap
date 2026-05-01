@@ -24,7 +24,7 @@ use crate::ai::agent::{
     RequestFileEditsResult, SearchCodebaseFailureReason, SearchCodebaseResult, ServerOutputId,
     Shared, ShellCommandCompletedTrigger, ShellCommandError, SuggestNewConversationResult,
     SuggestPromptResult, TransferShellCommandControlToUserResult, UpdatedFileContext,
-    UploadArtifactResult, WriteToLongRunningShellCommandResult,
+    WriteToLongRunningShellCommandResult,
 };
 use crate::ai::block_context::BlockContext;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
@@ -33,8 +33,7 @@ use crate::ai_assistant::execution_context::{WarpAiExecutionContext, WarpAiOsCon
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::terminal_model::BlockIndex;
 use ai::agent::action_result::{
-    AskUserQuestionAnswerItem, AskUserQuestionResult, FetchConversationResult, ReadSkillResult,
-    SendMessageToAgentResult, StartAgentResult, StartAgentVersion,
+    AskUserQuestionAnswerItem, AskUserQuestionResult, ReadSkillResult,
 };
 use ai::skills::ParsedSkill;
 use chrono::{DateTime, Local, TimeZone};
@@ -672,33 +671,12 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::UploadFileArtifact(result)) => {
-            let upload_result = match &result.result {
-                Some(api::upload_file_artifact_result::Result::Success(success)) => {
-                    UploadArtifactResult::Success {
-                        artifact_uid: success.artifact_uid.clone(),
-                        filepath: None,
-                        mime_type: success.mime_type.clone(),
-                        description: None,
-                        size_bytes: success.size_bytes,
-                    }
-                }
-                Some(api::upload_file_artifact_result::Result::Error(error)) => {
-                    UploadArtifactResult::Error(error.message.clone())
-                }
-                None => UploadArtifactResult::Error(
-                    "Upload artifact tool call returned no result".to_string(),
-                ),
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::UploadArtifact(upload_result),
-                },
-                context,
-            })
+        Some(ToolCallResultType::UploadFileArtifact(_)) => {
+            // Upload artifact 已物理切除,云端 result 直接丢弃
+            let _ = tool_call_id;
+            let _ = task_id;
+            let _ = context;
+            None
         }
         Some(ToolCallResultType::SearchCodebase(result)) => {
             let search_result = match &result.result {
@@ -1314,27 +1292,9 @@ pub(crate) fn convert_tool_call_result_to_input(
             // Computer Use 已被移除,历史记录中遇到这两类 result 直接忽略。
             None
         }
-        Some(ToolCallResultType::FetchConversation(result)) => {
-            let fetch_result = match &result.result {
-                Some(api::fetch_conversation_result::Result::Success(success)) => {
-                    FetchConversationResult::Success {
-                        directory_path: success.directory_path.clone(),
-                    }
-                }
-                Some(api::fetch_conversation_result::Result::Error(error)) => {
-                    FetchConversationResult::Error(error.message.clone())
-                }
-                None => FetchConversationResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::FetchConversation(fetch_result),
-                },
-                context,
-            })
+        Some(ToolCallResultType::FetchConversation(_)) => {
+            // 云端工具已物理切除
+            None
         }
         Some(ToolCallResultType::Server(_)) => {
             // Server results should not create exchanges - return None
@@ -1346,57 +1306,9 @@ pub(crate) fn convert_tool_call_result_to_input(
             create_cancelled_result_for_tool_call(task_id, &tool_call_id, tool_call_map, context)
         }
         Some(ToolCallResultType::Subagent(_)) => None,
-        Some(ToolCallResultType::StartAgent(result)) => {
-            let start_agent_result = match &result.result {
-                Some(api::start_agent_result::Result::Success(success)) => {
-                    StartAgentResult::Success {
-                        agent_id: success.agent_id.clone(),
-                        version: StartAgentVersion::V1,
-                    }
-                }
-                Some(api::start_agent_result::Result::Error(error)) => StartAgentResult::Error {
-                    error: error.error.clone(),
-                    version: StartAgentVersion::V1,
-                },
-                None => StartAgentResult::Cancelled {
-                    version: StartAgentVersion::V1,
-                },
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::StartAgent(start_agent_result),
-                },
-                context,
-            })
-        }
-        Some(ToolCallResultType::StartAgentV2(result)) => {
-            let start_agent_result = match &result.result {
-                Some(api::start_agent_v2_result::Result::Success(success)) => {
-                    StartAgentResult::Success {
-                        agent_id: success.agent_id.clone(),
-                        version: StartAgentVersion::V2,
-                    }
-                }
-                Some(api::start_agent_v2_result::Result::Error(error)) => StartAgentResult::Error {
-                    error: error.error.clone(),
-                    version: StartAgentVersion::V2,
-                },
-                None => StartAgentResult::Cancelled {
-                    version: StartAgentVersion::V2,
-                },
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::StartAgent(start_agent_result),
-                },
-                context,
-            })
+        Some(ToolCallResultType::StartAgent(_)) | Some(ToolCallResultType::StartAgentV2(_)) => {
+            // 云端工具已物理切除
+            None
         }
         Some(ToolCallResultType::AskUserQuestion(result)) => {
             let ask_result = match &result.result {
@@ -1437,27 +1349,9 @@ pub(crate) fn convert_tool_call_result_to_input(
                 context,
             })
         }
-        Some(ToolCallResultType::SendMessageToAgent(result)) => {
-            let send_message_result = match &result.result {
-                Some(api::send_message_to_agent_result::Result::Success(success)) => {
-                    SendMessageToAgentResult::Success {
-                        message_id: success.message_id.clone(),
-                    }
-                }
-                Some(api::send_message_to_agent_result::Result::Error(error)) => {
-                    SendMessageToAgentResult::Error(error.message.clone())
-                }
-                None => SendMessageToAgentResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::SendMessageToAgent(send_message_result),
-                },
-                context,
-            })
+        Some(ToolCallResultType::SendMessageToAgent(_)) => {
+            // 云端工具已物理切除
+            None
         }
         // Deprecated/unused result types or absent result.
         Some(ToolCallResultType::SuggestCreatePlan(..))
@@ -1516,9 +1410,7 @@ fn create_cancelled_result_for_tool_call(
             )
         }
         ToolType::ReadFiles(_) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
-        ToolType::UploadFileArtifact(_) => {
-            AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-        }
+        ToolType::UploadFileArtifact(_) => return None,
         ToolType::SearchCodebase(_) => {
             AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
         }
@@ -1568,29 +1460,14 @@ fn create_cancelled_result_for_tool_call(
             // Computer Use 已被移除,转换路径不应再被命中。
             return None;
         }
-        ToolType::FetchConversation(_) => {
-            AIAgentActionResultType::FetchConversation(FetchConversationResult::Cancelled)
-        }
-        ToolType::Server(_) => {
-            return None;
-        }
+        ToolType::FetchConversation(_) => return None,
+        ToolType::Server(_) => return None,
         ToolType::Subagent(_) => return None,
-        ToolType::StartAgent(_) => {
-            AIAgentActionResultType::StartAgent(StartAgentResult::Cancelled {
-                version: StartAgentVersion::V1,
-            })
-        }
-        ToolType::StartAgentV2(_) => {
-            AIAgentActionResultType::StartAgent(StartAgentResult::Cancelled {
-                version: StartAgentVersion::V2,
-            })
-        }
+        ToolType::StartAgent(_) | ToolType::StartAgentV2(_) => return None,
         ToolType::AskUserQuestion(_) => {
             AIAgentActionResultType::AskUserQuestion(AskUserQuestionResult::Cancelled)
         }
-        ToolType::SendMessageToAgent(_) => {
-            AIAgentActionResultType::SendMessageToAgent(SendMessageToAgentResult::Cancelled)
-        }
+        ToolType::SendMessageToAgent(_) => return None,
         // These tools are deprecated.
         ToolType::SuggestCreatePlan(_) | ToolType::SuggestPlan(_) => return None,
     };

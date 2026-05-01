@@ -202,10 +202,6 @@ pub(crate) enum PersistedAIAgentActionType {
         questions: Vec<AskUserQuestionItem>,
     },
 
-    FetchConversation {
-        conversation_id: String,
-    },
-
     /// Actions that don't need data persisted (since they're restored from conversation tasks) can be mapped to this.
     NotPersisted,
 }
@@ -291,16 +287,10 @@ impl From<&AIAgentActionType> for PersistedAIAgentActionType {
             | AIAgentActionType::CreateDocuments(_)
             | AIAgentActionType::ReadShellCommandOutput { .. }
             | AIAgentActionType::ReadSkill(_)
-            | AIAgentActionType::UploadArtifact(_)
             | AIAgentActionType::TransferShellCommandControlToUser { .. } => Self::NotPersisted,
             AIAgentActionType::AskUserQuestion { questions } => Self::AskUserQuestion {
                 questions: questions.clone(),
             },
-            AIAgentActionType::FetchConversation { conversation_id } => Self::FetchConversation {
-                conversation_id: conversation_id.clone(),
-            },
-            AIAgentActionType::StartAgent { .. } => Self::NotPersisted,
-            AIAgentActionType::SendMessageToAgent { .. } => Self::NotPersisted,
         }
     }
 }
@@ -400,9 +390,6 @@ impl TryFrom<PersistedAIAgentActionType> for AIAgentActionType {
             PersistedAIAgentActionType::InitProject => Ok(Self::InitProject),
             PersistedAIAgentActionType::AskUserQuestion { questions } => {
                 Ok(Self::AskUserQuestion { questions })
-            }
-            PersistedAIAgentActionType::FetchConversation { conversation_id } => {
-                Ok(Self::FetchConversation { conversation_id })
             }
             PersistedAIAgentActionType::NotPersisted => Err(anyhow!(
                 "Restoration is handled through conversation tasks, not persisted blocks."

@@ -278,4 +278,42 @@ mod tests {
     fn relevant_files_invalid_returns_empty() {
         assert!(parse_relevant_files("garbage", &[]).is_empty());
     }
+
+    #[test]
+    fn workflow_metadata_basic() {
+        let raw = r#"{"title":"List by size","description":"List files in dir sorted by size","command":"ls -lhS {{dir}}","arguments":[{"name":"dir","description":"target directory","default_value":"."}]}"#;
+        let dto = parse_workflow_metadata(raw).unwrap();
+        assert_eq!(dto.title, "List by size");
+        assert_eq!(dto.command, "ls -lhS {{dir}}");
+        assert_eq!(dto.arguments.len(), 1);
+        assert_eq!(dto.arguments[0].name, "dir");
+        assert_eq!(dto.arguments[0].default_value, ".");
+    }
+
+    #[test]
+    fn workflow_metadata_with_fence_and_no_args() {
+        let raw = "```json\n{\"title\":\"Show date\",\"description\":\"\",\"command\":\"date\",\"arguments\":[]}\n```";
+        let dto = parse_workflow_metadata(raw).unwrap();
+        assert_eq!(dto.command, "date");
+        assert!(dto.arguments.is_empty());
+    }
+
+    #[test]
+    fn workflow_metadata_drops_unnamed_args() {
+        let raw = r#"{"title":"x","description":"","command":"echo {{a}}","arguments":[{"name":"a","description":"","default_value":""},{"name":"","description":"","default_value":""}]}"#;
+        let dto = parse_workflow_metadata(raw).unwrap();
+        assert_eq!(dto.arguments.len(), 1);
+        assert_eq!(dto.arguments[0].name, "a");
+    }
+
+    #[test]
+    fn workflow_metadata_empty_command_rejected() {
+        let raw = r#"{"title":"","description":"","command":"","arguments":[]}"#;
+        assert!(parse_workflow_metadata(raw).is_none());
+    }
+
+    #[test]
+    fn workflow_metadata_invalid_returns_none() {
+        assert!(parse_workflow_metadata("not json").is_none());
+    }
 }

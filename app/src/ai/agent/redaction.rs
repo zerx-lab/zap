@@ -143,25 +143,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                             }
                         }
                     }
-                    AIAgentActionResultType::UploadArtifact(upload_result) => {
-                        use crate::ai::agent::UploadArtifactResult;
-                        match upload_result {
-                            UploadArtifactResult::Success {
-                                filepath,
-                                description,
-                                ..
-                            } => {
-                                if let Some(filepath) = filepath {
-                                    redact_secrets(filepath);
-                                }
-                                if let Some(description) = description {
-                                    redact_secrets(description);
-                                }
-                            }
-                            UploadArtifactResult::Error(error) => redact_secrets(error),
-                            UploadArtifactResult::Cancelled => {}
-                        }
-                    }
                     AIAgentActionResultType::SearchCodebase(search_codebase_result) => {
                         if let crate::ai::agent::SearchCodebaseResult::Success { files } =
                             search_codebase_result
@@ -225,16 +206,6 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
                     | AIAgentActionResultType::EditDocuments(_)
                     | AIAgentActionResultType::CreateDocuments(_) => {}
 
-                    // FetchConversation results contain tasks returned from the server,
-                    // which were already redacted before being sent as client inputs.
-                    // (client inputs -> redaction -> server request -> task messages)
-                    AIAgentActionResultType::FetchConversation(_) => {}
-
-                    // StartAgent results contain only an agent ID string, no secrets
-                    AIAgentActionResultType::StartAgent(_) => {}
-
-                    // SendMessageToAgent results contain only a message ID or error string, no secrets
-                    AIAgentActionResultType::SendMessageToAgent(_) => {}
                     // TransferShellCommandControlToUser result - similar to WriteToLongRunningShellCommand
                     AIAgentActionResultType::TransferShellCommandControlToUser(result) => {
                         match result {

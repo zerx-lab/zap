@@ -6,7 +6,7 @@ use crate::ai::agent::comment::ReviewComment;
 use crate::ai::agent::task::TaskId;
 use crate::ai::agent::{
     AIAgentInput, CreateDocumentsResult, EditDocumentsResult, ReadFilesResult, SubagentCall,
-    SubagentType, TodoOperation, UploadArtifactResult,
+    SubagentType, TodoOperation,
 };
 use crate::util::truncation::truncate_from_end;
 use ai::agent::file_locations::group_file_contexts_for_display;
@@ -34,7 +34,7 @@ use crate::AIAgentTodoList;
 #[allow(unused_imports)]
 use std::path::{Component, Path, PathBuf};
 
-use ai::agent::action::{SuggestPromptRequest, UploadArtifactRequest};
+use ai::agent::action::SuggestPromptRequest;
 use ai::skills::SkillReference;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
@@ -116,7 +116,6 @@ use super::common::{
     STATUS_FOOTER_VERTICAL_PADDING, STATUS_ICON_SIZE_DELTA,
 };
 use super::imported_comments::render_imported_comments;
-use super::orchestration;
 use super::todos::render_todos;
 use super::CONTENT_HORIZONTAL_PADDING;
 use super::{
@@ -692,60 +691,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                             ));
                         }
                         AIAgentOutputMessageType::Action(AIAgentAction {
-                            action: AIAgentActionType::UploadArtifact(request),
-                            id,
-                            ..
-                        }) => {
-                            should_render_footer = false;
-                            output_items.add_child(render_upload_artifact(props, id, request, app));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::StartAgent {
-                                    version: _,
-                                    name,
-                                    prompt,
-                                    execution_mode,
-                                    lifecycle_subscription: _,
-                                },
-                            id,
-                            ..
-                        }) if FeatureFlag::Orchestration.is_enabled() => {
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            output_items.add_child(orchestration::render_start_agent(
-                                props,
-                                id,
-                                name,
-                                prompt,
-                                execution_mode,
-                                &output_message.id,
-                                app,
-                            ));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
-                            action:
-                                AIAgentActionType::SendMessageToAgent {
-                                    addresses,
-                                    subject,
-                                    message,
-                                },
-                            id,
-                            ..
-                        }) if FeatureFlag::Orchestration.is_enabled() => {
-                            should_render_footer = false;
-                            should_render_suggestions = false;
-                            output_items.add_child(orchestration::render_send_message(
-                                props,
-                                id,
-                                addresses,
-                                subject,
-                                message,
-                                &output_message.id,
-                                app,
-                            ));
-                        }
-                        AIAgentOutputMessageType::Action(AIAgentAction {
                             action: AIAgentActionType::InsertCodeReviewComments { repo_path, .. },
                             id,
                             ..
@@ -818,18 +763,6 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                     output_message.id
                                 );
                             }
-                        }
-                        AIAgentOutputMessageType::MessagesReceivedFromAgents { messages }
-                            if FeatureFlag::Orchestration.is_enabled() =>
-                        {
-                            output_items.add_child(
-                                orchestration::render_messages_received_from_agents(
-                                    messages,
-                                    props,
-                                    &output_message.id,
-                                    app,
-                                ),
-                            );
                         }
                         AIAgentOutputMessageType::DebugOutput { text } => {
                             if ChannelState::enable_debug_features() {
@@ -2586,93 +2519,7 @@ fn render_read_mcp_resource(
     renderable_action.render(app).finish()
 }
 
-fn format_upload_artifact_text(
-    request: &UploadArtifactRequest,
-    result: Option<&UploadArtifactResult>,
-) -> String {
-    let mut lines = vec![format!("Upload artifact: {}", request.file_path)];
-
-    if let Some(description) = request.description.as_deref() {
-        lines.push(format!("Description: {description}"));
-    }
-
-    match result {
-        Some(UploadArtifactResult::Success {
-            artifact_uid,
-            filepath,
-            ..
-        }) => {
-            lines.push(format!("Status: uploaded artifact {artifact_uid}"));
-            if let Some(filepath) = filepath.as_deref() {
-                lines.push(format!("Uploaded file: {filepath}"));
-            }
-        }
-        Some(UploadArtifactResult::Error(error)) => {
-            lines.push(format!("Status: upload failed: {error}"));
-        }
-        Some(UploadArtifactResult::Cancelled) => {}
-        None => {}
-    }
-
-    lines.join("\n")
-}
-
-fn render_upload_artifact(
-    props: Props,
-    action_id: &AIAgentActionId,
-    request: &UploadArtifactRequest,
-    app: &AppContext,
-) -> Box<dyn Element> {
-    let appearance = Appearance::as_ref(app);
-    let status = props.action_model.as_ref(app).get_action_status(action_id);
-    let result = props
-        .action_model
-        .as_ref(app)
-        .get_action_result(action_id)
-        .and_then(|result| match &result.result {
-            AIAgentActionResultType::UploadArtifact(upload_result) => Some(upload_result),
-            _ => None,
-        });
-
-    let text = format_upload_artifact_text(request, result);
-    let mut renderable_action = RenderableAction::new(&text, app);
-
-    if status.as_ref().is_some_and(|status| status.is_blocked()) {
-        let buttons = props
-            .action_buttons
-            .get(action_id)
-            .expect("Button states must exist for each requested action.");
-
-        renderable_action = renderable_action
-            .with_header(blocked_action_header(
-                action_id.clone(),
-                BLOCKED_ACTION_MESSAGE_FOR_UPLOADING_ARTIFACT,
-                buttons.run_button.clone(),
-                buttons.cancel_button.clone(),
-                props.action_model,
-                props.model,
-                app,
-            ))
-            .with_highlighted_border()
-            .with_background_color(appearance.theme().background().into_solid());
-    } else {
-        if (props.model.status(app).is_streaming()
-            && !props.model.is_first_action_in_output(action_id, app))
-            || status.as_ref().is_some_and(|s| s.is_queued())
-        {
-            renderable_action = renderable_action.with_font_color(blended_colors::text_disabled(
-                appearance.theme(),
-                appearance.theme().surface_2(),
-            ));
-        }
-        renderable_action = renderable_action
-            .with_icon(action_icon(action_id, props.action_model, props.model, app).finish());
-    }
-
-    renderable_action.render(app).finish()
-}
-
-// Computer Use 已被移除:render_use_computer / render_request_computer_use 函数已删。
+// 云端工具已物理切除:render_upload_artifact / render_use_computer / render_request_computer_use 已删
 
 /// Renders the collapsible references footer
 /// if there are any citations.
@@ -3609,9 +3456,6 @@ fn conversation_search_phase(task: &crate::ai::agent::task::Task) -> Conversatio
         for message in &output.messages {
             if let AIAgentOutputMessageType::Action(action) = &message.message {
                 let new_phase = match &action.action {
-                    AIAgentActionType::FetchConversation { .. } => {
-                        Some(ConversationSearchPhase::ListingMessages)
-                    }
                     AIAgentActionType::Grep { queries, .. } if !queries.is_empty() => {
                         Some(ConversationSearchPhase::Grepping {
                             patterns: queries.clone(),
