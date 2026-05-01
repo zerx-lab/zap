@@ -223,6 +223,12 @@ pub struct Cache {
     raster_bounds: DashMap<RasterBoundsKey, Result<RectI, Error>>,
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     available_system_fonts: Option<Vec<(Option<FamilyId>, FontInfo)>>,
+    /// In-flight 等待者：当 `available_system_fonts` 还没就绪、首次扫描尚在异步执行时，
+    /// 后续 `all_system_fonts` 调用把自己的 sender 挂到这里复用同一次扫描结果，
+    /// 避免重复 spawn + 重复主线程 `process_loaded_system_fonts`。
+    #[cfg_attr(target_family = "wasm", allow(dead_code))]
+    pending_system_fonts_senders:
+        Vec<futures::channel::oneshot::Sender<Vec<(Option<FamilyId>, FontInfo)>>>,
     font_fallback_cache: FontFallbackCache,
 }
 
@@ -257,6 +263,7 @@ impl Cache {
             glyph_typographic_bounds: Default::default(),
             raster_bounds: Default::default(),
             available_system_fonts: Default::default(),
+            pending_system_fonts_senders: Default::default(),
             font_fallback_cache: Default::default(),
         }
     }
@@ -284,24 +291,35 @@ impl Cache {
     /// [`Self::set_system_fonts`].
     #[cfg(not(target_family = "wasm"))]
     pub fn all_system_fonts(
-        &self,
+        &mut self,
         ctx: &mut crate::ModelContext<Self>,
     ) -> BoxFuture<'static, Vec<(Option<FamilyId>, FontInfo)>> {
         if let Some(fonts) = self.available_system_fonts.as_ref() {
-            futures::future::ready(fonts.clone()).boxed()
-        } else {
-            log::info!("Computing available system fonts");
-            let (tx, rx) = futures::channel::oneshot::channel();
-            ctx.spawn(
-                self.platform.load_all_system_fonts(),
-                |me, loaded_system_fonts, _ctx| {
-                    let system_fonts = me.platform.process_loaded_system_fonts(loaded_system_fonts);
-                    me.available_system_fonts = Some(system_fonts.clone());
-                    let _ = tx.send(system_fonts);
-                },
-            );
-            rx.map(Result::unwrap_or_default).boxed()
+            return futures::future::ready(fonts.clone()).boxed();
         }
+
+        let (tx, rx) = futures::channel::oneshot::channel();
+        let already_in_flight = !self.pending_system_fonts_senders.is_empty();
+        self.pending_system_fonts_senders.push(tx);
+
+        if already_in_flight {
+            // 已有同一次扫描在跑,只复用其结果,不重复 spawn / 不重复主线程
+            // process_loaded_system_fonts。
+            return rx.map(Result::unwrap_or_default).boxed();
+        }
+
+        log::info!("Computing available system fonts");
+        ctx.spawn(
+            self.platform.load_all_system_fonts(),
+            |me, loaded_system_fonts, _ctx| {
+                let system_fonts = me.platform.process_loaded_system_fonts(loaded_system_fonts);
+                me.available_system_fonts = Some(system_fonts.clone());
+                for sender in std::mem::take(&mut me.pending_system_fonts_senders) {
+                    let _ = sender.send(system_fonts.clone());
+                }
+            },
+        );
+        rx.map(Result::unwrap_or_default).boxed()
     }
 
     pub fn load_family_name_from_id(&self, id: FamilyId) -> Option<String> {
