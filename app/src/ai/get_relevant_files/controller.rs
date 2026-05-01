@@ -229,8 +229,6 @@ impl GetRelevantFilesController {
 
         match RepoOutlines::as_ref(ctx).get_outline(directory) {
             Some((OutlineStatus::Complete(outline), base_path)) => {
-                let server_api = ServerApiProvider::as_ref(ctx).get();
-
                 let file_outlines = outline.to_file_symbols(partial_path_segments);
                 if file_outlines.len() < MINIMUM_FILE_COUNT_FOR_API_CALL {
                     ctx.emit(GetRelevantFilesControllerEvent::Success {
@@ -245,29 +243,51 @@ impl GetRelevantFilesController {
                         ),
                     });
                 } else {
-                    let outline_request = GetRelevantFiles {
-                        query,
-                        files: file_outlines
-                            .into_iter()
-                            .map(|outline| FileContext {
-                                path: outline.path,
-                                symbols: outline.symbols,
-                            })
-                            .collect(),
-                    };
+                    // BYOP 路径:替换 ServerApi::get_relevant_files 为 BYOP one-shot completion。
+                    // OpenWarp 已剥云,无 BYOP 配置时静默 fallback 为整个 outline 当作 relevant
+                    // (与原 server 端 ranker 失败时的"全量返回"行为一致,不丢上下文)。
+                    use crate::ai::agent_providers::active_ai::relevant_files;
+                    let entries: Vec<relevant_files::FileEntry> = file_outlines
+                        .iter()
+                        .map(|outline| relevant_files::FileEntry {
+                            path: outline.path.clone(),
+                            symbols: outline.symbols.clone(),
+                        })
+                        .collect();
                     let action_id_clone = action_id.clone();
+                    let Some(prepared) = relevant_files::dispatch(
+                        ctx,
+                        None,
+                        relevant_files::Input {
+                            query,
+                            files: entries,
+                        },
+                    ) else {
+                        // 无 BYOP active_ai 配置:静默把所有文件当作 relevant 返回,
+                        // 让下游照常使用(避免漏 context 比误判更安全)。
+                        let fragments: Arc<HashSet<CodeContextLocation>> = Arc::new(
+                            file_outlines
+                                .into_iter()
+                                .map(|file| {
+                                    CodeContextLocation::WholeFile(base_path.join(&file.path))
+                                })
+                                .collect(),
+                        );
+                        ctx.emit(GetRelevantFilesControllerEvent::Success {
+                            action_id,
+                            fragments,
+                        });
+                        return Ok(());
+                    };
                     let request_abort_handle = ctx
                         .spawn(
                             async move {
-                                let response =
-                                    server_api.get_relevant_files(&outline_request).await?;
-                                Ok(Arc::new(
-                                    response
-                                        .relevant_file_paths
+                                let paths = relevant_files::run(prepared).await;
+                                Ok::<_, AIApiError>(Arc::new(
+                                    paths
                                         .into_iter()
                                         .filter_map(|path| {
                                             let file_path = base_path.join(path);
-                                            // Validate the returned file paths.
                                             if file_path.exists() {
                                                 Some(CodeContextLocation::WholeFile(file_path))
                                             } else {

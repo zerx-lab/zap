@@ -1,0 +1,9 @@
+# Query
+{{ query }}
+
+# Files
+{%- for f in files %}
+- {{ f.path }}{% if f.symbols %} — {{ f.symbols }}{% endif %}
+{%- endfor %}
+
+Return ONLY the JSON object specified.

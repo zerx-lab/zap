@@ -233,6 +233,18 @@ pub fn render_models_section(
             "Title generation model",
             "The model used to generate concise conversation titles. Defaults to the base model — pick a cheaper/faster model here to save tokens on title summarization without affecting the agent's main reasoning.",
             &view.title_model_dropdown,
+        ))
+        .with_child(render_filterable_dropdown_row(
+            appearance,
+            "Active AI model",
+            "The model used by proactive AI features: prompt suggestions after a command finishes, natural-language autocomplete in the agent input, and codebase relevance ranking. Defaults to the base model — pick a small/fast model here to keep these features snappy without affecting the agent's main reasoning.",
+            &view.active_ai_model_dropdown,
+        ))
+        .with_child(render_filterable_dropdown_row(
+            appearance,
+            "Next Command model",
+            "The model used to predict your next shell command (gray inline autosuggestion + zero-state suggestion after a block finishes). Latency-sensitive — pick the smallest/fastest BYOP model you have. Defaults to the base model.",
+            &view.next_command_model_dropdown,
         ));
 
     if FeatureFlag::LocalComputerUse.is_enabled() {

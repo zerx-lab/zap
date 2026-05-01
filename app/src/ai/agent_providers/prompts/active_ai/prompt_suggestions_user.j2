@@ -1,0 +1,17 @@
+{%- if system_context %}
+# System context
+{{ system_context }}
+{%- endif %}
+
+# Recent command(s)
+{%- for b in recent_blocks %}
+- $ {{ b.command }}
+  pwd: {{ b.pwd }}
+  exit: {{ b.exit_code }}
+  output:
+{{ b.output_summary | indent(4, true) }}
+{%- endfor %}
+
+Last exit code: {{ last_exit_code }}
+
+What follow-up would the user most likely want next? Reply with ONLY the JSON object specified.

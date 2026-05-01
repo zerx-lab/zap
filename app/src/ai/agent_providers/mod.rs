@@ -9,9 +9,11 @@
 //! 第二阶段会基于这套配置实现 `AiProvider` trait,
 //! 把 Agent 的 multi-agent 调用分流到本地 Provider。
 
+pub mod active_ai;
 pub mod chat_stream;
 pub mod llm_id;
 pub mod models_dev;
+pub mod oneshot;
 pub mod openai_compatible;
 pub mod prompt_renderer;
 pub mod reasoning;

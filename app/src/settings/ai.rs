@@ -377,11 +377,13 @@ impl ThinkingDisplayMode {
         }
     }
 
-    pub fn command_palette_description(&self) -> &'static str {
+    pub fn command_palette_description(&self) -> String {
         match self {
-            ThinkingDisplayMode::ShowAndCollapse => "Set agent thinking display: show & collapse",
-            ThinkingDisplayMode::AlwaysShow => "Set agent thinking display: always show",
-            ThinkingDisplayMode::NeverShow => "Set agent thinking display: never show",
+            ThinkingDisplayMode::ShowAndCollapse => {
+                crate::t!("agent-thinking-display-show-collapse")
+            }
+            ThinkingDisplayMode::AlwaysShow => crate::t!("agent-thinking-display-always-show"),
+            ThinkingDisplayMode::NeverShow => crate::t!("agent-thinking-display-never-show"),
         }
     }
 

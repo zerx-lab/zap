@@ -666,7 +666,7 @@ fn normalize_endpoint_url(api_type: AgentProviderApiType, base_url: &str) -> Str
 /// 构造 genai Client。每次请求新建(开销低 — Client 内部只是 reqwest::Client + adapter 表)。
 /// `ServiceTargetResolver` capture 当前请求的 endpoint/key/api_type 后,把每次 exec_chat_stream
 /// 都强制路由到指定 AdapterKind,完全绕过 genai 默认的"按模型名识别"。
-fn build_client(
+pub(super) fn build_client(
     api_type: AgentProviderApiType,
     base_url: String,
     api_key: String,
@@ -1084,37 +1084,29 @@ pub async fn generate_byop_output(
 
 /// 用独立 BYOP 配置发一个短的非工具请求,要求模型对首条 user query 输出一个
 /// 5–10 词的会话标题。所有错误吞掉(返回 Err 让上游打 warn log,不影响主流程)。
+///
+/// 实现委托给 `oneshot::byop_oneshot_completion`,这里只负责拼 prompt 和清洗输出。
 async fn generate_title_via_byop(
     tg: &TitleGenInput,
     user_query: &str,
 ) -> Result<Option<String>, anyhow::Error> {
-    let client = build_client(tg.api_type, tg.base_url.clone(), tg.api_key.clone());
-
-    // 标题专用 ChatOptions:不 capture 任何流式片段,reasoning 不需要。
-    // 标题生成不应触发 thinking — 大多数模型会把 reasoning 跑得比标题本身还长,浪费 token。
-    let opts = ChatOptions::default()
-        .with_capture_content(true)
-        .with_capture_usage(true);
-
+    let cfg = super::oneshot::OneshotConfig {
+        base_url: tg.base_url.clone(),
+        api_key: tg.api_key.clone(),
+        model_id: tg.model_id.clone(),
+        api_type: tg.api_type,
+        reasoning_effort: tg.reasoning_effort,
+    };
     // 中英双语都覆盖的 system,要求 plain text(无引号、无 markdown)。
     let system = "You generate concise conversation titles. \
                   Reply with ONLY a 4-8 word title (no quotes, no punctuation at the end, no markdown). \
                   Match the language of the user's message. \
                   Do not answer the question — just title it.";
-    let user_short = if user_query.chars().count() > 1000 {
-        user_query.chars().take(1000).collect::<String>()
-    } else {
-        user_query.to_owned()
+    let opts = super::oneshot::OneshotOptions {
+        max_chars: Some(1000),
+        ..Default::default()
     };
-    let chat_req = ChatRequest::from_messages(vec![ChatMessage::user(user_short)])
-        .with_system(system.to_owned());
-
-    let resp = client
-        .exec_chat(&tg.model_id, chat_req, Some(&opts))
-        .await
-        .map_err(|e| anyhow::anyhow!("title gen exec_chat failed: {e}"))?;
-
-    let raw = resp.first_text().unwrap_or("").to_owned();
+    let raw = super::oneshot::byop_oneshot_completion(&cfg, system, user_query, &opts).await?;
     Ok(sanitize_title(&raw))
 }
 

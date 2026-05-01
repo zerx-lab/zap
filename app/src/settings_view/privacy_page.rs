@@ -1970,7 +1970,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 ) {
     let mut toggle_binding_pairs = vec![
         ToggleSettingActionPair::new(
-            "app analytics",
+            &crate::t!("toggle-suffix-app-analytics"),
             builder(SettingsAction::PrivacyPageToggle(
                 PrivacyPageAction::ToggleTelemetry,
             )),
@@ -1978,7 +1978,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             flags::TELEMETRY_FLAG,
         ),
         ToggleSettingActionPair::new(
-            "crash reporting",
+            &crate::t!("toggle-suffix-crash-reporting"),
             builder(SettingsAction::PrivacyPageToggle(
                 PrivacyPageAction::ToggleCrashReporting,
             )),
@@ -1988,7 +1988,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     ];
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "secret redaction",
+        &crate::t!("toggle-suffix-secret-redaction"),
         builder(SettingsAction::PrivacyPageToggle(
             PrivacyPageAction::ToggleSafeMode,
         )),

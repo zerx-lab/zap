@@ -80,17 +80,19 @@ jobs:
     name: Build Release (macOS ${{ matrix.dmg_name_suffix }})
     runs-on: ${{ matrix.runner }}
     needs: prepare_release
-    timeout-minutes: 90
+    # macos-26 / macos-26-intel(Pro standard)无 sccache,full cargo build + bundle + create-dmg
+    # 实测 90min 卡在 cargo build 阶段被取消;参考 Windows standard 1h43m,留 buffer 设 180
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: aarch64
             dmg_name_suffix: arm64
-            runner: macos-26          # Pro standard arm64 (M2 Pro)
+            runner: macos-26 # Pro standard arm64 (M2 Pro)
           - arch: x86_64
             dmg_name_suffix: x86_64
-            runner: macos-26-intel    # Pro standard x64
+            runner: macos-26-intel # Pro standard x64
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
@@ -136,7 +138,7 @@ jobs:
     name: Build Release (Windows x64)
     runs-on: windows-latest
     needs: prepare_release
-    timeout-minutes: 150
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:

@@ -1,0 +1,12 @@
+Given a query and a list of files (path + optional symbol summary), return ONLY the subset of paths most relevant to the query.
+
+Reply with ONLY a JSON object — no markdown fences, no commentary:
+
+  {"paths":["<path>",...]}
+
+Rules:
+- Preserve original paths exactly (byte-for-byte). Do NOT invent paths or modify casing/separators.
+- Order paths by relevance (most relevant first).
+- Include AT MOST 10 paths.
+- If no files appear relevant, return `{"paths":[]}`.
+- Output strictly valid JSON.

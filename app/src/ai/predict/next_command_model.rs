@@ -35,6 +35,9 @@ use super::generate_ai_input_suggestions::{
     GenerateAIInputSuggestionsRequest, GenerateAIInputSuggestionsResponseV2, NextCommandContext,
 };
 
+use crate::ai::agent_providers::active_ai::next_command as byop_next_command;
+use crate::ai::agent_providers::oneshot::OneshotConfig;
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "local_fs")] {
         use diesel::SqliteConnection;
@@ -45,6 +48,57 @@ cfg_if::cfg_if! {
 
 #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 const MAX_NUM_SIMILAR_HISTORY_CONTEXT: usize = 25;
+
+/// 调用 BYOP next_command one-shot,把结果包装为 `GenerateAIInputSuggestionsResponseV2`。
+///
+/// `byop_cfg` 必须由调用方在 spawn 前从 `&AppContext` 解出(运行时不再可用)。
+/// `byop_cfg = None` ⇒ 静默 no-op,返回 Ok 空响应(避免 401 报错噪声)。
+async fn byop_generate_input_suggestions(
+    byop_cfg: Option<OneshotConfig>,
+    request: &GenerateAIInputSuggestionsRequest,
+) -> Result<GenerateAIInputSuggestionsResponseV2, AIApiError> {
+    let Some(cfg) = byop_cfg else {
+        // OpenWarp 已剥云,无 BYOP 配置时不再 fallback ServerApi —— 返回空响应,
+        // UI 自然不会展示建议,也不会刷错误日志。
+        return Ok(GenerateAIInputSuggestionsResponseV2::default());
+    };
+    // 把 request 的扁平字段映射到 active_ai prompt 模板的输入。
+    // recent_blocks 留空 — context_messages + history_context 已经包含序列化历史命令。
+    let mut history_context = request.history_context.clone();
+    if !request.context_messages.is_empty() {
+        if !history_context.is_empty() {
+            history_context.push('\n');
+        }
+        history_context.push_str(&request.context_messages.join("\n"));
+    }
+    let input = byop_next_command::Input {
+        recent_blocks: Vec::new(),
+        history_context,
+        system_context: request.system_context.clone(),
+        prefix: request.prefix.clone(),
+        rejected_suggestions: request.rejected_suggestions.clone(),
+    };
+    let suggestion = byop_next_command::run_with(cfg, input).await;
+    match suggestion {
+        Some(cmd) => {
+            // 若用户已输入 prefix,模型必须以 prefix 开头才采纳。
+            if let Some(prefix) = request.prefix.as_deref() {
+                if !cmd.starts_with(prefix) {
+                    log::debug!(
+                        "[byop next_command] response `{cmd}` does not start with prefix `{prefix}`; dropping"
+                    );
+                    return Ok(GenerateAIInputSuggestionsResponseV2::default());
+                }
+            }
+            Ok(GenerateAIInputSuggestionsResponseV2 {
+                commands: vec![cmd.clone()],
+                ai_queries: vec![],
+                most_likely_action: cmd,
+            })
+        }
+        None => Ok(GenerateAIInputSuggestionsResponseV2::default()),
+    }
+}
 
 /// The number of additional preceding commands for each HistoryContext
 /// included in the LLM request.
@@ -339,9 +393,12 @@ impl NextCommandModel {
         previous_result: Option<IntelligentAutosuggestionResult>,
         ctx: &mut ModelContext<Self>,
     ) {
-        let server_api = self.server_api.clone();
+        let _server_api = self.server_api.clone(); // BYOP 接管后不再使用,保留以避免改动它处
         let terminal_model = self.model.clone();
         let cached_next_command_context = self.cached_zerostate_next_command_context.clone();
+        // BYOP cfg 必须在 spawn 前解出(spawn 内拿不到 &AppContext)。
+        // 用 None terminal_view_id 走全局当前 active profile。
+        let byop_cfg = byop_next_command::resolve(ctx, None);
 
         let completion_context = completer_data.completion_session_context(ctx);
         // This is only needed if we have a prefix.
@@ -463,7 +520,7 @@ impl NextCommandModel {
                     // For zero-state next command suggestions, return the result immediately.
                     let Some(prefix) = prefix else {
                         return (
-                            server_api.generate_ai_input_suggestions(&request).await,
+                            byop_generate_input_suggestions(byop_cfg.clone(), &request).await,
                             request,
                             true,
                             start_ts_ms,
@@ -544,7 +601,7 @@ impl NextCommandModel {
                     };
 
                     // Only if we have no commands from history and no completions, use the LLM to generate a partial suggestion.
-                    let response = server_api.generate_ai_input_suggestions(&request).await;
+                    let response = byop_generate_input_suggestions(byop_cfg, &request).await;
                     (
                         response,
                         request,

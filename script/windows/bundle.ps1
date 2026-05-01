@@ -112,7 +112,7 @@ if ("$CHANNEL" -eq 'local') {
 } elseif ("$CHANNEL" -eq 'oss') {
     $WARP_BIN = 'warp-oss'
     $BINARY_NAME = 'warp-oss.exe'
-    $APP_NAME = 'WarpOss'
+    $APP_NAME = 'OpenWarp'
     # The OSS channel does not ship Sentry, so drop the crash_reporting feature
     # (which would otherwise pull in the Sentry SDK as a dependency).
     $FEATURES = 'release_bundle,gui,nld_improvements'

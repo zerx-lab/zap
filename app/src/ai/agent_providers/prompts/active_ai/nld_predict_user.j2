@@ -1,0 +1,14 @@
+{%- if system_context %}
+# System context
+{{ system_context }}
+{%- endif %}
+
+{%- if last_block %}
+# Last command
+$ {{ last_block.command }} (exit {{ last_block.exit_code }} in {{ last_block.pwd }})
+{%- endif %}
+
+# Partial input
+{{ partial_query }}
+
+Complete the partial input. Return ONLY the completion text on a single line.

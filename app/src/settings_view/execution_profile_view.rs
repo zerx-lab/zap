@@ -136,6 +136,32 @@ impl View for ExecutionProfileView {
                     .clone()
             });
 
+        // active AI 模型(prompt suggestions / NLD / relevant files 用),fallback 到 base。
+        let active_ai_model = profile
+            .active_ai_model
+            .as_ref()
+            .and_then(|id| llm_preferences.get_llm_info(id))
+            .map(|info| info.display_name.clone())
+            .unwrap_or_else(|| {
+                llm_preferences
+                    .get_default_base_model()
+                    .display_name
+                    .clone()
+            });
+
+        // Next Command 模型(灰色补全 / zero-state 建议),fallback 到 base。
+        let next_command_model = profile
+            .next_command_model
+            .as_ref()
+            .and_then(|id| llm_preferences.get_llm_info(id))
+            .map(|info| info.display_name.clone())
+            .unwrap_or_else(|| {
+                llm_preferences
+                    .get_default_base_model()
+                    .display_name
+                    .clone()
+            });
+
         let computer_use_model = profile
             .computer_use_model
             .as_ref()
@@ -197,6 +223,24 @@ impl View for ExecutionProfileView {
                             Icon::Pencil,
                             crate::t!("settings-exec-profile-title-model"),
                             title_model,
+                            appearance,
+                            is_any_ai_enabled,
+                        ),
+                    ));
+                    model_flex.add_child(with_standard_vertical_margin(
+                        render_model_line_with_icon(
+                            Icon::Lightbulb,
+                            crate::t!("settings-exec-profile-active-ai-model"),
+                            active_ai_model,
+                            appearance,
+                            is_any_ai_enabled,
+                        ),
+                    ));
+                    model_flex.add_child(with_standard_vertical_margin(
+                        render_model_line_with_icon(
+                            Icon::Lightning,
+                            crate::t!("settings-exec-profile-next-command-model"),
+                            next_command_model,
                             appearance,
                             is_any_ai_enabled,
                         ),

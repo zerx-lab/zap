@@ -89,7 +89,7 @@ fn maybe_add_settings_sync_toggle_binding<T: Action + Clone>(
         *lock = true;
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
-                "settings sync",
+                &crate::t!("toggle-suffix-settings-sync"),
                 builder(SettingsAction::MainPageToggle(
                     MainPageAction::ToggleSettingsSync,
                 )),

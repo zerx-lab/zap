@@ -145,7 +145,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     // Add all of the toggle settings from the Features Page that you want to show up on the Command Palette here.
     let mut toggle_binding_pairs = vec![
         ToggleSettingActionPair::new(
-            "copy on select within the terminal",
+            &crate::t!("toggle-suffix-copy-on-select"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleCopyOnSelect,
             )),
@@ -153,7 +153,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             flags::COPY_ON_SELECT_CONTEXT_FLAG,
         ),
         ToggleSettingActionPair::new(
-            "linux selection clipboard",
+            &crate::t!("toggle-suffix-linux-selection-clipboard"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleLinuxClipboardSelection,
             )),
@@ -166,7 +166,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "autocomplete quotes, parentheses, and brackets",
+            &crate::t!("toggle-suffix-autocomplete-symbols"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleAutocompleteSymbols,
             )),
@@ -179,7 +179,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "restore windows, tabs, and panes on startup",
+            &crate::t!("toggle-suffix-restore-session"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleRestoreSession,
             )),
@@ -187,11 +187,11 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             flags::RESTORE_SESSION_CONTEXT_FLAG,
         ),
         ToggleSettingActionPair::new(
-            {
+            &{
                 #[cfg(target_os = "macos")]
-                { "Left Option key is Meta" }
+                { crate::t!("toggle-suffix-left-option-meta") }
                 #[cfg(not(target_os = "macos"))]
-                { "Left Alt key is Meta" }
+                { crate::t!("toggle-suffix-left-alt-meta") }
             },
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleLeftMetaKey,
@@ -205,11 +205,11 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            {
+            &{
                 #[cfg(target_os = "macos")]
-                { "Right Option key is Meta" }
+                { crate::t!("toggle-suffix-right-option-meta") }
                 #[cfg(not(target_os = "macos"))]
-                { "Right Alt key is Meta" }
+                { crate::t!("toggle-suffix-right-alt-meta") }
             },
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleRightMetaKey,
@@ -223,7 +223,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "scroll reporting",
+            &crate::t!("toggle-suffix-scroll-reporting"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleScrollReporting,
             )),
@@ -236,7 +236,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "completions while typing",
+            &crate::t!("toggle-suffix-completions-while-typing"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleCompletionsOpenWhileTyping,
             )),
@@ -249,7 +249,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "command corrections",
+            &crate::t!("toggle-suffix-command-corrections"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleCommandCorrections,
             )),
@@ -262,7 +262,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "error underlining",
+            &crate::t!("toggle-suffix-error-underlining"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleErrorUnderlining,
             )),
@@ -275,7 +275,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "syntax highlighting",
+            &crate::t!("toggle-suffix-syntax-highlighting"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleSyntaxHighlighting,
             )),
@@ -288,7 +288,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "audible terminal bell",
+            &crate::t!("toggle-suffix-audible-bell"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleUseAudibleBell,
             )),
@@ -301,7 +301,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
                 .is_supported_on_current_platform(),
         ),
         ToggleSettingActionPair::new(
-            "autosuggestions",
+            &crate::t!("toggle-suffix-autosuggestions"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleAutosuggestions,
             )),
@@ -309,7 +309,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
             flags::AUTOSUGGESTIONS_ENABLED_FLAG,
         ),
         ToggleSettingActionPair::new(
-            "autosuggestion keybinding hint",
+            &crate::t!("toggle-suffix-autosuggestion-keybinding-hint"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleAutosuggestionKeybindingHint,
             )),
@@ -320,7 +320,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     if !FeatureFlag::SSHTmuxWrapper.is_enabled() {
         toggle_binding_pairs.push(ToggleSettingActionPair::new(
-            "Warp SSH wrapper",
+            &crate::t!("toggle-suffix-ssh-wrapper"),
             builder(SettingsAction::FeaturesPageToggle(
                 #[allow(deprecated)]
                 FeaturesPageAction::ToggleSshWrapper,
@@ -332,7 +332,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     }
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "show tooltip on click on links",
+        &crate::t!("toggle-suffix-link-tooltip"),
         builder(SettingsAction::FeaturesPageToggle(
             FeaturesPageAction::ToggleLinkTooltip,
         )),
@@ -342,7 +342,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "quit warning modal",
+            &crate::t!("toggle-suffix-quit-warning"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleShowWarningBeforeQuitting,
             )),
@@ -358,7 +358,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "alias expansion",
+            &crate::t!("toggle-suffix-alias-expansion"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleAliasExpansion,
             )),
@@ -374,7 +374,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "middle-click paste",
+            &crate::t!("toggle-suffix-middle-click-paste"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleMiddleClickPaste,
             )),
@@ -390,7 +390,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "code as default editor",
+            &crate::t!("toggle-suffix-code-as-default-editor"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleCodeAsDefaultEditor,
             )),
@@ -406,7 +406,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "input hint text",
+            &crate::t!("toggle-suffix-input-hint-text"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleShowInputHintText,
             )),
@@ -422,7 +422,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "editing commands with Vim keybindings",
+            &crate::t!("toggle-suffix-vim-keybindings"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleVimMode,
             )),
@@ -438,7 +438,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "Vim unnamed register as system clipboard",
+            &crate::t!("toggle-suffix-vim-clipboard"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleVimUnnamedSystemClipboard,
             )),
@@ -454,7 +454,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "Vim status bar",
+            &crate::t!("toggle-suffix-vim-status-bar"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleVimStatusBar,
             )),
@@ -470,7 +470,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "focus reporting",
+            &crate::t!("toggle-suffix-focus-reporting"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleFocusReporting,
             )),
@@ -485,7 +485,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
-        "smart select",
+        &crate::t!("toggle-suffix-smart-select"),
         builder(SettingsAction::FeaturesPageToggle(
             FeaturesPageAction::ToggleSmartSelection,
         )),
@@ -495,7 +495,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     toggle_binding_pairs.push(
         ToggleSettingActionPair::new(
-            "terminal input message line",
+            &crate::t!("toggle-suffix-input-message-line"),
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleShowTerminalInputMessageLine,
             )),
@@ -508,7 +508,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     if FeatureFlag::AgentView.is_enabled() && AISettings::as_ref(app).is_any_ai_enabled(app) {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
-                "slash commands in terminal mode",
+                &crate::t!("toggle-suffix-slash-commands-terminal"),
                 builder(SettingsAction::FeaturesPageToggle(
                     FeaturesPageAction::ToggleSlashCommandsInTerminalMode,
                 )),
@@ -526,7 +526,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     if GPUState::as_ref(app).is_low_power_gpu_available() {
         toggle_binding_pairs.push(
             ToggleSettingActionPair::new(
-                "integrated GPU rendering (low power)",
+                &crate::t!("toggle-suffix-integrated-gpu"),
                 builder(SettingsAction::FeaturesPageToggle(
                     FeaturesPageAction::TogglePreferLowPowerGPU,
                 )),
@@ -546,7 +546,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         if windowing_system_is_customizable(app) {
             toggle_binding_pairs.push(
                 ToggleSettingActionPair::new(
-                    "Wayland for window management",
+                    &crate::t!("toggle-suffix-wayland"),
                     builder(SettingsAction::FeaturesPageToggle(
                         FeaturesPageAction::ToggleForceX11,
                     )),

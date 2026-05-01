@@ -600,6 +600,64 @@ impl AIExecutionProfilesModel {
         }
     }
 
+    pub fn set_active_ai_model(
+        &mut self,
+        profile_id: ClientProfileId,
+        model_id: Option<LLMId>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.edit_profile_internal(
+            profile_id,
+            |profile| {
+                if profile.active_ai_model != model_id {
+                    profile.active_ai_model = model_id.clone();
+                    return true;
+                }
+                false
+            },
+            ctx,
+        );
+
+        if let Some(model_id) = &model_id {
+            send_telemetry_from_ctx!(
+                TelemetryEvent::AIExecutionProfileModelSelected {
+                    model_type: "active_ai".to_string(),
+                    model_value: model_id.to_string(),
+                },
+                ctx
+            );
+        }
+    }
+
+    pub fn set_next_command_model(
+        &mut self,
+        profile_id: ClientProfileId,
+        model_id: Option<LLMId>,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.edit_profile_internal(
+            profile_id,
+            |profile| {
+                if profile.next_command_model != model_id {
+                    profile.next_command_model = model_id.clone();
+                    return true;
+                }
+                false
+            },
+            ctx,
+        );
+
+        if let Some(model_id) = &model_id {
+            send_telemetry_from_ctx!(
+                TelemetryEvent::AIExecutionProfileModelSelected {
+                    model_type: "next_command".to_string(),
+                    model_value: model_id.to_string(),
+                },
+                ctx
+            );
+        }
+    }
+
     pub fn set_computer_use_model(
         &mut self,
         profile_id: ClientProfileId,

@@ -12086,12 +12086,7 @@ impl Input {
             }
         };
 
-        let json_message = json!({
-            "command": processed_input,
-            "output": processed_output,
-            "exit_code": exit_code,
-            "pwd": working_dir,
-        });
+        let _ = (processed_input, processed_output); // 历史 ServerApi 路径用,BYOP one-shot 仅取 last_block 摘要
 
         let am_query_input_buffer = self.editor.as_ref(ctx).buffer_text(ctx);
         let Some(session) = self.active_session(ctx) else {
@@ -12099,23 +12094,27 @@ impl Input {
         };
         let context = WarpAiExecutionContext::new(&session);
 
-        let request = PredictAMQueriesRequest {
-            context_messages: vec![json_message.to_string()],
-            partial_query: am_query_input_buffer.clone(),
-            system_context: context.to_json_string(),
+        // BYOP 路径:替换 ServerApi::predict_am_queries 为 BYOP one-shot completion。
+        let last_block = crate::ai::agent_providers::active_ai::LastBlockSnippet {
+            command: block.command.clone(),
+            exit_code: exit_code.value(),
+            pwd: working_dir.cloned().unwrap_or_default(),
         };
-
-        let server_api = self.server_api.clone();
+        let Some(rendered) = crate::ai::agent_providers::active_ai::nld_predict::dispatch(
+            ctx,
+            Some(self.terminal_view_id),
+            crate::ai::agent_providers::active_ai::nld_predict::Input {
+                partial_query: am_query_input_buffer.clone(),
+                last_block: Some(last_block),
+                system_context: context.to_json_string(),
+            },
+        ) else {
+            return;
+        };
 
         self.predict_am_queries_future_handle = Some(ctx.spawn(
             async move {
-                match server_api.predict_am_queries(&request).await {
-                    Ok(resp) => Some(resp.suggestion),
-                    Err(err) => {
-                        log::error!("Failed to fetch predicted queries: {err:?}");
-                        None
-                    }
-                }
+                crate::ai::agent_providers::active_ai::nld_predict::run(rendered).await
             },
             move |me: &mut Self, maybe_suggestion: Option<String>, ctx: &mut ViewContext<Self>| {
                 // Only set the autosuggestion if the input buffer hasn't changed, since we made the original request

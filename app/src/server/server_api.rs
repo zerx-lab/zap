@@ -336,6 +336,10 @@ pub enum TranscribeError {
     #[error("Failed to deserialize JSON.")]
     Deserialization,
 
+    /// OpenWarp 已禁用语音转写(BYOP genai 协议无法承载音频)。
+    #[error("Voice transcription is unavailable in OpenWarp.")]
+    Disabled,
+
     #[error(transparent)]
     Other(#[from] anyhow::Error),
 }
@@ -1016,56 +1020,16 @@ impl ServerApi {
         Ok(response)
     }
 
-    /// Hits the /ai/transcribe endpoint to get the transcription for the given audio.
+    /// 语音转写 — OpenWarp 已禁用。
+    ///
+    /// BYOP genai chat 协议无法承载音频流,且 OpenWarp 已剥离 Warp Inc 云端,
+    /// `/ai/transcribe` 端点不可达。直接返回 `Disabled`,UI 层显示禁用提示。
     pub async fn transcribe(
         &self,
-        request: &TranscribeRequest,
+        _request: &TranscribeRequest,
     ) -> Result<TranscribeResponse, TranscribeError> {
-        let auth_token = self.get_or_refresh_access_token().await?;
-
-        let request_builder = self
-            .client
-            .post(format!("{}/ai/transcribe", ChannelState::server_root_url()));
-        let response = if let Some(token) = auth_token.as_bearer_token() {
-            request_builder.bearer_auth(token)
-        } else {
-            request_builder
-        }
-        .json(request)
-        .send()
-        .await;
-
-        match response {
-            Ok(res) => {
-                if res.status().is_success() {
-                    match res.json::<TranscribeResponse>().await {
-                        Ok(output_response) => Ok(output_response),
-                        Err(e) => {
-                            log::warn!("Failed to deserialize response: {e:?}");
-                            Err(TranscribeError::Deserialization)
-                        }
-                    }
-                } else if res.status() == http::StatusCode::TOO_MANY_REQUESTS {
-                    if res
-                        .headers()
-                        .get(WARP_ERROR_CODE_HEADER)
-                        .and_then(|v| v.to_str().ok())
-                        == Some(WARP_ERROR_CODE_OUT_OF_CREDITS)
-                    {
-                        Err(TranscribeError::QuotaLimit)
-                    } else {
-                        Err(TranscribeError::ServerOverloaded)
-                    }
-                } else {
-                    log::warn!("Non-success status code received: {}", res.status());
-                    Err(TranscribeError::Transport)
-                }
-            }
-            Err(e) => {
-                log::warn!("Error while sending request: {e:?}");
-                Err(TranscribeError::Transport)
-            }
-        }
+        log::debug!("transcribe disabled in OpenWarp (BYOP cannot carry audio)");
+        Err(TranscribeError::Disabled)
     }
 
     pub async fn generate_multi_agent_output(

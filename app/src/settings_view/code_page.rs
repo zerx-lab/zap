@@ -823,7 +823,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     if FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![ToggleSettingActionPair::new(
-                "codebase index",
+                &crate::t!("toggle-suffix-codebase-index"),
                 builder(SettingsAction::Code(
                     CodeSettingsPageAction::ToggleCodebaseContext,
                 )),
@@ -835,7 +835,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![ToggleSettingActionPair::new(
-                "auto-indexing",
+                &crate::t!("toggle-suffix-auto-indexing"),
                 builder(SettingsAction::Code(
                     CodeSettingsPageAction::ToggleAutoIndexing,
                 )),

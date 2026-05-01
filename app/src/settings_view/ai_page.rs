@@ -158,7 +158,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 ) {
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "AI",
+            &crate::t!("toggle-suffix-ai"),
             builder(SettingsAction::AI(AISettingsPageAction::ToggleGlobalAI)),
             context,
             flags::IS_ANY_AI_ENABLED,
@@ -169,7 +169,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "Active AI",
+            &crate::t!("toggle-suffix-active-ai"),
             builder(SettingsAction::AI(AISettingsPageAction::ToggleActiveAI)),
             &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
             flags::IS_ACTIVE_AI_ENABLED,
@@ -180,10 +180,10 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
 
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            if FeatureFlag::AgentView.is_enabled() {
-                "terminal command autodetection in agent input"
+            &if FeatureFlag::AgentView.is_enabled() {
+                crate::t!("toggle-suffix-ai-input-autodetect-agent")
             } else {
-                "natural language detection"
+                crate::t!("toggle-suffix-ai-input-autodetect-nld")
             },
             builder(SettingsAction::AI(
                 AISettingsPageAction::ToggleAIInputAutoDetection,
@@ -197,7 +197,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "agent prompt autodetection in terminal input",
+            &crate::t!("toggle-suffix-nld-in-terminal"),
             builder(SettingsAction::AI(
                 AISettingsPageAction::ToggleNLDInTerminal,
             )),
@@ -210,7 +210,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "Next Command",
+            &crate::t!("toggle-suffix-next-command"),
             builder(SettingsAction::AI(
                 AISettingsPageAction::ToggleIntelligentAutosuggestions,
             )),
@@ -222,7 +222,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "prompt suggestions",
+            &crate::t!("toggle-suffix-prompt-suggestions"),
             builder(SettingsAction::AI(
                 AISettingsPageAction::TogglePromptSuggestions,
             )),
@@ -234,7 +234,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "code suggestions",
+            &crate::t!("toggle-suffix-code-suggestions"),
             builder(SettingsAction::AI(
                 AISettingsPageAction::ToggleCodeSuggestions,
             )),
@@ -313,7 +313,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     }
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "natural language autosuggestions",
+            &crate::t!("toggle-suffix-nl-autosuggestions"),
             builder(SettingsAction::AI(
                 AISettingsPageAction::ToggleNaturalLanguageAutosuggestions,
             )),
@@ -326,7 +326,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "shared block title generation",
+            &crate::t!("toggle-suffix-shared-block-title-gen"),
             builder(SettingsAction::AI(
                 AISettingsPageAction::ToggleSharedTitleGeneration,
             )),
@@ -339,7 +339,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     );
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
         vec![ToggleSettingActionPair::new(
-            "voice input",
+            &crate::t!("toggle-suffix-voice-input"),
             builder(SettingsAction::AI(AISettingsPageAction::ToggleVoiceInput)),
             &(context.clone() & id!(flags::IS_ANY_AI_ENABLED)),
             flags::IS_VOICE_INPUT_ENABLED,
@@ -371,7 +371,7 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     if !FeatureFlag::FullSourceCodeEmbedding.is_enabled() {
         ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(
             vec![ToggleSettingActionPair::new(
-                "codebase index",
+                &crate::t!("toggle-suffix-codebase-index"),
                 builder(SettingsAction::AI(
                     AISettingsPageAction::ToggleCodebaseContext,
                 )),

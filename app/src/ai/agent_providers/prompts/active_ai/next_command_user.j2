@@ -1,0 +1,36 @@
+{%- if system_context %}
+# System context
+{{ system_context }}
+{%- endif %}
+
+{%- if history_context %}
+# Relevant command history
+{{ history_context }}
+{%- endif %}
+
+{%- if recent_blocks %}
+# Recent commands (oldest → newest)
+{%- for b in recent_blocks %}
+- $ {{ b.command }}
+  pwd: {{ b.pwd }}
+  exit: {{ b.exit_code }}
+{%- if b.output_summary %}
+  output:
+{{ b.output_summary | indent(4, true) }}
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if rejected_suggestions %}
+# Already-rejected suggestions (DO NOT repeat)
+{%- for r in rejected_suggestions %}
+- {{ r }}
+{%- endfor %}
+{%- endif %}
+
+{%- if prefix %}
+# Required prefix
+The command MUST start with: {{ prefix }}
+{%- endif %}
+
+Predict the user's next command. Return ONLY the command text on a single line.

@@ -25,8 +25,8 @@ if [ "$WARP_CHANNEL" = "local" ]; then
     WARP_APP_PATH="target/debug/bundle/osx/WarpLocal.app"
     WARP_SCHEME_NAME="warplocal"
 else
-    WARP_APP_PATH="target/debug/bundle/osx/WarpOss.app"
-    WARP_SCHEME_NAME="warposs"
+    WARP_APP_PATH="target/debug/bundle/osx/OpenWarp.app"
+    WARP_SCHEME_NAME="openwarp"
 fi
 DONT_OPEN=false
 # Launches the binary with "open", meaning the Warp process is
@@ -62,7 +62,7 @@ while (( "$#" )); do
       if [ "$WARP_CHANNEL" = "local" ]; then
           WARP_APP_PATH="target/release/bundle/osx/WarpLocal.app"
       else
-          WARP_APP_PATH="target/release/bundle/osx/WarpOss.app"
+          WARP_APP_PATH="target/release/bundle/osx/OpenWarp.app"
       fi
       PARAMS="$PARAMS $1"
       shift
@@ -73,7 +73,7 @@ while (( "$#" )); do
       if [ "$WARP_CHANNEL" = "local" ]; then
           WARP_APP_PATH="target/${PROFILE}/bundle/osx/WarpLocal.app"
       else
-          WARP_APP_PATH="target/${PROFILE}/bundle/osx/WarpOss.app"
+          WARP_APP_PATH="target/${PROFILE}/bundle/osx/OpenWarp.app"
       fi
       PARAMS="$PARAMS --profile $PROFILE"
       ;;
