@@ -154,9 +154,6 @@ pub enum ExecutionProfileEditorViewAction {
         id: uuid::Uuid,
     },
     DeleteProfile,
-    SetPlanAutoSync {
-        enabled: bool,
-    },
     SetWebSearchEnabled {
         enabled: bool,
     },
@@ -195,7 +192,6 @@ pub struct ExecutionProfileEditorView {
     profile_name_editor: ViewHandle<EditorView>,
     delete_button: ViewHandle<ActionButton>,
     tooltip_mouse_state_handles: TooltipMouseStateHandles,
-    plan_auto_sync_switch: SwitchStateHandle,
     web_search_switch: SwitchStateHandle,
     upgrade_footer_mouse_state: MouseStateHandle,
 }
@@ -564,7 +560,6 @@ impl ExecutionProfileEditorView {
             profile_name_editor,
             delete_button,
             tooltip_mouse_state_handles: Default::default(),
-            plan_auto_sync_switch: Default::default(),
             web_search_switch: Default::default(),
             upgrade_footer_mouse_state: Default::default(),
         };
@@ -1532,12 +1527,6 @@ impl TypedActionView for ExecutionProfileEditorView {
                     profiles_model.delete_profile(self.profile_id, ctx);
                 });
                 ctx.emit(ExecutionProfileEditorViewEvent::Pane(PaneEvent::Close));
-            }
-            ExecutionProfileEditorViewAction::SetPlanAutoSync { enabled } => {
-                AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
-                    profiles_model.set_autosync_plans_to_warp_drive(self.profile_id, *enabled, ctx);
-                });
-                ctx.notify();
             }
             ExecutionProfileEditorViewAction::SetWebSearchEnabled { enabled } => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {

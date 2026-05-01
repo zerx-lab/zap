@@ -10,7 +10,6 @@ use crate::{
         artifacts::Artifact,
         blocklist::BlocklistAIHistoryModel,
         document::ai_document_model::{AIDocumentModel, AIDocumentVersion},
-        execution_profiles::profiles::AIExecutionProfilesModel,
     },
     notebooks::editor::model::FileLinkResolutionContext,
     terminal::model::session::active_session::ActiveSession,
@@ -101,16 +100,6 @@ impl CreateDocumentsExecutor {
                         )
                     })
                 };
-
-                let profile = AIExecutionProfilesModel::as_ref(ctx)
-                    .active_profile(Some(self.terminal_view_id), ctx);
-                let should_autosync = profile.data().autosync_plans_to_warp_drive;
-
-                if should_autosync {
-                    model.update(ctx, |model, model_ctx| {
-                        model.sync_to_warp_drive(id, model_ctx);
-                    });
-                }
 
                 // Add plan artifact to the conversation.
                 let artifact = Artifact::Plan {

@@ -748,7 +748,6 @@ settings-exec-profile-interact-running-commands = Interact with running commands
 settings-exec-profile-ask-questions = Ask questions:
 settings-exec-profile-call-mcp-servers = Call MCP servers:
 settings-exec-profile-call-web-tools = Call web tools:
-settings-exec-profile-autosync-plans = Auto-sync plans to Warp Drive:
 settings-exec-profile-chips-none = None
 settings-exec-profile-perm-agent-decides = Agent decides
 settings-exec-profile-perm-always-allow = Always allow

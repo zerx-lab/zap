@@ -731,7 +731,6 @@ settings-exec-profile-interact-running-commands = 与运行中命令交互:
 settings-exec-profile-ask-questions = 提问:
 settings-exec-profile-call-mcp-servers = 调用 MCP 服务器:
 settings-exec-profile-call-web-tools = 调用 Web 工具:
-settings-exec-profile-autosync-plans = 自动同步计划到 Warp Drive:
 settings-exec-profile-chips-none = 无
 settings-exec-profile-perm-agent-decides = Agent 自行决定
 settings-exec-profile-perm-always-allow = 始终允许
