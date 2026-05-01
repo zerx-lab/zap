@@ -576,7 +576,7 @@ impl SharingDialog {
         guests: &[Guest],
         pending_guests: &[PendingGuest],
     ) {
-        // We should only update the guests if the dialog is targetting the
+        // We should only update the guests if the dialog is targeting the
         // correct session.
         match self.target.as_ref() {
             Some(ShareableObject::Session {
@@ -624,7 +624,7 @@ impl SharingDialog {
         access_level: Option<SharingAccessLevel>,
         ctx: &mut ViewContext<Self>,
     ) {
-        // Ensure we're targetting the correct session.
+        // Ensure we're targeting the correct session.
         let Some(ShareableObject::Session {
             session_id: target_session_id,
             ..
