@@ -56,7 +56,7 @@ use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
 use genai::{Client, ModelIden, ServiceTarget};
 
 use crate::ai::agent::api::{RequestParams, ResponseStream};
-use crate::ai::agent::AIAgentInput;
+use crate::ai::agent::{AIAgentInput, RunningCommand};
 use crate::server::server_api::AIApiError;
 use crate::settings::AgentProviderApiType;
 use ai::agent::convert::ConvertToAPITypeError;
@@ -84,6 +84,76 @@ fn latest_input_context(input: &[AIAgentInput]) -> &[AIAgentContext] {
         }
     }
     &[]
+}
+
+/// LRC tag-in 场景下渲染 `<attached_running_command>` XML 块,prepend 到 user message,
+/// 让模型看到当前 PTY 的实际状态(命令、grid 内容、是否 alt-screen),从而正确选择
+/// `write_to_long_running_shell_command` 工具发送对应键序列。
+fn render_running_command_context(rc: &RunningCommand) -> String {
+    format!(
+        "<attached_running_command command_id=\"{}\" is_alt_screen_active=\"{}\">\n  \
+         <command>{}</command>\n  \
+         <snapshot>\n{}\n  </snapshot>\n  \
+         <instructions>This command is already running in the user's terminal. \
+         Use `read_shell_command_output` with this command_id to inspect it, and \
+         `write_to_long_running_shell_command` with this command_id to operate the program \
+         through its PTY (input may be raw bytes like `\\x1b` for ESC, `\\n` for Enter, \
+         or normal text). This command_id is valid even if the process was started by the user \
+         rather than by run_shell_command. Do NOT spawn a new shell to control the same TUI.\
+         </instructions>\n\
+         </attached_running_command>",
+        xml_attr(rc.block_id.as_str()),
+        rc.is_alt_screen_active,
+        xml_text(&rc.command),
+        xml_text(&rc.grid_contents),
+    )
+}
+
+/// 简短回退版本:仅有 command_id(没拿到 RunningCommand 完整快照时),
+/// 让模型至少知道目标 PTY 的 id,可以用 `read_shell_command_output` 自己取最新内容。
+fn render_running_command_id_context(command_id: &str) -> String {
+    format!(
+        "<attached_running_command command_id=\"{}\">\n  \
+         <instructions>This command is already running in the user's terminal. \
+         Use `read_shell_command_output` with this command_id to inspect it, and \
+         `write_to_long_running_shell_command` with this command_id to operate the program \
+         through its PTY. Do NOT spawn a new shell to control the same TUI.</instructions>\n\
+         </attached_running_command>",
+        xml_attr(command_id),
+    )
+}
+
+/// XML 转义,同时 strip 所有非法/有问题的控制字符,避免 JSON 序列化失败。
+///
+/// `grid_contents`(从 `formatted_terminal_contents_for_input` 提取的 alt-screen 内容)
+/// 可能含原始 ANSI escape 序列(0x1b)、CSI sequences、SGR codes、box-drawing chars 等。
+/// 其中 `< 0x20` 的控制字符会让 Anthropic 解析 JSON 报 "invalid escaped character in string",
+/// 因为 JSON RFC 7159 只接受 `\b \f \n \r \t \" \\ \/ \uXXXX` 这几种合法转义,
+/// 其他 `\v` `\a` `\x1b` 之类直接 reject。
+///
+/// 处理:
+/// - `\n` `\r` `\t` 保留(JSON 合法)
+/// - 其它 `< 0x20` 控制字符替换成空格(纯展示给模型,不需要保留 ANSI 颜色等)
+/// - `&` `<` `>` 转 XML entity
+fn xml_text(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\n' | '\r' | '\t' => out.push(c),
+            c if (c as u32) < 0x20 => out.push(' '),
+            // DEL(0x7f)单独处理 — 也是控制字符
+            '\u{7f}' => out.push(' '),
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+fn xml_attr(s: &str) -> String {
+    xml_text(s).replace('"', "&quot;")
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +209,12 @@ impl AssistantBuffer {
 fn build_chat_request(params: &RequestParams) -> ChatRequest {
     let agent_ctx = latest_input_context(&params.input);
     let system_text = prompt_renderer::render_system(&params.model, agent_ctx);
+    // 注:LRC / 长命令的工具用法引导(write_to_long_running_shell_command + command_id +
+    // 各种 mode 与 raw 字节序列)已经在 `prompts/system/default.j2:69-79` 完整覆盖。
+    // 用户当前所处的具体 PTY 上下文(命令名 / alt-screen 标志 / grid 内容)通过
+    // user message 前缀的 `<attached_running_command>` XML 块单独注入(见
+    // `render_running_command_context` 与 build_chat_request 中的 UserQuery 分支)。
+    // 不在 system 这层重复硬编码 TUI 退出键之类,避免与 default.j2 的标准引导冲突或冗余。
 
     let mut messages: Vec<ChatMessage> = Vec::new();
 
@@ -156,6 +232,11 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
     });
 
     let mut buf = AssistantBuffer::default();
+    // OpenWarp:历史里被 skip 掉的 subagent ToolCall 对应的 call_id —— 它们的
+    // ToolCallResult 也必须 skip,否则会成为孤儿 tool_response,Anthropic 直接 400
+    // `unexpected tool_use_id ... no corresponding tool_use block`。
+    let mut skipped_subagent_call_ids: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
 
     for msg in all_msgs {
         let Some(inner) = &msg.message else {
@@ -199,6 +280,7 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
                 // "tool_response 找不到匹配的 tool_call" 的不平衡。
                 use crate::ai::agent::task::helper::ToolCallExt;
                 if tc.subagent().is_some() {
+                    skipped_subagent_call_ids.insert(tc.tool_call_id.clone());
                     continue;
                 }
                 let (name, args_json) =
@@ -212,6 +294,11 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
             }
             api::message::Message::ToolCallResult(tcr) => {
                 buf.flush_into(&mut messages);
+                // OpenWarp:对应 ToolCall 已被 skip(subagent 虚拟 call)→ result 也 skip,
+                // 否则留下孤儿 tool_response 导致上游 400。
+                if skipped_subagent_call_ids.contains(&tcr.tool_call_id) {
+                    continue;
+                }
                 // BYOP 持久化的 ToolCallResult 走 server_message_data(content 已是 JSON 字符串);
                 // server 端 emit 走 result oneof 结构化 variant — 兼容两路。
                 let content = if tcr.result.is_some() {
@@ -236,16 +323,54 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
     // 当前轮新输入 → 追加。
     for input in &params.input {
         match input {
-            AIAgentInput::UserQuery { query, context, .. } => {
+            AIAgentInput::UserQuery {
+                query,
+                context,
+                running_command,
+                ..
+            } => {
                 // 当前轮 UserQuery 自带的附件类 context(Block / SelectedText / File / Image)
                 // 严格对齐 warp 自家路径走 `api::InputContext.executed_shell_commands` 等字段
                 // 上行后由后端注入 prompt 的语义。BYOP 没有后端这层,直接 prepend 到 user message。
                 // 环境型 context(env / git / skills / ...)由 prompt_renderer 渲染进 system,
                 // 与本路径不重叠。
-                let full_text = match user_context::render_user_attachments(context) {
-                    Some(prefix) => format!("{prefix}\n\n{query}"),
-                    None => query.clone(),
+                //
+                // OpenWarp:LRC tag-in 场景下,`running_command: Some(...)` 含完整 PTY 上下文
+                // (alt-screen grid_contents + command + is_alt_screen_active 标志),用
+                // `render_running_command_context` 渲成 `<attached_running_command>` XML 块
+                // prepend 到 user message,模型据此决定调 write_to_long_running_shell_command。
+                // 没填(普通对话或 controller 没注入)时回退到 `lrc_command_id` 简短上下文。
+                let mut prefixes: Vec<String> = Vec::new();
+                if let Some(rc) = running_command.as_ref() {
+                    prefixes.push(render_running_command_context(rc));
+                } else if let Some(command_id) = params.lrc_command_id.as_deref() {
+                    prefixes.push(render_running_command_id_context(command_id));
+                }
+                if let Some(attachments_prefix) =
+                    user_context::render_user_attachments(context)
+                {
+                    prefixes.push(attachments_prefix);
+                }
+                let full_text = if prefixes.is_empty() {
+                    query.clone()
+                } else {
+                    format!("{}\n\n{query}", prefixes.join("\n\n"))
                 };
+                log::info!(
+                    "[byop-diag] build_chat_request UserQuery: query_len={} \
+                     running_command={} prefixes={} full_text_len={}",
+                    query.len(),
+                    match running_command.as_ref() {
+                        Some(rc) => format!(
+                            "Some(grid_len={} alt={})",
+                            rc.grid_contents.len(),
+                            rc.is_alt_screen_active
+                        ),
+                        None => "None".to_owned(),
+                    },
+                    prefixes.len(),
+                    full_text.len()
+                );
                 messages.push(ChatMessage::user(full_text));
             }
             AIAgentInput::ActionResult { result, .. } => {
@@ -295,6 +420,43 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
 
     let tools_array = build_tools_array(params);
 
+    // OpenWarp:整体 sanitize system + 所有 messages 的 first_text 内容,
+    // 移除 < 0x20 / DEL 控制字符(除 \n \r \t),避免 genai 序列化 JSON 时把 ANSI escape
+    // 等原始字节直接塞进字符串字段,Anthropic 拿到非法 JSON 转义后 400(实测 nvim
+    // 等 alt-screen TUI 的 grid_contents、用户从某些来源粘贴的文本、子流程 stdout
+    // 缓存都可能带 raw \x1b \x07 等)。
+    //
+    // 注意 col 报错位置是 char position(多字节 UTF-8 的 char count),不是 byte index;
+    // 所以遇到 prompt 含中文时定位会偏移很远。最稳就是逐字符过一遍替换。
+    let system_text = sanitize_text_for_json(&system_text);
+    let messages: Vec<ChatMessage> = messages
+        .into_iter()
+        .map(|mut m| {
+            // genai 0.5.3 ChatMessage::content 是 enum,first_text 是 &str。修改不直观,
+            // 走 from-impl 重建:Tool/ToolCalls 内容不动(不会含原始控制字符),
+            // 仅对纯文本 Text/MessageContent::Text 重建。
+            if let Some(text) = m.content.first_text() {
+                let cleaned = sanitize_text_for_json(text);
+                if cleaned != text {
+                    let role = m.role.clone();
+                    let mut new_msg = match role {
+                        genai::chat::ChatRole::User => ChatMessage::user(cleaned),
+                        genai::chat::ChatRole::Assistant => ChatMessage::assistant(cleaned),
+                        genai::chat::ChatRole::System => ChatMessage::system(cleaned),
+                        // Tool / 其他 role 不应该走文本路径,保留原 message
+                        _ => return m,
+                    };
+                    // 保留 reasoning_content(如果原 message 有)
+                    if let Some(r) = m.options.as_ref().and_then(|_| None::<String>) {
+                        new_msg = new_msg.with_reasoning_content(Some(r));
+                    }
+                    m = new_msg;
+                }
+            }
+            m
+        })
+        .collect();
+
     let mut req = ChatRequest::from_messages(messages).with_system(system_text);
     if !tools_array.is_empty() {
         req = req.with_tools(tools_array);
@@ -302,11 +464,93 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
     req
 }
 
+/// 移除字符串中所有可能让 JSON 序列化产生非法转义的字符:
+/// - 保留 `\n` `\r` `\t`(JSON 合法转义)
+/// - `< 0x20` 其它控制字符替换成空格
+/// - DEL(0x7f)替换成空格
+///
+/// 用途:防 ANSI escape 序列(`\x1b[...`)、BEL(`\x07`)、其它 raw 字节透到模型,
+/// genai/serde_json 把它们 escape 后 Anthropic 不识别就 400。
+fn sanitize_text_for_json(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '\n' | '\r' | '\t' => out.push(c),
+            c if (c as u32) < 0x20 => out.push(' '),
+            '\u{7f}' => out.push(' '),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 /// 扫描 messages,对每个 assistant 含 tool_calls 的 message,确保其后面紧跟对应每个
 /// call_id 的 tool message。缺失的合成 placeholder。
+///
+/// **双向 sanitize**:
+/// - 前置 pass:剔除孤儿 ToolResponse(call_id 在整个 messages 序列里没有任何 Assistant
+///   tool_calls 与之匹配)。否则 Anthropic 400 `unexpected tool_use_id ... no
+///   corresponding tool_use block in the previous message`,重试 3 次后 UI 渲染 error
+///   block 触发 flex panic。常见来源:被 skip 的 subagent 虚拟 ToolCall 对应的 result、
+///   `params.input` ActionResult 与历史 ToolCallResult 同 call_id 重复 push。
+/// - 主 pass:每个 Assistant 含 tool_calls 后面缺失的 ToolResponse 用 placeholder 补齐。
 fn sanitize_tool_call_pairs(messages: &mut Vec<ChatMessage>) {
     use std::collections::HashSet;
 
+    // ---- 前置 pass:剔除孤儿 ToolResponse ----
+    let valid_call_ids: HashSet<String> = messages
+        .iter()
+        .filter(|m| m.role == genai::chat::ChatRole::Assistant)
+        .flat_map(|m| {
+            m.content
+                .tool_calls()
+                .iter()
+                .map(|tc| tc.call_id.clone())
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    let mut dropped_orphans: Vec<String> = Vec::new();
+    let original = std::mem::take(messages);
+    for msg in original {
+        if msg.role != genai::chat::ChatRole::Tool {
+            messages.push(msg);
+            continue;
+        }
+        let kept: Vec<ToolResponse> = msg
+            .content
+            .tool_responses()
+            .iter()
+            .filter_map(|r| {
+                if valid_call_ids.contains(&r.call_id) {
+                    Some((*r).clone())
+                } else {
+                    dropped_orphans.push(r.call_id.clone());
+                    None
+                }
+            })
+            .collect();
+        if kept.is_empty() {
+            // 整条 Tool message 都是孤儿 → 整条丢弃,避免空 content 报错。
+            continue;
+        }
+        if kept.len() == msg.content.tool_responses().len() {
+            // 没动过 → 原样保留(避免不必要的 ChatMessage 重建)。
+            messages.push(msg);
+        } else {
+            messages.push(ChatMessage::from(kept));
+        }
+    }
+    if !dropped_orphans.is_empty() {
+        log::warn!(
+            "[byop-diag] sanitize_tool_call_pairs: 剔除 {} 个孤儿 ToolResponse: \
+             orphan_call_ids={:?}",
+            dropped_orphans.len(),
+            dropped_orphans
+        );
+    }
+
+    // ---- 主 pass:补缺失 placeholder ----
     let mut i = 0;
     while i < messages.len() {
         // 仅处理 assistant 且 content 含 tool_calls 的 message
@@ -638,7 +882,31 @@ fn serialize_outgoing_tool_call(
 // ---------------------------------------------------------------------------
 
 fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
-    let mut out: Vec<GenaiTool> = tools::REGISTRY.iter().map(|t| t.to_genai_tool()).collect();
+    // OpenWarp A2:LRC tag-in 场景剔除 `run_shell_command`,迫使模型选 PTY 操作类工具。
+    //
+    // 在 alt-screen 长命令(nvim/htop)+ 用户 tag-in 状态下,**模型最容易犯的错**是
+    // 调 `run_shell_command` 跑 `taskkill nvim` / `Stop-Process nvim`(开新进程),
+    // 这跟当前正在跑的 PTY 没关系,杀不到目标。**正确做法**是
+    // `write_to_long_running_shell_command(command_id, input=":q\n", mode=raw)`,
+    // 直接给当前 PTY 发指令。
+    //
+    // 实测带 system prompt 引导 + RunningCommand context prefix 都不够强,
+    // 模型仍然倾向 run_shell_command(更简单)。最干净的硬约束就是从 tools 列表
+    // 直接移除该工具,模型只能在 PTY 操作类工具中选。
+    //
+    // 其他工具保留(read_files/grep/ask_user_question 等),允许模型做必要的
+    // 信息收集和反问。
+    let is_lrc = params.lrc_command_id.is_some();
+    let mut out: Vec<GenaiTool> = tools::REGISTRY
+        .iter()
+        .filter(|t| {
+            if is_lrc && t.name == "run_shell_command" {
+                return false;
+            }
+            true
+        })
+        .map(|t| t.to_genai_tool())
+        .collect();
 
     if let Some(ctx) = params.mcp_context.as_ref() {
         for (name, description, parameters) in tools::mcp::build_mcp_tool_defs(ctx) {
@@ -648,6 +916,13 @@ fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
                     .with_schema(parameters),
             );
         }
+    }
+    if is_lrc {
+        log::info!(
+            "[byop] LRC tag-in: tools array filtered (removed run_shell_command), \
+             total tools={}",
+            out.len()
+        );
     }
     out
 }
@@ -1051,6 +1326,27 @@ pub async fn generate_byop_output(
             // b) 创建带 parent_task_id 的 subtask;conversation 检测 parent_id 非空 →
             //    走 `Task::new_subtask` 路径,自动绑定 SubagentParams。
             yield Ok(create_subtask_event(&subtask_id, &task_id));
+
+            // c) OpenWarp A1:把当前轮的 UserQuery 也复制一份到 subtask,初始化 subtask 的
+            //    exchange.output.messages。否则 CLISubagentView 渲染时 subtask 的 exchanges
+            //    output 为空,浮窗永远只显示 49.6 高度的空对话框,看不到任何内容。
+            //    上游云端在 cli subagent 任务上有完整 ClientAction 序列填 exchange.output,
+            //    BYOP 客户端自管必须显式注入。
+            //
+            //    只复制本轮 UserQuery(`pending_user_queries`),不动 root 的副本(root
+            //    保留 user query 引用以避免 exchange.input 为空导致状态机错乱)。
+            //    后续模型 chunks 走 `current_task_id = subtask_id`,append 到这个起点之后。
+            if !pending_user_queries.is_empty() {
+                let mut subtask_messages: Vec<api::Message> = Vec::new();
+                for q in &pending_user_queries {
+                    subtask_messages.push(make_user_query_message(
+                        &subtask_id,
+                        &request_id,
+                        q.clone(),
+                    ));
+                }
+                yield Ok(make_add_messages_event(&subtask_id, subtask_messages));
+            }
 
             // 后续 chunk emit 切到 subtask。
             current_task_id = subtask_id;

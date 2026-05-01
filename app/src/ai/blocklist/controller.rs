@@ -2008,6 +2008,40 @@ impl BlocklistAIController {
             let active_block = terminal_model.block_list().active_block();
             if active_block.is_agent_tagged_in() {
                 request_params.lrc_command_id = Some(active_block.id().to_string());
+
+                // OpenWarp A3:把完整 RunningCommand 注入到本轮 UserQuery 中,
+                // 严格对齐上游 `get_running_command` 的 grid_contents 提取逻辑
+                // (alt-screen 走 alt_screen.grid_handler,非 alt-screen 走 output_grid)。
+                // 之前用 `output_to_string_force_full_grid_contents()` 在 nvim 等
+                // alt-screen TUI 下取到空字符串,导致 prefix 块为空,模型说看不到 command_id。
+                if let Some(running_command) =
+                    byop_get_running_command_for_lrc(&terminal_model)
+                {
+                    let total_inputs = request_params.input.len();
+                    let mut filled_count = 0usize;
+                    for input in request_params.input.iter_mut() {
+                        if let crate::ai::agent::AIAgentInput::UserQuery {
+                            running_command: rc_slot @ None,
+                            ..
+                        } = input
+                        {
+                            *rc_slot = Some(running_command.clone());
+                            filled_count += 1;
+                        }
+                    }
+                    log::info!(
+                        "[byop-diag] LRC running_command filled: {filled_count}/{total_inputs} \
+                         UserQuery slot(s); grid_contents_len={} command={:?} is_alt_screen={}",
+                        running_command.grid_contents.len(),
+                        running_command.command,
+                        running_command.is_alt_screen_active
+                    );
+                } else {
+                    log::warn!(
+                        "[byop-diag] LRC tag-in detected but byop_get_running_command_for_lrc \
+                         returned None (active_block 状态不符)"
+                    );
+                }
             }
         }
 
@@ -2931,6 +2965,52 @@ fn get_running_command(terminal_model: &TerminalModel) -> Option<RunningCommand>
             formatted_terminal_contents_for_input(
                 active_block.output_grid().grid_handler(),
                 // TODO(vorporeal): This is probably too large.
+                Some(1000),
+                CURSOR_MARKER,
+            )
+        },
+        cursor: CURSOR_MARKER.to_owned(),
+        requested_command_id: active_block.requested_command_action_id().cloned(),
+        is_alt_screen_active,
+    })
+}
+
+/// OpenWarp BYOP 专用:LRC tag-in / agent-monitored 场景下提取 RunningCommand。
+///
+/// 上游 `get_running_command` 在 `is_agent_monitoring()` 时返回 None — 因为 Warp 自家
+/// 路径下 LRC 已 spawn cli subagent 后,server 端持久该状态,后续轮 client 不必重发
+/// running_command。但 BYOP 直连模型无服务端持久,**每轮都要把当前 PTY grid 内容
+/// 重新带给模型**(否则模型只能看到首轮 grid_contents 之后的盲区)。
+///
+/// 条件放宽为 `is_agent_in_control_or_tagged_in()` — 覆盖:
+///   - tag-in:`InteractionMode::User { did_user_tag_in_agent: true }`(spawn 前)
+///   - monitored:`InteractionMode::Agent { ... }`(spawn 后)
+///
+/// 提取逻辑严格对齐上游:alt-screen 时取 `terminal_model.alt_screen().grid_handler()`
+/// 而不是 `active_block.output_grid()`(后者在 alt-screen 期间是空的,
+/// 不要再用 `output_to_string_force_full_grid_contents()`,那条路在 nvim 等 TUI 下
+/// 会得到空字符串导致 `<attached_running_command>` 块为空,模型抱怨"看不到 command_id")。
+fn byop_get_running_command_for_lrc(terminal_model: &TerminalModel) -> Option<RunningCommand> {
+    let active_block = terminal_model.block_list().active_block();
+    if !active_block.is_active_and_long_running() {
+        return None;
+    }
+    if !active_block.is_agent_in_control_or_tagged_in() {
+        return None;
+    }
+    let is_alt_screen_active = terminal_model.is_alt_screen_active();
+    Some(RunningCommand {
+        block_id: active_block.id().clone(),
+        command: active_block.command_to_string(),
+        grid_contents: if is_alt_screen_active {
+            formatted_terminal_contents_for_input(
+                terminal_model.alt_screen().grid_handler(),
+                None,
+                CURSOR_MARKER,
+            )
+        } else {
+            formatted_terminal_contents_for_input(
+                active_block.output_grid().grid_handler(),
                 Some(1000),
                 CURSOR_MARKER,
             )
