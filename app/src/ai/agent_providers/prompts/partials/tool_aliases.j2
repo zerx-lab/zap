@@ -1,19 +1,5 @@
 # Tool Names
 
-The instructions above use tool names with PascalCase (Bash, Glob, Grep, Read, Write, Edit, Task, etc) for readability. The actual tool names registered in this environment are different — use these names when emitting `tool_calls`:
+Use the actual registered tool names when emitting tool calls: `run_shell_command`, `write_to_long_running_shell_command`, `read_shell_command_output`, `read_files`, `apply_file_diffs`, `file_glob`, `grep`, `search_codebase`, `read_skill`, and `ask_user_question`. MCP tools are exposed as `mcp__<server>__<tool>`.
 
-| Conceptual name in instructions | Actual tool name |
-|---|---|
-| Bash / shell | `run_shell_command` |
-| Long-running shell write | `write_to_long_running_shell_command` |
-| Long-running shell read | `read_shell_command_output` |
-| Read | `read_files` |
-| Write / Edit | `apply_file_diffs` (use operation `create` / `edit` / `delete`) |
-| Glob | `file_glob` |
-| Grep | `grep` |
-| Codebase semantic search | `search_codebase` |
-| Skill | `read_skill` |
-| Question | `ask_user_question` |
-| MCP tools | exposed as `mcp__<server>__<tool>` |
-
-Tools mentioned in the instructions but **not available** in this environment (do NOT call them): `Task`, `TodoWrite`, `WebFetch`, `WebSearch`, `LSP`, `apply_patch`. If you need behavior similar to `Task`, just continue the work yourself — there is no subagent harness here. If a workflow tells you to use one of these unavailable tools, fall back to the closest available tool or skip that step.
+Do not call unavailable tools such as `Task`, `TodoWrite`, `WebFetch`, `WebSearch`, `LSP`, or `apply_patch`.

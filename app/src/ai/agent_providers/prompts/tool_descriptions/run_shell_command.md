@@ -10,7 +10,7 @@ For dev servers, watchers, `tail -f`, interactive REPLs, or any process that doe
 
 When `wait_until_complete=false`, the tool returns a `LongRunningCommandSnapshot` with a `command_id`. Use it for follow-ups:
 - `read_shell_command_output` — fetch latest stdout
-- `write_to_long_running_shell_command` — send stdin / control bytes (e.g. `\x03` for Ctrl-C to terminate)
+- `write_to_long_running_shell_command` — send stdin / control bytes (for example Ctrl-C to terminate)
 
 For one-shot commands (`ls`, `git status`, `cargo test`, etc.) keep the default `wait_until_complete=true`.
 

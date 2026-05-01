@@ -43,14 +43,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use uuid::Uuid;
 use warp_multi_agent_api as api;
 
 use genai::adapter::AdapterKind;
 use genai::chat::{
-    ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, Tool as GenaiTool, ToolCall,
-    ToolResponse,
+    ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, ContentPart, MessageContent,
+    Tool as GenaiTool, ToolCall, ToolResponse,
 };
 use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
 use genai::{Client, ModelIden, ServiceTarget};
@@ -97,8 +97,8 @@ fn render_running_command_context(rc: &RunningCommand) -> String {
          <instructions>This command is already running in the user's terminal. \
          Use `read_shell_command_output` with this command_id to inspect it, and \
          `write_to_long_running_shell_command` with this command_id to operate the program \
-         through its PTY (input may be raw bytes like `\\x1b` for ESC, `\\n` for Enter, \
-         or normal text). This command_id is valid even if the process was started by the user \
+         through its PTY (in raw mode, use tokens like `<ESC>` and `<ENTER>` for control \
+         keys). This command_id is valid even if the process was started by the user \
          rather than by run_shell_command. Do NOT spawn a new shell to control the same TUI.\
          </instructions>\n\
          </attached_running_command>",
@@ -121,6 +121,19 @@ fn render_running_command_id_context(command_id: &str) -> String {
          </attached_running_command>",
         xml_attr(command_id),
     )
+}
+
+fn render_lrc_request_context(params: &RequestParams) -> Option<String> {
+    params
+        .lrc_running_command
+        .as_ref()
+        .map(render_running_command_context)
+        .or_else(|| {
+            params
+                .lrc_command_id
+                .as_deref()
+                .map(render_running_command_id_context)
+        })
 }
 
 /// XML 转义,同时 strip 所有非法/有问题的控制字符,避免 JSON 序列化失败。
@@ -341,14 +354,15 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
                 // prepend 到 user message,模型据此决定调 write_to_long_running_shell_command。
                 // 没填(普通对话或 controller 没注入)时回退到 `lrc_command_id` 简短上下文。
                 let mut prefixes: Vec<String> = Vec::new();
-                if let Some(rc) = running_command.as_ref() {
+                let request_running_command = running_command
+                    .as_ref()
+                    .or(params.lrc_running_command.as_ref());
+                if let Some(rc) = request_running_command {
                     prefixes.push(render_running_command_context(rc));
                 } else if let Some(command_id) = params.lrc_command_id.as_deref() {
                     prefixes.push(render_running_command_id_context(command_id));
                 }
-                if let Some(attachments_prefix) =
-                    user_context::render_user_attachments(context)
-                {
+                if let Some(attachments_prefix) = user_context::render_user_attachments(context) {
                     prefixes.push(attachments_prefix);
                 }
                 let full_text = if prefixes.is_empty() {
@@ -360,7 +374,7 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
                     "[byop-diag] build_chat_request UserQuery: query_len={} \
                      running_command={} prefixes={} full_text_len={}",
                     query.len(),
-                    match running_command.as_ref() {
+                    match request_running_command {
                         Some(rc) => format!(
                             "Some(grid_len={} alt={})",
                             rc.grid_contents.len(),
@@ -395,8 +409,24 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
                 }
                 messages.push(ChatMessage::user(composed));
             }
-            AIAgentInput::ResumeConversation { .. }
-            | AIAgentInput::AutoCodeDiffQuery { .. }
+            AIAgentInput::ResumeConversation { context } => {
+                // BYOP 没有 server 端 resume prompt 注入层。LRC auto-resume 时必须显式
+                // 重带当前 PTY 上下文,否则错误恢复轮会退化成普通对话并重新选择 shell 工具。
+                let mut prefixes: Vec<String> = Vec::new();
+                if let Some(lrc_prefix) = render_lrc_request_context(params) {
+                    prefixes.push(lrc_prefix);
+                }
+                if let Some(attachments_prefix) = user_context::render_user_attachments(context) {
+                    prefixes.push(attachments_prefix);
+                }
+                if !prefixes.is_empty() {
+                    messages.push(ChatMessage::user(format!(
+                        "{}\n\nContinue.",
+                        prefixes.join("\n\n")
+                    )));
+                }
+            }
+            AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::CreateNewProject { .. }
             | AIAgentInput::CodeReview { .. }
             | AIAgentInput::SummarizeConversation { .. } => {
@@ -420,41 +450,19 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
 
     let tools_array = build_tools_array(params);
 
-    // OpenWarp:整体 sanitize system + 所有 messages 的 first_text 内容,
-    // 移除 < 0x20 / DEL 控制字符(除 \n \r \t),避免 genai 序列化 JSON 时把 ANSI escape
-    // 等原始字节直接塞进字符串字段,Anthropic 拿到非法 JSON 转义后 400(实测 nvim
-    // 等 alt-screen TUI 的 grid_contents、用户从某些来源粘贴的文本、子流程 stdout
-    // 缓存都可能带 raw \x1b \x07 等)。
-    //
-    // 注意 col 报错位置是 char position(多字节 UTF-8 的 char count),不是 byte index;
-    // 所以遇到 prompt 含中文时定位会偏移很远。最稳就是逐字符过一遍替换。
+    // OpenWarp:整体 sanitize system / messages / tools 中所有会进入 JSON body 的字符串,
+    // 移除 < 0x20 / DEL 控制字符(除 \n \r \t),并把 `\xNN` 这类危险字面量替换为
+    // 普通文字,避免 Anthropic 或中间代理把它们误当成 JSON escape 后 400。
+    // nvim 等 alt-screen TUI 的 grid_contents、tool result、工具描述和 schema description
+    // 都可能带这些片段,所以不能只清理 user message 的 first_text。
     let system_text = sanitize_text_for_json(&system_text);
     let messages: Vec<ChatMessage> = messages
         .into_iter()
-        .map(|mut m| {
-            // genai 0.5.3 ChatMessage::content 是 enum,first_text 是 &str。修改不直观,
-            // 走 from-impl 重建:Tool/ToolCalls 内容不动(不会含原始控制字符),
-            // 仅对纯文本 Text/MessageContent::Text 重建。
-            if let Some(text) = m.content.first_text() {
-                let cleaned = sanitize_text_for_json(text);
-                if cleaned != text {
-                    let role = m.role.clone();
-                    let mut new_msg = match role {
-                        genai::chat::ChatRole::User => ChatMessage::user(cleaned),
-                        genai::chat::ChatRole::Assistant => ChatMessage::assistant(cleaned),
-                        genai::chat::ChatRole::System => ChatMessage::system(cleaned),
-                        // Tool / 其他 role 不应该走文本路径,保留原 message
-                        _ => return m,
-                    };
-                    // 保留 reasoning_content(如果原 message 有)
-                    if let Some(r) = m.options.as_ref().and_then(|_| None::<String>) {
-                        new_msg = new_msg.with_reasoning_content(Some(r));
-                    }
-                    m = new_msg;
-                }
-            }
-            m
-        })
+        .map(sanitize_chat_message_for_request)
+        .collect();
+    let tools_array: Vec<GenaiTool> = tools_array
+        .into_iter()
+        .map(sanitize_tool_for_request)
         .collect();
 
     let mut req = ChatRequest::from_messages(messages).with_system(system_text);
@@ -465,23 +473,107 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
 }
 
 /// 移除字符串中所有可能让 JSON 序列化产生非法转义的字符:
-/// - 保留 `\n` `\r` `\t`(JSON 合法转义)
-/// - `< 0x20` 其它控制字符替换成空格
+/// - 所有 ASCII 控制字符替换成空格,包括换行、回车和 tab
 /// - DEL(0x7f)替换成空格
+/// - 反斜杠替换成 `/`,双引号替换成单引号
 ///
-/// 用途:防 ANSI escape 序列(`\x1b[...`)、BEL(`\x07`)、其它 raw 字节透到模型,
-/// genai/serde_json 把它们 escape 后 Anthropic 不识别就 400。
+/// 用途:防 ANSI escape 序列、Windows 路径、换行、字符串内引号等内容透到 BYOP 请求体。
+/// 标准 JSON 允许这些 escape,但部分 Anthropic 兼容代理会在转发时把 escape
+/// 处理坏并返回 `invalid escaped character in string`,因此这里统一压平成安全字符。
 fn sanitize_text_for_json(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            '\n' | '\r' | '\t' => out.push(c),
             c if (c as u32) < 0x20 => out.push(' '),
             '\u{7f}' => out.push(' '),
+            '\\' => out.push('/'),
+            '"' => out.push('\''),
             _ => out.push(c),
         }
     }
-    out
+    replace_dangerous_escape_literals(out)
+}
+
+fn replace_dangerous_escape_literals(mut text: String) -> String {
+    for (from, to) in [
+        ("\\n", " "),
+        ("\\r", " "),
+        ("\\t", " "),
+        ("\\x1b", "ESC"),
+        ("\\x1B", "ESC"),
+        ("\\x03", "Ctrl-C"),
+        ("\\x04", "Ctrl-D"),
+        ("\\x07", "BEL"),
+        ("\\a", "BEL"),
+        ("\\v", "vertical tab"),
+    ] {
+        text = text.replace(from, to);
+    }
+    text
+}
+
+fn sanitize_json_value_for_request(value: Value) -> Value {
+    match value {
+        Value::String(s) => Value::String(sanitize_text_for_json(&s)),
+        Value::Array(values) => Value::Array(
+            values
+                .into_iter()
+                .map(sanitize_json_value_for_request)
+                .collect(),
+        ),
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(key, value)| (key, sanitize_json_value_for_request(value)))
+                .collect(),
+        ),
+        other => other,
+    }
+}
+
+fn sanitize_chat_message_for_request(mut message: ChatMessage) -> ChatMessage {
+    let parts = message
+        .content
+        .into_parts()
+        .into_iter()
+        .map(|part| match part {
+            ContentPart::Text(text) => ContentPart::Text(sanitize_text_for_json(&text)),
+            ContentPart::ToolResponse(mut response) => {
+                response.content = sanitize_text_for_json(&response.content);
+                ContentPart::ToolResponse(response)
+            }
+            ContentPart::ToolCall(mut call) => {
+                call.fn_arguments = sanitize_json_value_for_request(call.fn_arguments);
+                call.thought_signatures = call.thought_signatures.map(|signatures| {
+                    signatures
+                        .into_iter()
+                        .map(|signature| sanitize_text_for_json(&signature))
+                        .collect()
+                });
+                ContentPart::ToolCall(call)
+            }
+            ContentPart::ThoughtSignature(signature) => {
+                ContentPart::ThoughtSignature(sanitize_text_for_json(&signature))
+            }
+            ContentPart::ReasoningContent(reasoning) => {
+                ContentPart::ReasoningContent(sanitize_text_for_json(&reasoning))
+            }
+            ContentPart::Custom(mut custom) => {
+                custom.data = sanitize_json_value_for_request(custom.data);
+                ContentPart::Custom(custom)
+            }
+            other => other,
+        })
+        .collect::<Vec<_>>();
+    message.content = MessageContent::from_parts(parts);
+    message
+}
+
+fn sanitize_tool_for_request(mut tool: GenaiTool) -> GenaiTool {
+    tool.description = tool
+        .description
+        .map(|description| sanitize_text_for_json(&description));
+    tool.schema = tool.schema.map(sanitize_json_value_for_request);
+    tool
 }
 
 /// 扫描 messages,对每个 assistant 含 tool_calls 的 message,确保其后面紧跟对应每个
@@ -1073,6 +1165,8 @@ pub struct TitleGenInput {
 }
 
 /// `task_id`: conversation 的 root task id(controller 端从 history model 取)。
+/// `target_task_id`: 本轮模型输出应该写入的 task id;普通对话等于 root,
+/// CLI subagent 后续轮为已有 subtask。
 /// `needs_create_task`: 仅首轮(root 还是 Optimistic)需要 emit `CreateTask`。
 /// `title_gen`: 仅首轮且 active title_model 可解析为 BYOP 时填充;非 None 时
 /// 在主流程结束后单独发一次摘要请求,把 task description(= 会话标题)写回。
@@ -1084,14 +1178,14 @@ pub async fn generate_byop_output(
     api_type: AgentProviderApiType,
     reasoning_effort: crate::settings::ReasoningEffortSetting,
     task_id: String,
+    target_task_id: String,
     needs_create_task: bool,
     title_gen: Option<TitleGenInput>,
-    // LRC tag-in 场景下需要 spawn 的 CLI subagent `command_id`(= LRC block id 字符串)。
-    // 非 None 时,流头会合成虚拟 `tool_call::Subagent { metadata: Cli { command_id } }`,
-    // 触发 conversation 创建 cli subtask、emit `CreatedSubtask` → CLI subagent 浮窗 spawn。
-    // 之后所有模型 chunk(reasoning / agent_output / tool_call)都 emit 到该 subtask,
-    // 让回复在浮窗内渲染(对齐上游云端注入路径)。
+    // LRC 场景绑定的 CLI subagent `command_id`(= LRC block id 字符串)。
     lrc_command_id: Option<String>,
+    // 仅 tag-in 首轮为 true:流头会合成虚拟 `tool_call::Subagent` + CreateTask,
+    // 用 server subtask 升级 master 路径已经创建的 optimistic CLI subtask。
+    lrc_should_spawn_subagent: bool,
     _cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let chat_req = build_chat_request(&params);
@@ -1170,33 +1264,22 @@ pub async fn generate_byop_output(
         );
     }
 
-    // 诊断:构造接近 Anthropic wire body 的 JSON dump,保存到 stream 闭包,
-    // chunk error 时按错误消息中的 "column N" 定位非法转义位置。
-    // 仅含 model + system + messages.text(不含 tools / tool_calls 序列化),
-    // 字节布局与真实 body 有几十~几百字节 framing 差异,但足够定位 char 12179 这种位置。
-    let diag_body_json: String = {
-        let msgs: Vec<Value> = chat_req
-            .messages
-            .iter()
-            .map(|m| {
-                let role = format!("{:?}", m.role).to_lowercase();
-                let text = m.content.first_text().unwrap_or("").to_string();
-                json!({ "role": role, "content": text })
-            })
-            .collect();
-        serde_json::to_string(&json!({
-            "model": &model_id,
-            "system": chat_req.system.as_deref().unwrap_or(""),
-            "messages": msgs,
-        }))
-        .unwrap_or_default()
-    };
+    // 诊断:构造包含 system / messages / tools 的完整 ChatRequest JSON dump,保存到
+    // stream 闭包。真实 Anthropic wire body 会由 genai adapter 再转换一层,但这里已经
+    // 覆盖所有传入 BYOP 的原始字符串,足够定位非法 escape 来自 prompt、工具描述、
+    // schema 还是 tool result。
+    let diag_body_json = serde_json::to_string(&json!({
+        "model": &model_id,
+        "chat_request": &chat_req,
+    }))
+    .unwrap_or_default();
     log::info!("[byop] diag_body_approx_len={}", diag_body_json.len());
+    log::info!("[byop-diag] full_request_json={diag_body_json}");
 
     // 主动扫描原始文本里的"可疑反斜杠序列":虽然 serde_json 序列化时会把
     // `\` escape 成 `\\`(合法 JSON),但若出现在 base64 / 已 escape 字符串等场景,
     // 上游 proxy 若做"把 `\\u` 误解析回 `\u`"的转换,就会触发 invalid escape。
-    // 这里只扫描 raw 字符串里的 `\u` `\x` `\0`-`\9` 等模式,辅助定位嫌疑文本。
+    // 这里只扫描 raw 字符串里的 `\n` / `\u` / `\x` / `\0`-`\9` 等模式,辅助定位嫌疑文本。
     fn scan_suspicious_backslash(label: &str, s: &str) {
         let bytes = s.as_bytes();
         let mut bs_hits: Vec<(usize, String)> = Vec::new();
@@ -1206,7 +1289,7 @@ pub async fn generate_byop_output(
             //    但 proxy 若做"`\\u` 还原 `\u`"误处理会触发 invalid escape)
             if b == b'\\' && i + 1 < bytes.len() {
                 let next = bytes[i + 1];
-                if matches!(next, b'u' | b'x' | b'a' | b'v') {
+                if matches!(next, b'n' | b'r' | b't' | b'u' | b'x' | b'a' | b'v') {
                     let end = (i + 8).min(bytes.len());
                     let snippet = String::from_utf8_lossy(&bytes[i..end]).to_string();
                     if bs_hits.len() < 5 {
@@ -1228,6 +1311,7 @@ pub async fn generate_byop_output(
             log::warn!("[byop] {label} contains raw control chars (offset, byte): {ctrl_hits:?}");
         }
     }
+    scan_suspicious_backslash("full_request_json", &diag_body_json);
     if let Some(sys) = chat_req.system.as_deref() {
         scan_suspicious_backslash("system", sys);
     }
@@ -1256,20 +1340,31 @@ pub async fn generate_byop_output(
 
         // 3) 持久化 input 里的 UserQuery / ToolCallResult 到 task.messages。
         //    (warp server 路径由后端 emit;BYOP 客户端必须自己 emit,见上方注释。)
+        //    tag-in 首轮先写 root,再由下面的 spawn 分支复制到新 subtask;已有 CLI
+        //    subagent 的后续轮直接写 target_task_id。
+        let persistence_task_id = if lrc_should_spawn_subagent {
+            task_id.as_str()
+        } else {
+            target_task_id.as_str()
+        };
         let mut persistence_messages: Vec<api::Message> = Vec::new();
         for q in &pending_user_queries {
-            persistence_messages.push(make_user_query_message(&task_id, &request_id, q.clone()));
+            persistence_messages.push(make_user_query_message(
+                persistence_task_id,
+                &request_id,
+                q.clone(),
+            ));
         }
         for (call_id, content) in &pending_tool_results {
             persistence_messages.push(make_tool_call_result_message(
-                &task_id,
+                persistence_task_id,
                 &request_id,
                 call_id.clone(),
                 content.clone(),
             ));
         }
         if !persistence_messages.is_empty() {
-            yield Ok(make_add_messages_event(&task_id, persistence_messages));
+            yield Ok(make_add_messages_event(persistence_task_id, persistence_messages));
         }
 
         // 3.5) LRC subagent spawn(对齐上游云端的 cli subagent 注入路径)。
@@ -1293,8 +1388,19 @@ pub async fn generate_byop_output(
         //
         // 时序约束:必须在 root CreateTask + UserQuery 持久化之后,模型流之前。
         // 否则 conversation 找不到 root task / 找不到 user query 引用对。
-        let mut current_task_id = task_id.clone();
-        if let Some(command_id) = lrc_command_id.clone() {
+        let mut current_task_id = if lrc_should_spawn_subagent {
+            task_id.clone()
+        } else {
+            target_task_id.clone()
+        };
+        if lrc_should_spawn_subagent {
+            let Some(command_id) = lrc_command_id.clone() else {
+                log::warn!("[byop] LRC spawn requested without command_id");
+                yield Err(Arc::new(AIApiError::Other(anyhow::anyhow!(
+                    "BYOP LRC spawn requested without command_id"
+                ))));
+                return;
+            };
             let subtask_id = Uuid::new_v4().to_string();
             let tool_call_id = Uuid::new_v4().to_string();
             log::info!(
@@ -1397,6 +1503,7 @@ pub async fn generate_byop_output(
                     let mapped = map_genai_error(e);
                     let err_text = format!("{mapped:#}");
                     log::error!("[byop] stream chunk error: {err_text}");
+                    log::error!("[byop-diag] full_request_json_on_error={diag_body_json}");
                     // 从错误消息里 parse "column N",dump diag_body_json 该位置 ±200 char 上下文 + 字节 hex。
                     if let Some(col) = err_text
                         .split("column ")
@@ -1632,7 +1739,7 @@ fn sanitize_title(raw: &str) -> Option<String> {
     while let Some(c) = s.chars().last() {
         if matches!(
             c,
-            '.' | '。' | '!' | '!' | '?' | '?' | ',' | ',' | ';' | ';'
+            '.' | '。' | '!' | '！' | '?' | '？' | ',' | '，' | ';' | '；'
         ) {
             let new_len = s.len() - c.len_utf8();
             s.truncate(new_len);

@@ -1993,30 +1993,30 @@ impl BlocklistAIController {
         request_params.parent_agent_id = parent_agent_id;
         request_params.agent_name = agent_name;
 
-        // OpenWarp BYOP:检测当前是否处于 LRC(alt-screen 长命令)tagged-in 状态。
-        // 是则把 LRC block id 当 `command_id` 注入 RequestParams,chat_stream 在流头
-        // 合成虚拟 subagent tool_call,触发 `CreatedSubtask` → CLI subagent 浮窗 spawn。
-        // 上游云端是 server 端 emit 这条 tool_call 的,BYOP 没云端必须客户端自管。
-        //
-        // 注意:`is_agent_tagged_in()` 对应 `InteractionMode::User { did_user_tag_in_agent: true }`,
-        // 此时 `agent_interaction_metadata()` 还是 None(metadata 仅在 InteractionMode::Agent 时存在),
-        // 所以无法做"conversation_id 是否匹配"的反向校验。但 controller 是 per-terminal、
-        // active_block 也是 per-terminal,在 tag-in 状态下用户唯一的发送目标就是当前 conversation,
-        // 直接信任即可。passive / unit-test 路径下 active_block 不会 tagged-in,不会误注入。
+        // OpenWarp BYOP:检测当前请求是否绑定 LRC(alt-screen 长命令)。
+        // - tag-in 首轮:注入 command_id + running_command,并让 chat_stream 合成 subagent
+        //   CreateTask 事件来升级 master 路径已经创建的 optimistic CLI subtask。
+        // - 已进入 agent control 的后续轮:auto-resume / tool result 仍要注入 command_id
+        //   与最新 PTY 快照,但不能重复 spawn subagent。
         {
             let terminal_model = self.terminal_model.lock();
             let active_block = terminal_model.block_list().active_block();
-            if active_block.is_agent_tagged_in() {
+            let is_lrc_tagged_in = active_block.is_agent_tagged_in();
+            let is_matching_lrc_agent = active_block.is_agent_in_control()
+                && active_block
+                    .agent_interaction_metadata()
+                    .is_some_and(|metadata| metadata.conversation_id() == &conversation_id);
+            if is_lrc_tagged_in || is_matching_lrc_agent {
                 request_params.lrc_command_id = Some(active_block.id().to_string());
+                request_params.lrc_should_spawn_subagent = is_lrc_tagged_in;
 
                 // OpenWarp A3:把完整 RunningCommand 注入到本轮 UserQuery 中,
                 // 严格对齐上游 `get_running_command` 的 grid_contents 提取逻辑
                 // (alt-screen 走 alt_screen.grid_handler,非 alt-screen 走 output_grid)。
                 // 之前用 `output_to_string_force_full_grid_contents()` 在 nvim 等
                 // alt-screen TUI 下取到空字符串,导致 prefix 块为空,模型说看不到 command_id。
-                if let Some(running_command) =
-                    byop_get_running_command_for_lrc(&terminal_model)
-                {
+                if let Some(running_command) = byop_get_running_command_for_lrc(&terminal_model) {
+                    request_params.lrc_running_command = Some(running_command.clone());
                     let total_inputs = request_params.input.len();
                     let mut filled_count = 0usize;
                     for input in request_params.input.iter_mut() {
@@ -2031,14 +2031,15 @@ impl BlocklistAIController {
                     }
                     log::info!(
                         "[byop-diag] LRC running_command filled: {filled_count}/{total_inputs} \
-                         UserQuery slot(s); grid_contents_len={} command={:?} is_alt_screen={}",
+                         UserQuery slot(s); should_spawn={} grid_contents_len={} command={:?} is_alt_screen={}",
+                        request_params.lrc_should_spawn_subagent,
                         running_command.grid_contents.len(),
                         running_command.command,
                         running_command.is_alt_screen_active
                     );
                 } else {
                     log::warn!(
-                        "[byop-diag] LRC tag-in detected but byop_get_running_command_for_lrc \
+                        "[byop-diag] LRC detected but byop_get_running_command_for_lrc \
                          returned None (active_block 状态不符)"
                     );
                 }

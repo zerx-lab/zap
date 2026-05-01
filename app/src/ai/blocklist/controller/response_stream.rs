@@ -33,17 +33,19 @@ struct ByopDispatch {
     reasoning_effort: crate::settings::ReasoningEffortSetting,
     /// conversation 的 root task id — 必须用本地已注册的 id,
     /// 否则下游 `Action::AddMessagesToTask` 在 task_store 找不到会 `TaskNotFound`。
-    task_id: String,
+    root_task_id: String,
+    /// 本轮模型输出应该写入的 task id。普通对话等于 root task;CLI subagent 后续轮为 subtask。
+    target_task_id: String,
     /// 是否需要 emit `CreateTask` 把 Optimistic root 升级为 Server task。
     /// 仅首轮(root task 还没 source)需要;再次发会触发 `UnexpectedUpgrade`。
     needs_create_task: bool,
     /// 标题生成模型参数。仅在首轮(needs_create_task)且 active title_model
     /// 解码为合法 BYOP id 时填充;否则 `None`,chat_stream 跳过摘要步骤。
     title_gen: Option<TitleGenParams>,
-    /// LRC tag-in 场景下需要 spawn 的 CLI subagent `command_id`(= LRC block id 字符串)。
-    /// 由 controller `send_request_input` 检测 active block tagged-in 时注入,
-    /// chat_stream 据此合成虚拟 subagent tool_call,模拟上游云端的 spawn 链路。
+    /// LRC 场景绑定的 `command_id`(= LRC block id 字符串)。
     lrc_command_id: Option<String>,
+    /// 是否需要在 chat_stream 中合成 subagent CreateTask 来升级 optimistic CLI subtask。
+    lrc_should_spawn_subagent: bool,
 }
 
 /// 标题生成专用的 BYOP 配置(可能与主 base 模型同 provider 也可能不同)。
@@ -65,7 +67,11 @@ fn byop_dispatch_info(
     let conversation_id = ai_identifiers.client_conversation_id.as_ref()?;
     let history = BlocklistAIHistoryModel::as_ref(ctx);
     let conversation = history.conversation(conversation_id)?;
-    let task_id = conversation.get_root_task_id().to_string();
+    let root_task_id = conversation.get_root_task_id().to_string();
+    let target_task_id = params
+        .byop_target_task_id
+        .clone()
+        .unwrap_or_else(|| root_task_id.clone());
     // compute_active_tasks 只返回 `task.source().is_some()` 的 task —
     // 因此非空 ⇒ root 已经升级为 Server 状态,不要再 emit CreateTask。
     let needs_create_task = conversation.compute_active_tasks().is_empty();
@@ -96,10 +102,12 @@ fn byop_dispatch_info(
         model_id,
         api_type: provider.api_type,
         reasoning_effort: provider.reasoning_effort,
-        task_id,
+        root_task_id,
+        target_task_id,
         needs_create_task,
         title_gen,
         lrc_command_id: params.lrc_command_id.clone(),
+        lrc_should_spawn_subagent: params.lrc_should_spawn_subagent,
     })
 }
 
@@ -190,7 +198,8 @@ impl ResponseStream {
                         byop.model_id,
                         byop.api_type,
                         byop.reasoning_effort,
-                        byop.task_id,
+                        byop.root_task_id,
+                        byop.target_task_id,
                         byop.needs_create_task,
                         byop.title_gen.map(|t| {
                             crate::ai::agent_providers::chat_stream::TitleGenInput {
@@ -202,6 +211,7 @@ impl ResponseStream {
                             }
                         }),
                         byop.lrc_command_id,
+                        byop.lrc_should_spawn_subagent,
                         cancellation_rx,
                     )
                     .await
@@ -280,7 +290,8 @@ impl ResponseStream {
                         byop.model_id,
                         byop.api_type,
                         byop.reasoning_effort,
-                        byop.task_id,
+                        byop.root_task_id,
+                        byop.target_task_id,
                         byop.needs_create_task,
                         byop.title_gen.map(|t| {
                             crate::ai::agent_providers::chat_stream::TitleGenInput {
@@ -292,6 +303,7 @@ impl ResponseStream {
                             }
                         }),
                         byop.lrc_command_id,
+                        byop.lrc_should_spawn_subagent,
                         cancellation_rx,
                     )
                     .await

@@ -76,7 +76,7 @@ When `wait_until_complete=false`, the tool returns a `LongRunningCommandSnapshot
 - `read_shell_command_output(command_id, delay_seconds=N)` — fetch latest stdout after N seconds (recommended for polling)
 - `read_shell_command_output(command_id)` — block until the process exits naturally (do NOT use for dev servers)
 - `write_to_long_running_shell_command(command_id, input, mode=line)` — send a line of stdin (newline appended)
-- `write_to_long_running_shell_command(command_id, input="", mode=raw)` — send raw bytes; `\x03` is Ctrl-C to terminate
+- For TUI control keys in raw mode, use safe tokens such as `<ESC>`, `<ENTER>`, and `<CTRL-C>`
 
 # Approval and safety
 

@@ -28,7 +28,7 @@ use crate::{
     server::server_api::AIApiError,
 };
 
-use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, Suggestions};
+use super::{AIAgentInput, MCPContext, MCPServer, RequestMetadata, RunningCommand, Suggestions};
 use crate::ai::blocklist::{BlocklistAIPermissions, RequestInput};
 use crate::ai::mcp::templatable_manager::TemplatableMCPServerInfo;
 use crate::ai::mcp::TemplatableMCPServerManager;
@@ -129,12 +129,18 @@ pub struct RequestParams {
     /// The display name for this agent (e.g. "Agent 1"), assigned by the orchestrator.
     pub agent_name: Option<String>,
     /// OpenWarp BYOP 专用:发起本请求时,关联的 LRC(Long Running Command)block id。
-    /// 仅在用户处于 "alt-screen 长命令 + agent tagged-in" 状态发起对话时填充,
-    /// 由 controller `send_request_input` 检测 active block 后注入。
-    /// chat_stream 据此合成虚拟 `tool_call::Subagent { metadata: Cli { command_id } }`,
-    /// 触发 `BlocklistAIHistoryEvent::CreatedSubtask` → CLI subagent 浮窗 spawn(对齐
-    /// 上游云端的注入流程,见 `cli_controller.rs::handle_history_model_event`)。
+    /// tag-in 首轮和已进入 agent control 的 CLI subagent 后续轮都会填充,用于
+    /// 让 BYOP prompt / tools 继续绑定到当前 PTY,避免模型另起 shell 操作同一个 TUI。
     pub lrc_command_id: Option<String>,
+    /// OpenWarp BYOP 专用:LRC 当前快照。`UserQuery.running_command` 只覆盖用户输入轮,
+    /// auto-resume / tool result 后续轮需要通过这里继续携带最新 PTY 内容。
+    pub lrc_running_command: Option<RunningCommand>,
+    /// OpenWarp BYOP 专用:本轮是否需要模拟上游 CreateTask 流程来升级 optimistic CLI subtask。
+    /// 只有用户刚 tag-in 的首轮需要;已存在 CLI subagent 的后续轮只复用 task,不能重复 spawn。
+    pub lrc_should_spawn_subagent: bool,
+    /// OpenWarp BYOP 专用:本轮响应应该写入的 task。普通对话是 root task;
+    /// CLI subagent 后续轮则是对应 subtask。
+    pub byop_target_task_id: Option<String>,
 }
 
 pub type Event = Result<warp_multi_agent_api::ResponseEvent, Arc<AIApiError>>;
@@ -286,6 +292,16 @@ impl RequestParams {
                 .as_ref()
                 .is_none_or(|t| matches!(t, crate::terminal::model::session::SessionType::Local));
 
+        let byop_target_task_id = if request_input.input_messages.len() == 1 {
+            request_input
+                .input_messages
+                .keys()
+                .next()
+                .map(ToString::to_string)
+        } else {
+            None
+        };
+
         Self {
             input: request_input.all_inputs().cloned().collect(),
             conversation_token: conversation.server_conversation_token,
@@ -317,6 +333,9 @@ impl RequestParams {
             parent_agent_id: None,
             agent_name: None,
             lrc_command_id: None,
+            lrc_running_command: None,
+            lrc_should_spawn_subagent: false,
+            byop_target_task_id,
         }
     }
 }

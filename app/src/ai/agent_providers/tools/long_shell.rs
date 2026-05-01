@@ -40,7 +40,7 @@ fn write_parameters() -> Value {
             },
             "input": {
                 "type": "string",
-                "description": "要写到 stdin/PTY 的文本。"
+                "description": "要写到 stdin/PTY 的文本。mode=raw 时可使用 <ESC>/<ENTER>/<CTRL-C> 控制键 token。"
             },
             "mode": {
                 "type": "string",
@@ -58,20 +58,59 @@ fn write_from_args(args: &str) -> Result<api::message::tool_call::Tool> {
     let parsed: WriteArgs = serde_json::from_str(args)?;
     use api::message::tool_call::write_to_long_running_shell_command::mode::Mode as InnerMode;
     use api::message::tool_call::write_to_long_running_shell_command::Mode;
+    let is_raw = parsed.mode == "raw";
     let inner = match parsed.mode.as_str() {
         "raw" => InnerMode::Raw(()),
         "block" => InnerMode::Block(()),
         _ => InnerMode::Line(()),
     };
+    let input = if is_raw {
+        expand_raw_input_tokens(&parsed.input)
+    } else {
+        parsed.input.into_bytes()
+    };
     Ok(
         api::message::tool_call::Tool::WriteToLongRunningShellCommand(
             api::message::tool_call::WriteToLongRunningShellCommand {
                 command_id: parsed.command_id,
-                input: parsed.input.into_bytes(),
+                input,
                 mode: Some(Mode { mode: Some(inner) }),
             },
         ),
     )
+}
+
+fn expand_raw_input_tokens(input: &str) -> Vec<u8> {
+    let mut out = Vec::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(start) = rest.find('<') {
+        out.extend_from_slice(rest[..start].as_bytes());
+        let token_candidate = &rest[start..];
+        if let Some(end) = token_candidate.find('>') {
+            let token = &token_candidate[..=end];
+            if let Some(byte) = control_token_byte(token) {
+                out.push(byte);
+                rest = &token_candidate[end + 1..];
+                continue;
+            }
+        }
+        out.push(b'<');
+        rest = &rest[start + 1..];
+    }
+    out.extend_from_slice(rest.as_bytes());
+    out
+}
+
+fn control_token_byte(token: &str) -> Option<u8> {
+    match token {
+        "<ESC>" | "<Esc>" | "<escape>" | "<Escape>" => Some(0x1b),
+        "<ENTER>" | "<Enter>" | "<CR>" | "<LF>" => Some(b'\n'),
+        "<TAB>" | "<Tab>" => Some(b'\t'),
+        "<BACKSPACE>" | "<Backspace>" => Some(0x7f),
+        "<CTRL-C>" | "<Ctrl-C>" | "<C-c>" => Some(0x03),
+        "<CTRL-D>" | "<Ctrl-D>" | "<C-d>" => Some(0x04),
+        _ => None,
+    }
 }
 
 fn write_result_to_json(result: &api::message::tool_call_result::Result) -> Option<Value> {
