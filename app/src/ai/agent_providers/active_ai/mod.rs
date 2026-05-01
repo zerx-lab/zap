@@ -366,6 +366,14 @@ pub mod next_command {
                 return None;
             }
         };
-        parsing::sanitize_predict(&raw)
+        log::info!(
+            "[active_ai] next_command raw response ({} chars): {raw:?}",
+            raw.len()
+        );
+        let sanitized = parsing::sanitize_predict(&raw);
+        if sanitized.is_none() && !raw.trim().is_empty() {
+            log::warn!("[active_ai] next_command sanitize REJECTED raw response");
+        }
+        sanitized
     }
 }
