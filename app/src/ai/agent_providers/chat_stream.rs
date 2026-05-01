@@ -136,6 +136,50 @@ fn render_lrc_request_context(params: &RequestParams) -> Option<String> {
         })
 }
 
+/// OpenWarp:渲染 SSH 会话状态块,append 到 system prompt 末尾。
+///
+/// 触发条件:`SessionContext.is_legacy_ssh()` 为 true(用户在本地 PTY 手敲
+/// `ssh xx@xx` 进入远端,远端没装 warp shell hook)。这种会话:
+/// - `session_type` 仍是 `Local`
+/// - 整段 system prompt 的 [Environment] 区块描述的是**本地客户端** OS / shell,
+///   而 PTY 当前实际跑在**远端**
+///
+/// 不主动告知模型这一点,LLM 会按 system prompt 里的本地 OS 推断"目标在远端,
+/// 我得先 ssh 过去",于是输出 `ssh xx@xx uname -a` 这种二次嵌套命令。
+///
+/// 注:warpified SSH(`SessionType::WarpifiedRemote`)不在这里处理 — 那条路径
+/// 远端 shell hook 已重新 bootstrap,host_info / shell 都是远端真值,prompt 本身就对。
+fn render_ssh_session_block(
+    session_context: &crate::ai::blocklist::SessionContext,
+) -> Option<String> {
+    if !session_context.is_legacy_ssh() {
+        return None;
+    }
+    let info = session_context.ssh_connection_info();
+    let host = info
+        .and_then(|i| i.host.as_deref())
+        .map(xml_attr)
+        .unwrap_or_else(|| "unknown".to_owned());
+    let port = info
+        .and_then(|i| i.port.as_deref())
+        .map(xml_attr)
+        .unwrap_or_else(|| "22".to_owned());
+
+    Some(format!(
+        "\n\n<ssh_session host=\"{host}\" port=\"{port}\">\n  \
+         <fact>The active terminal PTY is currently inside an SSH session opened by the user from their local machine. \
+         All shell commands you run via `run_shell_command` execute on the REMOTE host, not on the local client.</fact>\n  \
+         <warning>The [Environment] block (OS / shell / working directory) above describes the LOCAL client and may not match the remote host. \
+         If you need precise remote info, probe it directly (e.g. `uname -a`, `cat /etc/os-release`, `pwd`).</warning>\n  \
+         <rules>\n    \
+         - Run commands DIRECTLY (e.g. `uname -a`, `ls /`). Do NOT prepend `ssh {host} ...` — that opens a NESTED ssh session inside the current one.\n    \
+         - Treat the working directory and home directory shown above with skepticism; they may reflect the local client.\n    \
+         - When LRC tag-in mode is active (an `<attached_running_command>` block is present), prefer `write_to_long_running_shell_command` with that command_id to inject keystrokes into this same remote PTY. Spawning a new shell would create a separate local-side ssh client, not interact with the remote process the user is watching.\n  \
+         </rules>\n\
+         </ssh_session>"
+    ))
+}
+
 /// XML 转义,同时 strip 所有非法/有问题的控制字符,避免 JSON 序列化失败。
 ///
 /// `grid_contents`(从 `formatted_terminal_contents_for_input` 提取的 alt-screen 内容)
@@ -176,10 +220,13 @@ fn xml_attr(s: &str) -> String {
 /// 累积同一 assistant turn 的 text + tool_calls + reasoning,然后 flush 成一个或两个
 /// `ChatMessage`(text 一个,tool_calls 一个 — genai 把它们建模为分开的 message)。
 ///
-/// **DeepSeek thinking-mode 关键**:assistant turn 含 tool_calls 时,
-/// 必须用 `ChatMessage::with_reasoning_content(Some(reasoning))` 把上一轮的
-/// reasoning_content 字段回传,否则 DeepSeek 服务端 400(genai 0.6 才有此 API,
-/// 0.5.3 是 issue #138 — 见 Cargo.toml 注释)。
+/// **thinking-mode reasoning_content 回传**:对 DeepSeek / Kimi 这类要求"每条
+/// assistant 都必须回传 reasoning_content 字段"的 adapter,buf 持有 `force_echo=true`,
+/// flush 时即使本 turn 没攒到 reasoning 也会挂一个非空占位 — genai 序列化层
+/// (`adapter_shared.rs:368-373`) 只看 `ContentPart::ReasoningContent` 是否存在。
+/// 其他 adapter(Anthropic / Gemini)`force_echo=false`,行为退化为旧逻辑(reasoning 非空才挂)。
+const REASONING_ECHO_PLACEHOLDER: &str = " ";
+
 #[derive(Default)]
 struct AssistantBuffer {
     text: Option<String>,
@@ -188,21 +235,42 @@ struct AssistantBuffer {
     /// 的 reasoning_content 字段(genai 内部按 adapter 序列化:DeepSeek/Kimi 走 reasoning_content,
     /// Anthropic 走 thinking blocks)。
     reasoning: Option<String>,
+    /// thinking-mode adapter 强制回传 reasoning_content(非空占位)。由
+    /// `super::reasoning::model_requires_reasoning_echo` 决定。
+    force_echo_reasoning: bool,
 }
 
 impl AssistantBuffer {
+    fn new(force_echo_reasoning: bool) -> Self {
+        Self {
+            force_echo_reasoning,
+            ..Default::default()
+        }
+    }
+
     fn flush_into(&mut self, messages: &mut Vec<ChatMessage>) {
         let reasoning = self.reasoning.take();
         let has_tool_calls = !self.tool_calls.is_empty();
+        // 决定本次 flush 要挂到 tool_calls assistant 上的 reasoning 字符串:
+        // - 有真实 reasoning 文本 → 用之
+        // - 没有 + force_echo → 非空占位(满足 DeepSeek/Kimi 服务端"字段必须存在"的校验)
+        // - 没有 + 不 force_echo → None(不挂字段,跟旧行为一致)
+        let echo_reasoning: Option<String> = match reasoning {
+            Some(r) if !r.is_empty() => Some(r),
+            _ if self.force_echo_reasoning => Some(REASONING_ECHO_PLACEHOLDER.to_owned()),
+            _ => None,
+        };
         if let Some(t) = self.text.take() {
             let mut msg = ChatMessage::assistant(t);
-            // 仅当本 turn 没有 tool_calls 时才把 reasoning 挂到 text message;
-            // 有 tool_calls 时 reasoning 必须跟 tool_calls 在同一 message
-            // (DeepSeek 服务端只对 含 tool_calls 的 assistant 强制要求 reasoning_content)。
-            if !has_tool_calls {
-                if let Some(r) = reasoning.as_deref().filter(|s| !s.is_empty()) {
-                    msg = msg.with_reasoning_content(Some(r.to_owned()));
+            if has_tool_calls {
+                // DeepSeek thinking mode 要求每条 assistant message 都带
+                // reasoning_content。text + tool_calls 被 genai 建模成两条
+                // assistant 时,text 这条也必须补占位。
+                if self.force_echo_reasoning {
+                    msg = msg.with_reasoning_content(Some(REASONING_ECHO_PLACEHOLDER.to_owned()));
                 }
+            } else if let Some(r) = echo_reasoning.clone() {
+                msg = msg.with_reasoning_content(Some(r));
             }
             messages.push(msg);
         }
@@ -210,7 +278,7 @@ impl AssistantBuffer {
             // genai `From<Vec<ToolCall>> for ChatMessage` 自动产 assistant role +
             // MessageContent::from_tool_calls。
             let mut msg = ChatMessage::from(std::mem::take(&mut self.tool_calls));
-            if let Some(r) = reasoning.filter(|s| !s.is_empty()) {
+            if let Some(r) = echo_reasoning {
                 msg = msg.with_reasoning_content(Some(r));
             }
             messages.push(msg);
@@ -219,9 +287,19 @@ impl AssistantBuffer {
 }
 
 /// 把 RequestParams 翻译为 genai `ChatRequest`(含 system + messages + tools)。
-fn build_chat_request(params: &RequestParams) -> ChatRequest {
+///
+/// `force_echo_reasoning`:由 `super::reasoning::model_requires_reasoning_echo`
+/// 决定。true 时所有 assistant message 强制挂 reasoning_content(空串占位),
+/// 修复 DeepSeek-v4-flash / Kimi 等收紧校验的 thinking-mode endpoint。
+fn build_chat_request(params: &RequestParams, force_echo_reasoning: bool) -> ChatRequest {
     let agent_ctx = latest_input_context(&params.input);
-    let system_text = prompt_renderer::render_system(&params.model, agent_ctx);
+    let mut system_text = prompt_renderer::render_system(&params.model, agent_ctx);
+    // OpenWarp:legacy SSH 会话画像补丁。`render_system` 走 AIAgentContext,
+    // 拿到的 OS/shell 是本地客户端;legacy SSH 下 PTY 实际在远端,
+    // 追加一段 SSH 状态块矫正 LLM 推断。
+    if let Some(ssh_block) = render_ssh_session_block(&params.session_context) {
+        system_text.push_str(&ssh_block);
+    }
     // 注:LRC / 长命令的工具用法引导(write_to_long_running_shell_command + command_id +
     // 各种 mode 与 raw 字节序列)已经在 `prompts/system/default.j2:69-79` 完整覆盖。
     // 用户当前所处的具体 PTY 上下文(命令名 / alt-screen 标志 / grid 内容)通过
@@ -244,7 +322,7 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
             .unwrap_or((0, 0))
     });
 
-    let mut buf = AssistantBuffer::default();
+    let mut buf = AssistantBuffer::new(force_echo_reasoning);
     // OpenWarp:历史里被 skip 掉的 subagent ToolCall 对应的 call_id —— 它们的
     // ToolCallResult 也必须 skip,否则会成为孤儿 tool_response,Anthropic 直接 400
     // `unexpected tool_use_id ... no corresponding tool_use block`。
@@ -296,8 +374,11 @@ fn build_chat_request(params: &RequestParams) -> ChatRequest {
                     skipped_subagent_call_ids.insert(tc.tool_call_id.clone());
                     continue;
                 }
-                let (name, args_json) =
-                    serialize_outgoing_tool_call(tc, params.mcp_context.as_ref());
+                let (name, args_json) = serialize_outgoing_tool_call(
+                    tc,
+                    params.mcp_context.as_ref(),
+                    &msg.server_message_data,
+                );
                 buf.tool_calls.push(ToolCall {
                     call_id: tc.tool_call_id.clone(),
                     fn_name: name,
@@ -727,8 +808,24 @@ fn ensure_ends_with_user(messages: &mut Vec<ChatMessage>) {
 fn serialize_outgoing_tool_call(
     tc: &api::message::ToolCall,
     mcp_ctx: Option<&crate::ai::agent::MCPContext>,
+    server_message_data: &str,
 ) -> (String, Value) {
     use api::message::tool_call::Tool;
+
+    // BYOP from_args 解析失败 carrier 还原:由 make_tool_call_carrier_message 写入,
+    // tool oneof = None,原始 `<fn_name>\n<args_str>` 编码在 server_message_data。
+    // 必须在主 match 之前优先识别,否则会落到下面 None=>"warp_internal_empty",
+    // 上游模型看到一个不存在的工具名会更困惑、也不知道是哪个 call 失败了。
+    if tc.tool.is_none() {
+        if let Some((fn_name, raw_args)) = server_message_data.split_once('\n') {
+            if !fn_name.is_empty() {
+                let args_value = serde_json::from_str(raw_args)
+                    .unwrap_or_else(|_| Value::String(raw_args.to_owned()));
+                return (fn_name.to_owned(), args_value);
+            }
+        }
+    }
+
     // 大多数旧实现返回 (String, String);这里改成 (String, Value),把字符串再 parse 一次。
     let (name, args_str) = match &tc.tool {
         Some(Tool::CallMcpTool(c)) => tools::mcp::serialize_outgoing_call(c, mcp_ctx),
@@ -1186,9 +1283,15 @@ pub async fn generate_byop_output(
     // 仅 tag-in 首轮为 true:流头会合成虚拟 `tool_call::Subagent` + CreateTask,
     // 用 server subtask 升级 master 路径已经创建的 optimistic CLI subtask。
     lrc_should_spawn_subagent: bool,
+    // 选中模型的 context window(tokens)。Some 时:流末用 genai captured_usage
+    // 计算 (prompt_tokens + completion_tokens) / context_window 写回
+    // ConversationUsageMetadata,驱动 footer 的 "X% context remaining" 实时更新。
+    // None ⇒ 跳过(用户未填 + catalog 无),UI 维持 100% 占位。
+    context_window: Option<u32>,
     _cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
-    let chat_req = build_chat_request(&params);
+    let force_echo_reasoning = super::reasoning::model_requires_reasoning_echo(api_type, &model_id);
+    let chat_req = build_chat_request(&params, force_echo_reasoning);
     let chat_opts = build_chat_options(api_type, &model_id, reasoning_effort);
     let client = build_client(api_type, base_url, api_key);
     let conversation_id = params
@@ -1495,6 +1598,12 @@ pub async fn generate_byop_output(
         let mut tool_chunk_count: u32 = 0;
         let mut end_count: u32 = 0;
         let mut other_count: u32 = 0;
+        // 累积本轮 token 使用量。genai 在 ChatStreamEvent::End 事件里携带
+        // captured_usage(Option<Usage>),其 prompt_tokens 是本轮整段 history
+        // (Anthropic / OpenAI 都按"完整请求 prompt"计),completion_tokens 是模型输出。
+        // 二者相加除以 context_window 即为"context 占用率",和 warp 自家 server 路径语义一致。
+        let mut captured_prompt_tokens: i32 = 0;
+        let mut captured_completion_tokens: i32 = 0;
 
         while let Some(item) = sdk_stream.next().await {
             let event = match item {
@@ -1584,6 +1693,15 @@ pub async fn generate_byop_output(
                             tool_bufs.entry(call.call_id.clone()).or_insert_with(|| call.clone());
                         }
                     }
+                    if let Some(usage) = end.captured_usage.as_ref() {
+                        // 多次 End 取最大值兜底(理论上单次 stream 只有一次 End)。
+                        if let Some(p) = usage.prompt_tokens {
+                            captured_prompt_tokens = captured_prompt_tokens.max(p);
+                        }
+                        if let Some(c) = usage.completion_tokens {
+                            captured_completion_tokens = captured_completion_tokens.max(c);
+                        }
+                    }
                 }
                 _ => {
                     other_count += 1;
@@ -1647,11 +1765,49 @@ pub async fn generate_byop_output(
                     ));
                 }
                 Err(e) => {
-                    log::warn!("BYOP: failed to parse tool_call args for {}: {e:#}", call.fn_name);
-                    final_messages.push(make_agent_output_message(
+                    // 关键:不再把 from_args 失败吞成纯文本(原实现:emit AgentOutput),
+                    // 因为模型那一轮以为自己调了 tool 在等 result,看到一段中文 assistant 文字
+                    // 完全不知道是参数类型错,无法定向修正重试。
+                    // 改成 emit 一对 ToolCall(carrier) + ToolCallResult(error JSON),
+                    // 让模型在下一轮看到标准 tool_result error,可以按惯例改 args 重试或换工具。
+                    //
+                    // ToolCall 的 `tool` oneof 留 None(没有合适的结构化 variant),原始
+                    // fn_name + args_str 通过 server_message_data 携带,
+                    // serialize_outgoing_tool_call 的 carrier 分支会优先还原。
+                    let args_str = if call.fn_arguments.is_string() {
+                        call.fn_arguments.as_str().unwrap_or("").to_owned()
+                    } else {
+                        call.fn_arguments.to_string()
+                    };
+                    log::warn!(
+                        "[byop] tool_call parse failed → emit synthetic error tool_result: \
+                         tool={} call_id={} err={e:#}",
+                        call.fn_name,
+                        call.call_id
+                    );
+                    let error_payload = serde_json::json!({
+                        "error": "invalid_arguments",
+                        "detail": e.to_string(),
+                        "tool": call.fn_name,
+                        "received_args": &args_str,
+                        "hint": "Arguments did not match the tool's JSON Schema. \
+                                 Re-emit the tool call with corrected types / required fields, \
+                                 or pick a different tool.",
+                    });
+                    let error_content = serde_json::to_string(&error_payload)
+                        .unwrap_or_else(|_| r#"{"error":"invalid_arguments"}"#.to_owned());
+                    final_messages.push(make_tool_call_carrier_message(
                         &current_task_id,
                         &request_id,
-                        format!("(byop:工具 `{}` 的参数解析失败: {})", call.fn_name, e),
+                        &call.call_id,
+                        &call.fn_name,
+                        &args_str,
+                    ));
+                    final_messages.push(make_tool_call_result_message(
+                        &current_task_id,
+                        &request_id,
+                        call.call_id.clone(),
+                        error_content,
                     ));
                 }
             }
@@ -1680,7 +1836,35 @@ pub async fn generate_byop_output(
             }
         }
 
-        yield Ok(make_finished_done());
+        // 把 captured token usage 折算成 ConversationUsageMetadata.context_window_usage
+        // 注入 StreamFinished — controller 的 handle_response_stream_finished 会把它写到
+        // conversation.conversation_usage_metadata,footer 监听 UpdatedStreamingExchange/
+        // AppendedExchange 事件即在每轮末实时刷新 "X% context remaining" 工具提示。
+        let usage_metadata = context_window.and_then(|cw| {
+            if cw == 0 || (captured_prompt_tokens == 0 && captured_completion_tokens == 0) {
+                return None;
+            }
+            let used = (captured_prompt_tokens + captured_completion_tokens).max(0) as f32;
+            let pct = (used / cw as f32).clamp(0.0, 1.0);
+            log::info!(
+                "[byop] context usage: prompt={} completion={} window={} → {:.1}%",
+                captured_prompt_tokens,
+                captured_completion_tokens,
+                cw,
+                pct * 100.0
+            );
+            Some(api::response_event::stream_finished::ConversationUsageMetadata {
+                context_window_usage: pct,
+                summarized: false,
+                credits_spent: 0.0,
+                #[allow(deprecated)]
+                token_usage: Vec::new(),
+                tool_usage_metadata: None,
+                warp_token_usage: std::collections::HashMap::new(),
+                byok_token_usage: std::collections::HashMap::new(),
+            })
+        });
+        yield Ok(make_finished_done(usage_metadata));
     };
 
     Ok(Box::pin(stream))
@@ -1934,6 +2118,34 @@ fn make_tool_call_result_message(
     }
 }
 
+/// BYOP `from_args` 解析失败时,emit 占位 ToolCall 作 carrier:
+/// `tool` oneof 留 None(没有合适的结构化 variant),原始 fn_name + args_str 编码到
+/// `server_message_data` 为 `<fn_name>\n<args_str>`。下一轮 build_chat_request →
+/// `serialize_outgoing_tool_call` 的 carrier 分支据此还原,保证上游模型看到的
+/// tool_use name / args 与原 call 一致(否则用 "warp_internal_empty" 占位会让模型
+/// 困惑,也对不上紧随的 ToolCallResult error 上下文)。
+fn make_tool_call_carrier_message(
+    task_id: &str,
+    request_id: &str,
+    tool_call_id: &str,
+    fn_name: &str,
+    args_str: &str,
+) -> api::Message {
+    let carrier = format!("{}\n{}", fn_name, args_str);
+    api::Message {
+        id: Uuid::new_v4().to_string(),
+        task_id: task_id.to_owned(),
+        server_message_data: carrier,
+        citations: vec![],
+        message: Some(api::message::Message::ToolCall(api::message::ToolCall {
+            tool_call_id: tool_call_id.to_owned(),
+            tool: None,
+        })),
+        request_id: request_id.to_owned(),
+        timestamp: None,
+    }
+}
+
 fn make_tool_call_message(
     task_id: &str,
     request_id: &str,
@@ -2024,14 +2236,16 @@ fn create_subtask_event(subtask_id: &str, parent_task_id: &str) -> api::Response
     }
 }
 
-fn make_finished_done() -> api::ResponseEvent {
+fn make_finished_done(
+    usage_metadata: Option<api::response_event::stream_finished::ConversationUsageMetadata>,
+) -> api::ResponseEvent {
     api::ResponseEvent {
         r#type: Some(api::response_event::Type::Finished(
             api::response_event::StreamFinished {
                 reason: Some(api::response_event::stream_finished::Reason::Done(
                     api::response_event::stream_finished::Done {},
                 )),
-                conversation_usage_metadata: None,
+                conversation_usage_metadata: usage_metadata,
                 token_usage: vec![],
                 should_refresh_model_config: false,
                 request_cost: None,

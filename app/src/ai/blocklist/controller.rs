@@ -57,6 +57,7 @@ use crate::terminal::model::block::{
     formatted_terminal_contents_for_input, BlockId, CURSOR_MARKER,
 };
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
+use crate::terminal::ssh::util::InteractiveSshCommand;
 use crate::terminal::{
     model::session::{active_session::ActiveSession, SessionType},
     model::terminal_model::TerminalModel,
@@ -86,14 +87,31 @@ pub struct SessionContext {
     session_type: Option<SessionType>,
     shell: Option<ShellLaunchData>,
     current_working_directory: Option<String>,
+    /// OpenWarp:legacy SSH session(用户在本地 PTY 手敲 `ssh xxx@yyy`,
+    /// 远端没装 warp shell hook)的连接信息。`session_type` 仍是 `Local`,
+    /// 但 PTY 实际跑在远端,需要在 prompt 里告知 LLM,否则模型默认在本地 OS。
+    ssh_connection_info: Option<InteractiveSshCommand>,
+    /// 是否为 legacy SSH 会话(`IsLegacySSHSession::Yes`)。
+    is_legacy_ssh: bool,
 }
 
 impl SessionContext {
     pub fn from_session(session: &ActiveSession, app: &AppContext) -> Self {
+        let session_arc = session.session(app);
+        let ssh_connection_info = session_arc
+            .as_ref()
+            .and_then(|s| s.subshell_info().as_ref())
+            .and_then(|info| info.ssh_connection_info.clone());
+        let is_legacy_ssh = session_arc
+            .as_ref()
+            .map(|s| s.is_legacy_ssh_session())
+            .unwrap_or(false);
         SessionContext {
             session_type: session.session_type(app),
             shell: session.shell_launch_data(app),
             current_working_directory: session.current_working_directory().cloned(),
+            ssh_connection_info,
+            is_legacy_ssh,
         }
     }
 
@@ -124,12 +142,26 @@ impl SessionContext {
         matches!(self.session_type, Some(SessionType::WarpifiedRemote { .. }))
     }
 
+    /// OpenWarp:legacy SSH 连接信息(host/port),仅在 `is_legacy_ssh()` 为 true 时有意义。
+    pub fn ssh_connection_info(&self) -> Option<&InteractiveSshCommand> {
+        self.ssh_connection_info.as_ref()
+    }
+
+    /// OpenWarp:本会话是否为 legacy SSH(用户手敲 ssh,远端无 warp hook)。
+    /// 这种会话 `session_type` 仍是 `Local`,但 PTY 实际跑在远端,
+    /// `host_info`/`shell` 等画像反映的是本地客户端而非远端 shell。
+    pub fn is_legacy_ssh(&self) -> bool {
+        self.is_legacy_ssh
+    }
+
     #[cfg(test)]
     pub fn new_for_test() -> Self {
         SessionContext {
             session_type: None,
             shell: None,
             current_working_directory: None,
+            ssh_connection_info: None,
+            is_legacy_ssh: false,
         }
     }
 }

@@ -4,7 +4,7 @@ export const en: Dict = {
   meta: {
     title: "OpenWarp — Unlock custom AI providers for Warp",
     description:
-      "OpenWarp is the open enhancement layer for Warp. Plug in any OpenAI-compatible model, craft your own prompts, and own your terminal AI.",
+      "OpenWarp is the open enhancement layer for Warp. Plug in OpenAI / Anthropic / Gemini / DeepSeek / Ollama natively via the genai adapter, craft your own prompts, and own your terminal AI.",
   },
   nav: {
     how: "How it works",
@@ -20,7 +20,7 @@ export const en: Dict = {
     title_em: "any AI model",
     title_2: "into your terminal",
     subtitle:
-      "OpenWarp adds BYOP (Bring Your Own Provider) on top of Warp — wire up any OpenAI-compatible endpoint, customize models and system prompts, with first-class i18n.",
+      "OpenWarp adds BYOP (Bring Your Own Provider) on top of Warp — 6 native API protocols via the genai adapter, your own models and prompts, first-class i18n.",
     cta_primary: "View on GitHub",
     cta_secondary: "Read docs",
     note: "Early development — no public release yet",
@@ -89,7 +89,7 @@ export const en: Dict = {
       {
         num: "01",
         title: "Plug in any provider",
-        desc: "Paste a Base URL and API key in settings. Any OpenAI-compatible endpoint works, credentials stay on-device.",
+        desc: "Pick the API protocol, paste a Base URL and API key in settings — switch freely across OpenAI / Anthropic / Gemini / Ollama / DeepSeek (6 native protocols), credentials stay on-device.",
       },
       {
         num: "02",
@@ -107,44 +107,52 @@ export const en: Dict = {
     eyebrow: "Custom Providers",
     title: "Configure once, every model unlocked",
     subtitle:
-      "Any endpoint that speaks the OpenAI Chat Completions protocol works — OpenAI, Anthropic gateways, DeepSeek, Qwen, local Ollama, your call.",
+      "OpenWarp speaks 6 native API protocols via the genai adapter: OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek — protocol is explicit, no model-name guessing, keys go straight to the provider.",
     fields: {
       name: "Provider name",
+      protocol: "API protocol",
       base_url: "Base URL",
+      endpoint: "Request endpoint",
       api_key: "API key",
       model: "Default model",
       prompt: "System prompt template",
     },
     bullets: [
-      "✓ OpenAI-compatible streaming",
-      "✓ minijinja-powered prompt templates",
-      "✓ Multi-account, one-click model switch",
-      "✓ Stored locally, credentials never leave your device",
+      "✓ 6 native API protocols, not just an OpenAI-compat shim",
+      "✓ Multi-turn reasoning passthrough: DeepSeek reasoning_content / Claude thinking / Gemini",
+      "✓ minijinja-powered system prompt templates",
+      "✓ Credentials stored locally, requests go straight to the provider endpoint",
     ],
     tabs: [
       {
         id: "deepseek",
         name: "DeepSeek",
-        tag: "reasoning",
-        baseUrl: "https://api.deepseek.com/v1",
+        tag: "OpenAI-compat",
+        protocol: "OpenAI",
+        baseUrl: "https://api.deepseek.com",
+        endpoint: "POST /v1/chat/completions",
         apiKey: "sk-•••••••••••••••••••••",
-        model: "deepseek-r1",
+        model: "deepseek-reasoner",
+      },
+      {
+        id: "anthropic",
+        name: "Anthropic",
+        tag: "native",
+        protocol: "Anthropic",
+        baseUrl: "https://api.anthropic.com",
+        endpoint: "POST /v1/messages",
+        apiKey: "sk-ant-•••••••••••••••••",
+        model: "claude-sonnet-4-6",
       },
       {
         id: "ollama",
         name: "Ollama",
         tag: "local",
-        baseUrl: "http://localhost:11434/v1",
+        protocol: "Ollama",
+        baseUrl: "http://localhost:11434",
+        endpoint: "POST /api/chat",
         apiKey: "— not required —",
         model: "qwen2.5-coder:7b",
-      },
-      {
-        id: "openrouter",
-        name: "OpenRouter",
-        tag: "gateway",
-        baseUrl: "https://openrouter.ai/api/v1",
-        apiKey: "sk-or-•••••••••••••••••••",
-        model: "anthropic/claude-3.5-sonnet",
       },
     ],
   },
@@ -154,7 +162,7 @@ export const en: Dict = {
     items: [
       {
         title: "BYOP custom providers",
-        desc: "Built-in OpenAI-compatible client. Mix any Base URL / API Key / Model.",
+        desc: "6 native API protocols via the genai adapter. Mix any Base URL / API Key / Model.",
       },
       {
         title: "Prompt templates",
@@ -192,7 +200,7 @@ export const en: Dict = {
       },
       {
         q: "Which providers are supported?",
-        a: "Anything that speaks OpenAI Chat Completions streaming: OpenAI, DeepSeek, Qwen, Groq, Together, local Ollama / LM Studio, plus most proxy gateways.",
+        a: "OpenWarp ships a genai-based multi-protocol client: OpenAI / OpenAI Responses / Anthropic / Gemini / Ollama / DeepSeek run as native protocols. OpenAI-compatible endpoints (Qwen / Groq / Together / OpenRouter / SiliconFlow / LM Studio, etc.) plug in by selecting the OpenAI protocol and pointing Base URL at them.",
       },
       {
         q: "Will I keep getting upstream Warp updates?",
@@ -364,6 +372,128 @@ export const en: Dict = {
           {
             status: "planned",
             text: "One-click templates for Azure OpenAI / Bedrock / Vertex enterprise gateways",
+          },
+        ],
+      },
+      {
+        id: "active-ai",
+        eyebrow: "04 · Active AI",
+        title: "Next Command / suggestions / retrieval all on BYOP",
+        summary:
+          "Upstream's active-AI subpaths (inline completion / Prompt Suggestions / NLD / Relevant Files) used to call ${server_root_url}/ai/* directly. They are now all routed through BYOP one-shot — no more silent cloud detours.",
+        progress: 70,
+        items: [
+          {
+            status: "shipped",
+            text: "Agent main loop on BYOP (genai 6-protocol explicit routing)",
+          },
+          {
+            status: "shipped",
+            text: "Next Command inline completion + zero-state suggestions on BYOP one-shot",
+          },
+          {
+            status: "shipped",
+            text: "Prompt Suggestions / NLD predict / Relevant Files fully on BYOP",
+          },
+          {
+            status: "shipped",
+            text: "New active_ai_model / next_command_model fields per profile",
+          },
+          {
+            status: "shipped",
+            text: "DeepSeek reasoning_content multi-turn passthrough (genai DeepSeek adapter)",
+          },
+          {
+            status: "shipped",
+            text: "BYOP LRC tag-in: continuous context injection across turns + two-way sanitize placeholders",
+          },
+          {
+            status: "in_progress",
+            text: "Code Review (commit message / PR title / PR description) onto BYOP",
+          },
+          {
+            status: "planned",
+            text: "Passive suggestions (Workflow / Rule chips) onto BYOP",
+          },
+        ],
+      },
+      {
+        id: "decouple",
+        eyebrow: "05 · Decouple cloud",
+        title: "Cut the default Warp Inc lines",
+        summary:
+          "OpenWarp is a strictly local fork. Cloud-account refresh, persistent user storage, Plan sync, passive-suggestion HTTP — all disabled in place, so credentials and requests only go to providers you configure.",
+        progress: 75,
+        items: [
+          {
+            status: "shipped",
+            text: "Removed Cloud Agent / Computer Use entry points",
+          },
+          {
+            status: "shipped",
+            text: "auth_manager refresh_user / persist made no-op (no writes to app.warp.dev)",
+          },
+          {
+            status: "shipped",
+            text: "Removed Plan auto-sync to Warp Drive (toggle + actual call)",
+          },
+          {
+            status: "shipped",
+            text: "Passive suggestions HTTP path short-circuited + modal warns silenced",
+          },
+          {
+            status: "shipped",
+            text: "Profile Editor cloud toggles cleaned (autosync / web search)",
+          },
+          {
+            status: "in_progress",
+            text: "i18n copy purged of \"Cloud Agent\" / \"Oz\" wording",
+          },
+          {
+            status: "planned",
+            text: "Full audit of any path still hitting ${server_root_url}",
+          },
+        ],
+      },
+      {
+        id: "polish",
+        eyebrow: "06 · Polish & stability",
+        title: "Local-first UX and crash fixes",
+        summary:
+          "Filling the rough edges around BYOP multi-protocol: tool_use pairing, Take-over Agent handoff, alt-screen long-command resilience, command palette bilingual search, OpenWarp packaging & release pipeline.",
+        progress: 65,
+        items: [
+          {
+            status: "shipped",
+            text: "BYOP tool_use two-way sanitize: orphan tool_response no longer triggers Anthropic 400 + retry-driven flex panic",
+          },
+          {
+            status: "shipped",
+            text: "TUI / long-command Take-over Agent → resume path fixed (SetInputModeAgent alt-screen deadlock)",
+          },
+          {
+            status: "shipped",
+            text: "Footer tooltip context_window_usage live sync (BYOP usage_metadata passthrough)",
+          },
+          {
+            status: "shipped",
+            text: "Command palette: Fuzzy search + binding.name bilingual matching (zh ↔ en)",
+          },
+          {
+            status: "shipped",
+            text: "63 Toggle setting commands fully translated (Fluent {$suffix})",
+          },
+          {
+            status: "shipped",
+            text: "Windows installer renamed WarpOss → OpenWarp",
+          },
+          {
+            status: "shipped",
+            text: "macOS Release timeout bumped 90 → 150 minutes",
+          },
+          {
+            status: "planned",
+            text: "Linux Release workflow automation",
           },
         ],
       },

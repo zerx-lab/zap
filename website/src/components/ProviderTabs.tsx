@@ -5,25 +5,36 @@ type Tab = {
   id: string;
   name: string;
   tag: string;
+  protocol: string;
   baseUrl: string;
+  endpoint: string;
   apiKey: string;
   model: string;
 };
 
 interface Props {
   tabs: Tab[];
-  labels: { name: string; base_url: string; api_key: string; model: string };
+  labels: {
+    name: string;
+    protocol: string;
+    base_url: string;
+    endpoint: string;
+    api_key: string;
+    model: string;
+  };
 }
 
 export default function ProviderTabs({ tabs, labels }: Props) {
   const [active, setActive] = useState(tabs[0].id);
   const cur = tabs.find((t) => t.id === active) ?? tabs[0];
 
-  const fields: Array<[string, string]> = [
-    [labels.name, `${cur.name} (${cur.tag})`],
-    [labels.base_url, cur.baseUrl],
-    [labels.api_key, cur.apiKey],
-    [labels.model, cur.model],
+  const fields: Array<{ k: string; v: string; mono?: boolean; full?: boolean }> = [
+    { k: labels.name, v: `${cur.name} (${cur.tag})` },
+    { k: labels.protocol, v: cur.protocol, mono: true },
+    { k: labels.base_url, v: cur.baseUrl, mono: true, full: true },
+    { k: labels.endpoint, v: cur.endpoint, mono: true, full: true },
+    { k: labels.api_key, v: cur.apiKey, mono: true, full: true },
+    { k: labels.model, v: cur.model, mono: true, full: true },
   ];
 
   return (
@@ -59,7 +70,7 @@ export default function ProviderTabs({ tabs, labels }: Props) {
           </button>
         ))}
         <span className="ml-auto rounded-full bg-accent-lime/10 px-2 py-0.5 font-mono text-[10px] text-accent-lime ring-1 ring-accent-lime/20">
-          ● connected
+          ● connected · genai
         </span>
       </div>
 
@@ -74,14 +85,16 @@ export default function ProviderTabs({ tabs, labels }: Props) {
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="grid gap-4 sm:grid-cols-2"
           >
-            {fields.map(([k, v], i) => (
-              <div key={k} className={i >= 1 ? 'sm:col-span-2' : ''}>
-                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">{k}</p>
-                <div className={
-                  'rounded-lg border border-white/5 bg-ink-950/60 px-3 py-2.5 text-sm text-zinc-200 ' +
-                  (i === 0 ? '' : 'font-mono text-[12.5px]')
-                }>
-                  {v}
+            {fields.map((f) => (
+              <div key={f.k} className={f.full ? 'sm:col-span-2' : ''}>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">{f.k}</p>
+                <div
+                  className={
+                    'rounded-lg border border-white/5 bg-ink-950/60 px-3 py-2.5 text-sm text-zinc-200 ' +
+                    (f.mono ? 'font-mono text-[12.5px]' : '')
+                  }
+                >
+                  {f.v}
                 </div>
               </div>
             ))}

@@ -109,6 +109,36 @@ fn is_gemini_reasoning_model(id: &str) -> bool {
     false
 }
 
+/// 判定指定 (api_type, model_id) 是否需要在每条 assistant message 上回传
+/// `reasoning_content` 字段(包括空串占位)。
+///
+/// 背景:`deepseek-v4-flash` 等新一代 thinking-mode 模型把 server-side 校验从
+/// "仅含 tool_calls 的 assistant 必须带 reasoning_content" 收紧到
+/// "thinking-mode 下每条 assistant 必须带 reasoning_content,缺失即 400
+/// `The reasoning_content in the thinking mode must be passed back to the API`"。
+/// genai 0.6 序列化层(`adapter_shared.rs:368-373`)只 echo 已有的
+/// `ContentPart::ReasoningContent`,**不会自动补缺**,所以 client 层必须强制挂上
+/// 占位字段(空串也行 — genai 会原样 insert,DeepSeek 服务端只校验存在性)。
+///
+/// 命中规则:
+/// - **DeepSeek api_type**:全 echo(adapter 即 DeepSeek 专属)
+/// - **OpenAI / OpenAiResp + model_id 含 `kimi` / `moonshot`**:Kimi 走 OpenAI
+///   兼容路径,thinking-mode 校验同源
+/// - 其他:false(Anthropic 走 thinking blocks,Gemini 走 thought signatures,
+///   都不需要这个 echo)
+pub fn model_requires_reasoning_echo(api_type: AgentProviderApiType, model_id: &str) -> bool {
+    match api_type {
+        AgentProviderApiType::DeepSeek => true,
+        AgentProviderApiType::OpenAi | AgentProviderApiType::OpenAiResp => {
+            let id = model_id.to_ascii_lowercase();
+            id.contains("kimi") || id.contains("moonshot")
+        }
+        AgentProviderApiType::Anthropic
+        | AgentProviderApiType::Gemini
+        | AgentProviderApiType::Ollama => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,6 +208,53 @@ mod tests {
             "deepseek-reasoner"
         ));
         assert!(!model_supports_reasoning(
+            AgentProviderApiType::Ollama,
+            "qwq-32b"
+        ));
+    }
+
+    #[test]
+    fn requires_reasoning_echo_deepseek() {
+        // DeepSeek api_type 一律 echo,不挑 model
+        assert!(model_requires_reasoning_echo(
+            AgentProviderApiType::DeepSeek,
+            "deepseek-v4-flash"
+        ));
+        assert!(model_requires_reasoning_echo(
+            AgentProviderApiType::DeepSeek,
+            "deepseek-chat"
+        ));
+        assert!(model_requires_reasoning_echo(
+            AgentProviderApiType::DeepSeek,
+            "deepseek-reasoner"
+        ));
+    }
+
+    #[test]
+    fn requires_reasoning_echo_kimi_via_openai() {
+        let t = AgentProviderApiType::OpenAi;
+        assert!(model_requires_reasoning_echo(t, "kimi-k2-thinking"));
+        assert!(model_requires_reasoning_echo(t, "moonshot-v1-32k"));
+        assert!(model_requires_reasoning_echo(
+            AgentProviderApiType::OpenAiResp,
+            "Kimi-Latest"
+        ));
+        // 普通 OpenAI 模型不 echo
+        assert!(!model_requires_reasoning_echo(t, "gpt-5"));
+        assert!(!model_requires_reasoning_echo(t, "o3-mini"));
+    }
+
+    #[test]
+    fn requires_reasoning_echo_others_false() {
+        assert!(!model_requires_reasoning_echo(
+            AgentProviderApiType::Anthropic,
+            "claude-opus-4-7"
+        ));
+        assert!(!model_requires_reasoning_echo(
+            AgentProviderApiType::Gemini,
+            "gemini-2.5-pro"
+        ));
+        assert!(!model_requires_reasoning_echo(
             AgentProviderApiType::Ollama,
             "qwq-32b"
         ));

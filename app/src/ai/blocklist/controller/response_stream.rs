@@ -46,6 +46,9 @@ struct ByopDispatch {
     lrc_command_id: Option<String>,
     /// 是否需要在 chat_stream 中合成 subagent CreateTask 来升级 optimistic CLI subtask。
     lrc_should_spawn_subagent: bool,
+    /// 选中模型的上下文窗口(tokens)。0/None ⇒ 用户未填且 catalog 也无,
+    /// chat_stream 跳过 context_window_usage 计算,UI 维持 100% 占位。
+    context_window: Option<u32>,
 }
 
 /// 标题生成专用的 BYOP 配置(可能与主 base 模型同 provider 也可能不同)。
@@ -64,6 +67,14 @@ fn byop_dispatch_info(
 ) -> Option<ByopDispatch> {
     let (provider, api_key, model_id) =
         crate::ai::agent_providers::lookup_byop(ctx, &params.model)?;
+    // 从 provider.models 里找当前模型条目,取其 context_window(tokens)。
+    // 0 视为未填,后续走 None 分支 ⇒ chat_stream 不算占用率。
+    let context_window = provider
+        .models
+        .iter()
+        .find(|m| m.id == model_id)
+        .map(|m| m.context_window)
+        .filter(|n| *n > 0);
     let conversation_id = ai_identifiers.client_conversation_id.as_ref()?;
     let history = BlocklistAIHistoryModel::as_ref(ctx);
     let conversation = history.conversation(conversation_id)?;
@@ -108,6 +119,7 @@ fn byop_dispatch_info(
         title_gen,
         lrc_command_id: params.lrc_command_id.clone(),
         lrc_should_spawn_subagent: params.lrc_should_spawn_subagent,
+        context_window,
     })
 }
 
@@ -212,6 +224,7 @@ impl ResponseStream {
                         }),
                         byop.lrc_command_id,
                         byop.lrc_should_spawn_subagent,
+                        byop.context_window,
                         cancellation_rx,
                     )
                     .await
@@ -304,6 +317,7 @@ impl ResponseStream {
                         }),
                         byop.lrc_command_id,
                         byop.lrc_should_spawn_subagent,
+                        byop.context_window,
                         cancellation_rx,
                     )
                     .await
