@@ -64,3 +64,6 @@ __pycache__/
 
 # logo 生成脚本的依赖
 /scripts/node_modules/
+
+# Project notes
+.note/
