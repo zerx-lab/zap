@@ -618,20 +618,15 @@ fn sanitize_chat_message_for_request(mut message: ChatMessage) -> ChatMessage {
         .into_iter()
         .map(|part| match part {
             ContentPart::Text(text) => ContentPart::Text(sanitize_text_for_json(&text)),
-            ContentPart::ToolResponse(mut response) => {
-                response.content = sanitize_text_for_json(&response.content);
-                ContentPart::ToolResponse(response)
-            }
-            ContentPart::ToolCall(mut call) => {
-                call.fn_arguments = sanitize_json_value_for_request(call.fn_arguments);
-                call.thought_signatures = call.thought_signatures.map(|signatures| {
-                    signatures
-                        .into_iter()
-                        .map(|signature| sanitize_text_for_json(&signature))
-                        .collect()
-                });
-                ContentPart::ToolCall(call)
-            }
+            // ToolResponse.content 与 ToolCall.fn_arguments 本身就是
+            // `serde_json::to_string` / `serde_json::json!` 产出的合法 JSON,
+            // 让模型按 JSON 协议解析。再过一遍 sanitize_text_for_json 会把
+            // `"` → `'`、`\` → `/`、控制字符压平,把合法 JSON 变成 Python-like
+            // repr,模型彻底无法解析 retry 提示,陷入死循环改格式。
+            // sanitize 仅对 prose(Text / Reasoning / ThoughtSignature)生效,
+            // 结构化字段一律直通。
+            ContentPart::ToolResponse(response) => ContentPart::ToolResponse(response),
+            ContentPart::ToolCall(call) => ContentPart::ToolCall(call),
             ContentPart::ThoughtSignature(signature) => {
                 ContentPart::ThoughtSignature(sanitize_text_for_json(&signature))
             }
