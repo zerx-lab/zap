@@ -75,7 +75,6 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
-
 #[derive(Debug, Clone)]
 pub enum MCPServersListPageViewEvent {
     Add,
@@ -99,7 +98,6 @@ pub enum MCPServersListPageViewAction {
     Add,
     ToggleFileBasedMcp,
 }
-
 
 pub struct MCPServersListPageView {
     server_cards: HashMap<ServerCardItemId, ViewHandle<ServerCardView>>,
@@ -838,7 +836,9 @@ impl MCPServersListPageView {
                 // Show the toast that the server updated, even though we don't update the cloud template in this case
                 let window_id = ctx.window_id();
                 ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = DismissibleToast::success(crate::t!("settings-mcp-list-toast-server-updated"));
+                    let toast = DismissibleToast::success(crate::t!(
+                        "settings-mcp-list-toast-server-updated"
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
             }
@@ -1277,8 +1277,13 @@ impl MCPServersListPageView {
                         .current_team()
                         .map(|team| team.name.clone());
                     let shared_by_text = match team_name {
-                        Some(name) => crate::t!("settings-mcp-list-section-shared-by-warp-and-team", name = name),
-                        None => crate::t!("settings-mcp-list-section-shared-by-warp-and-other-devices"),
+                        Some(name) => crate::t!(
+                            "settings-mcp-list-section-shared-by-warp-and-team",
+                            name = name
+                        ),
+                        None => {
+                            crate::t!("settings-mcp-list-section-shared-by-warp-and-other-devices")
+                        }
                     };
 
                     page.add_child(self.render_server_cards_section(
@@ -1298,7 +1303,10 @@ impl MCPServersListPageView {
 
                 // Render one section per provider (e.g. "Detected from Claude").
                 for (provider, cards) in &filtered_file_based_cards {
-                    let section_title = crate::t!("settings-mcp-list-section-detected-from", provider = provider.display_name());
+                    let section_title = crate::t!(
+                        "settings-mcp-list-section-detected-from",
+                        provider = provider.display_name()
+                    );
                     page.add_child(self.render_server_cards_section(
                         &section_title,
                         cards,
@@ -1525,7 +1533,10 @@ impl MCPServersListPageView {
                         .with_child(
                             appearance
                                 .ui_builder()
-                                .wrappable_text(crate::t!("settings-mcp-list-no-search-results"), true)
+                                .wrappable_text(
+                                    crate::t!("settings-mcp-list-no-search-results"),
+                                    true,
+                                )
                                 .with_style(style::description_text(appearance))
                                 .build()
                                 .finish(),
@@ -1770,11 +1781,18 @@ impl MCPServersListPageView {
 
                 if is_shared {
                     match creator {
-                        Some(creator) => Some(TitleChip::text(crate::t!("settings-mcp-list-chip-shared-by-creator", creator = creator))),
-                        None => Some(TitleChip::text(crate::t!("settings-mcp-list-chip-shared-by-team-member"))),
+                        Some(creator) => Some(TitleChip::text(crate::t!(
+                            "settings-mcp-list-chip-shared-by-creator",
+                            creator = creator
+                        ))),
+                        None => Some(TitleChip::text(crate::t!(
+                            "settings-mcp-list-chip-shared-by-team-member"
+                        ))),
                     }
                 } else if matches!(item_id, ServerCardItemId::TemplatableMCP(_)) {
-                    Some(TitleChip::text(crate::t!("settings-mcp-list-chip-from-another-device")))
+                    Some(TitleChip::text(crate::t!(
+                        "settings-mcp-list-chip-from-another-device"
+                    )))
                 } else {
                     None
                 }

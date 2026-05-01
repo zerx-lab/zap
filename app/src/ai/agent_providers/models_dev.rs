@@ -123,7 +123,9 @@ pub fn load_from_disk() -> bool {
         Ok(b) => b,
         Err(_) => return false,
     };
-    let mtime = std::fs::metadata(&path).ok().and_then(|m| m.modified().ok());
+    let mtime = std::fs::metadata(&path)
+        .ok()
+        .and_then(|m| m.modified().ok());
     match serde_json::from_slice::<Catalog>(&bytes) {
         Ok(catalog) => {
             if let Ok(mut s) = state().write() {
@@ -173,8 +175,8 @@ pub async fn fetch_and_cache(client: Client) -> Result<(), String> {
         .await
         .map_err(|e| format!("读响应体失败: {e}"))?;
 
-    let catalog: Catalog = serde_json::from_slice(&bytes)
-        .map_err(|e| format!("JSON 解析失败: {e}"))?;
+    let catalog: Catalog =
+        serde_json::from_slice(&bytes).map_err(|e| format!("JSON 解析失败: {e}"))?;
 
     // 写盘 — 失败不算致命,只 log。
     let path = cache_path();
@@ -212,7 +214,11 @@ fn search_state() -> &'static RwLock<String> {
 }
 
 pub fn search_query() -> String {
-    search_state().read().ok().map(|s| s.clone()).unwrap_or_default()
+    search_state()
+        .read()
+        .ok()
+        .map(|s| s.clone())
+        .unwrap_or_default()
 }
 
 pub fn set_search_query(q: String) {
@@ -233,9 +239,7 @@ pub fn filter_catalog(catalog: &Catalog, query: &str) -> Vec<(String, Provider)>
     }
     catalog
         .iter()
-        .filter(|(id, p)| {
-            id.to_lowercase().contains(&q) || p.name.to_lowercase().contains(&q)
-        })
+        .filter(|(id, p)| id.to_lowercase().contains(&q) || p.name.to_lowercase().contains(&q))
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect()
 }

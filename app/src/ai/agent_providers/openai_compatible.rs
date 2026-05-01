@@ -3,7 +3,6 @@
 //! 等第二阶段做 multi-agent 调用时,这里会扩展为完整的
 //! Chat Completions + 工具调用 stream。
 
-
 use serde::Deserialize;
 
 use http_client::Client;

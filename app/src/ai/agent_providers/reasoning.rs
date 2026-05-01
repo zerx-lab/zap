@@ -69,11 +69,7 @@ fn is_anthropic_reasoning_model(id: &str) -> bool {
     }
     // claude-opus-4* / claude-sonnet-4* / claude-haiku-4* 全系支持。
     // 同时兼容 `4.5` / `4-5` / `4_5` 三种点号风格。
-    let four_series = [
-        "claude-opus-4",
-        "claude-sonnet-4",
-        "claude-haiku-4",
-    ];
+    let four_series = ["claude-opus-4", "claude-sonnet-4", "claude-haiku-4"];
     if four_series.iter().any(|prefix| id.contains(prefix)) {
         return true;
     }

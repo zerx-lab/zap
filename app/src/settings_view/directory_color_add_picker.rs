@@ -108,11 +108,14 @@ impl DirectoryColorAddPicker {
         });
 
         let button = ctx.add_typed_action_view(|_ctx| {
-            ActionButton::new(crate::t!("settings-color-picker-add-directory-color"), SecondaryTheme)
-                .with_icon(icons::Icon::Plus)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(DirectoryColorAddPickerAction::AddNewDirectory);
-                })
+            ActionButton::new(
+                crate::t!("settings-color-picker-add-directory-color"),
+                SecondaryTheme,
+            )
+            .with_icon(icons::Icon::Plus)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(DirectoryColorAddPickerAction::AddNewDirectory);
+            })
         });
 
         let dropdown = ctx.add_typed_action_view(|ctx| {

@@ -358,7 +358,10 @@ impl MCPServersSettingsPageView {
             // gallery entry cannot be turned into a valid template. Surface the
             // failure to the user rather than silently returning.
             self.add_error_toast(
-                crate::t!("settings-mcp-install-from-link-failed", name = gallery_title),
+                crate::t!(
+                    "settings-mcp-install-from-link-failed",
+                    name = gallery_title
+                ),
                 ctx,
             );
             return;

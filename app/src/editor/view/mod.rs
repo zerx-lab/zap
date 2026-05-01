@@ -553,11 +553,15 @@ pub fn init(ctx: &mut AppContext) {
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
         .with_mac_key_binding("shift-ctrl-F"),
-        EditableBinding::new(SELECT_UP_ACTION_NAME, crate::t!("keybinding-desc-editor-select-up"), EditorAction::SelectUp)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            // Set this to Mac only since otherwise it could conflict with opening the command
-            // palette. NOTE `shift-up` still exists as a cross platform keybinding for this action.
-            .with_mac_key_binding("shift-ctrl-P"),
+        EditableBinding::new(
+            SELECT_UP_ACTION_NAME,
+            crate::t!("keybinding-desc-editor-select-up"),
+            EditorAction::SelectUp,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        // Set this to Mac only since otherwise it could conflict with opening the command
+        // palette. NOTE `shift-up` still exists as a cross platform keybinding for this action.
+        .with_mac_key_binding("shift-ctrl-P"),
         EditableBinding::new(
             SELECT_DOWN_ACTION_NAME,
             crate::t!("keybinding-desc-editor-select-down"),
@@ -619,15 +623,27 @@ pub fn init(ctx: &mut AppContext) {
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
         .with_mac_key_binding("cmd-shift-left"),
         // Navigation
-        EditableBinding::new("editor_view:up", crate::t!("keybinding-desc-editor-up"), EditorAction::Up)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_key_binding("ctrl-p"),
-        EditableBinding::new("editor_view:down", crate::t!("keybinding-desc-editor-down"), EditorAction::Down)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_key_binding("ctrl-n"),
-        EditableBinding::new("editor_view:left", crate::t!("keybinding-desc-editor-left"), EditorAction::Left)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_key_binding("ctrl-b"),
+        EditableBinding::new(
+            "editor_view:up",
+            crate::t!("keybinding-desc-editor-up"),
+            EditorAction::Up,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        .with_key_binding("ctrl-p"),
+        EditableBinding::new(
+            "editor_view:down",
+            crate::t!("keybinding-desc-editor-down"),
+            EditorAction::Down,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        .with_key_binding("ctrl-n"),
+        EditableBinding::new(
+            "editor_view:left",
+            crate::t!("keybinding-desc-editor-left"),
+            EditorAction::Left,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        .with_key_binding("ctrl-b"),
         EditableBinding::new(
             "editor_view:right",
             crate::t!("keybinding-desc-editor-right"),
@@ -656,14 +672,22 @@ pub fn init(ctx: &mut AppContext) {
         .with_mac_key_binding("ctrl-e"),
         // Match the behavior of both VSCode and Intellij by using `cmd-left/right` on Mac and
         // `home/end` on Windows and Linux. See https://www.jetbrains.com/help/idea/reference-keymap-win-default.html#caret_navigation.
-        EditableBinding::new("editor_view:home", crate::t!("keybinding-desc-editor-home"), EditorAction::Home)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_mac_key_binding("cmd-left")
-            .with_linux_or_windows_key_binding("home"),
-        EditableBinding::new("editor_view:end", crate::t!("keybinding-desc-editor-end"), EditorAction::End)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_mac_key_binding("cmd-right")
-            .with_linux_or_windows_key_binding("end"),
+        EditableBinding::new(
+            "editor_view:home",
+            crate::t!("keybinding-desc-editor-home"),
+            EditorAction::Home,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        .with_mac_key_binding("cmd-left")
+        .with_linux_or_windows_key_binding("home"),
+        EditableBinding::new(
+            "editor_view:end",
+            crate::t!("keybinding-desc-editor-end"),
+            EditorAction::End,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        .with_mac_key_binding("cmd-right")
+        .with_linux_or_windows_key_binding("end"),
         EditableBinding::new(
             "editor_view:cmd_down",
             crate::t!("keybinding-desc-editor-cmd-down"),
@@ -770,9 +794,13 @@ pub fn init(ctx: &mut AppContext) {
         )
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
         .with_key_binding("alt-d"),
-        EditableBinding::new("editor_view:delete", crate::t!("keybinding-desc-editor-delete"), EditorAction::Delete)
-            .with_context_predicate(id!("EditorView") & !id!("EditorView_SingleCursorBufferEnd"))
-            .with_key_binding("ctrl-d"),
+        EditableBinding::new(
+            "editor_view:delete",
+            crate::t!("keybinding-desc-editor-delete"),
+            EditorAction::Delete,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("EditorView_SingleCursorBufferEnd"))
+        .with_key_binding("ctrl-d"),
         EditableBinding::new(
             "editor:delete_word_right",
             crate::t!("keybinding-desc-editor-delete-word-right"),
@@ -824,12 +852,20 @@ pub fn init(ctx: &mut AppContext) {
         .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
         .with_key_binding("ctrl-j"),
         // Folds
-        EditableBinding::new("editor_view:fold", crate::t!("keybinding-desc-editor-fold"), EditorAction::Fold)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_key_binding("alt-cmdorctrl-["),
-        EditableBinding::new("editor_view:unfold", crate::t!("keybinding-desc-editor-unfold"), EditorAction::Unfold)
-            .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
-            .with_key_binding("alt-cmdorctrl-]"),
+        EditableBinding::new(
+            "editor_view:fold",
+            crate::t!("keybinding-desc-editor-fold"),
+            EditorAction::Fold,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        .with_key_binding("alt-cmdorctrl-["),
+        EditableBinding::new(
+            "editor_view:unfold",
+            crate::t!("keybinding-desc-editor-unfold"),
+            EditorAction::Unfold,
+        )
+        .with_context_predicate(id!("EditorView") & !id!("IMEOpen"))
+        .with_key_binding("alt-cmdorctrl-]"),
         EditableBinding::new(
             "editor_view:fold_selected_ranges",
             crate::t!("keybinding-desc-editor-fold-selected-ranges"),

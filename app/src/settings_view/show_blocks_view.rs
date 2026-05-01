@@ -38,7 +38,6 @@ use warpui::{
 
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 
-
 #[derive(Clone, Debug)]
 struct UserOwnedBlock {
     id: String,
@@ -308,9 +307,10 @@ impl GetBlocksForUserRequestState {
                 .label(crate::t!("settings-show-blocks-empty"))
                 .build()
                 .finish()),
-            GetBlocksForUserRequestState::InFlight => {
-                pad(ui_builder.label(crate::t!("settings-show-blocks-loading")).build().finish())
-            }
+            GetBlocksForUserRequestState::InFlight => pad(ui_builder
+                .label(crate::t!("settings-show-blocks-loading"))
+                .build()
+                .finish()),
             GetBlocksForUserRequestState::Failed => pad(ui_builder
                 .label(crate::t!("settings-show-blocks-load-failed"))
                 .build()
@@ -426,11 +426,9 @@ impl ShowBlocksView {
 
             menu.set_items(
                 vec![MenuItem::Item(
-                    MenuItemFields::new(
-                        Box::leak(
-                            crate::t!("settings-show-blocks-unshare-menu-item").into_boxed_str(),
-                        ) as &'static str,
-                    )
+                    MenuItemFields::new(Box::leak(
+                        crate::t!("settings-show-blocks-unshare-menu-item").into_boxed_str(),
+                    ) as &'static str)
                     .with_on_select_action(ShowBlocksAction::Unshare),
                 )],
                 ctx,
@@ -699,7 +697,10 @@ impl ShowBlocksWidget {
                                                 ButtonVariant::Basic,
                                                 view.state_handles.cancel_dialog_handle.clone(),
                                             )
-                                            .with_text_label(crate::t!("settings-show-blocks-confirm-cancel").into())
+                                            .with_text_label(
+                                                crate::t!("settings-show-blocks-confirm-cancel")
+                                                    .into(),
+                                            )
                                             .build()
                                             .on_click(|ctx, _, _| {
                                                 ctx.dispatch_typed_action(
@@ -717,7 +718,12 @@ impl ShowBlocksWidget {
                                                         .confirm_dialog_handle
                                                         .clone(),
                                                 )
-                                                .with_text_label(crate::t!("settings-show-blocks-confirm-unshare").into())
+                                                .with_text_label(
+                                                    crate::t!(
+                                                        "settings-show-blocks-confirm-unshare"
+                                                    )
+                                                    .into(),
+                                                )
                                                 .build()
                                                 .on_click(|ctx, _, _| {
                                                     ctx.dispatch_typed_action(

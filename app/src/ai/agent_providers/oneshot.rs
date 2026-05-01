@@ -116,7 +116,10 @@ pub fn resolve_active_ai_oneshot(
     terminal_view_id: Option<EntityId>,
 ) -> Option<OneshotConfig> {
     let llm_prefs = LLMPreferences::as_ref(app);
-    let id = llm_prefs.get_active_ai_model(app, terminal_view_id).id.clone();
+    let id = llm_prefs
+        .get_active_ai_model(app, terminal_view_id)
+        .id
+        .clone();
     let (provider, api_key, model_id) = super::lookup_byop(app, &id)?;
     Some(OneshotConfig {
         base_url: provider.base_url,

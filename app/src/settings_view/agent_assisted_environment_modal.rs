@@ -105,20 +105,18 @@ impl AgentAssistedEnvironmentModal {
                     as &'static str,
                 SecondaryTheme,
             )
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(
-                        AgentAssistedEnvironmentModalAction::OpenDirectoryPicker,
-                    );
-                })
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(AgentAssistedEnvironmentModalAction::OpenDirectoryPicker);
+            })
         });
 
         let cancel_button = ctx.add_typed_action_view(|_ctx| {
             ActionButton::new(
-                Box::leak(crate::t!("settings-env-modal-cancel").into_boxed_str())
-                    as &'static str,
+                Box::leak(crate::t!("settings-env-modal-cancel").into_boxed_str()) as &'static str,
                 SecondaryTheme,
-            ).on_click(|ctx| {
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(AgentAssistedEnvironmentModalAction::Cancel);
             })
         });
@@ -128,7 +126,8 @@ impl AgentAssistedEnvironmentModal {
                 Box::leak(crate::t!("settings-env-modal-create-environment").into_boxed_str())
                     as &'static str,
                 PrimaryTheme,
-            ).on_click(|ctx| {
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(AgentAssistedEnvironmentModalAction::Confirm);
             })
         });
@@ -344,7 +343,9 @@ impl AgentAssistedEnvironmentModal {
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_spacing(8.);
 
-        col.add_child(self.render_section_title(&crate::t!("settings-env-modal-selected-repos"), appearance));
+        col.add_child(
+            self.render_section_title(&crate::t!("settings-env-modal-selected-repos"), appearance),
+        );
 
         if self.selected_repo_paths.is_empty() {
             col.add_child(
@@ -425,7 +426,10 @@ impl AgentAssistedEnvironmentModal {
             .with_child(
                 Expanded::new(
                     1.,
-                    self.render_section_title(&crate::t!("settings-env-modal-available-repos"), appearance),
+                    self.render_section_title(
+                        &crate::t!("settings-env-modal-available-repos"),
+                        appearance,
+                    ),
                 )
                 .finish(),
             )
@@ -562,11 +566,9 @@ impl AgentAssistedEnvironmentModal {
         let window_id = ctx.window_id();
         let path = home_relative_path(selected_path);
         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-            let toast = DismissibleToast::error(crate::t!(
-                "settings-env-modal-not-git-repo",
-                path = path
-            ))
-            .with_object_id("agent_assisted_env_add_repo_not_git_repo".to_string());
+            let toast =
+                DismissibleToast::error(crate::t!("settings-env-modal-not-git-repo", path = path))
+                    .with_object_id("agent_assisted_env_add_repo_not_git_repo".to_string());
             toast_stack.add_ephemeral_toast(toast, window_id, ctx);
         });
     }
@@ -609,7 +611,9 @@ impl AgentAssistedEnvironmentModal {
             move |paths_result, ctx| {
                 let result = paths_result.and_then(|paths| {
                     paths.into_iter().next().map(PathBuf::from).ok_or_else(|| {
-                        FilePickerError::DialogFailed(crate::t!("settings-env-modal-no-directory-selected"))
+                        FilePickerError::DialogFailed(crate::t!(
+                            "settings-env-modal-no-directory-selected"
+                        ))
                     })
                 });
 

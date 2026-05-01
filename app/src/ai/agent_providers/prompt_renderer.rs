@@ -35,11 +35,8 @@ fn build_env() -> Environment<'static> {
     let mut env = Environment::new();
 
     // Partials
-    env.add_template(
-        "partials/env.j2",
-        include_str!("prompts/partials/env.j2"),
-    )
-    .expect("env partial parses");
+    env.add_template("partials/env.j2", include_str!("prompts/partials/env.j2"))
+        .expect("env partial parses");
     env.add_template(
         "partials/skills.j2",
         include_str!("prompts/partials/skills.j2"),
@@ -174,8 +171,7 @@ fn collect_prompt_context(model_id: &str, ctx: &[AIAgentContext]) -> PromptConte
                     name: exec.shell_name.clone(),
                     version: exec.shell_version.clone(),
                 });
-                let has_os =
-                    exec.os.category.is_some() || exec.os.distribution.is_some();
+                let has_os = exec.os.category.is_some() || exec.os.distribution.is_some();
                 if has_os {
                     out.os = Some(OsCtx {
                         platform: exec.os.category.clone().unwrap_or_default(),
@@ -323,7 +319,10 @@ mod tests {
             }),
         ];
         let out = render_system(&LLMId::from("byop:p:deepseek-chat"), &ctx);
-        assert!(out.contains("Working directory: /home/user/project"), "{out}");
+        assert!(
+            out.contains("Working directory: /home/user/project"),
+            "{out}"
+        );
         assert!(out.contains("Shell: bash 5.1"), "{out}");
         assert!(out.contains("linux (Ubuntu 22.04)"), "{out}");
         assert!(out.contains("Home directory: /home/user"), "{out}");
@@ -332,7 +331,12 @@ mod tests {
     #[test]
     fn render_uses_default_regardless_of_model() {
         // 任何 model id 都走 default.j2 — 内容里都应有"interactive CLI coding agent"开头。
-        for id in ["claude-sonnet-4-5", "gpt-4o", "deepseek-chat", "weird-model"] {
+        for id in [
+            "claude-sonnet-4-5",
+            "gpt-4o",
+            "deepseek-chat",
+            "weird-model",
+        ] {
             let out = render_system(&LLMId::from(format!("byop:p:{id}").as_str()), &[]);
             assert!(
                 out.contains("interactive CLI coding agent"),

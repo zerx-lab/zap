@@ -431,12 +431,8 @@ impl SearchItem for ModelSearchItem {
         if byop_llm_id::is_byop(&self.id) {
             if let Some((provider, _api_key, model_id)) = lookup_byop(app, &self.id) {
                 let model_entry = provider.models.iter().find(|m| m.id == model_id);
-                let context_window = model_entry
-                    .map(|m| m.context_window)
-                    .filter(|n| *n > 0);
-                let max_output_tokens = model_entry
-                    .map(|m| m.max_output_tokens)
-                    .filter(|n| *n > 0);
+                let context_window = model_entry.map(|m| m.context_window).filter(|n| *n > 0);
+                let max_output_tokens = model_entry.map(|m| m.max_output_tokens).filter(|n| *n > 0);
 
                 let manage_button = appearance
                     .ui_builder()

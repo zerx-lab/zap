@@ -275,8 +275,8 @@ use crate::server::telemetry::{
 use crate::session_management::{SessionNavigationData, SessionSource};
 use crate::settings::{
     active_theme_kind, respect_system_theme, AccessibilitySettings, AliasExpansionSettings,
-    AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings,
-    FontSettings, GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, PrivacySettings,
+    AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings, FontSettings,
+    GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, PrivacySettings,
     SelectionSettings, Settings, SshSettings, ThemeSettings,
 };
 use crate::settings_view::flags;
@@ -2639,7 +2639,6 @@ impl Workspace {
         let new_worktree_modal = Self::build_new_worktree_modal(ctx);
 
         let session_config_modal = Self::build_session_config_modal(ctx);
-
 
         let close_session_confirmation_dialog = Self::build_close_session_confirmation_dialog(ctx);
         let rewind_confirmation_dialog = Self::build_rewind_confirmation_dialog(ctx);

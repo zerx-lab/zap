@@ -120,7 +120,11 @@ fn render_file(out: &mut String, f: &FileContext) {
         AnyFileContent::StringContent(content) => {
             let _ = write!(out, "  <file path=\"{path}\"");
             if let Some(range) = &f.line_range {
-                let _ = write!(out, " line_start=\"{}\" line_end=\"{}\"", range.start, range.end);
+                let _ = write!(
+                    out,
+                    " line_start=\"{}\" line_end=\"{}\"",
+                    range.start, range.end
+                );
             }
             out.push_str(">\n");
             out.push_str(&xml_text(content));

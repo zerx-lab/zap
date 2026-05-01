@@ -63,13 +63,15 @@ fn write_from_args(args: &str) -> Result<api::message::tool_call::Tool> {
         "block" => InnerMode::Block(()),
         _ => InnerMode::Line(()),
     };
-    Ok(api::message::tool_call::Tool::WriteToLongRunningShellCommand(
-        api::message::tool_call::WriteToLongRunningShellCommand {
-            command_id: parsed.command_id,
-            input: parsed.input.into_bytes(),
-            mode: Some(Mode { mode: Some(inner) }),
-        },
-    ))
+    Ok(
+        api::message::tool_call::Tool::WriteToLongRunningShellCommand(
+            api::message::tool_call::WriteToLongRunningShellCommand {
+                command_id: parsed.command_id,
+                input: parsed.input.into_bytes(),
+                mode: Some(Mode { mode: Some(inner) }),
+            },
+        ),
+    )
 }
 
 fn write_result_to_json(result: &api::message::tool_call_result::Result) -> Option<Value> {
@@ -104,7 +106,9 @@ fn write_result_to_json(result: &api::message::tool_call_result::Result) -> Opti
 
 pub static WRITE_TO_LONG_RUNNING_SHELL_COMMAND: OpenAiTool = OpenAiTool {
     name: "write_to_long_running_shell_command",
-    description: include_str!("../prompts/tool_descriptions/write_to_long_running_shell_command.md"),
+    description: include_str!(
+        "../prompts/tool_descriptions/write_to_long_running_shell_command.md"
+    ),
     parameters: write_parameters,
     from_args: write_from_args,
     result_to_json: write_result_to_json,

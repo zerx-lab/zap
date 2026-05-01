@@ -218,7 +218,9 @@ impl UpdateModalBody {
                 ..
             } => {
                 let publisher_string: String = match publisher {
-                    Author::CurrentUser => crate::t!("settings-mcp-update-modal-publisher-another-device"),
+                    Author::CurrentUser => {
+                        crate::t!("settings-mcp-update-modal-publisher-another-device")
+                    }
                     Author::OtherUser { name } => name.clone(),
                     Author::Unknown => crate::t!("settings-mcp-update-modal-publisher-team-member"),
                 };
@@ -228,15 +230,24 @@ impl UpdateModalBody {
                     .unwrap_or_else(Local::now);
                 let formatted_time = format_approx_duration_from_now(datetime);
                 (
-                    crate::t!("settings-mcp-update-modal-update-from", publisher = publisher_string),
+                    crate::t!(
+                        "settings-mcp-update-modal-update-from",
+                        publisher = publisher_string
+                    ),
                     formatted_time.to_string(),
                 )
             }
             MCPServerUpdate::Gallery {
                 name, new_version, ..
             } => (
-                crate::t!("settings-mcp-update-modal-update-from", publisher = name.clone()),
-                crate::t!("settings-mcp-update-modal-version", version = new_version.to_string()),
+                crate::t!(
+                    "settings-mcp-update-modal-update-from",
+                    publisher = name.clone()
+                ),
+                crate::t!(
+                    "settings-mcp-update-modal-version",
+                    version = new_version.to_string()
+                ),
             ),
         };
 

@@ -1645,8 +1645,12 @@ impl AppearanceSettingsPageView {
 
     fn tab_close_button_position_dropdown_item_label(value: TabCloseButtonPosition) -> String {
         match value {
-            TabCloseButtonPosition::Right => crate::t!("settings-appearance-tab-close-position-right"),
-            TabCloseButtonPosition::Left => crate::t!("settings-appearance-tab-close-position-left"),
+            TabCloseButtonPosition::Right => {
+                crate::t!("settings-appearance-tab-close-position-right")
+            }
+            TabCloseButtonPosition::Left => {
+                crate::t!("settings-appearance-tab-close-position-left")
+            }
         }
     }
 
@@ -3190,7 +3194,10 @@ impl SettingsWidget for WindowOpacityWidget {
 
         let opacity_value = *window_settings.background_opacity;
         let mut col = Flex::column().with_child(render_body_item::<AppearancePageAction>(
-            crate::t!("settings-appearance-window-opacity-value", value = opacity_value.to_string()),
+            crate::t!(
+                "settings-appearance-window-opacity-value",
+                value = opacity_value.to_string()
+            ),
             // TODO(CORE-3384) add AdditionalInfo here.
             None,
             LocalOnlyIconState::for_setting(
@@ -3226,9 +3233,9 @@ impl SettingsWidget for WindowOpacityWidget {
             // Skip showing the warning for OpenGL since WGPU often incorrectly reports it as not
             // supporting alpha.
             if !window.supports_transparency() && window.graphics_backend() != GraphicsBackend::Gl {
-                let mut message: Cow<'static, str> = Cow::Owned(
-                    crate::t!("settings-appearance-window-opacity-graphics-warning"),
-                );
+                let mut message: Cow<'static, str> = Cow::Owned(crate::t!(
+                    "settings-appearance-window-opacity-graphics-warning"
+                ));
                 let gpu_settings = GPUSettings::as_ref(app);
                 if (gpu_settings
                     .prefer_low_power_gpu
@@ -3239,9 +3246,9 @@ impl SettingsWidget for WindowOpacityWidget {
                         .is_supported_on_current_platform()
                 {
                     message.to_mut().push(' ');
-                    message
-                        .to_mut()
-                        .push_str(&crate::t!("settings-appearance-window-opacity-graphics-warning-hint"));
+                    message.to_mut().push_str(&crate::t!(
+                        "settings-appearance-window-opacity-graphics-warning-hint"
+                    ));
                 }
 
                 col.add_child(
@@ -3295,7 +3302,10 @@ impl SettingsWidget for WindowBlurWidget {
 
         Flex::column()
             .with_child(render_body_item::<AppearancePageAction>(
-                crate::t!("settings-appearance-window-blur-radius", value = blur_value.to_string()),
+                crate::t!(
+                    "settings-appearance-window-blur-radius",
+                    value = blur_value.to_string()
+                ),
                 Some(label_info),
                 LocalOnlyIconState::for_setting(
                     BackgroundBlurRadius::storage_key(),
@@ -4370,7 +4380,9 @@ impl SettingsWidget for LigaturesWidget {
                 mouse_state: self.info_mouse_state.clone(),
                 on_click_action: None,
                 secondary_text: None,
-                tooltip_override_text: Some(crate::t!("settings-appearance-font-ligatures-perf-tooltip")),
+                tooltip_override_text: Some(crate::t!(
+                    "settings-appearance-font-ligatures-perf-tooltip"
+                )),
             }),
             LocalOnlyIconState::for_setting(
                 LigatureRenderingEnabled::storage_key(),

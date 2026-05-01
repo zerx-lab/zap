@@ -12,12 +12,12 @@ mod editor;
 mod emacs_bindings;
 pub mod font;
 mod gpu;
-pub mod language;
 pub mod import;
 mod init;
 pub mod initializer;
 mod input;
 mod input_mode;
+pub mod language;
 #[cfg(target_os = "linux")]
 mod linux;
 pub mod macros;

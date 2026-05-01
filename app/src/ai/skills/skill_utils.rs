@@ -92,10 +92,7 @@ pub(crate) fn unique_skills(
 /// `/chat/completions`,system prompt 每轮在客户端完整重渲染,数据必须每轮都送达,
 /// 否则第二轮起 system prompt 里 skills section 会消失。
 /// 因此简化为每轮全量返回。
-pub fn list_skills(
-    working_directory: Option<&Path>,
-    app: &AppContext,
-) -> Vec<SkillDescriptor> {
+pub fn list_skills(working_directory: Option<&Path>, app: &AppContext) -> Vec<SkillDescriptor> {
     SkillManager::as_ref(app).get_skills_for_working_directory(working_directory, app)
 }
 

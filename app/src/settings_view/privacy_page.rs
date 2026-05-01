@@ -142,33 +142,33 @@ impl PrivacyPageView {
                 add_regex_body,
                 ctx,
             )
-                .with_modal_style(UiComponentStyles {
-                    width: Some(600.),
-                    height: Some(400.),
-                    ..Default::default()
-                })
-                .with_header_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 24.,
-                        bottom: 0.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    font_size: Some(16.),
-                    font_weight: Some(Weight::Bold),
-                    ..Default::default()
-                })
-                .with_body_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 0.,
-                        bottom: 24.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    ..Default::default()
-                })
-                .with_background_opacity(100)
-                .with_dismiss_on_click()
+            .with_modal_style(UiComponentStyles {
+                width: Some(600.),
+                height: Some(400.),
+                ..Default::default()
+            })
+            .with_header_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 24.,
+                    bottom: 0.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                font_size: Some(16.),
+                font_weight: Some(Weight::Bold),
+                ..Default::default()
+            })
+            .with_body_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 0.,
+                    bottom: 24.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                ..Default::default()
+            })
+            .with_background_opacity(100)
+            .with_dismiss_on_click()
         });
         ctx.subscribe_to_view(&add_regex_modal_view, |me, _, event, ctx| {
             me.handle_modal_event(event, ctx);
@@ -995,9 +995,10 @@ impl SecretRedactionWidget {
                         .with_main_axis_size(MainAxisSize::Max)
                         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                        .with_child(
-                            self.render_section_title(crate::t!("settings-privacy-recommended"), appearance),
-                        )
+                        .with_child(self.render_section_title(
+                            crate::t!("settings-privacy-recommended"),
+                            appearance,
+                        ))
                         .with_child(
                             Container::new(
                                 ui_builder
@@ -1243,20 +1244,18 @@ impl SettingsWidget for SecretRedactionWidget {
                 .with_child(
                     Container::new(
                         ui_builder
-                            .paragraph(crate::t!("settings-privacy-secret-display-mode-description"))
+                            .paragraph(crate::t!(
+                                "settings-privacy-secret-display-mode-description"
+                            ))
                             .with_style(UiComponentStyles {
                                 font_color: Some(description_text_color),
-                                margin: Some(
-                                    Coords::default()
-                                        .top(4.)
-                                        .bottom(0.),
-                                ),
+                                margin: Some(Coords::default().top(4.).bottom(0.)),
                                 ..Default::default()
                             })
                             .build()
-                            .finish()
+                            .finish(),
                     )
-                    .finish()
+                    .finish(),
                 )
                 .finish();
 
@@ -1386,8 +1385,8 @@ impl AppAnalyticsWidget {
                     appearance.ui_font_family(),
                     CONTENT_FONT_SIZE - 2.,
                 )
-                    .with_color(theme.active_ui_text_color().into())
-                    .finish(),
+                .with_color(theme.active_ui_text_color().into())
+                .finish(),
             )
             .with_background(background_color)
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(3.)))
@@ -1397,8 +1396,7 @@ impl AppAnalyticsWidget {
 
             let mut stack = Stack::new().with_child(badge);
             if is_hovered {
-                let tooltip = ui_builder
-                    .tool_tip(crate::t!("settings-privacy-zdr-tooltip"));
+                let tooltip = ui_builder.tool_tip(crate::t!("settings-privacy-zdr-tooltip"));
                 stack.add_positioned_child(
                     tooltip.build().finish(),
                     OffsetPositioning::offset_from_parent(

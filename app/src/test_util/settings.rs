@@ -20,11 +20,10 @@ pub fn initialize_settings_for_tests_with_mode(
         settings::{
             app_icon::AppIconSettings, init_and_register_user_preferences,
             manager::SettingsManager, AISettings, AccessibilitySettings, AliasExpansionSettings,
-            AppEditorSettings, BlockVisibilitySettings,
-            CloudPreferencesSettings, CodeSettings, DebugSettings, EmacsBindingsSettings,
-            FontSettings, GPUSettings, InputModeSettings, InputSettings, NativePreferenceSettings,
-            PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings,
-            SshSettings, ThemeSettings, VimBannerSettings,
+            AppEditorSettings, BlockVisibilitySettings, CloudPreferencesSettings, CodeSettings,
+            DebugSettings, EmacsBindingsSettings, FontSettings, GPUSettings, InputModeSettings,
+            InputSettings, NativePreferenceSettings, PaneSettings, SameLinePromptBlockSettings,
+            ScrollSettings, SelectionSettings, SshSettings, ThemeSettings, VimBannerSettings,
         },
         terminal::{
             general_settings::GeneralSettings, keys_settings::KeysSettings,

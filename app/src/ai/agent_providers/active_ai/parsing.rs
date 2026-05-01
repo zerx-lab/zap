@@ -178,7 +178,10 @@ mod tests {
 
     #[test]
     fn sanitize_basic() {
-        assert_eq!(sanitize_predict("hello world").as_deref(), Some("hello world"));
+        assert_eq!(
+            sanitize_predict("hello world").as_deref(),
+            Some("hello world")
+        );
     }
 
     #[test]

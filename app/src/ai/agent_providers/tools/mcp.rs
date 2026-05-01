@@ -50,7 +50,13 @@ fn sanitize_server_name(name: &str) -> String {
 
 /// 给一条 MCP tool 生成 OpenAI function 名。
 pub fn function_name(server: &MCPServer, tool_name: &str) -> String {
-    format!("{}{}{}{}", PREFIX, sanitize_server_name(&server.name), SEP, tool_name)
+    format!(
+        "{}{}{}{}",
+        PREFIX,
+        sanitize_server_name(&server.name),
+        SEP,
+        tool_name
+    )
 }
 
 /// 判断给定 OpenAI function name 是否是 MCP 调用(含动态 mcp__ 前缀工具调用
@@ -215,7 +221,11 @@ fn parse_read_resource(
             None => ctx
                 .servers
                 .iter()
-                .find(|s| s.resources.iter().any(|r| r.uri.as_str() == parsed.uri.as_str()))
+                .find(|s| {
+                    s.resources
+                        .iter()
+                        .any(|r| r.uri.as_str() == parsed.uri.as_str())
+                })
                 .map(|s| s.id.clone())
                 .unwrap_or_default(),
         }

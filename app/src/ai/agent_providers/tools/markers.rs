@@ -33,7 +33,9 @@ fn open_code_review_from_args(_args: &str) -> Result<api::message::tool_call::To
     ))
 }
 
-fn open_code_review_result_to_json(result: &api::message::tool_call_result::Result) -> Option<Value> {
+fn open_code_review_result_to_json(
+    result: &api::message::tool_call_result::Result,
+) -> Option<Value> {
     use api::message::tool_call_result::Result as R;
     match result {
         R::OpenCodeReview(_) => Some(json!({ "status": "ok" })),
@@ -103,15 +105,19 @@ fn transfer_parameters() -> Value {
 
 fn transfer_from_args(args: &str) -> Result<api::message::tool_call::Tool> {
     let parsed: TransferArgs = if args.trim().is_empty() {
-        TransferArgs { reason: String::new() }
+        TransferArgs {
+            reason: String::new(),
+        }
     } else {
         serde_json::from_str(args)?
     };
-    Ok(api::message::tool_call::Tool::TransferShellCommandControlToUser(
-        api::message::tool_call::TransferShellCommandControlToUser {
-            reason: parsed.reason,
-        },
-    ))
+    Ok(
+        api::message::tool_call::Tool::TransferShellCommandControlToUser(
+            api::message::tool_call::TransferShellCommandControlToUser {
+                reason: parsed.reason,
+            },
+        ),
+    )
 }
 
 fn transfer_result_to_json(result: &api::message::tool_call_result::Result) -> Option<Value> {

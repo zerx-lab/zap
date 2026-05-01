@@ -26,13 +26,13 @@ use crate::settings::{
     AIAutoDetectionEnabled, AICommandDenylist, AISettingsChangedEvent,
     AgentModeCodingPermissionsType, AgentModeCommandExecutionDenylist,
     AgentModeCommandExecutionPredicate, AgentModeQuerySuggestionsEnabled, AwsBedrockAutoLogin,
-    AwsBedrockCredentialsEnabled, CodeSettings, CodebaseContextEnabled,
-    FileBasedMcpEnabled, GitOperationsAutogenEnabled, IncludeAgentCommandsInHistory,
-    IntelligentAutosuggestionsEnabled, MemoryEnabled, NLDInTerminalEnabled,
-    NaturalLanguageAutosuggestionsEnabled, OrchestrationEnabled, RuleSuggestionsEnabled,
-    SharedBlockTitleGenerationEnabled, ShouldRenderCLIAgentToolbar,
-    ShouldRenderUseAgentToolbarForUserCommands, ShouldShowOzUpdatesInZeroState, ShowAgentTips,
-    ShowConversationHistory, ShowHintText, ThinkingDisplayMode, VoiceInputEnabled,
+    AwsBedrockCredentialsEnabled, CodeSettings, CodebaseContextEnabled, FileBasedMcpEnabled,
+    GitOperationsAutogenEnabled, IncludeAgentCommandsInHistory, IntelligentAutosuggestionsEnabled,
+    MemoryEnabled, NLDInTerminalEnabled, NaturalLanguageAutosuggestionsEnabled,
+    OrchestrationEnabled, RuleSuggestionsEnabled, SharedBlockTitleGenerationEnabled,
+    ShouldRenderCLIAgentToolbar, ShouldRenderUseAgentToolbarForUserCommands,
+    ShouldShowOzUpdatesInZeroState, ShowAgentTips, ShowConversationHistory, ShowHintText,
+    ThinkingDisplayMode, VoiceInputEnabled,
 };
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::terminal::CLIAgent;
@@ -1428,7 +1428,6 @@ impl AISettingsPageView {
         }
         ctx.notify();
     }
-    
 
     fn build_page(subpage: Option<AISubpage>, ctx: &mut ViewContext<Self>) -> PageType<Self> {
         let ai_settings = AISettings::as_ref(ctx);
@@ -3049,9 +3048,8 @@ impl TypedActionView for AISettingsPageView {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     let mut providers = settings.agent_providers.value().clone();
                     if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
-                        p.models.push(crate::settings::AgentProviderModel::from_id(
-                            String::new(),
-                        ));
+                        p.models
+                            .push(crate::settings::AgentProviderModel::from_id(String::new()));
                     }
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });
@@ -3312,8 +3310,7 @@ impl TypedActionView for AISettingsPageView {
                             p.models.iter().map(|m| m.id.clone()).collect();
                         for cat_m in cat_models.values() {
                             if !existing.contains(&cat_m.id) {
-                                p.models
-                                    .push(models_dev::into_agent_provider_model(cat_m));
+                                p.models.push(models_dev::into_agent_provider_model(cat_m));
                             }
                         }
                     }
@@ -3572,7 +3569,8 @@ impl SettingsWidget for GlobalAIWidget {
             AISettings::as_ref(app).is_ai_disabled_due_to_remote_session_org_policy(app);
 
         let is_anonymous = AuthStateProvider::as_ref(app)
-            .get().is_anonymous_or_logged_out();
+            .get()
+            .is_anonymous_or_logged_out();
 
         let mut row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
@@ -3593,16 +3591,20 @@ impl SettingsWidget for GlobalAIWidget {
             row.add_child(
                 ConstrainedBox::new(
                     Container::new(
-                        Text::new(crate::t!("settings-ai-org-disallows-remote-session"), appearance.ui_font_family(), 12.)
-                            .with_color(appearance.theme().ui_warning_color())
-                            .finish()
+                        Text::new(
+                            crate::t!("settings-ai-org-disallows-remote-session"),
+                            appearance.ui_font_family(),
+                            12.,
+                        )
+                        .with_color(appearance.theme().ui_warning_color())
+                        .finish(),
                     )
                     .with_padding_left(8.)
                     .with_padding_right(8.)
-                    .finish()
+                    .finish(),
                 )
                 .with_max_width(400.)
-                .finish()
+                .finish(),
             );
         }
 
@@ -3945,7 +3947,8 @@ impl SettingsWidget for UsageWidget {
         .with_hyperlink_font_color(appearance.theme().accent().into_solid());
 
         if AuthStateProvider::as_ref(app)
-            .get().is_anonymous_or_logged_out()
+            .get()
+            .is_anonymous_or_logged_out()
         {
             upgrade_cta = upgrade_cta.register_default_click_handlers(|_, ctx, _| {
                 ctx.dispatch_typed_action(AISettingsPageAction::AttemptLoginGatedUpgrade);
@@ -4373,15 +4376,13 @@ impl AgentsWidget {
                 .finish(),
             )
             .with_child(
-                Container::new(
-                    render_ai_setting_description(
-                        crate::t!("settings-ai-profiles-description"),
-                        is_any_ai_enabled,
-                        app,
-                    )
-                )
+                Container::new(render_ai_setting_description(
+                    crate::t!("settings-ai-profiles-description"),
+                    is_any_ai_enabled,
+                    app,
+                ))
                 .with_margin_top(12.)
-                .finish()
+                .finish(),
             )
             .finish();
 
@@ -5581,7 +5582,6 @@ impl AIFactWidget {
             .with_child(description)
             .finish()
     }
-
 }
 
 impl SettingsWidget for AIFactWidget {
@@ -5817,7 +5817,9 @@ impl SettingsWidget for OtherAIWidget {
                     &view.local_only_icon_tooltip_states,
                     app,
                 ))
-                .with_child(render_ai_setting_toggle::<ShouldRenderUseAgentToolbarForUserCommands>(
+                .with_child(render_ai_setting_toggle::<
+                    ShouldRenderUseAgentToolbarForUserCommands,
+                >(
                     crate::t!("settings-ai-show-use-agent-footer"),
                     AISettingsPageAction::ToggleUseAgentToolbar,
                     *ai_settings.should_render_use_agent_footer_for_user_commands,

@@ -140,9 +140,11 @@ impl MCPServersEditPageView {
         });
 
         let reinstall_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new(crate::t!("settings-mcp-edit-edit-variables"), PrimaryTheme).on_click(|ctx| {
-                ctx.dispatch_typed_action(MCPServersEditPageViewAction::Reinstall);
-            })
+            ActionButton::new(crate::t!("settings-mcp-edit-edit-variables"), PrimaryTheme).on_click(
+                |ctx| {
+                    ctx.dispatch_typed_action(MCPServersEditPageViewAction::Reinstall);
+                },
+            )
         });
 
         let delete_button = ctx.add_typed_action_view(|_| {
@@ -154,11 +156,14 @@ impl MCPServersEditPageView {
         });
 
         let unshare_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new(crate::t!("settings-mcp-edit-remove-from-team"), DangerNakedTheme)
-                .with_icon(Icon::MinusCircle)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(MCPServersEditPageViewAction::Unshare);
-                })
+            ActionButton::new(
+                crate::t!("settings-mcp-edit-remove-from-team"),
+                DangerNakedTheme,
+            )
+            .with_icon(Icon::MinusCircle)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(MCPServersEditPageViewAction::Unshare);
+            })
         });
 
         let json_editor = ctx.add_typed_action_view(|ctx| {
@@ -186,9 +191,9 @@ impl MCPServersEditPageView {
         });
 
         let editing_disabled_banner = ctx.add_typed_action_view(|_| {
-            Banner::new_without_close(BannerTextContent::plain_text(
-                crate::t!("settings-mcp-edit-editing-disabled-banner"),
-            ))
+            Banner::new_without_close(BannerTextContent::plain_text(crate::t!(
+                "settings-mcp-edit-editing-disabled-banner"
+            )))
             .with_icon(Icon::Warning)
         });
 
@@ -326,7 +331,12 @@ impl MCPServersEditPageView {
             false,
             self.log_out_icon_button_mouse_handle.clone(),
         )
-        .with_tooltip(move || ui_builder.tool_tip(crate::t!("settings-mcp-edit-logout-tooltip")).build().finish())
+        .with_tooltip(move || {
+            ui_builder
+                .tool_tip(crate::t!("settings-mcp-edit-logout-tooltip"))
+                .build()
+                .finish()
+        })
         .build()
         .on_click(|ctx, _, _| ctx.dispatch_typed_action(MCPServersEditPageViewAction::LogOut))
         .finish();
@@ -611,17 +621,13 @@ impl MCPServersEditPageView {
             let window_id = ctx.window_id();
             ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                 toast_stack.add_ephemeral_toast(
-                    DismissibleToast::error(
-                        crate::t!("settings-mcp-edit-multiple-servers-error"),
-                    ),
+                    DismissibleToast::error(crate::t!("settings-mcp-edit-multiple-servers-error")),
                     window_id,
                     ctx,
                 );
             });
 
-            return Err(
-                crate::t!("settings-mcp-edit-multiple-servers-error"),
-            );
+            return Err(crate::t!("settings-mcp-edit-multiple-servers-error"));
         }
 
         Ok(parsed_templatable_mcp_servers[0].clone())
@@ -894,7 +900,9 @@ impl TypedActionView for MCPServersEditPageView {
                         let window_id = ctx.window_id();
                         ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
                             toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(crate::t!("settings-mcp-edit-no-server-error")),
+                                DismissibleToast::error(crate::t!(
+                                    "settings-mcp-edit-no-server-error"
+                                )),
                                 window_id,
                                 ctx,
                             );

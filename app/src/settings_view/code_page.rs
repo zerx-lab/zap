@@ -305,9 +305,7 @@ impl CodeSettingsPageView {
                     codebase_indexing_widgets,
                 ),
                 Category::new(
-                    &*Box::leak(
-                        crate::t!("settings-code-category-editor-review").into_boxed_str(),
-                    ),
+                    &*Box::leak(crate::t!("settings-code-category-editor-review").into_boxed_str()),
                     code_editor_review_widgets,
                 ),
             ];
@@ -439,9 +437,7 @@ impl CodeSettingsPageView {
                     codebase_indexing_widgets,
                 ),
                 Category::new(
-                    &*Box::leak(
-                        crate::t!("settings-code-category-editor-review").into_boxed_str(),
-                    ),
+                    &*Box::leak(crate::t!("settings-code-category-editor-review").into_boxed_str()),
                     code_editor_review_widgets,
                 ),
             ];

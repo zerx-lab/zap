@@ -577,10 +577,8 @@ impl AccountWidget {
                 }
             }
         } else {
-            let plan_badge_child = render_customer_type_badge(
-                appearance,
-                crate::t!("settings-main-plan-free"),
-            );
+            let plan_badge_child =
+                render_customer_type_badge(appearance, crate::t!("settings-main-plan-free"));
             plan_info.add_child(plan_badge_child);
 
             plan_info.add_child(

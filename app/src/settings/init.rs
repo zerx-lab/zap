@@ -36,10 +36,10 @@ use super::{
     cloud_preferences::CloudPreferencesSettings, initializer::SettingsInitializer,
     language::LanguageSettings, native_preference::NativePreferenceSettings, AISettings,
     AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
-    CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings,
-    FontSettingsChangedEvent, GPUSettings, InputBoxType, InputModeSettings, InputSettings,
-    PaneSettings, SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings,
-    ThemeSettings, VimBannerSettings, WarpDrivePrivacySettings,
+    CodeSettings, DebugSettings, EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent,
+    GPUSettings, InputBoxType, InputModeSettings, InputSettings, PaneSettings,
+    SameLinePromptBlockSettings, ScrollSettings, SelectionSettings, SshSettings, ThemeSettings,
+    VimBannerSettings, WarpDrivePrivacySettings,
 };
 
 pub struct UserDefaultsOnStartup {

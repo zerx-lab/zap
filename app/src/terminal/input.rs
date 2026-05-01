@@ -12113,9 +12113,7 @@ impl Input {
         };
 
         self.predict_am_queries_future_handle = Some(ctx.spawn(
-            async move {
-                crate::ai::agent_providers::active_ai::nld_predict::run(rendered).await
-            },
+            async move { crate::ai::agent_providers::active_ai::nld_predict::run(rendered).await },
             move |me: &mut Self, maybe_suggestion: Option<String>, ctx: &mut ViewContext<Self>| {
                 // Only set the autosuggestion if the input buffer hasn't changed, since we made the original request
                 // i.e. verify the suggestion is still relevant.

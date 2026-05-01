@@ -169,9 +169,7 @@ impl WarpifyPageView {
         let mut categories = vec![
             Category::new("", vec![Box::new(TitleWidget::default())]),
             Category::new(
-                Box::leak(
-                    crate::t!("settings-warpify-section-subshells").into_boxed_str(),
-                ),
+                Box::leak(crate::t!("settings-warpify-section-subshells").into_boxed_str()),
                 vec![Box::new(SubshellsWidget::default())],
             )
             .with_subtitle(Box::leak(
@@ -187,9 +185,7 @@ impl WarpifyPageView {
         {
             categories.push(
                 Category::new(
-                    Box::leak(
-                        crate::t!("settings-warpify-section-ssh").into_boxed_str(),
-                    ),
+                    Box::leak(crate::t!("settings-warpify-section-ssh").into_boxed_str()),
                     vec![Box::new(SSHWidget::default())],
                 )
                 .with_subtitle(Box::leak(

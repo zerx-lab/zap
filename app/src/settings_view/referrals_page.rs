@@ -449,7 +449,10 @@ impl EmailValidationError {
         match self {
             EmailValidationError::Empty => crate::t!("settings-referrals-email-empty-error"),
             EmailValidationError::Invalid(invalid_email) => {
-                crate::t!("settings-referrals-email-invalid-error", email = invalid_email.as_str())
+                crate::t!(
+                    "settings-referrals-email-invalid-error",
+                    email = invalid_email.as_str()
+                )
             }
         }
     }
@@ -618,9 +621,7 @@ impl ReferralsWidget {
                 .finish(),
             )
             .with_child(self.render_link_row(view, appearance))
-            .with_child(
-                self.render_label(crate::t!("settings-referrals-email-label"), appearance),
-            )
+            .with_child(self.render_label(crate::t!("settings-referrals-email-label"), appearance))
             .with_child(self.render_email_row(view, appearance))
             .finish()
     }

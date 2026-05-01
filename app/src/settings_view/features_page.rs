@@ -40,13 +40,12 @@ use crate::search::command_search::settings::{
 use crate::server::telemetry::TelemetryEvent;
 use crate::settings::ai::AISettings;
 use crate::settings::{
-    AISettingsChangedEvent, ScrollSettingsChangedEvent,
-    UserNativeRedirectPreference,
+    AISettingsChangedEvent, ScrollSettingsChangedEvent, UserNativeRedirectPreference,
 };
 use crate::settings::{
     AliasExpansionEnabled, AliasExpansionSettings, AppEditorSettings, AtContextMenuInTerminalMode,
-    AutocompleteSymbols, AutosuggestionKeybindingHint, CloudPreferencesSettings,
-    CodeSettings, CommandCorrections, CompletionsOpenWhileTyping, CopyOnSelect, CtrlTabBehavior,
+    AutocompleteSymbols, AutosuggestionKeybindingHint, CloudPreferencesSettings, CodeSettings,
+    CommandCorrections, CompletionsOpenWhileTyping, CopyOnSelect, CtrlTabBehavior,
     DefaultSessionMode, EnableSlashCommandsInTerminal, EnableSshWrapper, ErrorUnderliningEnabled,
     ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
     LinuxSelectionClipboard, MiddleClickPasteEnabled, MouseScrollMultiplier,
@@ -60,8 +59,8 @@ use crate::terminal::alt_screen_reporting::{
     AltScreenReporting, FocusReportingEnabled, MouseReportingEnabled, ScrollReportingEnabled,
 };
 use crate::terminal::general_settings::{
-    AutoOpenCodeReviewPaneOnFirstAgentChange, GeneralSettings, LinkTooltip,
-    QuitOnLastWindowClosed, RestoreSession, ShowWarningBeforeQuitting,
+    AutoOpenCodeReviewPaneOnFirstAgentChange, GeneralSettings, LinkTooltip, QuitOnLastWindowClosed,
+    RestoreSession, ShowWarningBeforeQuitting,
 };
 use crate::terminal::keys_settings::{
     ActivationHotkeyEnabled, CtrlTabBehaviorSetting, KeysSettings, KeysSettingsChangedEvent,
@@ -189,9 +188,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ToggleSettingActionPair::new(
             &{
                 #[cfg(target_os = "macos")]
-                { crate::t!("toggle-suffix-left-option-meta") }
+                {
+                    crate::t!("toggle-suffix-left-option-meta")
+                }
                 #[cfg(not(target_os = "macos"))]
-                { crate::t!("toggle-suffix-left-alt-meta") }
+                {
+                    crate::t!("toggle-suffix-left-alt-meta")
+                }
             },
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleLeftMetaKey,
@@ -207,9 +210,13 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
         ToggleSettingActionPair::new(
             &{
                 #[cfg(target_os = "macos")]
-                { crate::t!("toggle-suffix-right-option-meta") }
+                {
+                    crate::t!("toggle-suffix-right-option-meta")
+                }
                 #[cfg(not(target_os = "macos"))]
-                { crate::t!("toggle-suffix-right-alt-meta") }
+                {
+                    crate::t!("toggle-suffix-right-alt-meta")
+                }
             },
             builder(SettingsAction::FeaturesPageToggle(
                 FeaturesPageAction::ToggleRightMetaKey,

@@ -5368,6 +5368,11 @@ impl TerminalView {
                 conversation_id,
                 initial_requested_command_action_id,
             } => {
+                log::info!(
+                    "[byop-diag] CLISubagentEvent::SpawnedSubagent received: \
+                     block_id={block_id:?} task_id={task_id:?} conv={conversation_id:?} \
+                     → 创建 CLISubagentView 加进 cli_subagent_views map"
+                );
                 let subagent_view = ctx.add_typed_action_view(|ctx| {
                     CLISubagentView::new(
                         block_id.clone(),
@@ -5383,6 +5388,10 @@ impl TerminalView {
                 });
                 self.cli_subagent_views
                     .insert(block_id.clone(), subagent_view.clone());
+                log::info!(
+                    "[byop-diag] cli_subagent_views.len()={} after insert",
+                    self.cli_subagent_views.len()
+                );
 
                 ctx.subscribe_to_view(&subagent_view, |me, view, event, ctx| match event {
                     CLISubagentViewEvent::TextSelected => {

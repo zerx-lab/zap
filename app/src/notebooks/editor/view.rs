@@ -439,9 +439,13 @@ pub fn init(app: &mut AppContext) {
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("meta-b"),
-        EditableBinding::new("editor_view:up", crate::t!("keybinding-desc-editor-up"), EditorViewAction::MoveUp)
-            .with_context_predicate(text_entry.clone())
-            .with_key_binding("ctrl-p"),
+        EditableBinding::new(
+            "editor_view:up",
+            crate::t!("keybinding-desc-editor-up"),
+            EditorViewAction::MoveUp,
+        )
+        .with_context_predicate(text_entry.clone())
+        .with_key_binding("ctrl-p"),
         EditableBinding::new(
             "editor_view:down",
             crate::t!("keybinding-desc-editor-down"),
@@ -488,10 +492,14 @@ pub fn init(app: &mut AppContext) {
         )
         .with_context_predicate(text_entry.clone())
         .with_mac_key_binding("ctrl-e"),
-        EditableBinding::new("editor_view:end", crate::t!("keybinding-desc-editor-end"), EditorViewAction::MoveToLineEnd)
-            .with_context_predicate(text_entry.clone())
-            .with_mac_key_binding("cmd-right")
-            .with_linux_or_windows_key_binding("end"),
+        EditableBinding::new(
+            "editor_view:end",
+            crate::t!("keybinding-desc-editor-end"),
+            EditorViewAction::MoveToLineEnd,
+        )
+        .with_context_predicate(text_entry.clone())
+        .with_mac_key_binding("cmd-right")
+        .with_linux_or_windows_key_binding("end"),
     ]);
 
     // Editable selection keybindings:
@@ -601,9 +609,13 @@ pub fn init(app: &mut AppContext) {
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("ctrl-h"),
-        EditableBinding::new("editor_view:delete", crate::t!("keybinding-desc-editor-delete"), EditorViewAction::Delete)
-            .with_context_predicate(text_entry.clone())
-            .with_key_binding("ctrl-d"),
+        EditableBinding::new(
+            "editor_view:delete",
+            crate::t!("keybinding-desc-editor-delete"),
+            EditorViewAction::Delete,
+        )
+        .with_context_predicate(text_entry.clone())
+        .with_key_binding("ctrl-d"),
         EditableBinding::new(
             "editor_view:cut_word_left",
             crate::t!("keybinding-desc-editor-cut-word-left"),

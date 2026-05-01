@@ -36,7 +36,9 @@ fn new_conv_parameters() -> Value {
 
 fn new_conv_from_args(args: &str) -> Result<api::message::tool_call::Tool> {
     let parsed: NewConvArgs = if args.trim().is_empty() {
-        NewConvArgs { message_id: String::new() }
+        NewConvArgs {
+            message_id: String::new(),
+        }
     } else {
         serde_json::from_str(args)?
     };

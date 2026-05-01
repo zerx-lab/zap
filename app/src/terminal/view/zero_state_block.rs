@@ -262,7 +262,9 @@ impl View for TerminalViewZeroStateBlock {
                         Shrinkable::new(
                             1.,
                             render_standard_message(
-                                Message::from_text(crate::t!("terminal-zero-state-autodetect-prompts")),
+                                Message::from_text(crate::t!(
+                                    "terminal-zero-state-autodetect-prompts"
+                                )),
                                 app,
                             ),
                         )

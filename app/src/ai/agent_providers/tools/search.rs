@@ -151,7 +151,11 @@ fn glob_result_to_json(result: &api::message::tool_call_result::Result) -> Optio
     };
     let value = match &r.result {
         Some(GR::Success(s)) => {
-            let files: Vec<&str> = s.matched_files.iter().map(|f| f.file_path.as_str()).collect();
+            let files: Vec<&str> = s
+                .matched_files
+                .iter()
+                .map(|f| f.file_path.as_str())
+                .collect();
             // protobuf 中 Success.warnings: String 是 stderr 警告文本(如权限错误)。
             // 仅在非空时输出,避免给模型噪声。
             let mut value = json!({ "status": "ok", "files": files });

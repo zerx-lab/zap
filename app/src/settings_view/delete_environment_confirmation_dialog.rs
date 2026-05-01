@@ -41,7 +41,11 @@ impl DeleteEnvironmentConfirmationDialog {
         });
 
         let confirm_button = ctx.add_typed_action_view(|_| {
-            ActionButton::new(crate::t!("settings-confirm-delete-environment-button"), DangerPrimaryTheme).on_click(|ctx| {
+            ActionButton::new(
+                crate::t!("settings-confirm-delete-environment-button"),
+                DangerPrimaryTheme,
+            )
+            .on_click(|ctx| {
                 ctx.dispatch_typed_action(DeleteEnvironmentConfirmationDialogAction::Confirm);
             })
         });

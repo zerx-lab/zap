@@ -43,7 +43,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 use warp_multi_agent_api as api;
 
@@ -346,10 +346,20 @@ fn sanitize_tool_call_pairs(messages: &mut Vec<ChatMessage>) {
             .unwrap_or_else(|| "(tool 执行结果未保留)".to_owned());
 
         let inserts: Vec<ChatMessage> = missing
-            .into_iter()
-            .map(|id| ChatMessage::from(ToolResponse::new(id, placeholder_content.clone())))
+            .iter()
+            .map(|id| ChatMessage::from(ToolResponse::new(id.clone(), placeholder_content.clone())))
             .collect();
         let inserted = inserts.len();
+        log::warn!(
+            "[byop-diag] sanitize_tool_call_pairs: 给 {inserted} 个 ToolCall 补 placeholder \
+             ToolResponse: missing_call_ids={:?} placeholder_kind={}",
+            missing,
+            if placeholder_content.starts_with("(tool 执行结果已被") {
+                "consumed_into_next_assistant"
+            } else {
+                "未保留"
+            }
+        );
         messages.splice(i + 1..i + 1, inserts);
 
         i = i + 1 + (scan - (i + 1)) + inserted;
@@ -435,8 +445,13 @@ fn serialize_outgoing_tool_call(
                 .map(|q| {
                     let (options, recommended_index, multi_select, supports_other) =
                         match &q.question_type {
-                            Some(api::ask_user_question::question::QuestionType::MultipleChoice(mc)) => (
-                                mc.options.iter().map(|o| o.label.clone()).collect::<Vec<_>>(),
+                            Some(
+                                api::ask_user_question::question::QuestionType::MultipleChoice(mc),
+                            ) => (
+                                mc.options
+                                    .iter()
+                                    .map(|o| o.label.clone())
+                                    .collect::<Vec<_>>(),
                                 mc.recommended_option_index,
                                 mc.is_multiselect,
                                 mc.supports_other,
@@ -609,14 +624,12 @@ fn serialize_outgoing_tool_call(
                 .next()
                 .unwrap_or("UnknownVariant")
                 .to_owned();
-            (
-                format!("warp_internal_{}", variant_name),
-                "{}".to_owned(),
-            )
+            (format!("warp_internal_{}", variant_name), "{}".to_owned())
         }
         None => ("warp_internal_empty".to_owned(), "{}".to_owned()),
     };
-    let args_value: Value = serde_json::from_str(&args_str).unwrap_or(Value::Object(Default::default()));
+    let args_value: Value =
+        serde_json::from_str(&args_str).unwrap_or(Value::Object(Default::default()));
     (name, args_value)
 }
 
@@ -710,9 +723,7 @@ pub(super) fn build_client(
 ) -> Client {
     let adapter_kind = adapter_kind_for(api_type);
     let endpoint_url = normalize_endpoint_url(api_type, &base_url);
-    log::info!(
-        "[byop] build_client: adapter={adapter_kind:?} endpoint_url={endpoint_url}"
-    );
+    log::info!("[byop] build_client: adapter={adapter_kind:?} endpoint_url={endpoint_url}");
     let key_for_resolver = api_key.clone();
     let resolver = ServiceTargetResolver::from_resolver_fn(
         move |service_target: ServiceTarget| -> Result<ServiceTarget, genai::resolver::Error> {
@@ -936,14 +947,10 @@ pub async fn generate_byop_output(
             }
         }
         if !bs_hits.is_empty() {
-            log::warn!(
-                "[byop] {label} suspicious literal '\\X' patterns: {bs_hits:?}"
-            );
+            log::warn!("[byop] {label} suspicious literal '\\X' patterns: {bs_hits:?}");
         }
         if !ctrl_hits.is_empty() {
-            log::warn!(
-                "[byop] {label} contains raw control chars (offset, byte): {ctrl_hits:?}"
-            );
+            log::warn!("[byop] {label} contains raw control chars (offset, byte): {ctrl_hits:?}");
         }
     }
     if let Some(sys) = chat_req.system.as_deref() {
@@ -1327,7 +1334,10 @@ fn sanitize_title(raw: &str) -> Option<String> {
     }
     // 去尾标点。
     while let Some(c) = s.chars().last() {
-        if matches!(c, '.' | '。' | '!' | '!' | '?' | '?' | ',' | ',' | ';' | ';') {
+        if matches!(
+            c,
+            '.' | '。' | '!' | '!' | '?' | '?' | ',' | ',' | ';' | ';'
+        ) {
             let new_len = s.len() - c.len_utf8();
             s.truncate(new_len);
         } else {

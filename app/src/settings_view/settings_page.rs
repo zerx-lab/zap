@@ -1341,7 +1341,10 @@ impl<V: warpui::View> PageType<V> {
                 vertical_scroll_state,
                 horizontal_scroll_state,
                 ..
-            } => Some((vertical_scroll_state.clone(), horizontal_scroll_state.clone())),
+            } => Some((
+                vertical_scroll_state.clone(),
+                horizontal_scroll_state.clone(),
+            )),
             Self::Monolith {
                 vertical_scroll_state: Some(v),
                 horizontal_scroll_state: Some(h),

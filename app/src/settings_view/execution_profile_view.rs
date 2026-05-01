@@ -58,11 +58,11 @@ impl ExecutionProfileView {
                     as &'static str,
                 SecondaryTheme,
             )
-                .with_icon(Icon::Pencil)
-                .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(ExecutionProfileViewAction::EditProfile);
-                })
+            .with_icon(Icon::Pencil)
+            .with_size(ButtonSize::Small)
+            .on_click(|ctx| {
+                ctx.dispatch_typed_action(ExecutionProfileViewAction::EditProfile);
+            })
         });
 
         let is_any_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
@@ -193,9 +193,13 @@ impl View for ExecutionProfileView {
                     let mut model_flex = Flex::column();
                     model_flex.add_child(
                         Container::new(
-                            Text::new(crate::t!("settings-exec-profile-section-models"), appearance.ui_font_family(), 10.)
-                                .with_color(appearance.theme().disabled_ui_text_color().into())
-                                .finish(),
+                            Text::new(
+                                crate::t!("settings-exec-profile-section-models"),
+                                appearance.ui_font_family(),
+                                10.,
+                            )
+                            .with_color(appearance.theme().disabled_ui_text_color().into())
+                            .finish(),
                         )
                         .with_margin_bottom(8.)
                         .finish(),
@@ -266,11 +270,13 @@ impl View for ExecutionProfileView {
                         let mut permissions_column = Flex::column()
                             .with_child(
                                 Container::new(
-                                    Text::new(crate::t!("settings-exec-profile-section-permissions"), appearance.ui_font_family(), 10.)
-                                        .with_color(
-                                            appearance.theme().disabled_ui_text_color().into(),
-                                        )
-                                        .finish(),
+                                    Text::new(
+                                        crate::t!("settings-exec-profile-section-permissions"),
+                                        appearance.ui_font_family(),
+                                        10.,
+                                    )
+                                    .with_color(appearance.theme().disabled_ui_text_color().into())
+                                    .finish(),
                                 )
                                 .with_margin_bottom(8.)
                                 .finish(),
@@ -475,9 +481,13 @@ where
     let items_vec: Vec<String> = items.into_iter().map(|item| item.to_string()).collect();
     if items_vec.is_empty() {
         return Container::new(
-            Text::new(crate::t!("settings-exec-profile-chips-none"), appearance.ui_font_family(), 12.)
-                .with_color(appearance.theme().disabled_ui_text_color().into())
-                .finish(),
+            Text::new(
+                crate::t!("settings-exec-profile-chips-none"),
+                appearance.ui_font_family(),
+                12.,
+            )
+            .with_color(appearance.theme().disabled_ui_text_color().into())
+            .finish(),
         )
         .finish();
     }

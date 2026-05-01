@@ -507,9 +507,13 @@ pub fn init(app: &mut AppContext) {
         )
         .with_context_predicate(text_entry.clone())
         .with_key_binding("cmdorctrl-/"),
-        EditableBinding::new("editor_view:delete", crate::t!("keybinding-desc-editor-delete"), CodeEditorViewAction::Delete)
-            .with_context_predicate(text_entry.clone())
-            .with_key_binding("ctrl-d"),
+        EditableBinding::new(
+            "editor_view:delete",
+            crate::t!("keybinding-desc-editor-delete"),
+            CodeEditorViewAction::Delete,
+        )
+        .with_context_predicate(text_entry.clone())
+        .with_key_binding("ctrl-d"),
         EditableBinding::new(
             "editor_view:cut_word_left",
             crate::t!("keybinding-desc-editor-cut-word-left"),

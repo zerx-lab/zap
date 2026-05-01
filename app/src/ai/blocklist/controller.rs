@@ -2484,8 +2484,47 @@ impl BlocklistAIController {
                             .join(", "),
                         conversation_id,
                     );
+                    // OpenWarp:LRC tag-in 场景自动授权 agent 工具执行。
+                    //
+                    // 触发条件:active_block 处于 InteractionMode::User { did_user_tag_in_agent: true },
+                    // 即用户主动 SetInputModeAgent 把 input 切到 agent,本意就是"放心让 agent 操作"。
+                    // 但 alt-screen 全屏(nvim/htop 等)下,RequestedCommand 的 Accept 按钮渲染在
+                    // CLISubagentView 浮窗里,而该浮窗目前 view-content 渲染未完整(已知遗留),
+                    // 用户在 nvim 屏下看不到 Accept 按钮,导致 agent 工具调用永远卡 NeedsConfirmation。
+                    //
+                    // 解法:queue_actions 完成后立即模拟用户 Accept 这一轮所有 action —— 调
+                    // `execute_action(action_id, conv, ctx)`,内部走
+                    // `start_pending_action_by_id(..., is_user_initiated=true, ...)`,
+                    // 在 executor.try_to_execute_action 中 is_user_initiated 短路 needs_confirmation 检查。
+                    // 注意:LRC spawn 后 cli_controller 会把 block 从 InteractionMode::User(tag-in)
+                    // 切到 InteractionMode::Agent(monitored)— 看 cli_controller.rs:500
+                    // `set_agent_interaction_mode_for_agent_monitored_command`,所以 stream finish
+                    // 进 AfterStreamFinished 时 `is_agent_tagged_in()` 已经返回 false。
+                    // 这里的判定要覆盖两种状态:
+                    //   1. 还是 tag-in(没 spawn,普通 LRC tag-in 路径)— `is_agent_tagged_in()`
+                    //   2. 已 spawn 升级 monitored(本对话挂了 cli subagent metadata)
+                    //      — `agent_interaction_metadata.conversation_id == 本次 conv`
+                    let auto_accept_for_lrc = {
+                        let terminal_model = self.terminal_model.lock();
+                        let active_block = terminal_model.block_list().active_block();
+                        active_block.is_agent_tagged_in()
+                            || active_block
+                                .agent_interaction_metadata()
+                                .is_some_and(|m| m.conversation_id() == &conversation_id)
+                    };
+                    if auto_accept_for_lrc {
+                        log::info!(
+                            "[byop] LRC tag-in/monitored: queue with auto-accept ({} action(s))",
+                            actions_to_queue.len()
+                        );
+                    }
                     self.action_model.update(ctx, |action_model, ctx| {
-                        action_model.queue_actions(actions_to_queue, conversation_id, ctx);
+                        action_model.queue_actions_with_options(
+                            actions_to_queue,
+                            conversation_id,
+                            auto_accept_for_lrc,
+                            ctx,
+                        );
                     });
                 } else {
                     log::info!(

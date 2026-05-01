@@ -13,8 +13,8 @@ use crate::{
         agent::{
             conversation::AIConversationId, AIAgentActionType, AIAgentAttachment, AIAgentContext,
             AIAgentExchangeId, AIAgentInput, AIAgentPtyWriteMode, AskUserQuestionItem,
-            FileLocations, PassiveSuggestionResultType, ReadFilesRequest,
-            SearchCodebaseRequest, UserQueryMode,
+            FileLocations, PassiveSuggestionResultType, ReadFilesRequest, SearchCodebaseRequest,
+            UserQueryMode,
         },
         llms::LLMId,
     },

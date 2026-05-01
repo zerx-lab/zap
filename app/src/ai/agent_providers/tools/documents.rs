@@ -182,13 +182,11 @@ fn edit_from_args(args: &str) -> Result<api::message::tool_call::Tool> {
     let diffs = parsed
         .diffs
         .into_iter()
-        .map(
-            |d| api::message::tool_call::edit_documents::DocumentDiff {
-                document_id: d.document_id,
-                search: d.search,
-                replace: d.replace,
-            },
-        )
+        .map(|d| api::message::tool_call::edit_documents::DocumentDiff {
+            document_id: d.document_id,
+            search: d.search,
+            replace: d.replace,
+        })
         .collect();
     Ok(api::message::tool_call::Tool::EditDocuments(
         api::message::tool_call::EditDocuments { diffs },
@@ -271,12 +269,10 @@ fn create_from_args(args: &str) -> Result<api::message::tool_call::Tool> {
     let new_documents = parsed
         .new_documents
         .into_iter()
-        .map(
-            |d| api::message::tool_call::create_documents::NewDocument {
-                title: d.title,
-                content: d.content,
-            },
-        )
+        .map(|d| api::message::tool_call::create_documents::NewDocument {
+            title: d.title,
+            content: d.content,
+        })
         .collect();
     Ok(api::message::tool_call::Tool::CreateDocuments(
         api::message::tool_call::CreateDocuments { new_documents },

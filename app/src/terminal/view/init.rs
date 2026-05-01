@@ -400,12 +400,20 @@ pub fn init(app: &mut AppContext) {
         .with_context_predicate(id!("Terminal")),
         // Paste is not rebindable on the web.
         #[cfg(not(target_family = "wasm"))]
-        EditableBinding::new("terminal:paste", crate::t!("keybinding-desc-terminal-paste"), TerminalAction::Paste)
-            .with_custom_action(CustomAction::Paste)
-            .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
-        EditableBinding::new("terminal:copy", crate::t!("keybinding-desc-terminal-copy"), TerminalAction::Copy)
-            .with_custom_action(CustomAction::Copy)
-            .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
+        EditableBinding::new(
+            "terminal:paste",
+            crate::t!("keybinding-desc-terminal-paste"),
+            TerminalAction::Paste,
+        )
+        .with_custom_action(CustomAction::Paste)
+        .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
+        EditableBinding::new(
+            "terminal:copy",
+            crate::t!("keybinding-desc-terminal-copy"),
+            TerminalAction::Copy,
+        )
+        .with_custom_action(CustomAction::Copy)
+        .with_context_predicate(id!("Terminal") & !id!("IMEOpen")),
         EditableBinding::new(
             "terminal:reinput_commands",
             crate::t!("keybinding-desc-terminal-reinput-commands"),
@@ -763,13 +771,11 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:ask_ai_assistant",
-            BindingDescription::new(crate::t!(
-                "keybinding-desc-terminal-attach-text-as-context"
-            ))
-            .with_custom_description(
-                bindings::MAC_MENUS_CONTEXT,
-                crate::t!("keybinding-desc-terminal-attach-as-context-menu"),
-            ),
+            BindingDescription::new(crate::t!("keybinding-desc-terminal-attach-text-as-context"))
+                .with_custom_description(
+                    bindings::MAC_MENUS_CONTEXT,
+                    crate::t!("keybinding-desc-terminal-attach-as-context-menu"),
+                ),
             TerminalAction::ContextMenu(ContextMenuAction::AskAI(
                 AskAISource::SelectedTerminalText,
             )),
@@ -1076,7 +1082,6 @@ pub fn init(app: &mut AppContext) {
     )
     .with_enabled(|| FeatureFlag::Projects.is_enabled())
     .with_context_predicate(id!("Workspace") & id!(flags::IS_ANY_AI_ENABLED))]);
-
 }
 
 /// Registers bindings related to input modes.

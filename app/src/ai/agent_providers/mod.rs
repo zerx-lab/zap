@@ -155,10 +155,7 @@ pub fn build_byop_models_by_feature(app: &AppContext) -> ModelsByFeature {
 
 /// 给定一个 BYOP `LLMId`,从 `AISettings` 与 secrets 里查出 `(provider, api_key, model_id)`。
 /// 任一信息缺失返回 `None`(controller 调用方应映射为 `InvalidApiKey` 错误)。
-pub fn lookup_byop(
-    app: &AppContext,
-    id: &ai::LLMId,
-) -> Option<(AgentProvider, String, String)> {
+pub fn lookup_byop(app: &AppContext, id: &ai::LLMId) -> Option<(AgentProvider, String, String)> {
     let (provider_id, model_id) = llm_id::decode(id)?;
     let providers = AISettings::as_ref(app).agent_providers.value().clone();
     let provider = providers.into_iter().find(|p| p.id == provider_id)?;

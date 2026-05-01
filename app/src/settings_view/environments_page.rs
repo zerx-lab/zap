@@ -370,8 +370,10 @@ impl EnvironmentsPageView {
         });
 
         // Create search editor for list page
-        let search_editor =
-            Self::create_single_line_editor(crate::t!("settings-environments-search-placeholder"), ctx);
+        let search_editor = Self::create_single_line_editor(
+            crate::t!("settings-environments-search-placeholder"),
+            ctx,
+        );
         ctx.subscribe_to_view(&search_editor, |me, _, event, ctx| match event {
             crate::editor::Event::Edited(_) => {
                 me.search_query = me.search_editor.as_ref(ctx).buffer_text(ctx);
@@ -634,7 +636,10 @@ impl EnvironmentsPageView {
 
             if should_handle {
                 self.pending_save_env_id = None;
-                self.show_success_toast(crate::t!("settings-environments-toast-update-success"), ctx);
+                self.show_success_toast(
+                    crate::t!("settings-environments-toast-update-success"),
+                    ctx,
+                );
 
                 // No need to force a global cloud-object refresh here: on update success the
                 // sync pipeline updates this environment's `revision_ts` (used for "Last edited")
@@ -692,7 +697,10 @@ impl EnvironmentsPageView {
             self.pending_share_server_id = None;
 
             if matches!(result.success_type, OperationSuccessType::Success) {
-                self.show_success_toast(crate::t!("settings-environments-toast-share-success"), ctx);
+                self.show_success_toast(
+                    crate::t!("settings-environments-toast-share-success"),
+                    ctx,
+                );
             } else {
                 self.show_error_toast(crate::t!("settings-environments-toast-share-failure"), ctx);
             }
@@ -1324,9 +1332,7 @@ impl EnvironmentsPageWidget {
                             team = team.name.clone()
                         )
                     })
-                    .unwrap_or_else(|| {
-                        crate::t!("settings-environments-section-team-default")
-                    });
+                    .unwrap_or_else(|| crate::t!("settings-environments-section-team-default"));
                 Self::render_overline_header(&shared_by_text, appearance)
             }
         };
@@ -1770,12 +1776,12 @@ impl EnvironmentsPageWidget {
                     "settings-environments-env-id-prefix",
                     id = env_id_str.clone()
                 ))
-                    .with_font_size(appearance.ui_font_size() * 0.9)
-                    .with_text_color(blended_colors::text_sub(theme, theme.surface_1()))
-                    .with_icon_size(12.)
-                    .with_mouse_state(copy_button_mouse_state.clone())
-                    .with_last_copied_at(last_copied_at.as_ref())
-                    .with_copy_button_placement(CopyButtonPlacement::NextToText),
+                .with_font_size(appearance.ui_font_size() * 0.9)
+                .with_text_color(blended_colors::text_sub(theme, theme.surface_1()))
+                .with_icon_size(12.)
+                .with_mouse_state(copy_button_mouse_state.clone())
+                .with_last_copied_at(last_copied_at.as_ref())
+                .with_copy_button_placement(CopyButtonPlacement::NextToText),
                 move |ctx| {
                     ctx.dispatch_typed_action(EnvironmentsPageAction::CopyEnvId(
                         env_id,

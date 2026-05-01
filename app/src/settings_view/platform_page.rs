@@ -132,33 +132,33 @@ impl PlatformPageView {
                 create_api_key_body,
                 ctx,
             )
-                .with_modal_style(UiComponentStyles {
-                    width: Some(MODAL_WIDTH),
-                    height: Some(MODAL_HEIGHT),
-                    ..Default::default()
-                })
-                .with_header_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 24.,
-                        bottom: 0.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    font_size: Some(16.),
-                    font_weight: Some(warpui::fonts::Weight::Bold),
-                    ..Default::default()
-                })
-                .with_body_style(UiComponentStyles {
-                    padding: Some(Coords {
-                        top: 0.,
-                        bottom: 24.,
-                        left: 24.,
-                        right: 24.,
-                    }),
-                    ..Default::default()
-                })
-                .with_background_opacity(100)
-                .with_dismiss_on_click()
+            .with_modal_style(UiComponentStyles {
+                width: Some(MODAL_WIDTH),
+                height: Some(MODAL_HEIGHT),
+                ..Default::default()
+            })
+            .with_header_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 24.,
+                    bottom: 0.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                font_size: Some(16.),
+                font_weight: Some(warpui::fonts::Weight::Bold),
+                ..Default::default()
+            })
+            .with_body_style(UiComponentStyles {
+                padding: Some(Coords {
+                    top: 0.,
+                    bottom: 24.,
+                    left: 24.,
+                    right: 24.,
+                }),
+                ..Default::default()
+            })
+            .with_background_opacity(100)
+            .with_dismiss_on_click()
         });
         ctx.subscribe_to_view(&create_api_key_modal_view, |me, _, event, ctx| {
             me.handle_modal_event(event, ctx);
@@ -425,9 +425,9 @@ impl PlatformPageWidget {
                         appearance.ui_font_family(),
                         16.,
                     )
-                        .with_style(Properties::default().weight(Weight::Bold))
-                        .with_color(appearance.theme().active_ui_text_color().into())
-                        .finish(),
+                    .with_style(Properties::default().weight(Weight::Bold))
+                    .with_color(appearance.theme().active_ui_text_color().into())
+                    .finish(),
                 )
                 .with_child(Shrinkable::new(1.0, Empty::new().finish()).finish())
                 .with_child(
@@ -552,9 +552,9 @@ impl PlatformPageWidget {
     ) -> Box<dyn Element> {
         Container::new(
             Text::new_inline(label, appearance.ui_font_family(), CONTENT_FONT_SIZE)
-            .with_style(Properties::default().weight(Weight::Semibold))
-            .with_color(appearance.theme().nonactive_ui_text_color().into())
-            .finish(),
+                .with_style(Properties::default().weight(Weight::Semibold))
+                .with_color(appearance.theme().nonactive_ui_text_color().into())
+                .finish(),
         )
         .with_padding(Padding::uniform(8.))
         .finish()

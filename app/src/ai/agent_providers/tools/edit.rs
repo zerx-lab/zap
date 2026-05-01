@@ -105,12 +105,10 @@ fn from_args(args: &str) -> Result<api::message::tool_call::Tool> {
                 search,
                 replace,
             }),
-            Operation::Create { file_path, content } => new_files.push(
-                api::message::tool_call::apply_file_diffs::NewFile { file_path, content },
-            ),
-            Operation::Delete { file_path } => deleted_files.push(
-                api::message::tool_call::apply_file_diffs::DeleteFile { file_path },
-            ),
+            Operation::Create { file_path, content } => new_files
+                .push(api::message::tool_call::apply_file_diffs::NewFile { file_path, content }),
+            Operation::Delete { file_path } => deleted_files
+                .push(api::message::tool_call::apply_file_diffs::DeleteFile { file_path }),
         }
     }
     Ok(api::message::tool_call::Tool::ApplyFileDiffs(
@@ -138,7 +136,11 @@ fn result_to_json(result: &api::message::tool_call_result::Result) -> Option<Val
                 .iter()
                 .filter_map(|u| u.file.as_ref().map(|f| f.file_path.as_str()))
                 .collect();
-            let deleted: Vec<&str> = s.deleted_files.iter().map(|f| f.file_path.as_str()).collect();
+            let deleted: Vec<&str> = s
+                .deleted_files
+                .iter()
+                .map(|f| f.file_path.as_str())
+                .collect();
             json!({
                 "status": "ok",
                 "updated_files": updated,

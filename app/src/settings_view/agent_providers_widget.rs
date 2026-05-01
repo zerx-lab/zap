@@ -99,13 +99,15 @@ impl AgentProvidersWidget {
         ctx.dispatch_typed_action_deferred(AISettingsPageAction::EnsureModelsDevLoaded);
 
         // ---- 搜索框 ----
-        let initial_query =
-            crate::ai::agent_providers::models_dev::search_query();
+        let initial_query = crate::ai::agent_providers::models_dev::search_query();
         let search_editor = ctx.add_typed_action_view(move |ctx| {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(crate::t!("settings-agent-providers-search-placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::t!("settings-agent-providers-search-placeholder"),
+                ctx,
+            );
             if !initial_query.is_empty() {
                 editor.set_buffer_text(&initial_query, ctx);
             }
@@ -114,9 +116,9 @@ impl AgentProvidersWidget {
         ctx.subscribe_to_view(&search_editor, move |_, editor, event, ctx| {
             if matches!(event, EditorEvent::Edited(_)) {
                 let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::SetModelsDevSearchQuery(buffer_text),
-                );
+                ctx.dispatch_typed_action_deferred(AISettingsPageAction::SetModelsDevSearchQuery(
+                    buffer_text,
+                ));
             }
         });
 
@@ -143,7 +145,10 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-name-placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::t!("settings-agent-providers-model-name-placeholder"),
+                ctx,
+            );
             if !initial_name.is_empty() {
                 editor.set_buffer_text(&initial_name, ctx);
             }
@@ -169,7 +174,10 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-id-placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::t!("settings-agent-providers-model-id-placeholder"),
+                ctx,
+            );
             if !initial_id.is_empty() {
                 editor.set_buffer_text(&initial_id, ctx);
             }
@@ -199,7 +207,10 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-context-placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::t!("settings-agent-providers-model-context-placeholder"),
+                ctx,
+            );
             if !initial_context.is_empty() {
                 editor.set_buffer_text(&initial_context, ctx);
             }
@@ -230,7 +241,10 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(crate::t!("settings-agent-providers-model-output-placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::t!("settings-agent-providers-model-output-placeholder"),
+                ctx,
+            );
             if !initial_output.is_empty() {
                 editor.set_buffer_text(&initial_output, ctx);
             }
@@ -273,7 +287,8 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, false);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(crate::t!("settings-agent-providers-name-placeholder"), ctx);
+            editor
+                .set_placeholder_text(crate::t!("settings-agent-providers-name-placeholder"), ctx);
             if !initial_name.is_empty() {
                 editor.set_buffer_text(&initial_name, ctx);
             }
@@ -306,10 +321,12 @@ impl AgentProvidersWidget {
         ctx.subscribe_to_view(&base_url_editor, move |_, editor, event, ctx| {
             if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
                 let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(AISettingsPageAction::UpdateAgentProviderBaseUrl {
-                    provider_id: provider_id_for_url.clone(),
-                    base_url: buffer_text,
-                });
+                ctx.dispatch_typed_action_deferred(
+                    AISettingsPageAction::UpdateAgentProviderBaseUrl {
+                        provider_id: provider_id_for_url.clone(),
+                        base_url: buffer_text,
+                    },
+                );
             }
         });
 
@@ -322,7 +339,10 @@ impl AgentProvidersWidget {
             let appearance = Appearance::handle(ctx).as_ref(ctx);
             let options = single_line_editor_options(&appearance, true);
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text(crate::t!("settings-agent-providers-api-key-placeholder"), ctx);
+            editor.set_placeholder_text(
+                crate::t!("settings-agent-providers-api-key-placeholder"),
+                ctx,
+            );
             if !initial_api_key.is_empty() {
                 editor.set_buffer_text(&initial_api_key, ctx);
             }
@@ -332,10 +352,12 @@ impl AgentProvidersWidget {
         ctx.subscribe_to_view(&api_key_editor, move |_, editor, event, ctx| {
             if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
                 let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(AISettingsPageAction::UpdateAgentProviderApiKey {
-                    provider_id: provider_id_for_key.clone(),
-                    api_key: buffer_text,
-                });
+                ctx.dispatch_typed_action_deferred(
+                    AISettingsPageAction::UpdateAgentProviderApiKey {
+                        provider_id: provider_id_for_key.clone(),
+                        api_key: buffer_text,
+                    },
+                );
             }
         });
 
@@ -608,7 +630,10 @@ impl AgentProvidersWidget {
             None => {
                 return Container::new(
                     Text::new(
-                        crate::t!("settings-agent-providers-row-missing", id = provider.id.as_str()),
+                        crate::t!(
+                            "settings-agent-providers-row-missing",
+                            id = provider.id.as_str()
+                        ),
                         appearance.ui_font_family(),
                         appearance.ui_font_size(),
                     )
@@ -699,10 +724,22 @@ impl AgentProvidersWidget {
             let header = Container::new(
                 Flex::row()
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(header_cell(2., &crate::t!("settings-agent-providers-models-header-name")))
-                    .with_child(header_cell(2., &crate::t!("settings-agent-providers-models-header-id")))
-                    .with_child(header_cell(1., &crate::t!("settings-agent-providers-models-header-context")))
-                    .with_child(header_cell(1., &crate::t!("settings-agent-providers-models-header-output")))
+                    .with_child(header_cell(
+                        2.,
+                        &crate::t!("settings-agent-providers-models-header-name"),
+                    ))
+                    .with_child(header_cell(
+                        2.,
+                        &crate::t!("settings-agent-providers-models-header-id"),
+                    ))
+                    .with_child(header_cell(
+                        1.,
+                        &crate::t!("settings-agent-providers-models-header-context"),
+                    ))
+                    .with_child(header_cell(
+                        1.,
+                        &crate::t!("settings-agent-providers-models-header-output"),
+                    ))
                     // 占位,与下方 × 按钮对齐
                     .with_child(
                         Text::new(
@@ -769,7 +806,11 @@ impl AgentProvidersWidget {
             .with_child(
                 Flex::row()
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                    .with_child(Container::new(add_model_button).with_margin_right(8.).finish())
+                    .with_child(
+                        Container::new(add_model_button)
+                            .with_margin_right(8.)
+                            .finish(),
+                    )
                     .with_child(Container::new(fetch_button).with_margin_right(8.).finish())
                     .with_child(sync_models_dev_button)
                     .finish(),
@@ -788,7 +829,11 @@ impl AgentProvidersWidget {
                 .with_child(base_url_field)
                 .with_child(api_key_field)
                 .with_child(reasoning_field)
-                .with_child(Container::new(models_column.finish()).with_margin_top(8.).finish())
+                .with_child(
+                    Container::new(models_column.finish())
+                        .with_margin_top(8.)
+                        .finish(),
+                )
                 .with_child(Container::new(bottom_row).with_margin_top(10.).finish())
                 .finish(),
         )
@@ -1000,7 +1045,10 @@ impl AgentProvidersWidget {
                     body.add_child(
                         Container::new(
                             Text::new(
-                                crate::t!("settings-agent-providers-no-match", query = query.as_str()),
+                                crate::t!(
+                                    "settings-agent-providers-no-match",
+                                    query = query.as_str()
+                                ),
                                 appearance.ui_font_family(),
                                 appearance.ui_font_size(),
                             )
@@ -1018,10 +1066,7 @@ impl AgentProvidersWidget {
                         crate::t!("settings-agent-providers-collapse")
                     } else {
                         let count: i64 = (total - COLLAPSED_LIMIT) as i64;
-                        crate::t!(
-                            "settings-agent-providers-expand-remaining",
-                            count = count
-                        )
+                        crate::t!("settings-agent-providers-expand-remaining", count = count)
                     };
                     let toggle_button = Self::render_card_button(
                         toggle_label,

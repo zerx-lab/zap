@@ -1050,8 +1050,7 @@ impl DriveIndex {
                 return !object.metadata().has_pending_online_only_change();
             }
 
-            return self.is_online(app)
-                && !object.metadata().has_pending_online_only_change();
+            return self.is_online(app) && !object.metadata().has_pending_online_only_change();
         }
 
         false

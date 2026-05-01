@@ -58,24 +58,30 @@ impl From<&DestructiveMCPConfirmationDialogVariant>
 {
     fn from(variant: &DestructiveMCPConfirmationDialogVariant) -> Self {
         match *variant {
-            DestructiveMCPConfirmationDialogVariant::DeleteLocal => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                crate::t!("settings-mcp-confirm-delete-local-title"),
-                crate::t!("settings-mcp-confirm-delete-local-description"),
-                crate::t!("settings-mcp-confirm-delete-button"),
-                crate::t!("settings-mcp-confirm-cancel-button"),
-            ),
-            DestructiveMCPConfirmationDialogVariant::DeleteShared => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                crate::t!("settings-mcp-confirm-delete-shared-title"),
-                crate::t!("settings-mcp-confirm-delete-shared-description"),
-                crate::t!("settings-mcp-confirm-delete-button"),
-                crate::t!("settings-mcp-confirm-cancel-button"),
-            ),
-            DestructiveMCPConfirmationDialogVariant::Unshare => DestructiveMCPConfirmationDialogDisplayOptions::new(
-                crate::t!("settings-mcp-confirm-unshare-title"),
-                crate::t!("settings-mcp-confirm-unshare-description"),
-                crate::t!("settings-mcp-confirm-remove-from-team-button"),
-                crate::t!("settings-mcp-confirm-cancel-button"),
-            ),
+            DestructiveMCPConfirmationDialogVariant::DeleteLocal => {
+                DestructiveMCPConfirmationDialogDisplayOptions::new(
+                    crate::t!("settings-mcp-confirm-delete-local-title"),
+                    crate::t!("settings-mcp-confirm-delete-local-description"),
+                    crate::t!("settings-mcp-confirm-delete-button"),
+                    crate::t!("settings-mcp-confirm-cancel-button"),
+                )
+            }
+            DestructiveMCPConfirmationDialogVariant::DeleteShared => {
+                DestructiveMCPConfirmationDialogDisplayOptions::new(
+                    crate::t!("settings-mcp-confirm-delete-shared-title"),
+                    crate::t!("settings-mcp-confirm-delete-shared-description"),
+                    crate::t!("settings-mcp-confirm-delete-button"),
+                    crate::t!("settings-mcp-confirm-cancel-button"),
+                )
+            }
+            DestructiveMCPConfirmationDialogVariant::Unshare => {
+                DestructiveMCPConfirmationDialogDisplayOptions::new(
+                    crate::t!("settings-mcp-confirm-unshare-title"),
+                    crate::t!("settings-mcp-confirm-unshare-description"),
+                    crate::t!("settings-mcp-confirm-remove-from-team-button"),
+                    crate::t!("settings-mcp-confirm-cancel-button"),
+                )
+            }
         }
     }
 }

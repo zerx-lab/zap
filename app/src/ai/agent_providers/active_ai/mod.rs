@@ -140,10 +140,7 @@ pub mod prompt_suggestions {
         input: Input,
     ) -> Option<RenderedRequest> {
         let cfg = resolve_active_ai_oneshot(app, terminal_view_id)?;
-        let system = render(
-            "prompt_suggestions_system.j2",
-            context! {},
-        );
+        let system = render("prompt_suggestions_system.j2", context! {});
         let user = render(
             "prompt_suggestions_user.j2",
             context! {
@@ -201,10 +198,7 @@ pub mod nld_predict {
         input: Input,
     ) -> Option<RenderedRequest> {
         let cfg = resolve_active_ai_oneshot(app, terminal_view_id)?;
-        let system = render(
-            "nld_predict_system.j2",
-            context! {},
-        );
+        let system = render("nld_predict_system.j2", context! {});
         let user = render(
             "nld_predict_user.j2",
             context! {
@@ -268,10 +262,7 @@ pub mod relevant_files {
     ) -> Option<Prepared> {
         let cfg = resolve_active_ai_oneshot(app, terminal_view_id)?;
         let input_paths: Vec<String> = input.files.iter().map(|f| f.path.clone()).collect();
-        let system = render(
-            "relevant_files_system.j2",
-            context! {},
-        );
+        let system = render("relevant_files_system.j2", context! {});
         let user = render(
             "relevant_files_user.j2",
             context! {
@@ -333,10 +324,7 @@ pub mod next_command {
     }
 
     /// Pre-spawn:解 BYOP 配置(需要 `&AppContext`)。`None` ⇒ 静默 no-op。
-    pub fn resolve(
-        app: &AppContext,
-        terminal_view_id: Option<EntityId>,
-    ) -> Option<OneshotConfig> {
+    pub fn resolve(app: &AppContext, terminal_view_id: Option<EntityId>) -> Option<OneshotConfig> {
         resolve_next_command_oneshot(app, terminal_view_id)
     }
 

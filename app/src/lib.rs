@@ -2261,7 +2261,6 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
             IntervalTimer::handle(ctx).update(ctx, |timer, _| {
                 timer.mark_interval_end("WINDOWS_CREATED");
             });
-
         }
         #[cfg_attr(target_family = "wasm", allow(unused_variables))]
         LaunchMode::CommandLine {

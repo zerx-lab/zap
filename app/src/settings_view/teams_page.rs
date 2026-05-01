@@ -861,7 +861,11 @@ impl TeamsPageView {
             }
             UserWorkspacesEvent::EmailInviteRejected(err) => {
                 self.update_team_members_state(ctx);
-                self.show_error(crate::t!("settings-teams-error-send-invite"), Some(err), ctx)
+                self.show_error(
+                    crate::t!("settings-teams-error-send-invite"),
+                    Some(err),
+                    ctx,
+                )
             }
             UserWorkspacesEvent::TeamsChanged => {
                 self.update_team_members_state(ctx);
@@ -878,21 +882,33 @@ impl TeamsPageView {
                 ctx.notify();
             }
             UserWorkspacesEvent::ToggleInviteLinksRejected(err) => {
-                self.show_error(crate::t!("settings-teams-error-toggle-invite-links"), Some(err), ctx);
+                self.show_error(
+                    crate::t!("settings-teams-error-toggle-invite-links"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::ResetInviteLinks => {
                 self.show_success(crate::t!("settings-teams-toast-reset-invite-links"), ctx);
                 ctx.notify();
             }
             UserWorkspacesEvent::ResetInviteLinksRejected(err) => {
-                self.show_error(crate::t!("settings-teams-error-reset-invite-links"), Some(err), ctx);
+                self.show_error(
+                    crate::t!("settings-teams-error-reset-invite-links"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::DeleteTeamInvite => {
                 self.update_team_members_state(ctx);
                 self.show_success(crate::t!("settings-teams-toast-deleted-invite"), ctx);
             }
             UserWorkspacesEvent::DeleteTeamInviteRejected(err) => {
-                self.show_error(crate::t!("settings-teams-error-delete-invite"), Some(err), ctx);
+                self.show_error(
+                    crate::t!("settings-teams-error-delete-invite"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::AddDomainRestrictionsSuccess => {
                 self.approve_domains_block_editor
@@ -907,9 +923,11 @@ impl TeamsPageView {
             UserWorkspacesEvent::DeleteDomainRestrictionSuccess => {
                 self.update_approved_domains_state(ctx);
             }
-            UserWorkspacesEvent::DeleteDomainRestrictionRejected(err) => {
-                self.show_error(crate::t!("settings-teams-error-delete-domain"), Some(err), ctx)
-            }
+            UserWorkspacesEvent::DeleteDomainRestrictionRejected(err) => self.show_error(
+                crate::t!("settings-teams-error-delete-domain"),
+                Some(err),
+                ctx,
+            ),
             UserWorkspacesEvent::GenerateUpgradeLink(upgrade_link) => {
                 ctx.open_url(upgrade_link);
             }
@@ -927,11 +945,18 @@ impl TeamsPageView {
                 ctx,
             ),
             UserWorkspacesEvent::ToggleTeamDiscoverabilitySuccess => {
-                self.show_success(crate::t!("settings-teams-toast-toggled-discoverability"), ctx);
+                self.show_success(
+                    crate::t!("settings-teams-toast-toggled-discoverability"),
+                    ctx,
+                );
                 ctx.notify();
             }
             UserWorkspacesEvent::ToggleTeamDiscoverabilityRejected(err) => {
-                self.show_error(crate::t!("settings-teams-error-toggle-discoverability"), Some(err), ctx);
+                self.show_error(
+                    crate::t!("settings-teams-error-toggle-discoverability"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::JoinTeamWithTeamDiscoverySuccess => {
                 // Force refresh of Warp Drive objects after joining a team
@@ -939,13 +964,15 @@ impl TeamsPageView {
                     update_manager.refresh_updated_objects(ctx);
                 });
 
-                let message = self
-                    .user_workspaces
-                    .as_ref(ctx)
-                    .current_team()
-                    .map_or(crate::t!("settings-teams-toast-joined-team"), |team| {
-                        crate::t!("settings-teams-toast-joined-team-named", name = team.name.clone())
-                    });
+                let message = self.user_workspaces.as_ref(ctx).current_team().map_or(
+                    crate::t!("settings-teams-toast-joined-team"),
+                    |team| {
+                        crate::t!(
+                            "settings-teams-toast-joined-team-named",
+                            name = team.name.clone()
+                        )
+                    },
+                );
                 self.show_success(message, ctx);
                 ctx.notify();
             }
@@ -968,14 +995,22 @@ impl TeamsPageView {
                 ctx.notify();
             }
             UserWorkspacesEvent::TransferTeamOwnershipRejected(err) => {
-                self.show_error(crate::t!("settings-teams-error-transfer-ownership"), Some(err), ctx);
+                self.show_error(
+                    crate::t!("settings-teams-error-transfer-ownership"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::SetTeamMemberRoleSuccess => {
                 self.update_team_members_state(ctx);
                 self.show_success(crate::t!("settings-teams-toast-updated-role"), ctx);
             }
             UserWorkspacesEvent::SetTeamMemberRoleRejected(err) => {
-                self.show_error(crate::t!("settings-teams-error-update-role"), Some(err), ctx);
+                self.show_error(
+                    crate::t!("settings-teams-error-update-role"),
+                    Some(err),
+                    ctx,
+                );
             }
             UserWorkspacesEvent::UpdateWorkspaceSettingsSuccess => {
                 // as of right now, this is only emitted on the billing & usage page
@@ -1308,7 +1343,11 @@ impl TeamsPageView {
     fn copy_invite_link(&mut self, link: &str, ctx: &mut ViewContext<Self>) {
         ctx.clipboard()
             .write(ClipboardContent::plain_text(link.to_string()));
-        self.show_toast(crate::t!("settings-teams-toast-link-copied"), ToastFlavor::Default, ctx);
+        self.show_toast(
+            crate::t!("settings-teams-toast-link-copied"),
+            ToastFlavor::Default,
+            ctx,
+        );
     }
 
     fn remove_user_from_team(
@@ -1803,10 +1842,12 @@ impl TeamsWidget {
         .with_margin_right(horizontal_padding)
         .finish();
 
-        let member_pricing_header =
-            Container::new(self.render_subsection_header(crate::t!("settings-teams-section-team-members-pricing"), appearance))
-                .with_margin_bottom(8.)
-                .finish();
+        let member_pricing_header = Container::new(self.render_subsection_header(
+            crate::t!("settings-teams-section-team-members-pricing"),
+            appearance,
+        ))
+        .with_margin_bottom(8.)
+        .finish();
 
         let member_pricing_info =
             self.render_sub_text(additional_members_cost_money_msg, appearance, None);
@@ -2208,9 +2249,10 @@ impl TeamsWidget {
         if let Some(policy) = team.billing_metadata.tier.shared_notebooks_policy {
             if !policy.is_unlimited {
                 let mut shared_notebooks_column = Flex::column();
-                shared_notebooks_column.add_child(
-                    self.render_plan_usage_header(crate::t!("settings-teams-shared-notebooks"), appearance),
-                );
+                shared_notebooks_column.add_child(self.render_plan_usage_header(
+                    crate::t!("settings-teams-shared-notebooks"),
+                    appearance,
+                ));
                 let num_shared_notebooks = cloud_model
                     .active_notebooks_in_space(Space::Team { team_uid: team.uid }, app)
                     .count();
@@ -2233,9 +2275,10 @@ impl TeamsWidget {
         if let Some(policy) = team.billing_metadata.tier.shared_workflows_policy {
             if !policy.is_unlimited {
                 let mut shared_workflows_column = Flex::column();
-                shared_workflows_column.add_child(
-                    self.render_plan_usage_header(crate::t!("settings-teams-shared-workflows"), appearance),
-                );
+                shared_workflows_column.add_child(self.render_plan_usage_header(
+                    crate::t!("settings-teams-shared-workflows"),
+                    appearance,
+                ));
                 let num_shared_workflows = cloud_model
                     .active_workflows_in_space(Space::Team { team_uid: team.uid }, app)
                     .count();
@@ -2329,8 +2372,10 @@ impl TeamsWidget {
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween);
 
         // 1) "Invite by Link" subsection header
-        invite_by_link_header_row
-            .add_child(self.render_subsection_header(crate::t!("settings-teams-section-invite-by-link"), appearance));
+        invite_by_link_header_row.add_child(self.render_subsection_header(
+            crate::t!("settings-teams-section-invite-by-link"),
+            appearance,
+        ));
 
         // 1.1) Toggle to the right of header only renders if user is admin
         if has_admin_permissions {
@@ -2426,10 +2471,13 @@ impl TeamsWidget {
 
         // "Invite by Email" subsection header
         section.add_child(
-            Container::new(self.render_subsection_header(crate::t!("settings-teams-section-invite-by-email"), appearance))
-                .with_padding_top(CONTENT_SEPARATION_PADDING)
-                .with_padding_bottom(8.)
-                .finish(),
+            Container::new(self.render_subsection_header(
+                crate::t!("settings-teams-section-invite-by-email"),
+                appearance,
+            ))
+            .with_padding_top(CONTENT_SEPARATION_PADDING)
+            .with_padding_bottom(8.)
+            .finish(),
         );
 
         match team.billing_metadata.delinquency_status {
@@ -2726,9 +2774,10 @@ impl TeamsWidget {
         // 1) "Team Members" header
         section.add_child(
             SavePosition::new(
-                Container::new(
-                    self.render_subsection_header(crate::t!("settings-teams-section-team-members"), appearance),
-                )
+                Container::new(self.render_subsection_header(
+                    crate::t!("settings-teams-section-team-members"),
+                    appearance,
+                ))
                 .with_padding_bottom(16.)
                 .finish(),
                 TEAM_MEMBERS_HEADER_POSITION_ID,
@@ -2759,9 +2808,12 @@ impl TeamsWidget {
 
         // 1) "Restrict by domain" header
         section.add_child(
-            Container::new(self.render_sub_header(crate::t!("settings-teams-section-restrict-by-domain"), appearance))
-                .with_padding_top(16.)
-                .finish(),
+            Container::new(self.render_sub_header(
+                crate::t!("settings-teams-section-restrict-by-domain"),
+                appearance,
+            ))
+            .with_padding_top(16.)
+            .finish(),
         );
 
         // 2) Instruction text for domain restrictions + Domain approval mechanism (input box + button)
@@ -2938,9 +2990,12 @@ impl TeamsWidget {
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween);
         discoverable_header_row.add_child(
-            Container::new(self.render_sub_header(crate::t!("settings-teams-section-make-discoverable"), appearance))
-                .with_padding_top(CONTENT_SEPARATION_PADDING)
-                .finish(),
+            Container::new(self.render_sub_header(
+                crate::t!("settings-teams-section-make-discoverable"),
+                appearance,
+            ))
+            .with_padding_top(CONTENT_SEPARATION_PADDING)
+            .finish(),
         );
 
         // Toggle to the right of header
@@ -3648,10 +3703,15 @@ impl TeamsWidget {
         let mut page = Flex::column();
 
         // Title, subtitle, and description
-        page.add_child(render_sub_header(appearance, crate::t!("settings-teams-page-title"), None));
-        page.add_child(
-            self.render_sub_header_with_subtext_color(appearance, crate::t!("settings-teams-create-page-subtitle")),
-        );
+        page.add_child(render_sub_header(
+            appearance,
+            crate::t!("settings-teams-page-title"),
+            None,
+        ));
+        page.add_child(self.render_sub_header_with_subtext_color(
+            appearance,
+            crate::t!("settings-teams-create-page-subtitle"),
+        ));
         page.add_child(
             Container::new(
                 self.render_description(crate::t!("settings-teams-create-description"), appearance),
@@ -3799,13 +3859,11 @@ impl TeamsWidget {
 
         // Call to action
         single_team.add_child(
-            Container::new(
-                self.render_sub_text(
-                    crate::t!("settings-teams-discovery-cta"),
-                    appearance,
-                    None,
-                ),
-            )
+            Container::new(self.render_sub_text(
+                crate::t!("settings-teams-discovery-cta"),
+                appearance,
+                None,
+            ))
             .with_padding_top(12.)
             .with_padding_bottom(12.)
             .finish(),

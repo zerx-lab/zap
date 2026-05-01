@@ -659,16 +659,7 @@ impl Default for AgentProviderKind {
 /// `AgentProviderKind` 目前只有 `OpenAiCompatible`(语义"用户自管 endpoint"),
 /// `AgentProviderApiType` 决定 genai 用哪种原生协议序列化请求 / 解析响应。
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    Hash,
-    Serialize,
-    Deserialize,
-    EnumIter,
-    schemars::JsonSchema,
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter, schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum AgentProviderApiType {

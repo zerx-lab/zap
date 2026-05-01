@@ -869,6 +869,26 @@ impl BlocklistAIActionModel {
         conversation_id: AIConversationId,
         ctx: &mut ModelContext<Self>,
     ) {
+        self.queue_actions_with_options(actions, conversation_id, false, ctx);
+    }
+
+    /// 同 `queue_actions`,但增加 `auto_accept` 参数。
+    ///
+    /// 当 `auto_accept=true` 时,preprocess 完成后(`handle_preprocess_actions_results`)
+    /// 把每个 action push 进 pending_actions 后,**立即对它们逐个调用 `execute_action`**
+    /// (内部走 `is_user_initiated=true` 路径,绕过 `NeedsConfirmation` 检查),
+    /// 而不是默认的 `try_to_execute_available_actions`(`is_user_initiated=false`)。
+    ///
+    /// 用途:OpenWarp BYOP 路径下 LRC tag-in 场景 — 用户主动 SetInputModeAgent 把
+    /// 控制权交给 agent,但 alt-screen 全屏下看不到 RequestedCommand 的 Accept 按钮,
+    /// controller 检测到 LRC 状态后用本方法绕开手动确认死锁。
+    pub(super) fn queue_actions_with_options(
+        &mut self,
+        actions: Vec<AIAgentAction>,
+        conversation_id: AIConversationId,
+        auto_accept: bool,
+        ctx: &mut ModelContext<Self>,
+    ) {
         self.action_order.insert(
             conversation_id,
             actions
@@ -892,7 +912,13 @@ impl BlocklistAIActionModel {
             .insert_preprocess_action_batch(action_ids);
 
         ctx.spawn(join_all(preprocess_future), move |me, _, ctx| {
-            me.handle_preprocess_actions_results(conversation_id, preprocess_id, actions, ctx);
+            me.handle_preprocess_actions_results(
+                conversation_id,
+                preprocess_id,
+                actions,
+                auto_accept,
+                ctx,
+            );
         });
     }
 
@@ -901,6 +927,7 @@ impl BlocklistAIActionModel {
         conversation_id: AIConversationId,
         preprocess_id: PreprocessId,
         actions: Vec<AIAgentAction>,
+        auto_accept: bool,
         ctx: &mut ModelContext<Self>,
     ) {
         let actions_to_enqueue = self
@@ -909,6 +936,7 @@ impl BlocklistAIActionModel {
             .or_default()
             .handle_preprocess_actions_result(preprocess_id, actions);
 
+        let mut auto_accept_ids: Vec<AIAgentActionId> = Vec::new();
         for action in actions_to_enqueue {
             let action_id = action.id.clone();
             // Some actions may already have results. This can happen in session sharing when
@@ -941,9 +969,26 @@ impl BlocklistAIActionModel {
                 .entry(conversation_id)
                 .or_default()
                 .push_back(action);
-            ctx.emit(BlocklistAIActionEvent::QueuedAction(action_id));
+            ctx.emit(BlocklistAIActionEvent::QueuedAction(action_id.clone()));
+            if auto_accept {
+                auto_accept_ids.push(action_id);
+            }
         }
-        self.try_to_execute_available_actions(conversation_id, ctx);
+        if auto_accept && !auto_accept_ids.is_empty() {
+            // OpenWarp:LRC tag-in 自动授权路径。Bypass 默认的
+            // try_to_execute_available_actions(is_user_initiated=false),
+            // 直接对每个刚 push 的 action 调用 execute_action(等价用户 Accept)。
+            log::info!(
+                "[byop-diag] queue_actions_with_options(auto_accept=true): \
+                 invoking execute_action for {} action(s)",
+                auto_accept_ids.len()
+            );
+            for action_id in auto_accept_ids {
+                self.execute_action(&action_id, conversation_id, ctx);
+            }
+        } else {
+            self.try_to_execute_available_actions(conversation_id, ctx);
+        }
     }
 
     /// Apply a finished action result to the conversation.

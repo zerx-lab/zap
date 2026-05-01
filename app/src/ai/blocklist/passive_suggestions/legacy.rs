@@ -666,7 +666,9 @@ fn build_prompt_suggestions_byop_request(
     let (processed_input, processed_output) = {
         let model = terminal_model.lock();
         let terminal_width = model.block_list().size().columns();
-        let current_block = model.block_list().block_with_id(&block.serialized_block.id)?;
+        let current_block = model
+            .block_list()
+            .block_with_id(&block.serialized_block.id)?;
         current_block.get_block_content_summary(
             terminal_width,
             NUM_TOP_BLOCK_LINES,
