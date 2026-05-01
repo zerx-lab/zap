@@ -27,7 +27,7 @@ pub mod replay_agent_conversations;
 pub mod role_change_modal;
 mod selections;
 pub mod settings;
-pub mod share_modal;
+// OpenWarp:删除 share_modal(云端 shared session 弹窗)
 pub(super) mod shared_handlers;
 pub mod sharer;
 pub mod viewer;

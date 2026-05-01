@@ -6,18 +6,18 @@ use warp_core::features::FeatureFlag;
 use warpui::{EntityId, ViewContext};
 
 use super::blocklist_filter::exchanges_for_blocklist;
+use crate::ai::blocklist::BlocklistAIContextModel;
 use crate::ai::blocklist::agent_view::{
     AgentViewEntryBlockParams, AgentViewEntryOrigin, DismissalStrategy, EphemeralMessage,
 };
 use crate::ai::blocklist::block::cli_controller::CLISubagentController;
 use crate::ai::blocklist::history_model::{CLIAgentConversation, CloudConversationData};
-use crate::ai::blocklist::BlocklistAIContextModel;
+use crate::terminal::TerminalModel;
 use crate::terminal::input::message_bar::Message as InputMessage;
 use crate::terminal::input::message_bar::MessageItem;
 use crate::terminal::model::block::SerializedBlock;
 use crate::terminal::model::rich_content::RichContentType;
 use crate::terminal::model_events::ModelEventDispatcher;
-use crate::terminal::TerminalModel;
 use crate::util::bindings::keybinding_name_to_keystroke;
 use chrono::{DateTime, Local};
 use itertools::Itertools;
@@ -26,10 +26,10 @@ use std::ops::Not;
 
 use super::DEFAULT_AI_BLOCK_HEIGHT;
 
-use crate::ai::agent::task::helper::MessageExt;
 use crate::ai::agent::AIAgentActionResultType;
 use crate::ai::agent::CreateDocumentsRequest;
 use crate::ai::agent::MessageId;
+use crate::ai::agent::task::helper::MessageExt;
 use crate::ai::agent::{
     AIAgentAction, AIAgentActionType, AIAgentOutputMessage, AIAgentOutputMessageType,
     CreateDocumentsResult, EditDocumentsResult,
@@ -39,12 +39,12 @@ use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::{
     ai::{
         agent::{
-            conversation::{AIConversation, AIConversationId},
             AIAgentExchange, AIAgentExchangeId, AIAgentOutput,
+            conversation::{AIConversation, AIConversationId},
         },
         blocklist::{
-            history_model::BlocklistAIHistoryModel, model::AIBlockModelImpl, AIBlock,
-            BlocklistAIActionModel, BlocklistAIController, ClientIdentifiers,
+            AIBlock, BlocklistAIActionModel, BlocklistAIController, ClientIdentifiers,
+            history_model::BlocklistAIHistoryModel, model::AIBlockModelImpl,
         },
         get_relevant_files::controller::GetRelevantFilesController,
         restored_conversations::RestoredAgentConversations,

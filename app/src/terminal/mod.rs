@@ -68,7 +68,7 @@ pub mod safe_mode_settings;
 mod secret_regex_updater;
 pub mod session_settings;
 pub mod settings;
-mod share_block_modal;
+// OpenWarp:删除 share_block_modal(云端 block 永久链分享)
 pub mod shared_session;
 mod shell_launch_state;
 pub mod universal_developer_input;
@@ -89,7 +89,7 @@ pub(crate) mod cli_agent_sessions;
 
 pub use mock_terminal_manager::MockTerminalManager;
 use model_events::{ModelEvent, ModelEventDispatcher};
-pub use share_block_modal::{ShareBlockModal, ShareBlockModalEvent, ShareBlockType};
+// OpenWarp:删除 ShareBlockModal pub use
 pub use terminal_manager::TerminalManager;
 
 pub use block_list_settings::*;
@@ -120,7 +120,7 @@ const MIN_COLUMNS: usize = 2;
 pub const PTY_READS_BROADCAST_CHANNEL_SIZE: usize = 1024;
 
 pub fn init(app: &mut AppContext) {
-    share_block_modal::init(app);
+    // OpenWarp:删除 share_block_modal::init
     view::init(app);
 }
 

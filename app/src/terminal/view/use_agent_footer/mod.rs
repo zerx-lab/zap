@@ -35,20 +35,20 @@ use warp_core::{
     ui::{
         appearance::Appearance,
         color::contrast::{
-            high_enough_contrast, pick_best_foreground_color, MinimumAllowedContrast,
+            MinimumAllowedContrast, high_enough_contrast, pick_best_foreground_color,
         },
-        theme::{color::internal_colors, Fill as ThemeFill},
+        theme::{Fill as ThemeFill, color::internal_colors},
     },
 };
 
 use warpui::{
+    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
     elements::{
         ChildView, Container, CrossAxisAlignment, Empty, Expanded, Flex, MainAxisSize,
         ParentElement,
     },
     keymap::Keystroke,
-    AppContext, Element, Entity, EntityId, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -61,8 +61,8 @@ use crate::{
     },
     terminal::cli_agent_sessions::CLIAgentRichInputCloseReason,
     terminal::{
-        model_events::{ModelEvent, ModelEventDispatcher},
         TerminalModel,
+        model_events::{ModelEvent, ModelEventDispatcher},
     },
     ui_components::{blended_colors, icons::Icon},
     view_components::action_button::{
@@ -1304,8 +1304,10 @@ impl TypedActionView for UseAgentToolbar {
                     .should_render_use_agent_footer_for_user_commands
                     .set_value(false, ctx)
                 {
-                    report_error!(anyhow!("{e:?}")
-                        .context("Failed to set `ShouldRenderUseAgentToolbarForUserCommands`"));
+                    report_error!(
+                        anyhow!("{e:?}")
+                            .context("Failed to set `ShouldRenderUseAgentToolbarForUserCommands`")
+                    );
                 }
             });
         }

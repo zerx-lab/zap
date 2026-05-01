@@ -3,12 +3,12 @@ use std::time::Duration;
 use crate::modal::Modal;
 use crate::ui_components::blended_colors;
 use warp_core::ui::appearance::Appearance;
+use warpui::r#async::Timer;
 use warpui::elements::{
     ChildView, Container, CrossAxisAlignment, Flex, MouseStateHandle, ParentElement, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
-use warpui::r#async::Timer;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{

@@ -92,7 +92,12 @@ use crate::terminal::view::PromptPart;
 use crate::terminal::view::{
     NotificationsDiscoveryBannerAction, NotificationsErrorBannerAction, NotificationsTrigger,
 };
-use crate::terminal::ShareBlockType;
+// OpenWarp:share_block_modal 已删,本地 stub 仅为保持 telemetry 枚举可编译,运行时永不触发
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub enum ShareBlockType {
+    Single,
+    All,
+}
 use crate::tips::WelcomeTipFeature;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::settings::EditorLayout;

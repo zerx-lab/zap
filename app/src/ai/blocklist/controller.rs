@@ -11,16 +11,16 @@ mod slash_command;
 use input_context::{input_context_for_request, parse_context_attachments};
 pub use slash_command::*;
 
-use self::response_stream::{ResponseStream, ResponseStreamEvent};
-use super::agent_view::AgentViewEntryOrigin;
+use self::response_stream::{PendingTitleGeneration, ResponseStream, ResponseStreamEvent};
 use super::ResponseStreamId;
+use super::agent_view::AgentViewEntryOrigin;
 use super::{
+    BlocklistAIInputModel, InputType,
     action_model::{BlocklistAIActionEvent, BlocklistAIActionModel},
     agent_view::{AgentViewController, AgentViewControllerEvent},
     context_model::BlocklistAIContextModel,
-    history_model::BlocklistAIHistoryModel,
+    history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel},
     input_model::InputConfig,
-    BlocklistAIInputModel, InputType,
 };
 use crate::ai::agent::api::{self, ServerConversationToken};
 use crate::ai::agent::conversation::{AIConversation, ConversationStatus};
@@ -36,14 +36,14 @@ use crate::ai::document::ai_document_model::{
 };
 use crate::ai::llms::LLMId;
 use crate::ai::{
+    AIRequestUsageModel,
     agent::{
-        conversation::AIConversationId, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
-        AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers, EntrypointType,
-        FinishedAIAgentOutput, RenderableAIError, RequestCost, RequestMetadata, StaticQueryType,
-        UserQueryMode,
+        AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentExchangeId,
+        AIAgentInput, AIAgentOutputStatus, AIIdentifiers, EntrypointType, FinishedAIAgentOutput,
+        RenderableAIError, RequestCost, RequestMetadata, StaticQueryType, UserQueryMode,
+        conversation::AIConversationId,
     },
     llms::LLMPreferences,
-    AIRequestUsageModel,
 };
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::features::FeatureFlag;
@@ -54,14 +54,14 @@ use crate::persistence::ModelEvent;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::server_api::AIApiError;
 use crate::terminal::model::block::{
-    formatted_terminal_contents_for_input, BlockId, CURSOR_MARKER,
+    BlockId, CURSOR_MARKER, formatted_terminal_contents_for_input,
 };
-use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::terminal::ssh::util::InteractiveSshCommand;
+use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::terminal::{
-    model::session::{active_session::ActiveSession, SessionType},
-    model::terminal_model::TerminalModel,
     ShellLaunchData,
+    model::session::{SessionType, active_session::ActiveSession},
+    model::terminal_model::TerminalModel,
 };
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -76,7 +76,11 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 use warp_core::assertions::safe_assert;
-use warp_multi_agent_api::{message, Task, ToolType};
+use warp_multi_agent_api::{
+    ClientAction, Task, ToolType,
+    client_action::{Action, UpdateTaskDescription},
+    message,
+};
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 
 use super::orchestration_events::{OrchestrationEventService, OrchestrationEventServiceEvent};
@@ -1739,8 +1743,8 @@ impl BlocklistAIController {
         {
             let Some(conversation) = history_model.conversation(&conversation_id) else {
                 return Err(anyhow!(
-                        "Tried to build passive suggestions request params for non-existent conversation with ID {conversation_id:?}"
-                    ));
+                    "Tried to build passive suggestions request params for non-existent conversation with ID {conversation_id:?}"
+                ));
             };
             let task_id = conversation.get_root_task_id().clone();
             let conversation_data = api::ConversationData {
@@ -1772,8 +1776,8 @@ impl BlocklistAIController {
             (conversation_id, task_id, conversation_data)
         } else {
             return Err(anyhow!(
-                    "Tried to use agent response completed trigger to generate passive suggestions without a conversation ID"
-                ));
+                "Tried to use agent response completed trigger to generate passive suggestions without a conversation ID"
+            ));
         };
 
         let inputs = vec![AIAgentInput::TriggerPassiveSuggestion {
@@ -2291,6 +2295,82 @@ impl BlocklistAIController {
             .try_cancel_stream(response_stream_id, reason, ctx)
     }
 
+    fn start_title_generation(
+        &mut self,
+        pending_title_generation: PendingTitleGeneration,
+        stream_id: ResponseStreamId,
+        conversation_id: AIConversationId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        let terminal_view_id = self.terminal_view_id;
+        let _ = ctx.spawn(
+            async move {
+                let result = crate::ai::agent_providers::chat_stream::generate_title_via_byop(
+                    &pending_title_generation.input,
+                    &pending_title_generation.user_query,
+                )
+                .await;
+                (pending_title_generation.task_id, result)
+            },
+            move |me, (task_id, result), ctx| match result {
+                Ok(Some(title)) => {
+                    log::info!("[byop] title generated: {title:?}");
+                    let client_actions = vec![ClientAction {
+                        action: Some(Action::UpdateTaskDescription(UpdateTaskDescription {
+                            task_id,
+                            description: title,
+                        })),
+                    }];
+                    let response_event = warp_multi_agent_api::ResponseEvent {
+                        r#type: Some(warp_multi_agent_api::response_event::Type::ClientActions(
+                            warp_multi_agent_api::response_event::ClientActions {
+                                actions: client_actions.clone(),
+                            },
+                        )),
+                    };
+                    if FeatureFlag::AgentSharedSessions.is_enabled() {
+                        let participant_id = me
+                            .get_current_response_initiator()
+                            .or_else(|| me.get_sharer_participant_id());
+                        let mut model = me.terminal_model.lock();
+                        if model.shared_session_status().is_sharer() {
+                            model.send_agent_response_for_shared_session(
+                                &response_event,
+                                participant_id,
+                                None,
+                            );
+                        }
+                    }
+                    BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+                        match history_model.apply_client_actions(
+                            &stream_id,
+                            client_actions,
+                            conversation_id,
+                            terminal_view_id,
+                            ctx,
+                        ) {
+                            Ok(()) => {
+                                ctx.emit(BlocklistAIHistoryEvent::UpdatedConversationMetadata {
+                                    terminal_view_id: Some(terminal_view_id),
+                                    conversation_id,
+                                });
+                            }
+                            Err(e) => {
+                                log::warn!("[byop] title update failed: {e:#}");
+                            }
+                        }
+                    });
+                }
+                Ok(None) => {
+                    log::warn!("[byop] title gen returned empty content; skip");
+                }
+                Err(e) => {
+                    log::warn!("[byop] title gen failed: {e:#}; skip");
+                }
+            },
+        );
+    }
+
     fn handle_response_stream_event(
         &mut self,
         did_input_contain_user_query: bool,
@@ -2377,6 +2457,26 @@ impl BlocklistAIController {
                             warp_multi_agent_api::response_event::Type::Finished(
                                 finished_event,
                             ) => {
+                                let completed_successfully = matches!(
+                                    finished_event.reason.as_ref(),
+                                    Some(
+                                        warp_multi_agent_api::response_event::stream_finished::Reason::Done(_)
+                                    ) | None
+                                );
+                                if completed_successfully {
+                                    if let Some(pending_title_generation) =
+                                        response_stream.update(ctx, |response_stream, _| {
+                                            response_stream.take_pending_title_generation()
+                                        })
+                                    {
+                                        self.start_title_generation(
+                                            pending_title_generation,
+                                            stream_id.clone(),
+                                            conversation_id,
+                                            ctx,
+                                        );
+                                    }
+                                }
                                 self.handle_response_stream_finished(
                                     &stream_id,
                                     finished_event,
@@ -2551,37 +2651,17 @@ impl BlocklistAIController {
                             .join(", "),
                         conversation_id,
                     );
-                    // OpenWarp:LRC tag-in 场景自动授权 agent 工具执行。
+                    // OpenWarp:LRC tag-in 首轮自动授权 agent 工具执行。
                     //
-                    // 触发条件:active_block 处于 InteractionMode::User { did_user_tag_in_agent: true },
-                    // 即用户主动 SetInputModeAgent 把 input 切到 agent,本意就是"放心让 agent 操作"。
-                    // 但 alt-screen 全屏(nvim/htop 等)下,RequestedCommand 的 Accept 按钮渲染在
-                    // CLISubagentView 浮窗里,而该浮窗目前 view-content 渲染未完整(已知遗留),
-                    // 用户在 nvim 屏下看不到 Accept 按钮,导致 agent 工具调用永远卡 NeedsConfirmation。
-                    //
-                    // 解法:queue_actions 完成后立即模拟用户 Accept 这一轮所有 action —— 调
-                    // `execute_action(action_id, conv, ctx)`,内部走
-                    // `start_pending_action_by_id(..., is_user_initiated=true, ...)`,
-                    // 在 executor.try_to_execute_action 中 is_user_initiated 短路 needs_confirmation 检查。
-                    // 注意:LRC spawn 后 cli_controller 会把 block 从 InteractionMode::User(tag-in)
-                    // 切到 InteractionMode::Agent(monitored)— 看 cli_controller.rs:500
-                    // `set_agent_interaction_mode_for_agent_monitored_command`,所以 stream finish
-                    // 进 AfterStreamFinished 时 `is_agent_tagged_in()` 已经返回 false。
-                    // 这里的判定要覆盖两种状态:
-                    //   1. 还是 tag-in(没 spawn,普通 LRC tag-in 路径)— `is_agent_tagged_in()`
-                    //   2. 已 spawn 升级 monitored(本对话挂了 cli subagent metadata)
-                    //      — `agent_interaction_metadata.conversation_id == 本次 conv`
-                    let auto_accept_for_lrc = {
-                        let terminal_model = self.terminal_model.lock();
-                        let active_block = terminal_model.block_list().active_block();
-                        active_block.is_agent_tagged_in()
-                            || active_block
-                                .agent_interaction_metadata()
-                                .is_some_and(|m| m.conversation_id() == &conversation_id)
-                    };
-                    if auto_accept_for_lrc {
+                    // 触发条件:发起本轮请求时 active_block 处于
+                    // InteractionMode::User { did_user_tag_in_agent: true }。不能用当前
+                    // active_block 的 monitored metadata 兜底,否则同一 CLI subagent 会话里的
+                    // 后续普通请求也会被自动确认,导致确认 UI 不显示。
+                    let auto_accept_for_lrc_tag_in =
+                        response_stream.as_ref(ctx).is_lrc_tag_in_request();
+                    if auto_accept_for_lrc_tag_in {
                         log::info!(
-                            "[byop] LRC tag-in/monitored: queue with auto-accept ({} action(s))",
+                            "[byop] LRC tag-in: queue with auto-accept ({} action(s))",
                             actions_to_queue.len()
                         );
                     }
@@ -2589,7 +2669,7 @@ impl BlocklistAIController {
                         action_model.queue_actions_with_options(
                             actions_to_queue,
                             conversation_id,
-                            auto_accept_for_lrc,
+                            auto_accept_for_lrc_tag_in,
                             ctx,
                         );
                     });

@@ -9,9 +9,9 @@ use warpui::{Entity, ModelContext};
 
 use crate::{
     ai::agent::{
-        api::{self, generate_multi_agent_output, ConvertToAPITypeError},
+        AIAgentInput, AIIdentifiers, CancellationReason,
+        api::{self, ConvertToAPITypeError, generate_multi_agent_output},
         conversation::AIConversationId,
-        AIIdentifiers, CancellationReason,
     },
     ai::blocklist::BlocklistAIHistoryModel,
     network::NetworkStatus,
@@ -22,6 +22,12 @@ use warpui::SingletonEntity;
 
 /// BYOP 路径的请求分流参数。从 LLMId、settings、conversation 中提取后
 /// 一次性塞给 spawn closure(ctx 不能跨 await 边界)。
+pub(super) struct PendingTitleGeneration {
+    pub(super) input: crate::ai::agent_providers::chat_stream::TitleGenInput,
+    pub(super) user_query: String,
+    pub(super) task_id: String,
+}
+
 struct ByopDispatch {
     base_url: String,
     api_key: String,
@@ -40,7 +46,7 @@ struct ByopDispatch {
     /// 仅首轮(root task 还没 source)需要;再次发会触发 `UnexpectedUpgrade`。
     needs_create_task: bool,
     /// 标题生成模型参数。仅在首轮(needs_create_task)且 active title_model
-    /// 解码为合法 BYOP id 时填充;否则 `None`,chat_stream 跳过摘要步骤。
+    /// 解码为合法 BYOP id 时填充;否则不启动后台标题生成。
     title_gen: Option<TitleGenParams>,
     /// LRC 场景绑定的 `command_id`(= LRC block id 字符串)。
     lrc_command_id: Option<String>,
@@ -123,6 +129,32 @@ fn byop_dispatch_info(
     })
 }
 
+fn pending_title_generation_from_byop(
+    params: &api::RequestParams,
+    byop: &ByopDispatch,
+) -> Option<PendingTitleGeneration> {
+    let title_gen = byop.title_gen.as_ref()?;
+    let user_query = params.input.iter().find_map(|input| {
+        if let AIAgentInput::UserQuery { query, .. } = input {
+            Some(query.clone())
+        } else {
+            None
+        }
+    })?;
+
+    Some(PendingTitleGeneration {
+        input: crate::ai::agent_providers::chat_stream::TitleGenInput {
+            base_url: title_gen.base_url.clone(),
+            api_key: title_gen.api_key.clone(),
+            model_id: title_gen.model_id.clone(),
+            api_type: title_gen.api_type,
+            reasoning_effort: title_gen.reasoning_effort,
+        },
+        user_query,
+        task_id: byop.root_task_id.clone(),
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ResponseStreamId(String);
 
@@ -167,6 +199,8 @@ pub struct ResponseStream {
     /// triggered by a previous error.
     can_attempt_resume_on_error: bool,
 
+    pending_title_generation: Option<PendingTitleGeneration>,
+
     /// Whether we should attempt to resume the conversation after the stream finishes.
     ///
     /// This is set when we receive a retryable error after client actions have been received
@@ -200,6 +234,9 @@ impl ResponseStream {
         // 则在 spawn 前从 ctx 中取出 (provider, api_key, model_id, root_task_id),
         // 走自定义 chat completions。否则走 warp 自家 multi-agent 端点(原有路径)。
         let byop_dispatch = byop_dispatch_info(&params, &ai_identifiers, ctx);
+        let pending_title_generation = byop_dispatch
+            .as_ref()
+            .and_then(|byop| pending_title_generation_from_byop(&params, byop));
         let _ = ctx.spawn(
             async move {
                 if let Some(byop) = byop_dispatch {
@@ -213,15 +250,6 @@ impl ResponseStream {
                         byop.root_task_id,
                         byop.target_task_id,
                         byop.needs_create_task,
-                        byop.title_gen.map(|t| {
-                            crate::ai::agent_providers::chat_stream::TitleGenInput {
-                                base_url: t.base_url,
-                                api_key: t.api_key,
-                                model_id: t.model_id,
-                                api_type: t.api_type,
-                                reasoning_effort: t.reasoning_effort,
-                            }
-                        }),
                         byop.lrc_command_id,
                         byop.lrc_should_spawn_subagent,
                         byop.context_window,
@@ -247,13 +275,22 @@ impl ResponseStream {
             has_received_client_actions: false,
             ai_identifiers,
             can_attempt_resume_on_error,
+            pending_title_generation,
             should_resume_conversation_after_stream_finished: false,
             current_request_id: Some(request_id),
         }
     }
 
+    pub(super) fn take_pending_title_generation(&mut self) -> Option<PendingTitleGeneration> {
+        self.pending_title_generation.take()
+    }
+
     pub fn id(&self) -> &ResponseStreamId {
         &self.id
+    }
+
+    pub fn is_lrc_tag_in_request(&self) -> bool {
+        self.params.lrc_should_spawn_subagent
     }
 
     /// Returns true if we should attempt to resume the conversation after the stream finishes.
@@ -306,15 +343,6 @@ impl ResponseStream {
                         byop.root_task_id,
                         byop.target_task_id,
                         byop.needs_create_task,
-                        byop.title_gen.map(|t| {
-                            crate::ai::agent_providers::chat_stream::TitleGenInput {
-                                base_url: t.base_url,
-                                api_key: t.api_key,
-                                model_id: t.model_id,
-                                api_type: t.api_type,
-                                reasoning_effort: t.reasoning_effort,
-                            }
-                        }),
                         byop.lrc_command_id,
                         byop.lrc_should_spawn_subagent,
                         byop.context_window,

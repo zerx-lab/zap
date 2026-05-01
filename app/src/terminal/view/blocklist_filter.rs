@@ -1,6 +1,6 @@
 //! Utilities for filtering which tasks and exchanges should be shown in the blocklist.
 
-use crate::ai::agent::{conversation::AIConversation, task::Task, AIAgentExchange};
+use crate::ai::agent::{AIAgentExchange, conversation::AIConversation, task::Task};
 
 /// Returns whether a task's exchanges should be shown in the blocklist.
 pub(super) fn should_show_task_in_blocklist(task: &Task) -> bool {

@@ -1,10 +1,10 @@
-use warpui::{elements::MouseStateHandle, Element};
+use warpui::{Element, elements::MouseStateHandle};
 
 use crate::{appearance::Appearance, terminal::view::TerminalAction};
 
 use super::{
-    render_inline_block_list_banner, InlineBannerButtonState, InlineBannerContent,
-    InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonVariant,
+    InlineBannerButtonState, InlineBannerContent, InlineBannerStyle, InlineBannerTextButton,
+    InlineBannerTextButtonVariant, render_inline_block_list_banner,
 };
 
 #[derive(Clone, Copy, Debug)]

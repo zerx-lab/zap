@@ -7,6 +7,7 @@ use crate::drive::sharing::ShareableObject;
 use crate::editor::{InteractionState, ReplicaId};
 use crate::server::telemetry::SharingDialogSource;
 use crate::settings::InputModeSettings;
+use crate::terminal::TerminalModel;
 use crate::terminal::block_list_viewport::ScrollPositionUpdate;
 use crate::terminal::model::blocks::BlockListPoint;
 use crate::terminal::model::index::Point;
@@ -18,20 +19,19 @@ use crate::terminal::shared_session::role_change_modal::{
 };
 use crate::terminal::shared_session::settings::SharedSessionSettings;
 use crate::terminal::shared_session::{
-    join_link, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionStatus,
-    COPY_LINK_TEXT,
+    COPY_LINK_TEXT, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionStatus,
+    join_link,
 };
 use crate::terminal::view::{
     ContextMenuAction, Event, InlineBannerItem, InlineBannerType, RichContentInsertionPosition,
     SharedSessionBanners, SizeUpdateBuilder, TerminalAction, TerminalView,
 };
-use crate::terminal::TerminalModel;
 use crate::view_components::{DismissibleToast, ToastFlavor};
+use crate::{TelemetryEvent, send_telemetry_from_ctx};
 use crate::{
     menu::{MenuItem, MenuItemFields},
     terminal::shared_session::presence_manager::{Event as PresenceManagerEvent, PresenceManager},
 };
-use crate::{send_telemetry_from_ctx, TelemetryEvent};
 use chrono::{DateTime, Local};
 use itertools::Itertools;
 use session_sharing_protocol::common::{
@@ -62,14 +62,14 @@ use crate::terminal::shared_session::participant_avatar_view::ParticipantAvatarV
 use session_sharing_protocol::common::ParticipantList;
 use session_sharing_protocol::common::ParticipantPresenceUpdate;
 
-use warpui::elements::MouseStateHandle;
 use warpui::AppContext;
+use warpui::elements::MouseStateHandle;
 
-use super::adapter::{Adapter, Kind, Participant};
-use super::sharer::inactivity_modal::InactivityModalEvent;
-use super::sharer::Sharer;
-use super::viewer::Viewer;
 use super::ConversationEndedTombstoneView;
+use super::adapter::{Adapter, Kind, Participant};
+use super::sharer::Sharer;
+use super::sharer::inactivity_modal::InactivityModalEvent;
+use super::viewer::Viewer;
 
 impl TerminalView {
     pub fn sharer_session_kind(&self) -> Option<&Kind> {
@@ -374,28 +374,16 @@ impl TerminalView {
         ctx.emit(Event::RoleRequestCancelled(role_request_id.clone()));
     }
 
+    // OpenWarp:Share Session 路径已切断,下面两个方法保留签名但 no-op,
+    // 不再 emit `Event::OpenShareSessionModal{,DeniedModal}`,也不再触达云端协同会话服务。
     pub fn open_share_session_modal(
         &mut self,
-        open_source: SharedSessionActionSource,
-        ctx: &mut ViewContext<Self>,
+        _open_source: SharedSessionActionSource,
+        _ctx: &mut ViewContext<Self>,
     ) {
-        if !matches!(
-            open_source,
-            SharedSessionActionSource::BlocklistContextMenu { .. }
-        ) {
-            let show_accent_border = self
-                .focus_handle()
-                .map(|fh| fh.is_in_split_pane(ctx))
-                .unwrap_or(false);
-            self.set_show_pane_accent_border(show_accent_border, ctx);
-        };
-
-        ctx.emit(Event::OpenShareSessionModal { open_source });
     }
 
-    pub fn open_share_session_denied_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(Event::OpenShareSessionDeniedModal);
-    }
+    pub fn open_share_session_denied_modal(&mut self, _ctx: &mut ViewContext<Self>) {}
 
     /// Focuses the view by telling the parent view to focus this session.
     /// For example, in the common case, the parent pane group would consume
@@ -423,66 +411,16 @@ impl TerminalView {
     /// 5. Once the session is registered with [`shared_session::manager::Manager`], it
     ///    will emit an event for relevant subscribers (e.g. the Workspace will need to
     ///    re-render when a share starts for tab indicator, share button, etc.)
+    // OpenWarp:Shared Session 网络入口已切断,attempt_to_share_session 整体 no-op,
+    // 不再 set SharePending 状态、不再 emit StartSharingCurrentSession、不再触发遥测。
     pub fn attempt_to_share_session(
         &mut self,
-        scrollback_type: SharedSessionScrollbackType,
-        source: Option<SharedSessionActionSource>,
-        source_type: SessionSourceType,
-        bypass_conversation_guard: bool,
-        ctx: &mut ViewContext<Self>,
+        _scrollback_type: SharedSessionScrollbackType,
+        _source: Option<SharedSessionActionSource>,
+        _source_type: SessionSourceType,
+        _bypass_conversation_guard: bool,
+        _ctx: &mut ViewContext<Self>,
     ) {
-        // We should only be attempting to share a session
-        // if it is bootstrapped.
-        //
-        // For unit tests, we don't actually bootstrap and it
-        // doesn't really matter.
-        #[cfg(not(test))]
-        if !self.model.lock().block_list().is_bootstrapped() {
-            log::warn!("Tried to share session before it was bootstrapped.");
-            return;
-        }
-
-        // Check if we're trying to share without scrollback while agent shared sessions is enabled
-        // and there are active conversations. This would break the viewer experience since they
-        // wouldn't receive the conversation history they need to continue conversations.
-        if !bypass_conversation_guard
-            && FeatureFlag::AgentSharedSessions.is_enabled()
-            && scrollback_type == SharedSessionScrollbackType::None
-        {
-            let has_conversations = BlocklistAIHistoryModel::as_ref(ctx)
-                .all_live_conversations_for_terminal_view(ctx.handle().id())
-                .any(|conv| conv.exchange_count() > 0);
-
-            if has_conversations {
-                log::warn!("Cannot share without scrollback when agent conversations exist. Agent shared sessions require conversation history to be shared.");
-                return;
-            }
-        }
-
-        self.set_show_pane_accent_border(false, ctx);
-
-        self.pending_share_source = source;
-
-        self.model
-            .lock()
-            .set_shared_session_status(SharedSessionStatus::SharePending);
-
-        ctx.emit(Event::StartSharingCurrentSession {
-            scrollback_type,
-            source_type,
-        });
-        if let Some(source) = source {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::StartedSharingCurrentSession {
-                    includes_scrollback: !matches!(
-                        scrollback_type,
-                        SharedSessionScrollbackType::None
-                    ),
-                    source,
-                },
-                ctx
-            );
-        }
     }
 
     /// Sets the PresenceManager and decorates the view accordingly when a shared session has been started.

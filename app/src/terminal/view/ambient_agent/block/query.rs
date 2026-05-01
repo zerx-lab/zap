@@ -1,13 +1,13 @@
 use warp_core::ui::appearance::Appearance;
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, ViewContext,
     elements::ParentElement,
     prelude::{Container, Empty, Flex, Text},
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, ViewContext,
 };
 
 use crate::{
     ai::blocklist::block::view_impl::{
-        query::render_query, WithContentItemSpacing, CONTENT_VERTICAL_PADDING,
+        CONTENT_VERTICAL_PADDING, WithContentItemSpacing, query::render_query,
     },
     auth::AuthStateProvider,
     terminal::view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent},

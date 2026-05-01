@@ -1,5 +1,5 @@
 use serde::Serialize;
-use warpui::{elements::MouseStateHandle, notification::RequestPermissionsOutcome, Element};
+use warpui::{Element, elements::MouseStateHandle, notification::RequestPermissionsOutcome};
 
 use crate::{
     appearance::Appearance,
@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
-    InlineBannerContent, InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonVariant,
+    InlineBannerButtonState, InlineBannerCloseButton, InlineBannerContent, InlineBannerStyle,
+    InlineBannerTextButton, InlineBannerTextButtonVariant, render_inline_block_list_banner,
 };
 
 #[derive(Clone, Copy, Debug, Serialize)]

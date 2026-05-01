@@ -3,11 +3,11 @@
 use pathfinder_geometry::vector::vec2f;
 
 use warpui::{
+    AppContext, Element, EventContext,
     elements::{
         ChildAnchor, Dismiss, MouseStateHandle, OffsetPositioning, PositionedElementAnchor,
         PositionedElementOffsetBounds, Stack,
     },
-    AppContext, Element, EventContext,
 };
 
 use super::{TerminalAction, TerminalView};
@@ -15,11 +15,11 @@ use crate::util::tooltips::{TooltipLink, TooltipRedaction};
 use crate::{
     appearance::Appearance,
     terminal::{
+        TerminalModel,
         links::directly_open_link_keybinding_string,
         model::{ObfuscateSecrets, Secret},
         safe_mode_settings::get_secret_obfuscation_mode,
         view::SecretTooltip,
-        TerminalModel,
     },
 };
 

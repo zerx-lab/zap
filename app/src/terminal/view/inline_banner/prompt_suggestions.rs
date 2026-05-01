@@ -1,12 +1,11 @@
 use serde::Serialize;
 use std::rc::Rc;
 
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::prompt::prompt_alert::{
     PromptAlertEvent, PromptAlertState, PromptAlertView,
 };
-use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 use crate::server::telemetry::InteractionSource;
 use crate::settings::InputSettings;
@@ -22,16 +21,15 @@ use warpui::elements::{
 use warpui::keymap::Keystroke;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
-use warpui::{elements::MouseStateHandle, Element};
 use warpui::{
     AppContext, Entity, EventContext, ModelHandle, TypedActionView, ViewContext, ViewHandle,
 };
+use warpui::{Element, elements::MouseStateHandle};
 use warpui::{SingletonEntity, View};
 
-use crate::terminal::view::{ContextMenuAction, InputType, PromptSuggestion};
+use crate::terminal::view::{InputType, PromptSuggestion};
 use crate::ui_components::blended_colors;
 use crate::{appearance::Appearance, terminal::view::TerminalAction};
-use warp_core::channel::ChannelState;
 use warp_core::ui::theme::color::internal_colors::{neutral_2, neutral_3};
 
 use crate::ui_components::icons::Icon as WarpUIIcon;
@@ -128,7 +126,6 @@ fn render_button(
     keystroke: Option<Keystroke>,
     mouse_state: MouseStateHandle,
     on_click: Rc<impl Fn(&mut EventContext) + 'static>,
-    debug_request_token: Option<ServerConversationToken>,
     prompt_alert_state: &PromptAlertState,
     should_shrink: bool,
     appearance: &Appearance,
@@ -274,18 +271,6 @@ fn render_button(
     })
     .with_cursor(Cursor::PointingHand);
 
-    let hoverable = if let Some(token) = debug_request_token {
-        hoverable.on_right_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(TerminalAction::ContextMenu(
-                ContextMenuAction::CopyServerRequestId {
-                    request_id: token.clone(),
-                },
-            ));
-        })
-    } else {
-        hoverable
-    };
-
     if is_button_disabled {
         hoverable.finish()
     } else {
@@ -390,15 +375,6 @@ impl View for PromptSuggestionsView {
         };
         let prompt_suggestion = &banner_state.prompt_suggestion;
 
-        let debug_request_token = if ChannelState::enable_debug_features() {
-            banner_state
-                .server_request_token
-                .as_ref()
-                .map(|t| ServerConversationToken::new(t.clone()))
-        } else {
-            None
-        };
-
         inner_banner_flex.add_child(
             Shrinkable::new(
                 1.0,
@@ -415,7 +391,6 @@ impl View for PromptSuggestionsView {
                             },
                         ));
                     }),
-                    debug_request_token,
                     prompt_alert_state,
                     true, // should_shrink
                     appearance,

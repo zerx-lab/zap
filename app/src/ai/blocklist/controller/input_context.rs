@@ -10,8 +10,8 @@ use warpui::{AppContext, SingletonEntity};
 use crate::{
     ai::{
         agent::{
-            conversation::AIConversationId, AIAgentAttachment, AIAgentContext,
-            DocumentContentAttachmentSource, DriveObjectPayload,
+            AIAgentAttachment, AIAgentContext, DocumentContentAttachmentSource, DriveObjectPayload,
+            conversation::AIConversationId,
         },
         block_context::BlockContext,
         blocklist::BlocklistAIContextModel,
@@ -20,15 +20,15 @@ use crate::{
         skills::list_skills,
     },
     cloud_object::{
+        GenericCloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType,
         model::{
             generic_string_model::{CloudStringObject, GenericStringObjectId},
             persistence::CloudModel,
         },
-        GenericCloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType,
     },
     terminal::{
-        model::{block::BlockId, session::active_session::ActiveSession},
         TerminalView,
+        model::{block::BlockId, session::active_session::ActiveSession},
     },
 };
 use warp_graphql::generic_string_object::GenericStringObjectFormat as GraphQLFormat;

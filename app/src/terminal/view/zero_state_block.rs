@@ -1,22 +1,23 @@
 use settings::Setting;
 use warp_core::{report_if_error, ui::Icon};
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     elements::{
         ChildAnchor, Container, CrossAxisAlignment, Flex, MainAxisSize, OffsetPositioning,
         ParentAnchor, ParentElement, ParentOffsetBounds, Shrinkable, Stack, Text,
     },
     fonts::{Properties, Weight},
     keymap::Keystroke,
-    prelude::{vec2f, ConstrainedBox, Cursor, Empty, Hoverable, MouseStateHandle},
+    prelude::{ConstrainedBox, Cursor, Empty, Hoverable, MouseStateHandle, vec2f},
     scene::{Border, CornerRadius, Radius},
     ui_components::{
         checkbox::Checkbox,
         components::{UiComponent, UiComponentStyles},
     },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use crate::{
+    WorkspaceAction,
     ai::blocklist::agent_view::{
         AgentViewController, AgentViewControllerEvent, ENTER_AGENT_VIEW_NEW_CONVERSATION_KEYSTROKE,
     },
@@ -25,7 +26,7 @@ use crate::{
     terminal::{
         self,
         event::BlockType,
-        input::message_bar::{common::render_standard_message, Message, MessageItem},
+        input::message_bar::{Message, MessageItem, common::render_standard_message},
         model_events::{ModelEvent, ModelEventDispatcher},
         settings::{TerminalSettings, TerminalSettingsChangedEvent},
         view::TerminalAction,
@@ -35,7 +36,6 @@ use crate::{
     workspace::tab_settings::TabSettings,
     workspace::tab_settings::TabSettingsChangedEvent,
     workspace::view::TOGGLE_RIGHT_PANEL_BINDING_NAME,
-    WorkspaceAction,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -327,9 +327,11 @@ impl TypedActionView for TerminalViewZeroStateBlock {
             TerminalViewZeroStateAction::Dismiss => {
                 self.should_hide = true;
                 TerminalSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(settings
-                        .show_terminal_zero_state_block
-                        .set_value(false, ctx));
+                    report_if_error!(
+                        settings
+                            .show_terminal_zero_state_block
+                            .set_value(false, ctx)
+                    );
                 });
                 ctx.notify();
             }
@@ -337,9 +339,11 @@ impl TypedActionView for TerminalViewZeroStateBlock {
                 let ai_settings = AISettings::handle(ctx);
                 let new_value = !*ai_settings.as_ref(ctx).nld_in_terminal_enabled_internal;
                 ai_settings.update(ctx, |settings, ctx| {
-                    report_if_error!(settings
-                        .nld_in_terminal_enabled_internal
-                        .set_value(new_value, ctx));
+                    report_if_error!(
+                        settings
+                            .nld_in_terminal_enabled_internal
+                            .set_value(new_value, ctx)
+                    );
                 });
                 ctx.notify();
             }

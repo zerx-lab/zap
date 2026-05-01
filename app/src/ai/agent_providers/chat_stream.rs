@@ -1252,7 +1252,7 @@ fn map_genai_error(err: genai::Error) -> OpenAiCompatibleError {
 // ---------------------------------------------------------------------------
 
 /// 标题生成所需的 BYOP 配置。可能与主请求同 provider 也可能不同(用户在 Profile
-/// Editor 里独立选了 title_model)。`None` 时跳过摘要步骤。
+/// Editor 里独立选了 title_model)。
 pub struct TitleGenInput {
     pub base_url: String,
     pub api_key: String,
@@ -1265,8 +1265,6 @@ pub struct TitleGenInput {
 /// `target_task_id`: 本轮模型输出应该写入的 task id;普通对话等于 root,
 /// CLI subagent 后续轮为已有 subtask。
 /// `needs_create_task`: 仅首轮(root 还是 Optimistic)需要 emit `CreateTask`。
-/// `title_gen`: 仅首轮且 active title_model 可解析为 BYOP 时填充;非 None 时
-/// 在主流程结束后单独发一次摘要请求,把 task description(= 会话标题)写回。
 pub async fn generate_byop_output(
     params: RequestParams,
     base_url: String,
@@ -1277,7 +1275,6 @@ pub async fn generate_byop_output(
     task_id: String,
     target_task_id: String,
     needs_create_task: bool,
-    title_gen: Option<TitleGenInput>,
     // LRC 场景绑定的 CLI subagent `command_id`(= LRC block id 字符串)。
     lrc_command_id: Option<String>,
     // 仅 tag-in 首轮为 true:流头会合成虚拟 `tool_call::Subagent` + CreateTask,
@@ -1816,26 +1813,6 @@ pub async fn generate_byop_output(
             yield Ok(make_add_messages_event(&current_task_id, final_messages));
         }
 
-        // 标题生成:首轮在所有主流消息发完之后,用 title_model 单独发一次短请求,
-        // 把生成的简短标题作为 `Action::UpdateTaskDescription` 注入下游 conversation,
-        // 这样 `task.description()` 非空,`AIConversation::title()` 优先返回它。
-        if let Some(tg) = title_gen.as_ref() {
-            if let Some(query) = pending_user_queries.first().cloned() {
-                match generate_title_via_byop(tg, &query).await {
-                    Ok(Some(title)) => {
-                        log::info!("[byop] title generated: {title:?}");
-                        yield Ok(make_update_task_description_event(&task_id, title));
-                    }
-                    Ok(None) => {
-                        log::warn!("[byop] title gen returned empty content; skip");
-                    }
-                    Err(e) => {
-                        log::warn!("[byop] title gen failed: {e:#}; skip");
-                    }
-                }
-            }
-        }
-
         // 把 captured token usage 折算成 ConversationUsageMetadata.context_window_usage
         // 注入 StreamFinished — controller 的 handle_response_stream_finished 会把它写到
         // conversation.conversation_usage_metadata,footer 监听 UpdatedStreamingExchange/
@@ -1874,7 +1851,7 @@ pub async fn generate_byop_output(
 /// 5–10 词的会话标题。所有错误吞掉(返回 Err 让上游打 warn log,不影响主流程)。
 ///
 /// 实现委托给 `oneshot::byop_oneshot_completion`,这里只负责拼 prompt 和清洗输出。
-async fn generate_title_via_byop(
+pub(crate) async fn generate_title_via_byop(
     tg: &TitleGenInput,
     user_query: &str,
 ) -> Result<Option<String>, anyhow::Error> {
@@ -2163,23 +2140,6 @@ fn make_tool_call_message(
         })),
         request_id: request_id.to_owned(),
         timestamp: None,
-    }
-}
-
-fn make_update_task_description_event(task_id: &str, description: String) -> api::ResponseEvent {
-    api::ResponseEvent {
-        r#type: Some(api::response_event::Type::ClientActions(
-            api::response_event::ClientActions {
-                actions: vec![api::ClientAction {
-                    action: Some(api::client_action::Action::UpdateTaskDescription(
-                        api::client_action::UpdateTaskDescription {
-                            task_id: task_id.to_owned(),
-                            description,
-                        },
-                    )),
-                }],
-            },
-        )),
     }
 }
 

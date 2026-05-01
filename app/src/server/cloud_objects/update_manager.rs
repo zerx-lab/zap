@@ -4219,7 +4219,17 @@ impl UpdateManager {
         let Some(server_id) = id.server_id() else {
             let hashed_id = id.uid();
             self.mark_object_trashed_and_return_timestamps(&hashed_id, ctx);
+            // OpenWarp:本地对象永远没有服务端 ack 来清 has_pending_metadata_change。
+            // 必须在落 sqlite 前手动清掉,否则 upsert_cloud_object 中
+            // `if !has_pending_metadata_change` 分支会跳过 trashed_ts 字段写入,
+            // 导致重启后从 sqlite 加载到的 trashed_ts 为 NULL,对象重新出现在 PERSONAL。
             CloudModel::handle(ctx).update(ctx, |cloud_model, _| {
+                if let Some(object) = cloud_model.get_mut_by_uid(&hashed_id) {
+                    object
+                        .metadata_mut()
+                        .pending_changes_statuses
+                        .has_pending_metadata_change = false;
+                }
                 self.save_in_memory_object_to_sqlite(cloud_model, &hashed_id);
             });
             ctx.notify();
@@ -4338,9 +4348,16 @@ impl UpdateManager {
         // 不 emit ObjectOperationComplete(同 trash_object 的注释)。
         let Some(server_id) = id.server_id() else {
             let hashed_id = id.uid();
+            // OpenWarp:本地对象 untrash —— 清 trashed_ts 同时把
+            // has_pending_metadata_change 清掉(本地分支无服务端 ack),
+            // 否则 upsert_cloud_object 跳过 trashed_ts 写入,sqlite 仍为旧值。
             CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
                 if let Some(object) = cloud_model.get_mut_by_uid(&hashed_id) {
                     object.metadata_mut().trashed_ts = None;
+                    object
+                        .metadata_mut()
+                        .pending_changes_statuses
+                        .has_pending_metadata_change = false;
                     ctx.emit(CloudModelEvent::ObjectUntrashed {
                         type_and_id: object.cloud_object_type_and_id(),
                         source: UpdateSource::Local,
@@ -4610,8 +4627,10 @@ impl UpdateManager {
     }
 
     pub fn empty_trash(&mut self, space: Space, ctx: &mut ModelContext<Self>) {
-        let object_client = self.object_client.clone();
-
+        // OpenWarp:Empty Trash 走纯本地路径。原实现调用 GraphQL `empty_trash` mutation,
+        // 无 auth/无服务端时直接 `Failed to get access token` 重试 3 次后失败,Trash UI 不动。
+        // 本地分支:直接遍历 CloudModel 找出 owner 匹配 + is_trashed 的对象,
+        // 收集 SyncId 后复用 `on_object_delete_success`(它已经做了内存 + sqlite 双删 + actions 清理)。
         let owner = match UserWorkspaces::as_ref(ctx).space_to_owner(space, ctx) {
             Some(owner) => owner,
             None => {
@@ -4622,81 +4641,35 @@ impl UpdateManager {
             }
         };
 
-        // Make the request.
-        let future = ctx.spawn_with_retry_on_error(
-            move || {
-                let object_client = object_client.clone();
-                async move { object_client.empty_trash(owner).await }
+        let cloud_model_handle = CloudModel::handle(ctx);
+        let deleted_ids: Vec<SyncId> = cloud_model_handle.read(ctx, |cloud_model, _| {
+            cloud_model
+                .cloud_objects()
+                .filter(|object| {
+                    object.permissions().owner == owner && object.is_trashed(cloud_model)
+                })
+                .map(|object| object.sync_id())
+                .collect()
+        });
+
+        let num_deleted_objects = self.on_object_delete_success(deleted_ids, ctx);
+
+        let success_type = if num_deleted_objects == 0 {
+            OperationSuccessType::Rejection
+        } else {
+            OperationSuccessType::Success
+        };
+
+        ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
+            result: ObjectOperationResult {
+                success_type,
+                operation: ObjectOperation::EmptyTrash,
+                client_id: None,
+                server_id: None,
+                num_objects: Some(num_deleted_objects),
             },
-            *ONLINE_ONLY_OPERATION_RETRY_STRATEGY,
-            move |me, res, ctx| match res {
-                RequestState::RequestSucceeded(delete_result) => {
-                    match delete_result {
-                        ObjectDeleteResult::Success { deleted_ids } => {
-                            let num_deleted_objects = me.on_object_delete_success(deleted_ids, ctx);
-
-                            if num_deleted_objects == 0 {
-                                // Show rejection toast that states there are no objects in the Trash
-                                ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-                                    result: ObjectOperationResult {
-                                        success_type: OperationSuccessType::Rejection,
-                                        operation: ObjectOperation::EmptyTrash,
-                                        client_id: None,
-                                        server_id: None,
-                                        num_objects: Some(num_deleted_objects),
-                                    },
-                                });
-                            } else {
-                                // Show success confirmation toast
-                                ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-                                    result: ObjectOperationResult {
-                                        success_type: OperationSuccessType::Success,
-                                        operation: ObjectOperation::EmptyTrash,
-                                        client_id: None,
-                                        server_id: None,
-                                        num_objects: Some(num_deleted_objects),
-                                    },
-                                });
-                            }
-                        }
-                        ObjectDeleteResult::Failure => {
-                            // Show an error toast to relay the failure to the user.
-                            ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-                                result: ObjectOperationResult {
-                                    success_type: OperationSuccessType::Failure,
-                                    operation: ObjectOperation::EmptyTrash,
-                                    client_id: None,
-                                    server_id: None,
-                                    num_objects: Some(0),
-                                },
-                            });
-                        }
-                    }
-
-                    ctx.notify();
-                }
-                RequestState::RequestFailedRetryPending(e) => {
-                    log::warn!("Failed to empty trash: {e}. Retrying");
-                }
-                RequestState::RequestFailed(e) => {
-                    log::warn!("Failed to empty trash: {e}. Not retrying");
-
-                    // Show an error toast to relay the failure to the user.
-                    ctx.emit(UpdateManagerEvent::ObjectOperationComplete {
-                        result: ObjectOperationResult {
-                            success_type: OperationSuccessType::Failure,
-                            operation: ObjectOperation::EmptyTrash,
-                            client_id: None,
-                            server_id: None,
-                            num_objects: Some(0),
-                        },
-                    });
-                    ctx.notify();
-                }
-            },
-        );
-
-        self.spawned_futures.push(future.future_id());
+        });
+        ctx.notify();
     }
 
     pub fn on_object_delete_success(
