@@ -170,6 +170,25 @@
   );
 }
 
+/* 隔离 animate-ping 的合成层与重绘范围,避免 scale 动画反复触发邻近 H1
+   (text-gradient + 大字号)的整片重绘,造成整页"抖动"观感 */
+.ping-dot {
+  isolation: isolate;
+  contain: layout style;
+  will-change: transform;
+  transform: translateZ(0);
+}
+.ping-dot > .animate-ping {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* 大字号 + background-clip:text 在部分浏览器下会偏吃一格抗锯齿,
+   给 H1 一点垂直 padding 兜底,确保 CJK 字形上沿不被裁切 */
+.text-gradient {
+  padding-block: 0.04em;
+}
+
 @keyframes caret-blink {
   0%,
   49% {
