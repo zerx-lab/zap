@@ -765,6 +765,7 @@ impl AISettingsPageView {
                 LLMPreferencesEvent::UpdatedActiveCodingLLM => {
                     Self::refresh_coding_model_menu(&me.coding_model_dropdown, ctx);
                 }
+                LLMPreferencesEvent::UpdatedReasoningEffort => {}
             },
         );
 
@@ -2137,13 +2138,6 @@ pub enum AISettingsPageAction {
         provider_id: String,
         api_type: crate::settings::AgentProviderApiType,
     },
-    /// Provider 级 reasoning effort(思考深度)切换。
-    /// `Auto` = genai 默认(模型名后缀推断,仅 OpenAI/Anthropic 协议有效);
-    /// 其他档位经 client capability gate 过滤,不支持的模型自动跳过。
-    SetAgentProviderReasoningEffort {
-        provider_id: String,
-        effort: crate::settings::ReasoningEffortSetting,
-    },
     UpdateAgentProviderApiKey {
         provider_id: String,
         api_key: String,
@@ -2988,19 +2982,6 @@ impl TypedActionView for AISettingsPageView {
                         if p.base_url.trim().is_empty() {
                             p.base_url = api_type.default_base_url().to_owned();
                         }
-                    }
-                    let _ = settings.agent_providers.set_value(providers, ctx);
-                });
-                self.rebuild_current_page(ctx);
-            }
-            AISettingsPageAction::SetAgentProviderReasoningEffort {
-                provider_id,
-                effort,
-            } => {
-                AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                    let mut providers = settings.agent_providers.value().clone();
-                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
-                        p.reasoning_effort = *effort;
                     }
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });

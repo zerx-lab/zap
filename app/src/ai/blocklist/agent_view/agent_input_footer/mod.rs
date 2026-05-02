@@ -1,6 +1,7 @@
 pub(super) mod chips;
 pub mod editor;
 mod environment_selector;
+mod reasoning_depth_selector;
 pub mod toolbar_item;
 
 use crate::{
@@ -109,6 +110,9 @@ use warpui::{
 use warpui::r#async::Timer;
 
 pub(crate) use self::environment_selector::{EnvironmentSelector, EnvironmentSelectorEvent};
+pub(crate) use self::reasoning_depth_selector::{
+    ReasoningDepthSelector, ReasoningDepthSelectorEvent,
+};
 #[cfg(not(target_family = "wasm"))]
 use crate::server::telemetry::PluginChipTelemetryAction;
 #[cfg(not(target_family = "wasm"))]
@@ -195,6 +199,7 @@ pub struct AgentInputFooter {
     model_selector: ViewHandle<ProfileModelSelector>,
     ftu_callout_close_button: ViewHandle<ActionButton>,
     environment_selector: ViewHandle<EnvironmentSelector>,
+    reasoning_depth_selector: ViewHandle<ReasoningDepthSelector>,
     prompt_alert: ViewHandle<PromptAlertView>,
     ambient_agent_view_model: ModelHandle<AmbientAgentViewModel>,
     left_display_chips: Vec<ViewHandle<DisplayChip>>,
@@ -618,6 +623,15 @@ impl AgentInputFooter {
             ctx.notify();
         });
 
+        let reasoning_depth_selector = ctx.add_typed_action_view(|ctx| {
+            ReasoningDepthSelector::new(menu_positioning_provider.clone(), terminal_view_id, ctx)
+        });
+        ctx.subscribe_to_view(&reasoning_depth_selector, |_, _, event, ctx| match event {
+            ReasoningDepthSelectorEvent::MenuVisibilityChanged { open } => {
+                ctx.emit(AgentInputFooterEvent::ToggledChipMenu { open: *open });
+            }
+        });
+
         let prompt_alert = ctx.add_typed_action_view(PromptAlertView::new);
         ctx.subscribe_to_view(&prompt_alert, |_, _, event, ctx| {
             ctx.emit(AgentInputFooterEvent::PromptAlert(event.clone()));
@@ -739,6 +753,7 @@ impl AgentInputFooter {
             context_window_button,
             model_selector: profile_model_selector_full,
             environment_selector,
+            reasoning_depth_selector,
             prompt_alert,
             terminal_model,
             render_ftu_callout: false,
@@ -1853,7 +1868,17 @@ impl AgentInputFooter {
             AgentToolbarItemKind::ModelSelector => {
                 let show = FeatureFlag::ProfilesDesignRevamp.is_enabled()
                     || *SessionSettings::as_ref(app).show_model_selectors_in_prompt;
-                show.then(|| ChildView::new(&self.model_selector).finish())
+                show.then(|| {
+                    Flex::row()
+                        .with_main_axis_size(MainAxisSize::Min)
+                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                        .with_spacing(4.)
+                        .with_child(
+                            ChildView::new(&self.reasoning_depth_selector).finish(),
+                        )
+                        .with_child(ChildView::new(&self.model_selector).finish())
+                        .finish()
+                })
             }
             AgentToolbarItemKind::NLDToggle => Some(ChildView::new(&self.nld_button).finish()),
             AgentToolbarItemKind::VoiceInput => {

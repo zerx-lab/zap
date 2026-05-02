@@ -13,7 +13,87 @@
 //! - opencode v5 的 anthropicAdaptiveEfforts / OPENAI_EFFORTS 名单
 //! - 各 provider 官方文档的 thinking-mode model 列表
 
-use crate::settings::AgentProviderApiType;
+use crate::settings::{AgentProviderApiType, ReasoningEffortSetting};
+use std::sync::OnceLock;
+
+/// 返回指定 (api_type, model_id) 实际可用的 reasoning effort 档位列表。
+///
+/// 列表为空 → picker 整个隐藏(不支持 reasoning 或 client 无法可靠注入)。
+/// 列表首项 → 该模型的推荐默认档(picker 第一次出现时的初值)。
+/// 末项恒为 [`ReasoningEffortSetting::Off`],表示"明确关闭思考"(对支持 effort 的模型
+/// 会发 `none` 档,对 budget 系列会跳过 thinking 字段)。
+///
+/// 设计参照 opencode `provider/transform.ts::variants()` —— 各家档位是硬编码的,
+/// 不来自 models.dev。models.dev 只给"是否支持 reasoning"布尔,具体档位由 client 内置。
+pub fn model_reasoning_variants(
+    api_type: AgentProviderApiType,
+    model_id: &str,
+) -> Vec<ReasoningEffortSetting> {
+    use ReasoningEffortSetting as R;
+    let id = strip_effort_suffix(&model_id.to_ascii_lowercase()).to_string();
+
+    match api_type {
+        AgentProviderApiType::Anthropic => {
+            if is_opus_4_7_or_higher(&id) {
+                // Opus 4.7+: adaptive thinking + xhigh + max(genai 已适配)
+                return vec![R::High, R::Low, R::Medium, R::XHigh, R::Max, R::Off];
+            }
+            if id.contains("claude-opus-4-6") || id.contains("claude-sonnet-4-6") {
+                // 4.6 系: adaptive thinking + max
+                return vec![R::High, R::Low, R::Medium, R::Max, R::Off];
+            }
+            if is_anthropic_reasoning_model(&id) {
+                // 4.5 / 3.7-sonnet 等 legacy budget,无 max
+                return vec![R::High, R::Low, R::Medium, R::Off];
+            }
+            vec![]
+        }
+        AgentProviderApiType::OpenAi | AgentProviderApiType::OpenAiResp => {
+            if id.contains("gpt-5") || id.contains("codex") {
+                // GPT-5 / codex: minimal + xhigh 都可用
+                return vec![R::Medium, R::Minimal, R::Low, R::High, R::XHigh, R::Off];
+            }
+            if is_openai_reasoning_model(&id) {
+                // o-series: 仅 low/medium/high
+                return vec![R::Medium, R::Low, R::High, R::Off];
+            }
+            vec![]
+        }
+        AgentProviderApiType::Gemini => {
+            if is_gemini_reasoning_model(&id) {
+                // genai 0.6 统一发 thinkingBudget 数值,2.5/3.x 不区分档位
+                return vec![R::Medium, R::Low, R::High, R::Off];
+            }
+            vec![]
+        }
+        // genai DeepSeek adapter 不消费 reasoning_effort;Ollama 后端模型 id 任意。
+        AgentProviderApiType::DeepSeek | AgentProviderApiType::Ollama => vec![],
+    }
+}
+
+/// 该模型的推荐默认档(picker 首次出现时的初值);None 表示模型不支持 reasoning。
+pub fn default_reasoning_for(
+    api_type: AgentProviderApiType,
+    model_id: &str,
+) -> Option<ReasoningEffortSetting> {
+    model_reasoning_variants(api_type, model_id).first().copied()
+}
+
+/// Opus 4.7 及更高版本(`claude-opus-4-7` / `claude-opus-5-0` ...)。
+/// 与 genai anthropic adapter 的 `is_opus_4_7_or_higher` regex 同语义。
+fn is_opus_4_7_or_higher(model_name: &str) -> bool {
+    static RE: OnceLock<Option<regex::Regex>> = OnceLock::new();
+    let re = RE.get_or_init(|| regex::Regex::new(r"claude-opus-(\d+)-(\d+)").ok());
+    let Some(re) = re.as_ref() else {
+        return false;
+    };
+    let Some(caps) = re.captures(model_name) else {
+        return false;
+    };
+    let major = caps.get(1).and_then(|m| m.as_str().parse::<u32>().ok());
+    let minor = caps.get(2).and_then(|m| m.as_str().parse::<u32>().ok());
+    matches!((major, minor), (Some(major), Some(minor)) if (major, minor) >= (4, 7))
+}
 
 /// 判定指定 (api_type, model_name) 组合是否支持 reasoning(思考链)。
 ///
@@ -32,22 +112,7 @@ use crate::settings::AgentProviderApiType;
 /// - **Ollama**:走 OpenAI 兼容路径,后端模型 id 不可控,**保守返回 `false`**
 ///   (用户若确实在跑 thinking 模型,可在 Settings 显式调档,后续再放宽)
 pub fn model_supports_reasoning(api_type: AgentProviderApiType, model_id: &str) -> bool {
-    let id = model_id.to_ascii_lowercase();
-
-    // genai 后缀推断会自动 strip,但 client 自己判定时也要忽略尾巴(否则
-    // `claude-sonnet-4-5-low` 命中不了)。匹配前再剥一层。
-    let id = strip_effort_suffix(&id);
-
-    match api_type {
-        AgentProviderApiType::Anthropic => is_anthropic_reasoning_model(id),
-        AgentProviderApiType::OpenAi | AgentProviderApiType::OpenAiResp => {
-            is_openai_reasoning_model(id)
-        }
-        AgentProviderApiType::Gemini => is_gemini_reasoning_model(id),
-        // DeepSeek adapter 不消费 ChatOptions.reasoning_effort(走 reasoning_content
-        // 字段读响应,不主动写请求);Ollama 后端模型 id 任意,无法静态判定。
-        AgentProviderApiType::DeepSeek | AgentProviderApiType::Ollama => false,
-    }
+    !model_reasoning_variants(api_type, model_id).is_empty()
 }
 
 fn strip_effort_suffix(id: &str) -> &str {
@@ -242,6 +307,130 @@ mod tests {
         // 普通 OpenAI 模型不 echo
         assert!(!model_requires_reasoning_echo(t, "gpt-5"));
         assert!(!model_requires_reasoning_echo(t, "o3-mini"));
+    }
+
+    #[test]
+    fn opus_4_7_variants_have_xhigh_and_max() {
+        let v = model_reasoning_variants(
+            AgentProviderApiType::Anthropic,
+            "claude-opus-4-7-20260101",
+        );
+        assert!(v.contains(&ReasoningEffortSetting::XHigh));
+        assert!(v.contains(&ReasoningEffortSetting::Max));
+        assert_eq!(v.first().copied(), Some(ReasoningEffortSetting::High));
+        assert_eq!(v.last().copied(), Some(ReasoningEffortSetting::Off));
+    }
+
+    #[test]
+    fn opus_5_0_variants_treated_as_4_7_plus() {
+        let v = model_reasoning_variants(AgentProviderApiType::Anthropic, "claude-opus-5-0");
+        assert!(v.contains(&ReasoningEffortSetting::XHigh));
+        assert!(v.contains(&ReasoningEffortSetting::Max));
+    }
+
+    #[test]
+    fn sonnet_4_6_variants_have_max_no_xhigh() {
+        let v = model_reasoning_variants(AgentProviderApiType::Anthropic, "claude-sonnet-4-6");
+        assert!(v.contains(&ReasoningEffortSetting::Max));
+        assert!(!v.contains(&ReasoningEffortSetting::XHigh));
+    }
+
+    #[test]
+    fn sonnet_4_5_variants_legacy_no_max_no_xhigh() {
+        let v = model_reasoning_variants(AgentProviderApiType::Anthropic, "claude-sonnet-4-5");
+        assert!(!v.contains(&ReasoningEffortSetting::Max));
+        assert!(!v.contains(&ReasoningEffortSetting::XHigh));
+        assert!(v.contains(&ReasoningEffortSetting::High));
+    }
+
+    #[test]
+    fn claude_3_5_haiku_variants_empty() {
+        let v = model_reasoning_variants(
+            AgentProviderApiType::Anthropic,
+            "claude-3-5-haiku-20241022",
+        );
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn gpt_5_variants_have_minimal_and_xhigh() {
+        let v = model_reasoning_variants(AgentProviderApiType::OpenAi, "gpt-5");
+        assert!(v.contains(&ReasoningEffortSetting::Minimal));
+        assert!(v.contains(&ReasoningEffortSetting::XHigh));
+        assert_eq!(v.first().copied(), Some(ReasoningEffortSetting::Medium));
+    }
+
+    #[test]
+    fn o3_variants_no_minimal_no_xhigh() {
+        let v = model_reasoning_variants(AgentProviderApiType::OpenAi, "o3-mini");
+        assert!(!v.contains(&ReasoningEffortSetting::Minimal));
+        assert!(!v.contains(&ReasoningEffortSetting::XHigh));
+        assert!(v.contains(&ReasoningEffortSetting::High));
+    }
+
+    #[test]
+    fn gpt_4o_variants_empty() {
+        let v = model_reasoning_variants(AgentProviderApiType::OpenAi, "gpt-4o");
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn gemini_2_5_variants_three_levels() {
+        let v = model_reasoning_variants(AgentProviderApiType::Gemini, "gemini-2.5-pro");
+        assert_eq!(v.len(), 4); // Medium, Low, High, Off
+        assert!(v.contains(&ReasoningEffortSetting::Off));
+    }
+
+    #[test]
+    fn gemini_1_5_variants_empty() {
+        let v = model_reasoning_variants(AgentProviderApiType::Gemini, "gemini-1.5-pro");
+        assert!(v.is_empty());
+    }
+
+    #[test]
+    fn deepseek_and_ollama_variants_empty() {
+        assert!(
+            model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-reasoner")
+                .is_empty()
+        );
+        assert!(model_reasoning_variants(AgentProviderApiType::Ollama, "qwq-32b").is_empty());
+    }
+
+    #[test]
+    fn default_reasoning_for_consistency() {
+        // default 应等于 variants 列表第一项
+        assert_eq!(
+            default_reasoning_for(AgentProviderApiType::Anthropic, "claude-opus-4-7"),
+            Some(ReasoningEffortSetting::High)
+        );
+        assert_eq!(
+            default_reasoning_for(AgentProviderApiType::OpenAi, "gpt-5"),
+            Some(ReasoningEffortSetting::Medium)
+        );
+        assert_eq!(
+            default_reasoning_for(AgentProviderApiType::OpenAi, "gpt-4o"),
+            None
+        );
+    }
+
+    #[test]
+    fn supports_reasoning_consistent_with_variants() {
+        // 单一来源:supports == !variants.is_empty()
+        for (t, m) in [
+            (AgentProviderApiType::Anthropic, "claude-opus-4-7"),
+            (AgentProviderApiType::Anthropic, "claude-3-5-haiku"),
+            (AgentProviderApiType::OpenAi, "gpt-5"),
+            (AgentProviderApiType::OpenAi, "gpt-4o"),
+            (AgentProviderApiType::Gemini, "gemini-2.5-pro"),
+            (AgentProviderApiType::Gemini, "gemini-1.5-pro"),
+            (AgentProviderApiType::DeepSeek, "deepseek-reasoner"),
+        ] {
+            assert_eq!(
+                model_supports_reasoning(t, m),
+                !model_reasoning_variants(t, m).is_empty(),
+                "{t:?}/{m}"
+            );
+        }
     }
 
     #[test]

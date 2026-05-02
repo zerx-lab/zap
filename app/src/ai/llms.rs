@@ -501,6 +501,17 @@ pub struct LLMPreferences {
     // from the base LLM for the active profile. This means that if the user selects the
     // profile's default model and changes their profile, the model will update to that profile's default.
     base_llm_for_terminal_view: HashMap<EntityId, LLMId>,
+    /// Per-terminal reasoning effort 选择(由输入框 picker 驱动)。
+    /// session-only,不写 settings.toml。键缺失时用 `last_used_reasoning` 兜底,
+    /// 再缺失则用 `default_reasoning_for(api_type, model_id)`。
+    reasoning_effort_per_terminal:
+        HashMap<EntityId, crate::settings::ReasoningEffortSetting>,
+    /// 记忆"上次某 (api_type, model) 用过的档位",做 UX 软记忆。
+    /// session-only。
+    last_used_reasoning: HashMap<
+        (crate::settings::AgentProviderApiType, String),
+        crate::settings::ReasoningEffortSetting,
+    >,
 }
 
 impl LLMPreferences {
@@ -556,6 +567,8 @@ impl LLMPreferences {
             models_by_feature,
             last_update: None,
             base_llm_for_terminal_view,
+            reasoning_effort_per_terminal: HashMap::new(),
+            last_used_reasoning: HashMap::new(),
         };
 
         // In agent mode eval builds, eagerly kick off a fetch of the model list from the server
@@ -1098,6 +1111,45 @@ impl LLMPreferences {
             ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
         }
     }
+
+    /// 获取指定 terminal-view 当前的 reasoning effort 选择。
+    /// 优先级: per-terminal 选择 > last-used (api_type, model) > variants 表的默认档 > Auto。
+    pub fn get_reasoning_effort(
+        &self,
+        terminal_view_id: Option<EntityId>,
+        api_type: crate::settings::AgentProviderApiType,
+        model_id: &str,
+    ) -> crate::settings::ReasoningEffortSetting {
+        if let Some(tv) = terminal_view_id {
+            if let Some(eff) = self.reasoning_effort_per_terminal.get(&tv) {
+                return *eff;
+            }
+        }
+        if let Some(eff) = self
+            .last_used_reasoning
+            .get(&(api_type, model_id.to_owned()))
+        {
+            return *eff;
+        }
+        crate::ai::agent_providers::reasoning::default_reasoning_for(api_type, model_id)
+            .unwrap_or(crate::settings::ReasoningEffortSetting::Auto)
+    }
+
+    /// 设置指定 terminal-view 的 reasoning effort,同时更新 last-used 记忆。
+    pub fn set_reasoning_effort(
+        &mut self,
+        terminal_view_id: EntityId,
+        api_type: crate::settings::AgentProviderApiType,
+        model_id: &str,
+        effort: crate::settings::ReasoningEffortSetting,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.reasoning_effort_per_terminal
+            .insert(terminal_view_id, effort);
+        self.last_used_reasoning
+            .insert((api_type, model_id.to_owned()), effort);
+        ctx.emit(LLMPreferencesEvent::UpdatedReasoningEffort);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1105,6 +1157,8 @@ pub enum LLMPreferencesEvent {
     UpdatedAvailableLLMs,
     UpdatedActiveAgentModeLLM,
     UpdatedActiveCodingLLM,
+    /// 当前 terminal-view 的 reasoning effort 改变(picker 选了新档)。
+    UpdatedReasoningEffort,
 }
 
 impl Entity for LLMPreferences {

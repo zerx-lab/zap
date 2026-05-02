@@ -818,12 +818,6 @@ pub struct AgentProvider {
     /// 每条同时含 `name`(显示名) 与 `id`(发送给上游 API 的 model 字段值)。
     #[serde(default)]
     pub models: Vec<AgentProviderModel>,
-
-    /// Provider 级 reasoning effort 偏好。`Auto` 时跟随 genai 默认(模型名后缀推断)。
-    /// 其他档位会经 client 端 `reasoning::model_supports_reasoning` 判定,
-    /// **仅对支持 reasoning 的模型**注入 thinking 参数。
-    #[serde(default)]
-    pub reasoning_effort: ReasoningEffortSetting,
 }
 
 impl AgentProvider {
@@ -840,7 +834,6 @@ impl AgentProvider {
             api_type: AgentProviderApiType::default(),
             base_url: String::new(),
             models: Vec::new(),
-            reasoning_effort: ReasoningEffortSetting::default(),
         }
     }
 }

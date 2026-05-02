@@ -121,12 +121,14 @@ pub fn resolve_active_ai_oneshot(
         .id
         .clone();
     let (provider, api_key, model_id) = super::lookup_byop(app, &id)?;
+    let reasoning_effort =
+        llm_prefs.get_reasoning_effort(terminal_view_id, provider.api_type, &model_id);
     Some(OneshotConfig {
         base_url: provider.base_url,
         api_key,
         model_id,
         api_type: provider.api_type,
-        reasoning_effort: provider.reasoning_effort,
+        reasoning_effort,
     })
 }
 
@@ -142,11 +144,13 @@ pub fn resolve_next_command_oneshot(
         .id
         .clone();
     let (provider, api_key, model_id) = super::lookup_byop(app, &id)?;
+    let reasoning_effort =
+        llm_prefs.get_reasoning_effort(terminal_view_id, provider.api_type, &model_id);
     Some(OneshotConfig {
         base_url: provider.base_url,
         api_key,
         model_id,
         api_type: provider.api_type,
-        reasoning_effort: provider.reasoning_effort,
+        reasoning_effort,
     })
 }

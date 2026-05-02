@@ -35,9 +35,7 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
-use crate::settings::{
-    AISettings, AgentProvider, AgentProviderApiType, AgentProviderModel, ReasoningEffortSetting,
-};
+use crate::settings::{AISettings, AgentProvider, AgentProviderApiType, AgentProviderModel};
 use strum::IntoEnumIterator;
 
 use super::ai_page::{AISettingsPageAction, AISettingsPageView, ModelCapabilityKind};
@@ -123,8 +121,6 @@ struct ProviderRow {
     add_model_button_state: MouseStateHandle,
     /// 5 个 ApiType chip 各自的鼠标状态。HashMap 由 chip 显示名映射。
     api_type_chip_states: RefCell<HashMap<AgentProviderApiType, MouseStateHandle>>,
-    /// Reasoning effort 8 档 chip 的鼠标状态(Auto / Off / Minimal / Low / Medium / High / XHigh / Max)。
-    reasoning_chip_states: RefCell<HashMap<ReasoningEffortSetting, MouseStateHandle>>,
     model_rows: Vec<ModelRow>,
 }
 
@@ -445,7 +441,6 @@ impl AgentProvidersWidget {
             remove_button_state: MouseStateHandle::default(),
             add_model_button_state: MouseStateHandle::default(),
             api_type_chip_states: RefCell::new(HashMap::new()),
-            reasoning_chip_states: RefCell::new(HashMap::new()),
             model_rows,
         }
     }
@@ -505,94 +500,6 @@ impl AgentProvidersWidget {
                     "settings-agent-providers-api-type-hint",
                     url = provider.api_type.default_base_url()
                 ),
-                appearance.ui_font_family(),
-                appearance.ui_font_size(),
-            )
-            .with_color(appearance.theme().disabled_ui_text_color().into())
-            .soft_wrap(true)
-            .finish(),
-        )
-        .with_margin_top(2.)
-        .finish();
-
-        Flex::column()
-            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-            .with_child(label_text)
-            .with_child(chip_row.finish())
-            .with_child(hint_text)
-            .finish()
-    }
-
-    /// 渲染 "Reasoning Effort" 行:8 个 chip 横排,可换行。
-    /// `Auto` 让 genai 按模型名后缀(`-low`/`-high`/`-zero`)推断;其他档位经
-    /// `reasoning::model_supports_reasoning` 过滤,不支持的模型自动跳过。
-    fn render_reasoning_field(
-        &self,
-        provider: &AgentProvider,
-        row: &ProviderRow,
-        label_color: warp_core::ui::theme::Fill,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let label_text = Container::new(
-            Text::new(
-                "Reasoning Effort".to_string(),
-                appearance.ui_font_family(),
-                appearance.ui_font_size(),
-            )
-            .with_color(label_color.into())
-            .finish(),
-        )
-        .with_margin_top(FIELD_LABEL_MARGIN_TOP)
-        .with_margin_bottom(FIELD_LABEL_MARGIN_BOTTOM)
-        .finish();
-
-        let mut chip_row = Wrap::row()
-            .with_spacing(6.)
-            .with_run_spacing(4.)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center);
-        {
-            let mut states = row.reasoning_chip_states.borrow_mut();
-            for variant in ReasoningEffortSetting::iter() {
-                let state = states
-                    .entry(variant)
-                    .or_insert_with(MouseStateHandle::default)
-                    .clone();
-                let is_selected = provider.reasoning_effort == variant;
-                let label = if is_selected {
-                    format!("● {}", variant.display_name())
-                } else {
-                    variant.display_name().to_owned()
-                };
-                let chip = Self::render_card_button(
-                    label,
-                    state,
-                    AISettingsPageAction::SetAgentProviderReasoningEffort {
-                        provider_id: provider.id.clone(),
-                        effort: variant,
-                    },
-                    appearance,
-                );
-                chip_row = chip_row.with_child(chip);
-            }
-        }
-
-        let hint = match provider.reasoning_effort {
-            ReasoningEffortSetting::Auto => {
-                "Auto:跟随 genai 默认。OpenAI / Anthropic 协议会按模型名后缀(-low / -medium / \
-                 -high / -xhigh / -max / -zero)自动推断思考档位;Gemini / DeepSeek 不发送 \
-                 thinking 参数。"
-            }
-            ReasoningEffortSetting::Off => {
-                "Off:对支持 reasoning 的模型显式发送 none(关闭思考);不支持的模型自动跳过。"
-            }
-            _ => {
-                "强制档位:仅当模型在能力名单内(Anthropic claude-3.7+/4.x、OpenAI o1-o4 / gpt-5 / \
-                 codex、Gemini 2.5+)才发送 thinking 参数;不支持的模型自动跳过,避免上游 400。"
-            }
-        };
-        let hint_text = Container::new(
-            Text::new(
-                hint.to_string(),
                 appearance.ui_font_family(),
                 appearance.ui_font_size(),
             )
@@ -942,8 +849,6 @@ impl AgentProvidersWidget {
             label_color,
             appearance,
         );
-        let reasoning_field = self.render_reasoning_field(provider, row, label_color, appearance);
-
         // ---- 模型列表区 ----
         let models_label = Container::new(
             Text::new(
@@ -1109,7 +1014,6 @@ impl AgentProvidersWidget {
                 .with_child(api_type_field)
                 .with_child(base_url_field)
                 .with_child(api_key_field)
-                .with_child(reasoning_field)
                 .with_child(
                     Container::new(models_column.finish())
                         .with_margin_top(8.)

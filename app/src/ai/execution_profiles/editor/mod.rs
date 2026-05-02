@@ -734,6 +734,7 @@ impl ExecutionProfileEditorView {
                         ctx,
                     );
                 }
+                LLMPreferencesEvent::UpdatedReasoningEffort => {}
             }
         });
 

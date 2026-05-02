@@ -97,28 +97,36 @@ fn byop_dispatch_info(
     // 解析 active title_model:可能是 base_model 自己,也可能是用户独立选的另一个 BYOP 模型。
     // 任一模型不是 BYOP 编码(比如 fallback 到非 BYOP 默认),则跳过 — OpenWarp 主路径都是 BYOP,
     // 实际 fallback 到 base 时,base 自己就是 BYOP。
+    let llm_prefs = crate::ai::llms::LLMPreferences::as_ref(ctx);
     let title_gen = if needs_create_task {
-        let llm_prefs = crate::ai::llms::LLMPreferences::as_ref(ctx);
         let title_id = llm_prefs.get_active_title_model(ctx, None).id.clone();
         crate::ai::agent_providers::lookup_byop(ctx, &title_id).map(
-            |(t_provider, t_api_key, t_model_id)| TitleGenParams {
-                base_url: t_provider.base_url,
-                api_key: t_api_key,
-                model_id: t_model_id,
-                api_type: t_provider.api_type,
-                reasoning_effort: t_provider.reasoning_effort,
+            |(t_provider, t_api_key, t_model_id)| {
+                let t_effort = llm_prefs.get_reasoning_effort(
+                    None,
+                    t_provider.api_type,
+                    &t_model_id,
+                );
+                TitleGenParams {
+                    base_url: t_provider.base_url,
+                    api_key: t_api_key,
+                    model_id: t_model_id,
+                    api_type: t_provider.api_type,
+                    reasoning_effort: t_effort,
+                }
             },
         )
     } else {
         None
     };
 
+    let reasoning_effort = llm_prefs.get_reasoning_effort(None, provider.api_type, &model_id);
     Some(ByopDispatch {
         base_url: provider.base_url,
         api_key,
         model_id,
         api_type: provider.api_type,
-        reasoning_effort: provider.reasoning_effort,
+        reasoning_effort,
         root_task_id,
         target_task_id,
         needs_create_task,
