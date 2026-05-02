@@ -621,21 +621,16 @@ impl ConversationOrTask<'_> {
         }
     }
 
-    /// Returns the preferred link type based on cloud conversations and session state.
+    /// Returns the preferred link type based on session state.
+    /// CloudConversations was removed in OpenWarp, so the conversation-link
+    /// path is no longer reachable for tasks.
     fn link_preference(&self) -> LinkPreference {
         match self {
             ConversationOrTask::Task(task) => {
-                // Always open session link if there's a live session.
-                // Without cloud conversations, also open session link as long as it's not expired.
-                // With cloud conversations, even if the link is not expired, we load conversation
-                // data from graphql as long as the session isn't live.
                 if task.is_sandbox_running
-                    || (!FeatureFlag::CloudConversations.is_enabled()
-                        && self.get_session_status() != Some(SessionStatus::Expired))
+                    || self.get_session_status() != Some(SessionStatus::Expired)
                 {
                     LinkPreference::Session
-                } else if FeatureFlag::CloudConversations.is_enabled() {
-                    LinkPreference::Conversation
                 } else {
                     LinkPreference::None
                 }
@@ -675,20 +670,6 @@ impl ConversationOrTask<'_> {
     }
 
     pub fn get_session_status(&self) -> Option<SessionStatus> {
-        // With cloud conversations, as long as the session link is populated, it is available
-        // If it's not, it's unavailable (no live session link and no conversation data in GCS)
-        if FeatureFlag::CloudConversations.is_enabled() {
-            return match self {
-                ConversationOrTask::Task(task) => {
-                    if task.session_link.is_some() {
-                        Some(SessionStatus::Available)
-                    } else {
-                        Some(SessionStatus::Unavailable)
-                    }
-                }
-                ConversationOrTask::Conversation(_) => None,
-            };
-        }
         match self {
             ConversationOrTask::Task(task) => {
                 if task.session_id.is_some() {
@@ -1090,21 +1071,16 @@ impl AgentConversationsModel {
                 let creator_uid = creator_uid.clone();
                 async move {
                     // Fetch personal tasks only on initialization; team tasks fetched by the view model when filters applied
-                    let personal_future = ai_client.list_ambient_agent_tasks(
-                        INITIAL_TASK_AMOUNT,
-                        TaskListFilter {
-                            creator_uid: Some(creator_uid),
-                            ..Default::default()
-                        },
-                    );
-                    let conversation_metadata_future =
-                        ai_client.list_ai_conversation_metadata(None);
-
-                    let (personal_result, conversation_metadata_result) =
-                        futures::future::join(personal_future, conversation_metadata_future).await;
-
-                    // Handle tasks result
-                    let tasks = match personal_result {
+                    let tasks = match ai_client
+                        .list_ambient_agent_tasks(
+                            INITIAL_TASK_AMOUNT,
+                            TaskListFilter {
+                                creator_uid: Some(creator_uid),
+                                ..Default::default()
+                            },
+                        )
+                        .await
+                    {
                         Ok(tasks) => tasks,
                         Err(e) => {
                             log::warn!("Failed to fetch ambient agent tasks: {e:?}");
@@ -1112,57 +1088,9 @@ impl AgentConversationsModel {
                         }
                     };
 
-                    // Handle conversation metadata result
-                    let mut conversation_metadata = match conversation_metadata_result {
-                        Ok(metadata) => metadata,
-                        Err(e) => {
-                            log::warn!("Failed to fetch conversation metadata: {e:?}");
-                            vec![]
-                        }
-                    };
+                    // Conversation metadata fetching removed alongside CloudConversations.
+                    let conversation_metadata = vec![];
 
-                    // Collect all conversation IDs from tasks
-                    let task_conversation_ids: HashSet<String> = tasks
-                        .iter()
-                        .filter_map(|task| task.conversation_id.clone())
-                        .collect();
-
-                    // Build a set of conversation IDs we already have
-                    let fetched_conversation_ids: HashSet<String> = conversation_metadata
-                        .iter()
-                        .map(|meta| meta.server_conversation_token.as_str().to_string())
-                        .collect();
-
-                    // Find conversation IDs that are in tasks but not in the initial metadata fetch
-                    let missing_conversation_ids: Vec<String> = task_conversation_ids
-                        .difference(&fetched_conversation_ids)
-                        .cloned()
-                        .collect();
-
-                    // If there are missing conversation IDs, fetch their metadata
-                    if !missing_conversation_ids.is_empty() {
-                        log::info!(
-                            "Fetching {} missing conversation metadata entries for ambient agent tasks",
-                            missing_conversation_ids.len()
-                        );
-                        match ai_client
-                            .list_ai_conversation_metadata(Some(missing_conversation_ids))
-                            .await
-                        {
-                            Ok(additional_metadata) => {
-                                log::info!(
-                                    "Fetched {} additional conversation metadata entries",
-                                    additional_metadata.len()
-                                );
-                                conversation_metadata.extend(additional_metadata);
-                            }
-                            Err(e) => {
-                                log::warn!("Failed to fetch additional conversation metadata: {e:?}");
-                            }
-                        }
-                    }
-
-                    // Always return success - we handle failures individually above
                     Ok((tasks, conversation_metadata))
                 }
             },

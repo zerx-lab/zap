@@ -153,31 +153,16 @@ pub fn refresh_warp_drive(
 /// the harness: `Harness::Oz` default with a Claude conversation id is treated as a mismatch
 /// and errors out.
 pub(super) async fn fetch_and_validate_conversation_harness(
-    ai_client: Arc<dyn AIClient>,
+    _ai_client: Arc<dyn AIClient>,
     conversation_id: &str,
-    args_harness: Harness,
+    _args_harness: Harness,
 ) -> Result<ServerAIConversationMetadata, AgentDriverError> {
-    let metadata = ai_client
-        .list_ai_conversation_metadata(Some(vec![conversation_id.to_string()]))
-        .await
-        .map_err(|e| AgentDriverError::ConversationLoadFailed(format!("{e:#}")))?
-        .into_iter()
-        .next()
-        .ok_or_else(|| {
-            AgentDriverError::ConversationLoadFailed(format!(
-                "conversation {conversation_id} not found or not accessible"
-            ))
-        })?;
-
-    if metadata.harness != args_harness {
-        return Err(AgentDriverError::ConversationHarnessMismatch {
-            conversation_id: conversation_id.to_string(),
-            expected: Harness::from(metadata.harness).to_string(),
-            got: args_harness.to_string(),
-        });
-    }
-
-    Ok(metadata)
+    // Conversation metadata fetching from the cloud was removed alongside the
+    // `CloudConversations` feature. The `--conversation` CLI argument therefore
+    // can no longer resolve any cloud-stored conversation in OpenWarp.
+    Err(AgentDriverError::ConversationLoadFailed(format!(
+        "conversation {conversation_id} not found: cloud conversations are disabled in OpenWarp"
+    )))
 }
 
 /// Format an object owner for display in the CLI.

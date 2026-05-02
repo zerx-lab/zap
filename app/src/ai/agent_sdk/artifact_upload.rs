@@ -207,26 +207,12 @@ impl FileArtifactUploader {
         &self,
         conversation_id: &ServerConversationToken,
     ) -> Result<AmbientAgentTaskId> {
-        let metadata = self
-            .ai_client
-            .list_ai_conversation_metadata(Some(vec![conversation_id.as_str().to_string()]))
-            .await
-            .with_context(|| {
-                format!(
-                    "Failed to load conversation '{}' to resolve artifact upload headers",
-                    conversation_id.as_str()
-                )
-            })?;
-
-        let metadata = single_conversation_metadata(conversation_id.as_str(), metadata)
-            .with_context(|| {
-                format!(
-                    "Failed to load conversation '{}' to resolve artifact upload headers",
-                    conversation_id.as_str()
-                )
-            })?;
-
-        ambient_task_id_from_conversation_metadata(conversation_id.as_str(), metadata)
+        // CloudConversations metadata fetching was removed in OpenWarp;
+        // artifact upload via cloud conversation token is no longer supported.
+        anyhow::bail!(
+            "Failed to load conversation '{}' to resolve artifact upload headers: cloud conversations are disabled in OpenWarp",
+            conversation_id.as_str()
+        )
     }
 }
 

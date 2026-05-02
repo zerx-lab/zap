@@ -269,18 +269,17 @@ impl Args {
             });
         }
 
-        // Hide the --conversation flag from help text
-        if !FeatureFlag::CloudConversations.is_enabled() {
-            command = command.mut_subcommand("agent", |agent_cmd| {
-                agent_cmd
-                    .mut_subcommand("run", |run_cmd| {
-                        run_cmd.mut_arg("conversation", |arg| arg.hide(true))
-                    })
-                    .mut_subcommand("run-cloud", |cloud_cmd| {
-                        cloud_cmd.mut_arg("conversation", |arg| arg.hide(true))
-                    })
-            });
-        }
+        // CloudConversations was removed in OpenWarp; the --conversation flag is
+        // always hidden from help text.
+        command = command.mut_subcommand("agent", |agent_cmd| {
+            agent_cmd
+                .mut_subcommand("run", |run_cmd| {
+                    run_cmd.mut_arg("conversation", |arg| arg.hide(true))
+                })
+                .mut_subcommand("run-cloud", |cloud_cmd| {
+                    cloud_cmd.mut_arg("conversation", |arg| arg.hide(true))
+                })
+        });
 
         if !FeatureFlag::AmbientAgentsCommandLine.is_enabled() {
             command = command.mut_subcommand("agent", |agent_cmd| {
