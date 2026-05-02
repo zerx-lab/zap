@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use chrono::{DateTime, Local};
 use session_sharing_protocol::common::SessionId;
-use warp_core::{channel::ChannelState, ui::appearance::Appearance};
+use warp_core::ui::appearance::Appearance;
 use warpui::{
     color::ColorU,
     ui_components::components::{UiComponent, UiComponentStyles},
@@ -10,7 +10,6 @@ use warpui::{
 };
 
 use crate::{
-    ai::{agent::conversation::AIConversationId, blocklist::BlocklistAIHistoryModel},
     cloud_object::model::persistence::CloudModel,
     server::{ids::ServerId, server_api::object::GuestIdentifier},
     terminal::{shared_session::join_link, TerminalView},
@@ -42,8 +41,6 @@ pub enum ShareableObject {
         session_id: SessionId,
         started_at: DateTime<Local>,
     },
-    /// An AI conversation.
-    AIConversation(AIConversationId),
 }
 
 impl ShareableObject {
@@ -54,18 +51,6 @@ impl ShareableObject {
                 .get_by_uid(&id.uid())
                 .and_then(|object| object.object_link()),
             ShareableObject::Session { session_id, .. } => Some(join_link(session_id)),
-            ShareableObject::AIConversation(id) => {
-                // Use the unified helper that checks both loaded conversation and historical metadata
-                BlocklistAIHistoryModel::as_ref(app)
-                    .get_server_conversation_metadata(id)
-                    .map(|m| {
-                        format!(
-                            "{}/conversation/{}",
-                            ChannelState::server_root_url(),
-                            m.server_conversation_token.as_str()
-                        )
-                    })
-            }
         }
     }
 }

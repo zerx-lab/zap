@@ -212,62 +212,8 @@ impl<S: Slide> LaunchModal<S> {
         ctx.notify();
     }
 
-    fn render_checkbox(&self, app: &AppContext) -> Option<Box<dyn Element>> {
-        if !self.slide.should_show_checkbox(app) {
-            return None;
-        }
-        let checkbox_config = self.slide.checkbox_config()?;
-        let appearance = Appearance::handle(app).as_ref(app);
-        let theme = appearance.theme();
-
-        let is_checked = PrivacySettings::handle(app)
-            .as_ref(app)
-            .is_cloud_conversation_storage_enabled;
-
-        let checkbox = appearance
-            .ui_builder()
-            .checkbox(self.state_handles.checkbox.clone(), Some(10.5))
-            .check(is_checked)
-            .build()
-            .on_click(|ctx, _, _| ctx.dispatch_typed_action(LaunchModalAction::<S>::ToggleCheckbox))
-            .finish();
-
-        let label =
-            FormattedTextElement::from_str(checkbox_config.label, appearance.ui_font_family(), 12.)
-                .with_color(blended_colors::text_sub(
-                    theme,
-                    blended_colors::neutral_1(theme),
-                ))
-                .finish();
-
-        let description = FormattedTextElement::from_str(
-            checkbox_config.description,
-            appearance.ui_font_family(),
-            12.,
-        )
-        .with_color(blended_colors::text_disabled(
-            theme,
-            blended_colors::neutral_1(theme),
-        ))
-        .finish();
-
-        Some(
-            Container::new(
-                Flex::column()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Start)
-                    .with_child(
-                        Flex::row()
-                            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                            .with_child(checkbox)
-                            .with_child(Container::new(label).with_margin_left(4.).finish())
-                            .finish(),
-                    )
-                    .with_child(Container::new(description).with_margin_top(4.).finish())
-                    .finish(),
-            )
-            .with_margin_top(24.)
-            .finish(),
-        )
+    fn render_checkbox(&self, _app: &AppContext) -> Option<Box<dyn Element>> {
+        None
     }
 
     fn render_slide_controls(&self, app: &AppContext) -> Box<dyn Element> {
@@ -722,7 +668,7 @@ impl<S: Slide> TypedActionView for LaunchModal<S> {
                 self.handle_secondary_cta_button_action(ctx);
             }
             LaunchModalAction::ToggleCheckbox => {
-                ctx.emit(LaunchModalEvent::ToggleCheckbox);
+                // Checkbox UI removed; action no-ops to keep the trait contract stable.
             }
         }
     }
@@ -731,7 +677,6 @@ impl<S: Slide> TypedActionView for LaunchModal<S> {
 #[derive(Copy, Clone, Debug)]
 pub enum LaunchModalEvent {
     Close,
-    ToggleCheckbox,
 }
 
 #[derive(Copy, Clone, Debug)]

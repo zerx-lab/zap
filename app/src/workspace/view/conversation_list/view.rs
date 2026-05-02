@@ -985,44 +985,10 @@ impl TypedActionView for ConversationListView {
                 }
                 ctx.notify();
             }
-            ConversationListViewAction::OpenShareDialog { conversation_id } => {
-                // Clear selection state when opening share dialog
-                self.selected_index = None;
-
-                // Resolve the AIConversationId for the shareable object
-                let ai_conversation_id: Option<AIConversationId> = match conversation_id {
-                    ConversationOrTaskId::TaskId(task_id) => {
-                        // For tasks, look up the associated conversation_id by server token
-                        if let Some(ConversationOrTask::Task(task)) =
-                            AgentConversationsModel::as_ref(ctx).get_task(task_id)
-                        {
-                            task.conversation_id.as_ref().and_then(|token_str| {
-                                let server_token = ServerConversationToken::new(token_str.clone());
-                                BlocklistAIHistoryModel::as_ref(ctx)
-                                    .find_conversation_id_by_server_token(&server_token)
-                            })
-                        } else {
-                            None
-                        }
-                    }
-                    ConversationOrTaskId::ConversationId(conv_id) => Some(*conv_id),
-                };
-
-                let Some(ai_conversation_id) = ai_conversation_id else {
-                    return;
-                };
-
-                // Set the share dialog target and open it
-                self.share_dialog_open_for = Some(*conversation_id);
-                self.sharing_dialog.update(ctx, |dialog, ctx| {
-                    dialog.set_target(
-                        Some(ShareableObject::AIConversation(ai_conversation_id)),
-                        ctx,
-                    );
-                    dialog.report_open(SharingDialogSource::ConversationList, ctx);
-                });
-                ctx.focus(&self.sharing_dialog);
-                ctx.notify();
+            ConversationListViewAction::OpenShareDialog {
+                conversation_id: _,
+            } => {
+                // AI conversation sharing was removed alongside the CloudConversations feature.
             }
             ConversationListViewAction::DeleteFromOverflowMenu { conversation_id } => {
                 let ConversationOrTaskId::ConversationId(ai_conversation_id) = conversation_id

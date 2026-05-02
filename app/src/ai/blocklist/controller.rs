@@ -2737,11 +2737,6 @@ impl BlocklistAIController {
                         self.pending_auto_resume_handles
                             .insert(conversation_id, handle);
                     }
-                    log::info!(
-                        "[byop-diag] AfterStreamFinished: actions_to_queue is EMPTY (\
-                         was_passive={was_passive_request}, unfinished={is_any_exchange_unfinished}, \
-                         byop_resume={needs_byop_local_resume}) conversation_id={conversation_id:?}"
-                    );
                 }
 
                 // Cancelled streams will handle pending_response_stream updates synchronously.

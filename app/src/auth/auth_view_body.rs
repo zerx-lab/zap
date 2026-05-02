@@ -138,7 +138,6 @@ pub enum AuthViewBodyAction {
     HideOverlay,
     ToggleTelemetry,
     ToggleCrashReporting,
-    ToggleCloudConversationStorage,
     Close,
 }
 
@@ -249,7 +248,6 @@ impl AuthViewBody {
         PrivacySettingsActions {
             toggle_telemetry: AuthViewBodyAction::ToggleTelemetry,
             toggle_crash_reporting: AuthViewBodyAction::ToggleCrashReporting,
-            toggle_cloud_conversation_storage: AuthViewBodyAction::ToggleCloudConversationStorage,
             hide_overlay: AuthViewBodyAction::HideOverlay,
         }
     }
@@ -974,16 +972,6 @@ impl TypedActionView for AuthViewBody {
                 });
                 ctx.notify();
             }
-            AuthViewBodyAction::ToggleCloudConversationStorage => {
-                let privacy_settings_handle = PrivacySettings::handle(ctx);
-                ctx.update_model(&privacy_settings_handle, |privacy_settings, ctx| {
-                    privacy_settings.set_is_cloud_conversation_storage_enabled(
-                        !privacy_settings.is_cloud_conversation_storage_enabled,
-                        ctx,
-                    );
-                });
-                ctx.notify();
-            }
             AuthViewBodyAction::Close => {
                 ctx.emit(AuthViewBodyEvent::Close);
             }
@@ -1048,10 +1036,6 @@ impl View for AuthViewBody {
         if let Some(overlay) = &self.active_overlay {
             match overlay {
                 AuthViewOverlay::PrivacySettings => {
-                    // The `is_any_ai_enabled` helper also accounts for login /
-                    // remote-session gating, so the cloud-conversation toggle
-                    // hides whenever AI isn't effectively available.
-                    let is_ai_enabled = AISettings::as_ref(app).is_any_ai_enabled(app);
                     stack.add_child(
                         Dismiss::new(render_overlay(
                             render_privacy_settings_overlay_body(
@@ -1059,7 +1043,6 @@ impl View for AuthViewBody {
                                 app,
                                 &self.privacy_settings_handles,
                                 &self.privacy_settings_actions(),
-                                is_ai_enabled,
                             ),
                             appearance,
                         ))

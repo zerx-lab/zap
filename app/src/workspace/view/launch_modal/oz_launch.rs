@@ -169,25 +169,6 @@ impl Slide for OzLaunchSlide {
         }
     }
 
-    fn checkbox_config(&self) -> Option<CheckboxConfig> {
-        Some(CheckboxConfig {
-            label: "Sync conversations to cloud",
-            description: "Agent conversations stored in the cloud can be shared with anyone with one click, and allow conversations to be continued across devices and on logout.",
-        })
-    }
-
-    fn should_show_checkbox(&self, app: &AppContext) -> bool {
-        let cloud_storage_setting =
-            UserWorkspaces::as_ref(app).get_cloud_conversation_storage_enablement_setting();
-        let ugc_setting = UserWorkspaces::as_ref(app).get_ugc_collection_enablement_setting();
-
-        // Show checkbox only when user has control over cloud storage AND UGC is not force-enabled.
-        matches!(
-            cloud_storage_setting,
-            AdminEnablementSetting::RespectUserSetting
-        ) && !matches!(ugc_setting, UgcCollectionEnablementSetting::Enable)
-    }
-
     fn on_close(&self, ctx: &mut warpui::ViewContext<super::LaunchModal<Self>>) {
         ctx.dispatch_typed_action(&WorkspaceAction::StartAgentOnboardingTutorial(
             OnboardingTutorial::NoProject {

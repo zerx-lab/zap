@@ -95,7 +95,6 @@ const AMBIENT_WORKLOAD_TOKEN_DURATION: Duration = Duration::from_secs(3 * 60 * 6
 /// User settings that are currently 'synced' (e.g. stored server-side) on a per-user basis.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct SyncedUserSettings {
-    pub is_cloud_conversation_storage_enabled: bool,
     pub is_crash_reporting_enabled: bool,
     pub is_telemetry_enabled: bool,
 }
@@ -172,8 +171,6 @@ pub trait AuthClient: 'static + Send + Sync {
     async fn set_is_telemetry_enabled(&self, value: bool) -> Result<()>;
 
     async fn set_is_crash_reporting_enabled(&self, value: bool) -> Result<()>;
-
-    async fn set_is_cloud_conversation_storage_enabled(&self, value: bool) -> Result<()>;
 
     /// Sends a request to update the user's settings on the server with values contained in the
     /// given `settings_snapshot`.
@@ -415,10 +412,6 @@ impl AuthClient for ServerApi {
     }
 
     async fn set_is_crash_reporting_enabled(&self, _value: bool) -> Result<()> {
-        Ok(())
-    }
-
-    async fn set_is_cloud_conversation_storage_enabled(&self, _value: bool) -> Result<()> {
         Ok(())
     }
 
