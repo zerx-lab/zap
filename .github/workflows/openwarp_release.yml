@@ -57,7 +57,7 @@ jobs:
             TAG="${GITHUB_REF#refs/tags/}"
             BRANCH="$TAG"
           else
-            TAG="v0.$(date +%Y.%m.%d.%H.%M).preview_00"
+            TAG="v0.$(date +%Y.%m.%d.%H%M)"
             BRANCH="${GITHUB_REF#refs/heads/}"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
@@ -71,7 +71,8 @@ jobs:
           tag_name: ${{ steps.compute_tag.outputs.tag }}
           body: ${{ steps.get-config.outputs.release_body_text }}
           draft: false
-          prerelease: true
+          prerelease: false
+          make_latest: "true"
           token: ${{ secrets.GITHUB_TOKEN }}
 
   release_macos:
