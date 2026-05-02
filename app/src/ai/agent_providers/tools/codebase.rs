@@ -3,6 +3,11 @@
 //! 与 `Grep`(逐字面匹配)、`FileGlobV2`(文件名通配)的区别在于:SearchCodebase
 //! 是**语义化**搜索 — 通过 warp 内置的代码索引(embeddings/symbol outline 等),
 //! 用自然语言描述就能找到相关代码片段。仅 Local 会话支持。
+//!
+//! 当前 OpenWarp **未实现代码索引功能**,因此 `SEARCH_CODEBASE` 从 `tools::REGISTRY`
+//! 中暂时移除,模型不会被告知此工具可用。模块保留以便日后启用。
+
+#![allow(dead_code)]
 
 use anyhow::Result;
 use serde::Deserialize;

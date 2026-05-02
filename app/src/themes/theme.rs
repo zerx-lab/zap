@@ -56,6 +56,10 @@ pub enum ThemeKind {
     Dark,
     #[schemars(description = "Dracula")]
     Dracula,
+    #[schemars(description = "Tokyo Night")]
+    TokyoNight,
+    #[schemars(description = "One Dark")]
+    OneDark,
     #[schemars(description = "Fancy Dracula")]
     FancyDracula,
     #[schemars(description = "Cyber Wave")]
@@ -115,6 +119,8 @@ impl std::fmt::Display for ThemeKind {
             ThemeKind::Light => "Light",
             ThemeKind::Dark => "Dark",
             ThemeKind::Dracula => "Dracula",
+            ThemeKind::TokyoNight => "Tokyo Night",
+            ThemeKind::OneDark => "One Dark",
             ThemeKind::SolarizedDark => "Solarized Dark",
             ThemeKind::SolarizedLight => "Solarized Light",
             ThemeKind::GruvboxDark => "Gruvbox Dark",
@@ -305,6 +311,8 @@ impl WarpThemeConfig {
             (ThemeKind::SolarizedDark, solarized_dark()),
             (ThemeKind::SolarizedLight, solarized_light()),
             (ThemeKind::Dracula, dracula()),
+            (ThemeKind::TokyoNight, tokyo_night()),
+            (ThemeKind::OneDark, one_dark()),
             (ThemeKind::GruvboxDark, gruvbox_dark()),
             (ThemeKind::GruvboxLight, gruvbox_light()),
             (ThemeKind::JellyFish, jellyfish()),

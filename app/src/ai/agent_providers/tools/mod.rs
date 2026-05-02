@@ -73,7 +73,8 @@ pub const REGISTRY: &[&OpenAiTool] = &[
     &files::READ_FILES,
     &search::GREP,
     &search::FILE_GLOB_V2,
-    &codebase::SEARCH_CODEBASE,
+    // search_codebase 暂未对外暴露:代码索引(embeddings/symbol outline)尚未实现。
+    // 模块和静态值保留以便日后启用,见 codebase.rs。
     &edit::APPLY_FILE_DIFFS,
     &long_shell::WRITE_TO_LONG_RUNNING_SHELL_COMMAND,
     &long_shell::READ_SHELL_COMMAND_OUTPUT,

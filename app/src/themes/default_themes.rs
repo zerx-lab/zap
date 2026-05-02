@@ -197,6 +197,48 @@ const SOLARFLARE_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xFFFFFFFF),
 );
 
+const TOKYO_NIGHT_NORMAL_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x15161EFF),
+    AnsiColor::from_u32(0xF7768EFF),
+    AnsiColor::from_u32(0x9ECE6AFF),
+    AnsiColor::from_u32(0xE0AF68FF),
+    AnsiColor::from_u32(0x7AA2F7FF),
+    AnsiColor::from_u32(0xBB9AF7FF),
+    AnsiColor::from_u32(0x7DCFFFFF),
+    AnsiColor::from_u32(0xA9B1D6FF),
+);
+const TOKYO_NIGHT_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x414868FF),
+    AnsiColor::from_u32(0xF7768EFF),
+    AnsiColor::from_u32(0x9ECE6AFF),
+    AnsiColor::from_u32(0xE0AF68FF),
+    AnsiColor::from_u32(0x7AA2F7FF),
+    AnsiColor::from_u32(0xBB9AF7FF),
+    AnsiColor::from_u32(0x7DCFFFFF),
+    AnsiColor::from_u32(0xC0CAF5FF),
+);
+
+const ONE_DARK_NORMAL_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x282C34FF),
+    AnsiColor::from_u32(0xE06C75FF),
+    AnsiColor::from_u32(0x98C379FF),
+    AnsiColor::from_u32(0xE5C07BFF),
+    AnsiColor::from_u32(0x61AFEFFF),
+    AnsiColor::from_u32(0xC678DDFF),
+    AnsiColor::from_u32(0x56B6C2FF),
+    AnsiColor::from_u32(0xABB2BFFF),
+);
+const ONE_DARK_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x636D83FF),
+    AnsiColor::from_u32(0xEA858BFF),
+    AnsiColor::from_u32(0xAAD581FF),
+    AnsiColor::from_u32(0xFFD885FF),
+    AnsiColor::from_u32(0x85C1FFFF),
+    AnsiColor::from_u32(0xD398EBFF),
+    AnsiColor::from_u32(0x6ED5DEFF),
+    AnsiColor::from_u32(0xFAFAFAFF),
+);
+
 const ADEBERRY_NORMAL_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0x121212FF),
     AnsiColor::from_u32(0xC76156FF),
@@ -256,6 +298,14 @@ pub(super) fn solarflare_colors() -> TerminalColors {
 
 pub(super) fn adeberry_colors() -> TerminalColors {
     TerminalColors::new(ADEBERRY_NORMAL_COLORS, ADEBERRY_BRIGHT_COLORS)
+}
+
+pub(super) fn tokyo_night_colors() -> TerminalColors {
+    TerminalColors::new(TOKYO_NIGHT_NORMAL_COLORS, TOKYO_NIGHT_BRIGHT_COLORS)
+}
+
+pub(super) fn one_dark_colors() -> TerminalColors {
+    TerminalColors::new(ONE_DARK_NORMAL_COLORS, ONE_DARK_BRIGHT_COLORS)
 }
 
 /// Default bundled themes
@@ -598,6 +648,32 @@ pub(super) fn solar_flare() -> WarpTheme {
             opacity: 20,
         }),
         Some("Solar Flare".to_string()),
+    )
+}
+
+pub(super) fn tokyo_night() -> WarpTheme {
+    WarpTheme::new(
+        Fill::Solid(ColorU::from_u32(0x1A1B26FF)),
+        ColorU::from_u32(0xC0CAF5FF),
+        Fill::Solid(ColorU::from_u32(0x7AA2F7FF)),
+        None,
+        Some(Details::Darker),
+        tokyo_night_colors(),
+        None,
+        Some("Tokyo Night".to_string()),
+    )
+}
+
+pub(super) fn one_dark() -> WarpTheme {
+    WarpTheme::new(
+        Fill::Solid(ColorU::from_u32(0x282C34FF)),
+        ColorU::from_u32(0xABB2BFFF),
+        Fill::Solid(ColorU::from_u32(0x74ADE8FF)),
+        None,
+        Some(Details::Darker),
+        one_dark_colors(),
+        None,
+        Some("One Dark".to_string()),
     )
 }
 

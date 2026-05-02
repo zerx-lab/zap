@@ -1,6 +1,6 @@
 //! BYOP system prompt 模板渲染。
 //!
-//! 把 warp 客户端已经收集好的 `AIAgentContext`(env / git / skills / project_rules / codebase / current_time)
+//! 把 warp 客户端已经收集好的 `AIAgentContext`(env / git / skills / project_rules / current_time)
 //! 渲染为 OpenAI 兼容 endpoint 的 `system` message 字符串。
 //!
 //! ## 工作流
@@ -61,7 +61,7 @@ fn build_env() -> Environment<'static> {
     // BYOP 不按模型分发 system prompt:用户配置的模型 id 是任意字符串
     // (deepseek-chat / glm-4 / qwen2.5 / openrouter 路径下的 anthropic/claude-3 等),
     // 子串匹配既不可靠又会让行为不一致。一份合并好的 default.j2 已涵盖所有
-    // 必要约束(CLI 风格、工具规约、长运行命令、git 安全、文件编辑规则等)。
+    // 必要约束(ADE 风格、工具规约、长运行命令、git 安全、文件编辑规则等)。
     env.add_template(
         "system/default.j2",
         include_str!("prompts/system/default.j2"),
@@ -118,12 +118,6 @@ struct GitCtx {
 }
 
 #[derive(Debug, Serialize)]
-struct CodebaseCtx {
-    name: String,
-    path: String,
-}
-
-#[derive(Debug, Serialize)]
 struct SkillCtx {
     name: String,
     description: String,
@@ -138,11 +132,9 @@ struct ProjectRuleCtx {
 #[derive(Debug, Default, Serialize)]
 struct PromptContext {
     cwd: Option<String>,
-    home: Option<String>,
     shell: Option<ShellCtx>,
     os: Option<OsCtx>,
     git: Option<GitCtx>,
-    codebases: Vec<CodebaseCtx>,
     skills: Vec<SkillCtx>,
     project_rules: Vec<ProjectRuleCtx>,
     current_time: String,
@@ -158,12 +150,9 @@ fn collect_prompt_context(model_id: &str, ctx: &[AIAgentContext]) -> PromptConte
 
     for c in ctx {
         match c {
-            AIAgentContext::Directory { pwd, home_dir, .. } => {
+            AIAgentContext::Directory { pwd, .. } => {
                 if out.cwd.is_none() {
                     out.cwd = pwd.clone();
-                }
-                if out.home.is_none() {
-                    out.home = home_dir.clone();
                 }
             }
             AIAgentContext::ExecutionEnvironment(exec) => {
@@ -182,12 +171,8 @@ fn collect_prompt_context(model_id: &str, ctx: &[AIAgentContext]) -> PromptConte
             AIAgentContext::CurrentTime { current_time } => {
                 out.current_time = current_time.format("%Y-%m-%d %H:%M:%S %:z").to_string();
             }
-            AIAgentContext::Codebase { name, path } => {
-                out.codebases.push(CodebaseCtx {
-                    name: name.clone(),
-                    path: path.clone(),
-                });
-            }
+            // 代码索引功能未实现,Codebase 上下文不进 system prompt。
+            AIAgentContext::Codebase { .. } => {}
             AIAgentContext::Git { head, branch } => {
                 out.git = Some(GitCtx {
                     head: head.clone(),
@@ -270,7 +255,7 @@ pub fn render_system(model: &LLMId, ctx: &[AIAgentContext]) -> String {
 /// 渲染兜底 system(只在模板加载/渲染失败时用,不应在正常路径触发)。
 fn fallback_system(model_id: &str) -> String {
     format!(
-        "You are an interactive coding assistant embedded in Warp terminal. \
+        "You are the AI coding agent inside OpenWarp, an AI Development Environment (ADE). \
          Model: {model_id}. \
          Use the registered tools (run_shell_command / read_files / apply_file_diffs / grep / file_glob / ...) \
          to take actions on the user's behalf. Be concise."
@@ -325,12 +310,13 @@ mod tests {
         );
         assert!(out.contains("Shell: bash 5.1"), "{out}");
         assert!(out.contains("linux (Ubuntu 22.04)"), "{out}");
-        assert!(out.contains("Home directory: /home/user"), "{out}");
+        // home 字段已对齐 opencode 砍掉,不再渲染
+        assert!(!out.contains("Home directory:"), "{out}");
     }
 
     #[test]
     fn render_uses_default_regardless_of_model() {
-        // 任何 model id 都走 default.j2 — 内容里都应有"interactive CLI coding agent"开头。
+        // 任何 model id 都走 default.j2 — 内容里都应有 OpenWarp ADE 开头。
         for id in [
             "claude-sonnet-4-5",
             "gpt-4o",
@@ -339,7 +325,7 @@ mod tests {
         ] {
             let out = render_system(&LLMId::from(format!("byop:p:{id}").as_str()), &[]);
             assert!(
-                out.contains("interactive CLI coding agent"),
+                out.contains("AI coding agent inside OpenWarp"),
                 "id={id} out={out}"
             );
         }

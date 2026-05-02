@@ -1,5 +1,10 @@
 Skills provide specialized instructions and workflows for specific tasks.
 Use the `read_skill` tool to load a skill when a task matches its description.
-{% for s in skills %}
-- **{{ s.name }}**{% if s.description %} — {{ s.description }}{% endif %}
+<available_skills>
+{%- for s in skills %}
+  <skill>
+    <name>{{ s.name }}</name>
+    <description>{{ s.description }}</description>
+  </skill>
 {%- endfor %}
+</available_skills>

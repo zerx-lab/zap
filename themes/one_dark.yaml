@@ -1,0 +1,30 @@
+# One Dark (Zed 官方移植)
+# 配色源: zed-industries/zed — assets/themes/one/one.json (theme "One Dark")
+# 安装方式 (Windows / openWarp OSS):
+#   将本文件复制到 %APPDATA%\openwarp\OpenWarp\data\themes\one_dark.yaml
+#   重启 openWarp 后, 在 Settings → Appearance → Themes 选择 "One Dark"
+---
+name: One Dark
+background: '#282c34'
+foreground: '#abb2bf'
+accent: '#74ade8'
+details: darker
+terminal_colors:
+  normal:
+    black: '#282c34'
+    red: '#e06c75'
+    green: '#98c379'
+    yellow: '#e5c07b'
+    blue: '#61afef'
+    magenta: '#c678dd'
+    cyan: '#56b6c2'
+    white: '#abb2bf'
+  bright:
+    black: '#636d83'
+    red: '#ea858b'
+    green: '#aad581'
+    yellow: '#ffd885'
+    blue: '#85c1ff'
+    magenta: '#d398eb'
+    cyan: '#6ed5de'
+    white: '#fafafa'

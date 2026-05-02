@@ -1,5 +1,5 @@
 # Tool Names
 
-Use the actual registered tool names when emitting tool calls: `run_shell_command`, `write_to_long_running_shell_command`, `read_shell_command_output`, `read_files`, `apply_file_diffs`, `file_glob`, `grep`, `search_codebase`, `read_skill`, and `ask_user_question`. MCP tools are exposed as `mcp__<server>__<tool>`.
+Use the actual registered tool names when emitting tool calls: `run_shell_command`, `write_to_long_running_shell_command`, `read_shell_command_output`, `read_files`, `apply_file_diffs`, `file_glob`, `grep`, `read_skill`, and `ask_user_question`. MCP tools are exposed as `mcp__<server>__<tool>`.
 
-Do not call unavailable tools such as `Task`, `TodoWrite`, `WebFetch`, `WebSearch`, `LSP`, or `apply_patch`.
+Do not call unavailable tools such as `Task`, `TodoWrite`, `WebFetch`, `WebSearch`, `LSP`, `apply_patch`, or `search_codebase`.

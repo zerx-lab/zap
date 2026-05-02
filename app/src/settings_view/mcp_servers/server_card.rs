@@ -115,8 +115,10 @@ impl StatusColor {
     fn to_color(&self, appearance: &Appearance) -> ColorU {
         match self {
             StatusColor::Red => appearance.theme().ui_error_color(),
-            StatusColor::Yellow => appearance.theme().ansi_fg_yellow(),
-            StatusColor::Green => appearance.theme().ansi_fg_green(),
+            // 状态指示点用原始 ANSI 颜色,避免 ansi_fg_* 把饱和度对半混到 foreground 上
+            // 在 One Dark / Tokyo Night 这类低饱和前景的主题里出现"灰绿/灰黄"模糊感。
+            StatusColor::Yellow => appearance.theme().terminal_colors().normal.yellow.into(),
+            StatusColor::Green => appearance.theme().terminal_colors().normal.green.into(),
             StatusColor::Neutral => {
                 blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1())
             }
