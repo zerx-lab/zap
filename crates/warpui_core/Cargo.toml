@@ -97,6 +97,11 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
 arboard = { workspace = true, features = ["image-data"] }
 
+[target.'cfg(target_os = "windows")'.dependencies]
+# Windows-only fallback for reading custom clipboard image formats (e.g. raw "PNG")
+# that arboard cannot decode. Already in dep tree as a transitive of arboard.
+clipboard-win = "5"
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 gloo.workspace = true
 wasm-bindgen-futures.workspace = true

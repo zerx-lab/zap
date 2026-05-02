@@ -189,52 +189,105 @@ fn is_text_like_by_filename(file_name: &str) -> bool {
 }
 
 /// 读 PendingFile 的内容,转成 BYOP / warp-own 双路都能消费的 `FileContext`。
-/// - text-like 命中 + UTF-8 解析成功 → `StringContent`(P0 路径,所有模型可用)
-/// - 否则按 binary 处理 → `BinaryContent(Vec<u8>)`(P1 路径,BYOP 升级到 `Binary` ContentPart)
-/// - 超过对应字节上限 / 读失败 → log warn + 跳过
+///
+/// 三档路径:
+/// 1. **text-like 命中 + UTF-8 ok + 不超 text cap** → `StringContent`,内联进 `<file>` XML
+/// 2. **多模态 mime(image/pdf/audio)+ 不超 binary cap** → `BinaryContent(bytes)`,
+///    BYOP 升级成 `ContentPart::Binary` 真正发给模型
+/// 3. **其它 binary(.exe / .zip / 超大文件)** → `BinaryContent(空 Vec)` —— 不读 bytes
+///    避免内存浪费,但仍创建 FileContext,让 AI 至少能在 prefix XML 里看到
+///    path / mime / size,可调 read_files 等工具自己进一步处理
+///
+/// 关键修复:`file_name` 字段塞**完整绝对路径**而不是 basename。`FileContext.file_name`
+/// 在 `convert.rs:750` 里已经被当 `file_path` 用,user_context 也按 `path` 渲染,
+/// 这里塞完整路径让 AI 能用 read_files / shell 工具直接定位文件。
 ///
 /// 设计权衡:warp-own 协议路径上 `BinaryContent` 在 `convert.rs:759` 里被 `Vec<api::FileContent>::from`
 /// 直接丢弃(返回空 vec),所以即便我们在这里把所有 binary 都塞进 context 也不会
 /// 污染 warp-own 数据流;只有 BYOP 的 `user_context::render_user_attachments` 会
 /// 真正消费 BinaryContent 并升级成 `ContentPart::Binary`。
 fn read_pending_file_for_context(file: &PendingFile) -> Option<FileContext> {
-    let bytes = match std::fs::read(&file.file_path) {
-        Ok(b) => b,
-        Err(e) => {
-            log::warn!(
-                "Failed to read attached file {} for inline context: {e}",
-                file.file_path.display()
-            );
-            return None;
-        }
-    };
+    let full_path = file.file_path.to_string_lossy().into_owned();
+    let metadata_size = std::fs::metadata(&file.file_path).ok().map(|m| m.len());
 
-    // 先按 text-like 试 UTF-8(不止扩展名命中,内容真能解析才落 text 路径)
-    if is_text_like(file) && bytes.len() <= MAX_INLINE_TEXT_FILE_BYTES {
-        if let Ok(content) = std::str::from_utf8(&bytes) {
-            return Some(FileContext::new(
-                file.file_name.clone(),
-                AnyFileContent::StringContent(content.to_owned()),
-                None,
-                None,
-            ));
+    // 1) text-like 试 UTF-8
+    if is_text_like(file) {
+        if let Some(size) = metadata_size {
+            if size as usize <= MAX_INLINE_TEXT_FILE_BYTES {
+                match std::fs::read(&file.file_path) {
+                    Ok(bytes) => {
+                        if let Ok(content) = std::str::from_utf8(&bytes) {
+                            return Some(FileContext::new(
+                                full_path,
+                                AnyFileContent::StringContent(content.to_owned()),
+                                None,
+                                None,
+                            ));
+                        }
+                        // text-like 但内容不是 UTF-8 → 落到 binary 路径
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to read attached file {} for inline context: {e}",
+                            file.file_path.display()
+                        );
+                        return None;
+                    }
+                }
+            }
         }
     }
 
-    // text 路径 miss → 按 binary 处理(给 BYOP 的 Binary ContentPart 用)。
-    // text-like 但超大或非 UTF-8 时也走这条路,避免数据丢失。
-    if bytes.len() > MAX_INLINE_BINARY_FILE_BYTES {
-        log::warn!(
-            "Skipping attached file {} ({} bytes) — exceeds {} byte binary cap",
-            file.file_path.display(),
-            bytes.len(),
-            MAX_INLINE_BINARY_FILE_BYTES
-        );
-        return None;
+    // 2) 多模态 binary(image/pdf/audio):需要把 bytes 真送给模型,读取并落 BinaryContent
+    let mime = file.mime_type.to_ascii_lowercase();
+    let is_multimodal_mime = mime.starts_with("image/")
+        || mime == "application/pdf"
+        || mime.starts_with("audio/");
+    if is_multimodal_mime {
+        if let Some(size) = metadata_size {
+            if size as usize <= MAX_INLINE_BINARY_FILE_BYTES {
+                match std::fs::read(&file.file_path) {
+                    Ok(bytes) => {
+                        return Some(FileContext::new(
+                            full_path,
+                            AnyFileContent::BinaryContent(bytes),
+                            None,
+                            None,
+                        ));
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Failed to read attached file {} for inline context: {e}",
+                            file.file_path.display()
+                        );
+                        return None;
+                    }
+                }
+            } else {
+                log::warn!(
+                    "Attached file {} ({} bytes) exceeds {} byte multimodal cap; \
+                     sending placeholder only (path/mime/size) — AI can use read_files instead",
+                    file.file_path.display(),
+                    size,
+                    MAX_INLINE_BINARY_FILE_BYTES
+                );
+                // 超大多模态文件:落空 BinaryContent,placeholder 仍带 size(从 metadata 来)
+                return Some(FileContext::new(
+                    full_path,
+                    AnyFileContent::BinaryContent(Vec::new()),
+                    None,
+                    None,
+                ));
+            }
+        }
     }
+
+    // 3) 其它 binary(.exe / .zip / 未知类型 / metadata 读不到):空 BinaryContent
+    // 不读 bytes,避免 100MB exe 占用内存;AI 通过 prefix XML 拿到 path/mime/size
+    // 即可决定是否调 read_files 或 shell 工具进一步处理。
     Some(FileContext::new(
-        file.file_name.clone(),
-        AnyFileContent::BinaryContent(bytes),
+        full_path,
+        AnyFileContent::BinaryContent(Vec::new()),
         None,
         None,
     ))

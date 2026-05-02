@@ -1816,3 +1816,57 @@ menu-codeeditor-find-references = 查找引用
 
 # --- 共享标签:附加为 agent 上下文(blocklist/view_util.rs) ---
 menu-attach-as-agent-context = 附加为 agent 上下文
+
+# --- ANCHOR-SUB-SLASH-COMMANDS (agent-slash-commands) ---
+# 斜杠命令面板的描述与参数提示
+# (app/src/search/slash_command_menu/static_commands/commands.rs)
+slash-cmd-agent-desc = 开始新对话
+slash-cmd-add-mcp-desc = 添加新的 MCP 服务器
+slash-cmd-pr-comments-desc = 拉取 GitHub PR 评审评论
+slash-cmd-create-environment-desc = 通过引导式流程创建 Oz 环境(Docker 镜像 + 仓库)
+slash-cmd-create-environment-hint = <可选:仓库路径或 GitHub URL>
+slash-cmd-docker-sandbox-desc = 创建新的 Docker 沙盒终端会话
+slash-cmd-create-new-project-desc = 由 Oz 引导你创建新的代码项目
+slash-cmd-create-new-project-hint = <描述你想构建什么>
+slash-cmd-open-skill-desc = 在 Warp 内置编辑器中打开技能的 markdown 文件
+slash-cmd-skills-desc = 调用技能
+slash-cmd-add-prompt-desc = 添加新的智能体提示词
+slash-cmd-add-rule-desc = 为智能体添加新的全局规则
+slash-cmd-open-file-desc = 在 Warp 代码编辑器中打开文件
+slash-cmd-open-file-hint = <path/to/file[:line[:col]]> 或输入 "@" 搜索
+slash-cmd-rename-tab-desc = 重命名当前标签页
+slash-cmd-rename-tab-hint = <标签页名称>
+slash-cmd-fork-desc = 在新窗格或新标签页中分叉当前对话
+slash-cmd-fork-hint = <可选:在分叉后的对话中发送的提示词>
+slash-cmd-open-code-review-desc = 打开代码评审
+slash-cmd-index-desc = 索引此代码库
+slash-cmd-init-desc = 索引此代码库并生成 AGENTS.md 文件
+slash-cmd-open-project-rules-desc = 打开项目规则文件(AGENTS.md)
+slash-cmd-open-mcp-servers-desc = 打开 MCP 服务器
+slash-cmd-open-settings-file-desc = 打开设置文件(TOML)
+slash-cmd-changelog-desc = 打开最新更新日志
+slash-cmd-open-repo-desc = 切换到另一个已索引的仓库
+slash-cmd-open-rules-desc = 查看你的全部全局规则与项目规则
+slash-cmd-new-desc = 开始新对话(/agent 的别名)
+slash-cmd-model-desc = 切换基础智能体模型
+slash-cmd-profile-desc = 切换当前激活的执行配置
+slash-cmd-plan-desc = 让智能体调研并为任务创建计划
+slash-cmd-plan-hint = <描述你的任务>
+slash-cmd-orchestrate-desc = 将任务拆分为子任务并由多个智能体并行执行
+slash-cmd-orchestrate-hint = <描述你的任务>
+slash-cmd-compact-desc = 通过摘要对话历史来释放上下文
+slash-cmd-compact-hint = <可选:自定义摘要指令>
+slash-cmd-compact-and-desc = 压缩对话并随后发送一条后续提示词
+slash-cmd-compact-and-hint = <压缩后要发送的提示词>
+slash-cmd-queue-desc = 排队一条提示词,在智能体完成响应后再发送
+slash-cmd-queue-hint = <智能体完成后要发送的提示词>
+slash-cmd-fork-and-compact-desc = 分叉当前对话并在分叉副本中压缩
+slash-cmd-fork-and-compact-hint = <可选:压缩后要发送的提示词>
+slash-cmd-fork-from-desc = 从特定查询处分叉对话
+slash-cmd-remote-control-desc = 为此会话启动远程控制
+slash-cmd-conversations-desc = 打开对话历史
+slash-cmd-prompts-desc = 搜索已保存的提示词
+slash-cmd-rewind-desc = 倒回到对话中的上一个节点
+slash-cmd-export-to-clipboard-desc = 以 markdown 格式将当前对话导出到剪贴板
+slash-cmd-export-to-file-desc = 将当前对话导出为 markdown 文件
+slash-cmd-export-to-file-hint = <可选:文件名>

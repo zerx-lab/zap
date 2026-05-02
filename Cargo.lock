@@ -15526,6 +15526,7 @@ dependencies = [
  "cfg-if",
  "cfg_aliases 0.2.1",
  "chrono",
+ "clipboard-win",
  "command",
  "concat-idents",
  "ctor",

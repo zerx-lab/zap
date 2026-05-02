@@ -133,6 +133,11 @@ pub fn collect_user_attachments(ctx: &[AIAgentContext]) -> UserAttachments {
     }
     for f in &binary_files {
         if let AnyFileContent::BinaryContent(bytes) = &f.content {
+            // 空 BinaryContent 表示"上层故意没读 bytes"(.exe / 超大文件 / 非多模态
+            // mime),只走 placeholder XML 路径,不送 ContentPart::Binary。
+            if bytes.is_empty() {
+                continue;
+            }
             let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
             // 用 file_name 上的扩展名猜 mime;`mime_guess` 与 process_non_image_files
             // 走的是同一套规则,这里再算一遍是因为 FileContext 不保存 mime。
@@ -214,20 +219,38 @@ fn render_file_text(out: &mut String, f: &FileContext) {
     out.push_str("  </file>\n");
 }
 
-/// Binary 文件 prefix 占位:让 LLM 知道有这个文件可以按 file_name 引用。
+/// Binary 文件 prefix 占位:让 LLM 知道有这个文件、完整路径与 mime,可以决定:
+/// - 是直接读 ContentPart::Binary(模型支持 + bytes 已上传)
+/// - 还是用 read_files / shell 工具按 path 自行处理(.exe / .zip / 超大文件)
+///
 /// 实际 bytes 通过 caller 端 `MessageContent::Parts` 走 ContentPart::Binary,
 /// 这里**不**重复贴 base64(避免双倍 token + 不少模型对超长 base64 解析慢)。
 fn render_file_binary_placeholder(out: &mut String, f: &FileContext) {
     use std::fmt::Write;
     let path = xml_attr(&f.file_name);
+    // mime 通过 mime_guess 从文件名/扩展名推,跟 process_non_image_files 一致。
+    let mime = mime_guess::from_path(&f.file_name)
+        .first_or_octet_stream()
+        .to_string();
     let size = match &f.content {
-        AnyFileContent::BinaryContent(bytes) => bytes.len(),
-        AnyFileContent::StringContent(_) => 0,
+        AnyFileContent::BinaryContent(bytes) if !bytes.is_empty() => Some(bytes.len()),
+        // bytes 为空(超大文件 / 非多模态 binary)→ size 未知,不输出 size 属性,
+        // 让 AI 用 read_files / Get-Item 之类自己查。
+        _ => None,
     };
-    let _ = writeln!(
-        out,
-        "  <file path=\"{path}\" binary=\"true\" size=\"{size}\" />"
-    );
+    if let Some(size) = size {
+        let _ = writeln!(
+            out,
+            "  <file path=\"{path}\" mime_type=\"{}\" binary=\"true\" size=\"{size}\" />",
+            xml_attr(&mime)
+        );
+    } else {
+        let _ = writeln!(
+            out,
+            "  <file path=\"{path}\" mime_type=\"{}\" binary=\"true\" />",
+            xml_attr(&mime)
+        );
+    }
 }
 
 /// Image prefix 占位:与 binary file 同语义,实际数据通过 ContentPart::Binary 进多模态。

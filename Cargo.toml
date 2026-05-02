@@ -166,6 +166,7 @@ image = { version = "0.25.9", default-features = false, features = [
   "png",
   "gif",
   "webp",
+  "bmp",
 ] }
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
 itertools = "0.14.0"

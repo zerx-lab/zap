@@ -153,6 +153,19 @@ macro_rules! t {
     }};
 }
 
+/// 与 `t!` 等价,但返回 `&'static str`(每次调用都会通过 `Box::leak` 永久占用一段堆)。
+///
+/// 使用约束:**仅在 `LazyLock`/一次性初始化里调用**(如 `StaticCommand` 这种 struct
+/// 字段是 `&'static str`、又必须从 fluent 取文本的场景)。**禁止在热路径或循环里使用**,
+/// 否则会持续泄漏内存。编译期仍享受 `fl!()` 的 key 校验。
+#[macro_export]
+macro_rules! t_static {
+    ($message_id:literal $(,)?) => {{
+        let s: String = $crate::t!($message_id);
+        &*::std::boxed::Box::leak(s.into_boxed_str())
+    }};
+}
+
 /// 同 `t!` 但带显式默认值,适合极早期/loader 未就绪场景。
 pub fn t_or(message_id: &str, fallback: &str) -> String {
     match LANGUAGE_LOADER.get() {

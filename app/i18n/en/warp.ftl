@@ -1887,3 +1887,57 @@ menu-codeeditor-find-references = Find references
 
 # --- 共享标签:附加为 agent 上下文(blocklist/view_util.rs) ---
 menu-attach-as-agent-context = Attach as agent context
+
+# --- ANCHOR-SUB-SLASH-COMMANDS (agent-slash-commands) ---
+# Slash command palette descriptions and argument hints
+# (app/src/search/slash_command_menu/static_commands/commands.rs)
+slash-cmd-agent-desc = Start a new conversation
+slash-cmd-add-mcp-desc = Add new MCP server
+slash-cmd-pr-comments-desc = Pull GitHub PR review comments
+slash-cmd-create-environment-desc = Create an Oz environment (Docker image + repos) via guided setup
+slash-cmd-create-environment-hint = <optional repo paths or GitHub URLs>
+slash-cmd-docker-sandbox-desc = Create a new docker sandbox terminal session
+slash-cmd-create-new-project-desc = Have Oz walk you through creating a new coding project
+slash-cmd-create-new-project-hint = <describe what you want to build>
+slash-cmd-open-skill-desc = Open a skill's markdown file in Warp's built-in editor
+slash-cmd-skills-desc = Invoke a skill
+slash-cmd-add-prompt-desc = Add new Agent prompt
+slash-cmd-add-rule-desc = Add a new global rule for the agent
+slash-cmd-open-file-desc = Open a file in Warp's code editor
+slash-cmd-open-file-hint = <path/to/file[:line[:col]]> or "@" to search
+slash-cmd-rename-tab-desc = Rename the current tab
+slash-cmd-rename-tab-hint = <tab name>
+slash-cmd-fork-desc = Fork the current conversation in a new pane or a new tab
+slash-cmd-fork-hint = <optional prompt to send in forked conversation>
+slash-cmd-open-code-review-desc = Open code review
+slash-cmd-index-desc = Index this codebase
+slash-cmd-init-desc = Index this codebase and generate an AGENTS.md file
+slash-cmd-open-project-rules-desc = Open the project rules file (AGENTS.md)
+slash-cmd-open-mcp-servers-desc = Open MCP servers
+slash-cmd-open-settings-file-desc = Open settings file (TOML)
+slash-cmd-changelog-desc = Open the latest changelog
+slash-cmd-open-repo-desc = Switch to another indexed repository
+slash-cmd-open-rules-desc = View all of your global and project rules
+slash-cmd-new-desc = Start a new conversation (alias for /agent)
+slash-cmd-model-desc = Switch the base agent model
+slash-cmd-profile-desc = Switch the active execution profile
+slash-cmd-plan-desc = Prompt the agent to do some research and create a plan for a task
+slash-cmd-plan-hint = <describe your task>
+slash-cmd-orchestrate-desc = Break a task into subtasks and run them in parallel with multiple agents
+slash-cmd-orchestrate-hint = <describe your task>
+slash-cmd-compact-desc = Free up context by summarizing convo history
+slash-cmd-compact-hint = <optional custom summarization instructions>
+slash-cmd-compact-and-desc = Compact conversation and then send a follow-up prompt
+slash-cmd-compact-and-hint = <prompt to send after compaction>
+slash-cmd-queue-desc = Queue a prompt to send after the agent finishes responding
+slash-cmd-queue-hint = <prompt to send when agent is done>
+slash-cmd-fork-and-compact-desc = Fork current conversation and compact it in the forked copy
+slash-cmd-fork-and-compact-hint = <optional prompt to send after compaction>
+slash-cmd-fork-from-desc = Fork conversation from a specific query
+slash-cmd-remote-control-desc = Start remote control for this session
+slash-cmd-conversations-desc = Open conversation history
+slash-cmd-prompts-desc = Search saved prompts
+slash-cmd-rewind-desc = Rewind to a previous point in the conversation
+slash-cmd-export-to-clipboard-desc = Export current conversation to clipboard in markdown format
+slash-cmd-export-to-file-desc = Export current conversation to a markdown file
+slash-cmd-export-to-file-hint = <optional filename>
