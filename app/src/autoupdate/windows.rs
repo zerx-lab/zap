@@ -140,43 +140,30 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
         crate::send_telemetry_sync_from_app_ctx!(TelemetryEvent::AutoupdateForcekillFailed, ctx);
     }
 
+    // openWarp 闭源遥测剥离 P2:原 #[cfg(feature = "crash_reporting")] 块会把 autoupdate 失败
+    // 日志(完整文件内容作为 sentry attachment)上报到 Warp 官方 Sentry。剥离后改为本地
+    // log 计数提示——日志文件已落本地(被下方 .log.reported 重命名保留),用户/调试需要时
+    // 直接看本地文件。`contents_lowercase` 仅用于 sentry 上报路径判断,一并去除。
     #[cfg(feature = "crash_reporting")]
     {
-        use sentry::protocol::{Attachment, AttachmentType};
-
-        // Patterns for known benign errors that should not trigger Sentry reporting.
         const IGNOREABLE_ERRORS: &[&[u8]] = &[
-            // User running out of disk space is not an error we need concern ourselves with.
-            // This message occurs after "An error occurred while trying to copy a file:"
             b"there is not enough space on the disk",
-            // Recent Inno Setup versions try to enable a security feature which is unavailable on
-            // Windows 10 versions prior to 22H2 and this call fails. The failure is benign.
             b"setprocessmitigationpolicy failed with error code 87",
         ];
 
         let mut error_count = memchr::memmem::find_iter(&contents_lowercase, b"error").count();
-
         for pattern in IGNOREABLE_ERRORS {
             let ignoreable_count = memchr::memmem::find_iter(&contents_lowercase, pattern).count();
             error_count = error_count.saturating_sub(ignoreable_count);
         }
 
         if error_count > 0 {
-            log::warn!("Autoupdate log file contains errors; reporting to Sentry");
-
-            let attachment = Attachment {
-                buffer: contents,
-                filename: UPDATE_LOG_FILENAME.to_string(),
-                ty: Some(AttachmentType::Attachment),
-                ..Default::default()
-            };
-            sentry::with_scope(
-                |scope| {
-                    scope.add_attachment(attachment);
-                },
-                || sentry::capture_message("Windows auto-update error", sentry::Level::Error),
+            log::error!(
+                "openWarp: Windows auto-update log contains {error_count} error(s) (log: {:?})",
+                log_path
             );
         }
+        let _ = &contents;
     }
 
     // Rename the log file to avoid duplicate reports on subsequent launches.

@@ -236,50 +236,14 @@ impl TelemetryApi {
     // 2. Don't have to monomorphize for each telemetry event implementation.
     fn send_telemetry_event_internal(
         &self,
-        event: Event,
-        settings_snapshot: PrivacySettingsSnapshot,
+        _event: Event,
+        _settings_snapshot: PrivacySettingsSnapshot,
     ) -> impl Future<Output = Result<()>> + '_ {
-        let work = async move {
-            if settings_snapshot.should_disable_telemetry() {
-                log::info!("Not sending telemetry event because telemetry is disabled.");
-                return Result::Ok(());
-            }
-
-            #[cfg(not(target_family = "wasm"))]
-            if FeatureFlag::SendTelemetryToFile.is_enabled() {
-                self.persist_events_to_telemetry_log_file(vec![event.clone()])?;
-            }
-
-            if !(ChannelState::is_release_bundle()
-                || FeatureFlag::WithSandboxTelemetry.is_enabled())
-            {
-                return Result::Ok(());
-            }
-
-            let rudder_batch = vec![event.to_rudder_batch_message()];
-
-            let result = self
-                .send_batch_messages_to_rudder(rudder_batch, settings_snapshot)
-                .await;
-
-            // This is only conditionally compiled because `is_connect` is not
-            // available on wasm.  If additional checks are made against the
-            // `reqwest::Error`, this condition should be performed specifically
-            // against `is_connect` and not the whole loop.
-            #[cfg(not(target_family = "wasm"))]
-            if let Err(error) = &result {
-                for cause in error.chain() {
-                    if let Some(err) = cause.downcast_ref::<reqwest::Error>() {
-                        if err.is_connect() {
-                            log::warn!("Failed to send telemetry event: {error}");
-                            return Ok(());
-                        }
-                    }
-                }
-            }
-
-            result
-        };
+        // openWarp 闭源遥测剥离 P1:与 `record_event` no-op 配套,这条"绕过 EventStore
+        // 直发 Rudder"的副链路(`send_telemetry_event` → `create_event` → 此处)同步切断。
+        // 原 release_bundle / FeatureFlag 守护仅是运行时短路,P1 在代码层把 work 永远 Ok。
+        // `send_batch_messages_to_rudder` / `persist_events_to_telemetry_log_file` 暂留死代码,P4 物理清理。
+        let work = async move { Result::Ok(()) };
 
         // On WASM, the work future is non-Send, because the HTTP request future contains a reference to a JS
         // value (which is fine, since our WASM executor is single-threaded). On all other platforms, we must

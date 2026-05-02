@@ -387,9 +387,12 @@ impl AuthState {
     }
 
     /// Returns the user's anonymous id.
-    /// The anonymous id will be consistent across the app's lifetime. It is a random UUID.
+    ///
+    /// openWarp 闭源遥测剥离 P0:此值是 Rudder/Sentry/HTTP `X-Experiment-Id`
+    /// 三条外发链路共用的跨会话追踪 key,统一返回 nil-UUID 切断追踪。
+    /// `self.anonymous_id` 字段与底层 `get_or_create_anonymous_id` 暂留死代码,P4 物理清理。
     pub fn anonymous_id(&self) -> String {
-        self.anonymous_id.to_string()
+        Uuid::nil().to_string()
     }
 
     /// Returns whether a reauth is required for the current user given the state

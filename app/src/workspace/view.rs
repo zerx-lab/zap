@@ -20889,16 +20889,11 @@ impl TypedActionView for Workspace {
                                             ty: Some(AttachmentType::Attachment),
                                             ..Default::default()
                                         };
-                                        sentry::with_scope(
-                                            |scope| {
-                                                scope.add_attachment(attachment);
-                                            },
-                                            || {
-                                                sentry::capture_message(
-                                                    "[FOR PERFORMANCE BOT] Dev took performance sample with results: ",
-                                                    sentry::Level::Warning,
-                                                )
-                                            },
+                                        // openWarp 闭源遥测剥离 P2:原会把 perf sample
+                                        // 作为 attachment 上报到 Warp 官方 Sentry,改本地 log。
+                                        let _ = attachment;
+                                        log::info!(
+                                            "openWarp: dev performance sample taken (上报已剥离,sample 仅本地)"
                                         );
                                     }
                                 }

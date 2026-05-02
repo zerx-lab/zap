@@ -68,42 +68,16 @@ pub fn dump_dhat_heap_profile() {
 /// to a Sentry event.
 #[cfg(feature = "heap_usage_tracking")]
 pub async fn dump_jemalloc_heap_profile(memory_breakdown: serde_json::Value) {
-    use sentry::protocol::{Attachment, AttachmentType};
-
+    // openWarp 闭源遥测剥离 P2:原会把 jemalloc heap profile 作为 sentry attachment
+    // 上报到 Warp 官方 Sentry。剥离后:profile 数据 + memory_breakdown 一起 log 到本地。
     let result = dump_jemalloc_heap_profile_inner().await;
     match result {
         Ok(profile_data) => {
-            let attachment = Attachment {
-                buffer: profile_data,
-                filename: "heap-profile.pb".to_string(),
-                ty: Some(AttachmentType::Attachment),
-                ..Default::default()
-            };
-            sentry::with_scope(
-                |scope| {
-                    scope.add_attachment(attachment);
-
-                    // Attach the memory breakdown as structured context so it
-                    // is visible directly in the Sentry event.
-                    if let serde_json::Value::Object(map) = memory_breakdown {
-                        let context_map: std::collections::BTreeMap<
-                            String,
-                            sentry::protocol::Value,
-                        > = map.into_iter().collect();
-                        scope.set_context(
-                            "memory_breakdown",
-                            sentry::protocol::Context::Other(context_map),
-                        );
-                    }
-                },
-                || {
-                    sentry::capture_message(
-                        "Excessive memory usage detected",
-                        sentry::Level::Warning,
-                    )
-                },
+            log::warn!(
+                "openWarp: 检测到内存使用异常(heap profile 大小 {} bytes,memory breakdown: {})",
+                profile_data.len(),
+                memory_breakdown
             );
-            log::info!("Sent heap profile to Sentry");
         }
         Err(err) => {
             log::warn!("Failed to dump heap profile: {err:#}");

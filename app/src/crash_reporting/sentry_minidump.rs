@@ -220,40 +220,17 @@ pub fn run_server(socket_path: &Path) -> anyhow::Result<()> {
     result
 }
 
-/// Uploads a crash report to Sentry, using the current scope.
+/// openWarp 闭源遥测剥离 P2:原会把 minidump.dmp 作为 attachment 上报 Warp 官方 Sentry。
+/// 剥离后:仅 log 报告 fatal exception(message) + minidump 大小,minidump 文件本地保留
+/// (`dump.file` 仍在临时目录),用户调试时可手取。整条 send_crash_report 链路 P2 之后
+/// 实际上**不会被调用**(`init_sentry` 已不再启动 minidump server),保留实现以避免大 cascade。
 fn send_crash_report(details: Option<String>, dump: Option<minidumper::MinidumpBinary>) {
     let message = details.as_deref().unwrap_or("Fatal exception");
-
-    let crash_attachment = dump.and_then(|mut dump| {
-        // In most cases, the minidump contents are available in memory. If not, we can read them off disk.
-        let buffer = match dump.contents {
-            Some(buffer) => buffer,
-            None => {
-                dump.file.flush().ok()?;
-                dump.file.rewind().ok()?;
-                let mut buffer = Vec::new();
-                dump.file.read_to_end(&mut buffer).ok()?;
-                buffer
-            }
-        };
-
-        Some(Attachment {
-            buffer,
-            filename: "warp-minidump.dmp".to_string(),
-            ty: Some(AttachmentType::Minidump),
-            ..Default::default()
-        })
-    });
-
-    sentry::with_scope(
-        |scope| {
-            // Do not use the crash reporting server for process info.
-            scope.remove_extra("event.process");
-            if let Some(attachment) = crash_attachment {
-                scope.add_attachment(attachment);
-            }
-        },
-        || sentry::capture_message(message, Level::Error),
+    let dump_size = dump
+        .and_then(|d| d.contents.map(|c| c.len()))
+        .unwrap_or(0);
+    log::error!(
+        "openWarp: minidump crash report (message: {message}, dump bytes: {dump_size}) — 不再上报"
     );
 }
 

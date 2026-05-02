@@ -288,111 +288,63 @@ fn get_environment() -> Cow<'static, str> {
     }
 }
 
-/// Initializes Rust and Cocoa Sentry, which hooks into the panic handler for the rust app and
-/// uncaught exception handler of the mac runtime, respectively.
+/// openWarp 闭源遥测剥离 P2:
 ///
-/// This must be called from the main thread to capture panics/crashes across the entire
-/// application.
-fn init_sentry(user_id: Option<UserUid>, email: Option<String>, ctx: &mut AppContext) {
-    let key = release_version();
+/// 原 `init_sentry` 会调 `sentry::init` + `sentry_minidump::init` + `init_cocoa_sentry`,
+/// 把 panic / crash / native exception 全部上报到 Warp 官方 Sentry 实例(DSN 来自
+/// `ChannelState::sentry_url()`)。剥离后:
+/// - 不再调用 `sentry::init`,无 ClientInitGuard 持有 → 无 HTTP 外发链路
+/// - 不再调用 native minidump / cocoa 初始化 → 无原生 crash 上传
+/// - 安装本地 panic hook,把 PanicInfo(thread / payload / location / backtrace)
+///   写到 `log::error!`(经 `warp_logging` 落本地日志文件),保留自查 panic 的能力
+/// - `RUST_SENTRY_CLIENT_GUARD` 保留 `Uninitialized`,使 `uninit_sentry` / `set_user_id`
+///   等下游函数自动跳过(它们的逻辑都依赖 `Initialized` 分支)
+///
+/// `sentry_options` / `before_breadcrumb` / `scrub_message` 等已删,无外发后无意义。
+/// 6 处散落的 `sentry::capture_*` 调用单独改造为 `log::error!`。
+/// 完整物理删 sentry crate 依赖留作 P4。
+fn init_sentry(_user_id: Option<UserUid>, _email: Option<String>, _ctx: &mut AppContext) {
+    log::info!(
+        "openWarp: Sentry 已剥离,init_sentry 仅安装本地 panic→logfile hook,不向远端上报"
+    );
 
-    let environment = Some(get_environment());
+    use std::sync::Once;
+    static PANIC_HOOK_INSTALLED: Once = Once::new();
+    PANIC_HOOK_INSTALLED.call_once(|| {
+        let original_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            let location = panic_info
+                .location()
+                .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+                .unwrap_or_else(|| "<unknown location>".to_string());
 
-    log::info!("Initializing crash reporting {environment:?} with tag {key:?}...");
+            let payload = panic_info
+                .payload()
+                .downcast_ref::<&'static str>()
+                .map(|s| s.to_string())
+                .or_else(|| {
+                    panic_info
+                        .payload()
+                        .downcast_ref::<String>()
+                        .cloned()
+                })
+                .unwrap_or_else(|| "<non-string panic payload>".to_string());
 
-    fn before_breadcrumb(crumb: sentry::Breadcrumb) -> Option<sentry::Breadcrumb> {
-        #[cfg(linux_or_windows)]
-        sentry_minidump::forward_breadcrumb(crumb.clone());
-        #[cfg(all(target_os = "macos", feature = "cocoa_sentry"))]
-        mac::forward_breadcrumb(&crumb);
+            let thread = std::thread::current()
+                .name()
+                .unwrap_or("<unnamed>")
+                .to_string();
 
-        Some(crumb)
-    }
+            let backtrace = std::backtrace::Backtrace::force_capture();
 
-    /// We scrub text we send to Sentry so that we don't leak user input into
-    /// crash reports.
-    fn scrub_message(message: &mut String) {
-        for (regex, replacement) in ERROR_MESSAGES_TO_SCRUB.iter() {
-            if regex.is_match(message) {
-                *message = format!("(REDACTED) {replacement}");
-                return;
-            }
-        }
-    }
+            log::error!(
+                "panic in thread '{thread}' at {location}: {payload}\nbacktrace:\n{backtrace}"
+            );
 
-    let mut sentry_options = sentry_client_options();
-    sentry_options.before_breadcrumb = Some(Arc::new(Box::new(before_breadcrumb)));
-    sentry_options.before_send = Some(Arc::new(move |mut event| {
-        let mut crash_recovery_metadata = CrashRecoveryMetadata::new();
-
-        for exception in event.exception.iter_mut() {
-            exception.value.as_mut().map(scrub_message);
-
-            // If the crash recovery process is running, mark any exception as "handled".
-            // The crash recovery process will attempt to the handle that crash, if
-            // we crash when handling we'll report that as an unhandled event to sentry.
-            if crash_recovery_metadata.is_crash_recovery_process_running {
-                if let Some(mechanism) = exception.mechanism.as_mut() {
-                    if let Some(false) = mechanism.handled {
-                        crash_recovery_metadata.was_unhandled_event();
-                    }
-
-                    mechanism.handled = Some(true);
-                }
-            }
-        }
-
-        for (k, v) in APPLICATION_LIFECYCLE_STAGE.read().to_sentry_tags() {
-            event.tags.insert(k.to_string(), v);
-        }
-        for (k, v) in TAGS.read().iter() {
-            event.tags.insert(k.clone(), v.clone());
-        }
-
-        Some(event)
-    }));
-
-    *RUST_SENTRY_CLIENT_GUARD.lock() = RustSentryClientGuard::Initialized {
-        _guard: sentry::init(sentry_options),
-    };
-
-    // Initialize the appropriate native Sentry SDK.
-    #[cfg(enable_crash_recovery)]
-    {
-        use crate::crash_recovery::{is_crash_recovery_process_running, CrashRecovery};
-
-        // If the crash recovery process is running, defer initialization of Sentry native until the
-        // crash recovery process is torn down. Unlike Sentry Rust, we can't easily mark events as
-        // handled before they are sent to Sentry. Instead, we defer initialization to avoid
-        // erroneously reporting crashes when they would be successfully handled by the crash
-        // recovery process.
-        if is_crash_recovery_process_running() {
-            ctx.subscribe_to_model(&CrashRecovery::handle(ctx), |_handle, event, ctx| {
-                if matches!(
-                    event,
-                    crate::crash_recovery::Event::CrashRecoveryProcessTornDown
-                ) {
-                    log::info!("Initializing Sentry native");
-                    sentry_minidump::init();
-
-                    let auth_state_provider = crate::AuthStateProvider::handle(ctx).as_ref(ctx);
-                    let auth_state = auth_state_provider.get();
-                    let user_id = auth_state.user_id();
-                    let email = auth_state.user_email();
-                    set_optional_user_information(user_id, email, ctx);
-                }
-            });
-        } else {
-            sentry_minidump::init()
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    if FeatureFlag::CocoaSentry.is_enabled() {
-        init_cocoa_sentry();
-    }
-
-    set_optional_user_information(user_id, email, ctx);
+            // 仍调原 hook 以便 stderr 等默认行为继续
+            original_hook(panic_info);
+        }));
+    });
 }
 
 /// Baseline Sentry client options.
@@ -449,10 +401,10 @@ pub fn uninit_cocoa_sentry() {
 }
 
 pub fn crash() {
-    #[cfg(linux_or_windows)]
-    sentry_minidump::crash();
-    #[cfg(all(target_os = "macos", feature = "cocoa_sentry"))]
-    mac::crash();
+    // openWarp 闭源遥测剥离 P2:测试用 crash 触发不再调 sentry_minidump::crash / mac::crash
+    // (原会经 sentry-native / sentry-cocoa 上报到 Warp 官方 Sentry),改为本地 panic
+    // 触发我们的 P2 panic hook → 写本地日志,无外发。
+    panic!("openWarp: crash() invoked for local panic-hook smoke test");
 }
 
 /// Sets the user id if `Some`, otherwise sets the current user ID to be an anonymous ID indicating

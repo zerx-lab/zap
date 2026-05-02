@@ -74,7 +74,9 @@ pub trait ErrorExt: RegisteredError + std::error::Error {
     fn is_actionable(&self) -> bool;
 
     fn report_error(&self) {
+        // openWarp 闭源遥测剥离 P2:原 `sentry::capture_error(self)` 会把所有
+        // ErrorExt 实现上报到 Warp 官方 Sentry(包含错误链 + backtrace)。剥离后改本地 log。
         #[cfg(feature = "crash_reporting")]
-        sentry::capture_error(self);
+        log::error!("ErrorExt::report_error: {self}");
     }
 }
