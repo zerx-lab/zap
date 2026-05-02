@@ -68,7 +68,9 @@ struct TooltipMouseStateHandles {
 pub mod manager;
 pub use manager::*;
 
-pub const HEADER_TEXT: &str = "Profile Editor";
+pub fn header_text() -> String {
+    crate::t!("settings-exec-profile-editor-header")
+}
 
 #[derive(Debug, Clone)]
 pub enum ExecutionProfileEditorViewEvent {
@@ -198,7 +200,7 @@ pub struct ExecutionProfileEditorView {
 
 impl ExecutionProfileEditorView {
     pub fn new(profile_id: ClientProfileId, ctx: &mut ViewContext<Self>) -> Self {
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(HEADER_TEXT));
+        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(header_text()));
 
         let apply_code_diffs_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
@@ -1566,7 +1568,7 @@ impl BackingView for ExecutionProfileEditorView {
         _app: &AppContext,
     ) -> view::HeaderContent {
         view::HeaderContent::Standard(view::StandardHeader {
-            title: HEADER_TEXT.into(),
+            title: header_text(),
             title_secondary: None,
             title_style: None,
             title_clip_config: warpui::text_layout::ClipConfig::start(),

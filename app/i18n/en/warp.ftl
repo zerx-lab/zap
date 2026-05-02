@@ -776,6 +776,46 @@ settings-exec-profile-command-denylist = Command denylist:
 settings-exec-profile-mcp-allowlist = MCP allowlist:
 settings-exec-profile-mcp-denylist = MCP denylist:
 
+# ---- execution_profile_editor (Profile Editor pane) ----
+settings-exec-profile-editor-header = Profile Editor
+settings-exec-profile-editor-title = Edit Profile
+settings-exec-profile-editor-name-label = Name
+settings-exec-profile-editor-default-name-info = Default profile name cannot be changed.
+settings-exec-profile-editor-workspace-override-tooltip = This option is enforced by your organization's settings and cannot be customized.
+settings-exec-profile-editor-section-models = MODELS
+settings-exec-profile-editor-section-permissions = PERMISSIONS
+settings-exec-profile-editor-base-model = Base model
+settings-exec-profile-editor-base-model-desc = This model serves as the primary engine behind the agent. It powers most interactions and invokes other models for tasks like planning or code generation when necessary. Warp may automatically switch to alternate models based on model availability or for auxiliary tasks such as conversation summarization.
+settings-exec-profile-editor-full-terminal-use-model = Full terminal use model
+settings-exec-profile-editor-full-terminal-use-model-desc = The model used when the agent operates inside interactive terminal applications like database shells, debuggers, REPLs, or dev servers—reading live output and writing commands to the PTY.
+settings-exec-profile-editor-title-model = Title generation model
+settings-exec-profile-editor-title-model-desc = The model used to generate concise conversation titles. Defaults to the base model — pick a cheaper/faster model here to save tokens on title summarization without affecting the agent's main reasoning.
+settings-exec-profile-editor-active-ai-model = Active AI model
+settings-exec-profile-editor-active-ai-model-desc = The model used by proactive AI features: prompt suggestions after a command finishes, natural-language autocomplete in the agent input, and codebase relevance ranking. Defaults to the base model — pick a small/fast model here to keep these features snappy without affecting the agent's main reasoning.
+settings-exec-profile-editor-next-command-model = Next Command model
+settings-exec-profile-editor-next-command-model-desc = The model used to predict your next shell command (gray inline autosuggestion + zero-state suggestion after a block finishes). Latency-sensitive — pick the smallest/fastest BYOP model you have. Defaults to the base model.
+settings-exec-profile-editor-computer-use-model = Computer use model
+settings-exec-profile-editor-computer-use-model-desc = The model used when the agent takes control of your computer to interact with graphical applications through mouse movements, clicks, and keyboard input.
+settings-exec-profile-editor-apply-code-diffs = Apply code diffs
+settings-exec-profile-editor-read-files = Read files
+settings-exec-profile-editor-execute-commands = Execute commands
+settings-exec-profile-editor-interact-running-commands = Interact with running commands
+settings-exec-profile-editor-computer-use = Computer use
+settings-exec-profile-editor-ask-questions = Ask questions
+settings-exec-profile-editor-call-mcp-servers = Call MCP servers
+settings-exec-profile-editor-call-web-tools = Call web tools
+settings-exec-profile-editor-call-web-tools-desc = The agent may use web search when helpful for completing tasks.
+settings-exec-profile-editor-directory-allowlist = Directory allowlist
+settings-exec-profile-editor-directory-allowlist-desc = Give the agent file access to certain directories.
+settings-exec-profile-editor-command-allowlist = Command allowlist
+settings-exec-profile-editor-command-allowlist-desc = Regular expressions to match commands that can be automatically executed by Oz.
+settings-exec-profile-editor-command-denylist = Command denylist
+settings-exec-profile-editor-command-denylist-desc = Regular expressions to match commands that Oz should always ask permission to execute.
+settings-exec-profile-editor-mcp-allowlist = MCP allowlist
+settings-exec-profile-editor-mcp-allowlist-desc = MCP servers that are allowed to be called by Oz.
+settings-exec-profile-editor-mcp-denylist = MCP denylist
+settings-exec-profile-editor-mcp-denylist-desc = MCP servers that are not allowed to be called by Oz.
+
 # ---- agent_assisted_environment_modal ----
 settings-env-modal-add-repo = Add repo
 settings-env-modal-cancel = Cancel

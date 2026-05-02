@@ -759,6 +759,46 @@ settings-exec-profile-command-denylist = 命令拒绝列表:
 settings-exec-profile-mcp-allowlist = MCP 允许列表:
 settings-exec-profile-mcp-denylist = MCP 拒绝列表:
 
+# ---- execution_profile_editor (Profile Editor pane) ----
+settings-exec-profile-editor-header = 配置文件编辑器
+settings-exec-profile-editor-title = 编辑配置文件
+settings-exec-profile-editor-name-label = 名称
+settings-exec-profile-editor-default-name-info = 默认配置文件的名称无法修改。
+settings-exec-profile-editor-workspace-override-tooltip = 该选项由你所在组织的设置强制指定,无法自定义。
+settings-exec-profile-editor-section-models = 模型
+settings-exec-profile-editor-section-permissions = 权限
+settings-exec-profile-editor-base-model = 基础模型
+settings-exec-profile-editor-base-model-desc = 该模型作为智能体的主要引擎,驱动绝大多数交互,并在需要时调用其他模型完成规划或代码生成等任务。Warp 可能基于模型可用性或辅助任务(如对话摘要)自动切换到备选模型。
+settings-exec-profile-editor-full-terminal-use-model = 完整终端使用模型
+settings-exec-profile-editor-full-terminal-use-model-desc = 智能体在交互式终端应用(如数据库 shell、调试器、REPL、开发服务器)内运行时使用的模型——读取实时输出并向 PTY 写入命令。
+settings-exec-profile-editor-title-model = 标题生成模型
+settings-exec-profile-editor-title-model-desc = 用于生成简洁对话标题的模型。默认沿用基础模型——在此选择更便宜 / 更快的模型可在不影响智能体主推理的前提下节省标题摘要的 token。
+settings-exec-profile-editor-active-ai-model = 主动式 AI 模型
+settings-exec-profile-editor-active-ai-model-desc = 主动式 AI 功能使用的模型:命令完成后的提示建议、智能体输入框中的自然语言自动补全,以及代码库相关性排序。默认沿用基础模型——在此选择小型 / 快速模型可让这些功能保持流畅,而不影响智能体的主推理。
+settings-exec-profile-editor-next-command-model = Next Command 模型
+settings-exec-profile-editor-next-command-model-desc = 用于预测你下一条 shell 命令的模型(灰色行内自动建议 + 块结束后的零状态建议)。对延迟敏感——请选择你拥有的最小 / 最快 BYOP 模型。默认沿用基础模型。
+settings-exec-profile-editor-computer-use-model = 电脑使用模型
+settings-exec-profile-editor-computer-use-model-desc = 智能体接管你的电脑、通过鼠标移动、点击和键盘输入与图形化应用交互时使用的模型。
+settings-exec-profile-editor-apply-code-diffs = 应用代码 diff
+settings-exec-profile-editor-read-files = 读取文件
+settings-exec-profile-editor-execute-commands = 执行命令
+settings-exec-profile-editor-interact-running-commands = 与运行中命令交互
+settings-exec-profile-editor-computer-use = 电脑使用
+settings-exec-profile-editor-ask-questions = 提问
+settings-exec-profile-editor-call-mcp-servers = 调用 MCP 服务器
+settings-exec-profile-editor-call-web-tools = 调用 Web 工具
+settings-exec-profile-editor-call-web-tools-desc = 智能体可在有助于完成任务时使用 Web 搜索。
+settings-exec-profile-editor-directory-allowlist = 目录允许列表
+settings-exec-profile-editor-directory-allowlist-desc = 授予智能体对特定目录的文件访问权限。
+settings-exec-profile-editor-command-allowlist = 命令允许列表
+settings-exec-profile-editor-command-allowlist-desc = 用于匹配可被 Oz 自动执行的命令的正则表达式。
+settings-exec-profile-editor-command-denylist = 命令拒绝列表
+settings-exec-profile-editor-command-denylist-desc = 用于匹配 Oz 必须每次询问权限才能执行的命令的正则表达式。
+settings-exec-profile-editor-mcp-allowlist = MCP 允许列表
+settings-exec-profile-editor-mcp-allowlist-desc = 允许被 Oz 调用的 MCP 服务器。
+settings-exec-profile-editor-mcp-denylist = MCP 拒绝列表
+settings-exec-profile-editor-mcp-denylist-desc = 不允许被 Oz 调用的 MCP 服务器。
+
 # ---- agent_assisted_environment_modal ----
 settings-env-modal-add-repo = 添加仓库
 settings-env-modal-cancel = 取消
