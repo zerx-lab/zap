@@ -40,42 +40,44 @@ export default function ProviderTabs({ tabs, labels }: Props) {
   return (
     <div className="surface-card overflow-hidden">
       {/* Tabs row with animated underline */}
-      <div className="relative flex items-center gap-1 border-b border-white/5 bg-white/[0.02] px-4 pt-3">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActive(t.id)}
-            className={
-              'relative px-3 py-2.5 text-[12.5px] font-medium transition-colors ' +
-              (active === t.id ? 'text-white' : 'text-zinc-500 hover:text-zinc-300')
-            }
-          >
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                className={
-                  'h-1.5 w-1.5 rounded-full transition-colors ' +
-                  (active === t.id ? 'bg-brand-400' : 'bg-zinc-700')
-                }
-              />
-              {t.name}
-              <span className="text-[10px] uppercase tracking-wider text-zinc-500">{t.tag}</span>
-            </span>
-            {active === t.id && (
-              <motion.span
-                layoutId="provider-tab-underline"
-                className="absolute -bottom-px left-0 right-0 h-px bg-brand-400"
-                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-              />
-            )}
-          </button>
-        ))}
-        <span className="ml-auto rounded-full bg-accent-lime/10 px-2 py-0.5 font-mono text-[10px] text-accent-lime ring-1 ring-accent-lime/20">
+      <div className="relative flex items-center gap-1 border-b border-white/5 bg-white/[0.02] px-2 pt-2 sm:px-4 sm:pt-3">
+        <div className="-mb-px flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap pb-px [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setActive(t.id)}
+              className={
+                'relative flex-none px-2.5 py-2.5 text-[12.5px] font-medium transition-colors sm:px-3 ' +
+                (active === t.id ? 'text-white' : 'text-zinc-500 hover:text-zinc-300')
+              }
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  className={
+                    'h-1.5 w-1.5 flex-none rounded-full transition-colors ' +
+                    (active === t.id ? 'bg-brand-400' : 'bg-zinc-700')
+                  }
+                />
+                {t.name}
+                <span className="text-[10px] uppercase tracking-wider text-zinc-500">{t.tag}</span>
+              </span>
+              {active === t.id && (
+                <motion.span
+                  layoutId="provider-tab-underline"
+                  className="absolute -bottom-px left-0 right-0 h-px bg-brand-400"
+                  transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+        <span className="ml-2 hidden flex-none rounded-full bg-accent-lime/10 px-2 py-0.5 font-mono text-[10px] text-accent-lime ring-1 ring-accent-lime/20 sm:inline-block">
           ● connected · genai
         </span>
       </div>
 
       {/* Fields */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={cur.id}
