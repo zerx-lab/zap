@@ -304,22 +304,6 @@ pub enum TextLocation {
     },
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AIBlockResponseRating {
-    Positive,
-    Negative,
-}
-
-impl AIBlockResponseRating {
-    pub fn name(&self) -> &'static str {
-        match self {
-            AIBlockResponseRating::Positive => "positive",
-            AIBlockResponseRating::Negative => "negative",
-        }
-    }
-}
-
 #[derive(Clone)]
 struct ActionButtons {
     run_button: CompactibleActionButton,
@@ -402,10 +386,6 @@ pub(super) struct AIBlockStateHandles {
     codebase_search_speedbump_option_handles: Vec<MouseStateHandle>,
     codebase_search_speedbump_radio_button_handle: RadioButtonStateHandle,
     manage_autonomy_settings_link_handle: MouseStateHandle,
-
-    /// Mouse state handles for rating the AI block.
-    thumbs_up_handle: MouseStateHandle,
-    thumbs_down_handle: MouseStateHandle,
 
     /// Mouse state handle for the overflow menu button
     overflow_menu_handle: MouseStateHandle,
@@ -892,11 +872,7 @@ pub struct AIBlock {
     /// This UI is used for the new conversation suggestion multi-select.
     keyboard_navigable_buttons: Option<ViewHandle<KeyboardNavigableButtons>>,
 
-    /// The thumbs up/down rating of the AI block response.
-    response_rating: OnceCell<AIBlockResponseRating>,
-
     /// The number of requests that have been refunded.
-    /// Right now, this happens when a user thumbs down a response.
     request_refunded_count: Option<i32>,
 
     /// Requested commands that were auto-expanded,
@@ -1328,7 +1304,6 @@ impl AIBlock {
             suggested_agent_mode_workflow: Default::default(),
             manage_rules_button,
             keyboard_navigable_buttons: None,
-            response_rating: OnceCell::new(),
             terminal_view_id,
             request_refunded_count: None,
             action_buttons: Default::default(),
@@ -5632,9 +5607,6 @@ pub enum AIBlockAction {
         action_id: AIAgentActionId,
         server_output_id: Option<ServerOutputId>,
     },
-    Rated {
-        is_positive: bool,
-    },
     /// Clear the selections of all other views **except** for the source view that dispatched the event.
     /// The `source_view_id` will be `None` if the event is dispatched by the [`warpui::elements::SelectableArea`]
     /// instead of a nested view (i.e. code block, requested command, etc.), which means all nested views
@@ -6031,49 +6003,6 @@ impl TypedActionView for AIBlock {
                     );
                     action_model.execute_action(action_id, self.client_ids.conversation_id, ctx);
                 });
-            }
-            AIBlockAction::Rated { is_positive } => {
-                let output_id = self.model.server_output_id(ctx);
-                let rating = if *is_positive {
-                    AIBlockResponseRating::Positive
-                } else {
-                    AIBlockResponseRating::Negative
-                };
-                if self.response_rating.set(rating).is_err() {
-                    // A rating was already set for this block. This should be unreachable.
-                    return;
-                }
-
-                if matches!(rating, AIBlockResponseRating::Negative) {
-                    if let Some(output_id) = output_id.clone() {
-                        let request_usage_model = AIRequestUsageModel::handle(ctx);
-                        request_usage_model.update(ctx, |request_usage_model, ctx| {
-                            request_usage_model
-                                .provide_negative_feedback_response_for_ai_conversation(
-                                    self.client_ids.conversation_id,
-                                    output_id.to_string(),
-                                    self.client_ids.client_exchange_id,
-                                    ctx,
-                                );
-                        });
-                    }
-                }
-
-                let window_id = ctx.window_id();
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast =
-                        DismissibleToast::default(String::from("Thank you for the feedback!"));
-                    toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-                });
-
-                send_telemetry_from_ctx!(
-                    TelemetryEvent::AgentModeRatedResponse {
-                        server_output_id: output_id,
-                        conversation_id: self.client_ids.conversation_id,
-                        rating,
-                    },
-                    ctx
-                );
             }
             AIBlockAction::ClearOtherSelections {
                 source_view_id,

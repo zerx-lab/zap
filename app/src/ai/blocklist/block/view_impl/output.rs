@@ -91,7 +91,7 @@ use crate::{
                 web_search::WebSearchView,
             },
             keyboard_navigable_buttons::KeyboardNavigableButtons,
-            AIBlockResponseRating, BlocklistAIActionModel, SuggestionChipView,
+            BlocklistAIActionModel, SuggestionChipView,
         },
         paths::shell_native_absolute_path,
         skills::SkillManager,
@@ -168,7 +168,6 @@ pub(crate) struct Props<'a> {
     pub(super) suggested_agent_mode_workflow: &'a Option<ViewHandle<SuggestionChipView>>,
     pub(super) manage_rules_button: &'a ViewHandle<ActionButton>,
     pub(super) keyboard_navigable_buttons: Option<&'a ViewHandle<KeyboardNavigableButtons>>,
-    pub(super) response_rating: &'a OnceCell<AIBlockResponseRating>,
     pub(super) request_refunded_count: Option<i32>,
     pub(super) search_codebase_view: &'a HashMap<AIAgentActionId, ViewHandle<SearchCodebaseView>>,
     pub(super) web_search_views: &'a HashMap<MessageId, ViewHandle<WebSearchView>>,
@@ -2696,7 +2695,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
 
     let appearance = Appearance::as_ref(app);
     let mut flex = Flex::row().with_cross_axis_alignment(CrossAxisAlignment::Center);
-    let is_passive_code_diff = props.model.request_type(app).is_passive_code_diff();
 
     // Show footer for any terminal state (complete, cancelled, or failed)
     let style_override = UiComponentStyles {
@@ -2714,105 +2712,6 @@ fn render_response_footer(props: Props, app: &AppContext) -> Option<Box<dyn Elem
         background: Some(blended_colors::neutral_4(appearance.theme()).into()),
         ..style_override
     };
-
-    let ui_builder = appearance.ui_builder().clone();
-
-    // Thumbs up/down buttons.
-    // (we hide these when you're in view-only mode).
-    if !is_passive_code_diff && !props.is_conversation_transcript_viewer {
-        let thumbs_up_button = icon_button(
-            appearance,
-            Icon::ThumbsUp,
-            matches!(
-                props.response_rating.get(),
-                Some(AIBlockResponseRating::Positive)
-            ),
-            props.state_handles.thumbs_up_handle.clone(),
-        )
-        .with_tooltip(move || {
-            ui_builder
-                .tool_tip("Good response".to_string())
-                .build()
-                .finish()
-        })
-        .with_style(style_override)
-        .with_hovered_styles(style_override_with_background)
-        .with_active_styles(style_override_with_background);
-
-        let ui_builder = appearance.ui_builder().clone();
-        let thumbs_down_button = icon_button(
-            appearance,
-            Icon::ThumbsDown,
-            matches!(
-                props.response_rating.get(),
-                Some(AIBlockResponseRating::Negative)
-            ),
-            props.state_handles.thumbs_down_handle.clone(),
-        )
-        .with_tooltip(move || {
-            ui_builder
-                .clone()
-                .tool_tip("Bad response".to_string())
-                .build()
-                .finish()
-        })
-        .with_style(style_override)
-        .with_hovered_styles(style_override_with_background)
-        .with_active_styles(style_override_with_background);
-
-        let (thumbs_up_button_element, thumbs_down_button_element) =
-            match props.response_rating.get() {
-                Some(rating) => {
-                    // Mark the button that wasn't selected as disabled.
-                    // (The button that _was_ selected will not be clickable since it's marked active).
-                    match rating {
-                        AIBlockResponseRating::Positive => (
-                            thumbs_up_button.build().with_cursor(Cursor::Arrow).finish(),
-                            thumbs_down_button
-                                .disabled()
-                                .with_disabled_styles(Default::default())
-                                .build()
-                                .finish(),
-                        ),
-                        AIBlockResponseRating::Negative => (
-                            thumbs_up_button
-                                .disabled()
-                                .with_disabled_styles(Default::default())
-                                .build()
-                                .finish(),
-                            thumbs_down_button
-                                .build()
-                                .with_cursor(Cursor::Arrow)
-                                .finish(),
-                        ),
-                    }
-                }
-                None => (
-                    thumbs_up_button
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(AIBlockAction::Rated { is_positive: true })
-                        })
-                        .finish(),
-                    thumbs_down_button
-                        .build()
-                        .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(AIBlockAction::Rated { is_positive: false })
-                        })
-                        .finish(),
-                ),
-            };
-        flex.add_child(
-            Container::new(thumbs_up_button_element)
-                .with_margin_right(2.)
-                .finish(),
-        );
-        flex.add_child(
-            Container::new(thumbs_down_button_element)
-                .with_margin_right(2.)
-                .finish(),
-        );
-    }
 
     if !props.shared_session_status.is_finished_viewer() && !FeatureFlag::AgentView.is_enabled() {
         let ui_builder = appearance.ui_builder().clone();
