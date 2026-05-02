@@ -2229,6 +2229,38 @@ pub enum AISettingsPageAction {
     ToggleModelsDevChipsExpanded,
     /// 设置 "快速添加" chip 行的搜索 query(子串过滤 provider name/id)。
     SetModelsDevSearchQuery(String),
+
+    // ----- 单条模型条目 detail panel -----
+    /// 切换单条模型的 detail panel 展开/折叠状态。
+    ToggleAgentProviderModelExpanded {
+        provider_id: String,
+        model_index: usize,
+    },
+    /// 三态循环切换单条模型的某个多模态 capability(image/pdf/audio)。
+    /// `None → Some(true) → Some(false) → None`。
+    CycleAgentProviderModelCapability {
+        provider_id: String,
+        model_index: usize,
+        kind: ModelCapabilityKind,
+    },
+    /// 切换单条模型的 reasoning 标志(普通 bool 字段,不是三态)。
+    ToggleAgentProviderModelReasoning {
+        provider_id: String,
+        model_index: usize,
+    },
+    /// 切换单条模型的 tool_call 标志。
+    ToggleAgentProviderModelToolCall {
+        provider_id: String,
+        model_index: usize,
+    },
+}
+
+/// model detail panel 三态 capability chip 的种类。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ModelCapabilityKind {
+    Image,
+    Pdf,
+    Audio,
 }
 
 impl From<&AISettingsPageAction> for LoginGatedFeature {
@@ -2964,6 +2996,7 @@ impl TypedActionView for AISettingsPageView {
                         secrets.remove(provider_id, ctx);
                     },
                 );
+                super::agent_providers_widget::clear_expanded_models_for_provider(provider_id);
                 self.rebuild_current_page(ctx);
             }
             AISettingsPageAction::UpdateAgentProviderName { provider_id, name } => {
@@ -3070,6 +3103,8 @@ impl TypedActionView for AISettingsPageView {
                     }
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });
+                // 删一条会让后续 index 漂移,清掉这个 provider 的全部展开记录避免误展开。
+                super::agent_providers_widget::clear_expanded_models_for_provider(provider_id);
                 self.rebuild_current_page(ctx);
             }
             AISettingsPageAction::UpdateAgentProviderModelName {
@@ -3305,6 +3340,20 @@ impl TypedActionView for AISettingsPageView {
                                 if local_model.name.trim().is_empty() {
                                     local_model.name = merged.name;
                                 }
+                                // 多模态 capability:**只填 None 槽位**,Some(_) 视为用户
+                                // 已显式覆盖,sync 不动。这样:
+                                // - 首次 sync(用户没碰过) → 全部写入 catalog 推断结果
+                                // - 用户手动 cycle 到 Some(true/false) 后再 sync → 保留覆盖
+                                // - 用户三态循环回 None(Auto) → 下次 sync 又会被填上
+                                if local_model.image.is_none() {
+                                    local_model.image = merged.image;
+                                }
+                                if local_model.pdf.is_none() {
+                                    local_model.pdf = merged.pdf;
+                                }
+                                if local_model.audio.is_none() {
+                                    local_model.audio = merged.audio;
+                                }
                             }
                         }
                         let existing: std::collections::HashSet<String> =
@@ -3328,6 +3377,69 @@ impl TypedActionView for AISettingsPageView {
                 use crate::ai::agent_providers::models_dev;
                 models_dev::set_search_query(q.clone());
                 ctx.notify();
+            }
+            AISettingsPageAction::ToggleAgentProviderModelExpanded {
+                provider_id,
+                model_index,
+            } => {
+                super::agent_providers_widget::toggle_model_expanded(provider_id, *model_index);
+                self.rebuild_current_page(ctx);
+            }
+            AISettingsPageAction::CycleAgentProviderModelCapability {
+                provider_id,
+                model_index,
+                kind,
+            } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        if let Some(m) = p.models.get_mut(*model_index) {
+                            let slot = match kind {
+                                ModelCapabilityKind::Image => &mut m.image,
+                                ModelCapabilityKind::Pdf => &mut m.pdf,
+                                ModelCapabilityKind::Audio => &mut m.audio,
+                            };
+                            // 三态循环:None → Some(true) → Some(false) → None。
+                            *slot = match *slot {
+                                None => Some(true),
+                                Some(true) => Some(false),
+                                Some(false) => None,
+                            };
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                self.rebuild_current_page(ctx);
+            }
+            AISettingsPageAction::ToggleAgentProviderModelReasoning {
+                provider_id,
+                model_index,
+            } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        if let Some(m) = p.models.get_mut(*model_index) {
+                            m.reasoning = !m.reasoning;
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                self.rebuild_current_page(ctx);
+            }
+            AISettingsPageAction::ToggleAgentProviderModelToolCall {
+                provider_id,
+                model_index,
+            } => {
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        if let Some(m) = p.models.get_mut(*model_index) {
+                            m.tool_call = !m.tool_call;
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                self.rebuild_current_page(ctx);
             }
         }
     }

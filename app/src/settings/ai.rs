@@ -882,6 +882,23 @@ pub struct AgentProviderModel {
     /// 不支持工具调用的模型由 models.dev 数据带入显式 false。
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub tool_call: bool,
+
+    // ----- 多模态附件 capability,三态语义:
+    // - `None`(toml 字段缺省)= Auto: 运行时按 models.dev catalog → substring fallback 推断
+    // - `Some(true)` = Force-On: 用户强制开,绕过推断
+    // - `Some(false)` = Force-Off: 用户强制关
+    //
+    // 字段命名故意用 `image` 而非 `vision`,跟 models.dev `modalities.input: ["image"]`
+    // 字面对应,语义最窄不歧义(避免用户误以为 vision = image+pdf+...)。
+    /// 是否支持图像输入(image/* MIME)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<bool>,
+    /// 是否支持 PDF 文档输入(application/pdf)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pdf: Option<bool>,
+    /// 是否支持音频输入(audio/* MIME)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<bool>,
 }
 
 fn is_zero_u32(v: &u32) -> bool {
@@ -906,6 +923,9 @@ impl AgentProviderModel {
             max_output_tokens: 0,
             reasoning: false,
             tool_call: true,
+            image: None,
+            pdf: None,
+            audio: None,
         }
     }
 }
@@ -931,6 +951,12 @@ impl<'de> Deserialize<'de> for AgentProviderModel {
                 reasoning: bool,
                 #[serde(default = "default_true")]
                 tool_call: bool,
+                #[serde(default)]
+                image: Option<bool>,
+                #[serde(default)]
+                pdf: Option<bool>,
+                #[serde(default)]
+                audio: Option<bool>,
             },
         }
         match Either::deserialize(deserializer)? {
@@ -942,6 +968,9 @@ impl<'de> Deserialize<'de> for AgentProviderModel {
                 max_output_tokens,
                 reasoning,
                 tool_call,
+                image,
+                pdf,
+                audio,
             } => {
                 let name = if name.is_empty() { id.clone() } else { name };
                 Ok(AgentProviderModel {
@@ -951,6 +980,9 @@ impl<'de> Deserialize<'de> for AgentProviderModel {
                     max_output_tokens,
                     reasoning,
                     tool_call,
+                    image,
+                    pdf,
+                    audio,
                 })
             }
         }

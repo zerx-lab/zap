@@ -17,7 +17,7 @@
 //! `api_key` 走 OS keychain (`AgentProviderSecrets`)。
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use settings::Setting;
 use warpui::elements::{
@@ -40,7 +40,7 @@ use crate::settings::{
 };
 use strum::IntoEnumIterator;
 
-use super::ai_page::{AISettingsPageAction, AISettingsPageView};
+use super::ai_page::{AISettingsPageAction, AISettingsPageView, ModelCapabilityKind};
 use super::settings_page::{build_sub_header, SettingsWidget, HEADER_PADDING};
 
 const CARD_BUTTON_FONT_SIZE: f32 = 12.0;
@@ -49,13 +49,67 @@ const FIELD_LABEL_MARGIN_TOP: f32 = 6.0;
 const FIELD_LABEL_MARGIN_BOTTOM: f32 = 2.0;
 const MODEL_ROW_GAP: f32 = 6.0;
 
+// ---------------------------------------------------------------------------
+// 模型行展开状态(process-local,thread_local 单线程 UI 安全;不持久化)
+// ---------------------------------------------------------------------------
+
+std::thread_local! {
+    /// {provider_id => Set<model_index>} 当前展开的模型条目。
+    /// 关 settings 页就丢,行为类似 `models_dev::chips_expanded()` 的 AtomicBool。
+    static EXPANDED_MODELS: RefCell<HashMap<String, HashSet<usize>>> = RefCell::new(HashMap::new());
+}
+
+pub(super) fn is_model_expanded(provider_id: &str, model_index: usize) -> bool {
+    EXPANDED_MODELS.with(|m| {
+        m.borrow()
+            .get(provider_id)
+            .map_or(false, |set| set.contains(&model_index))
+    })
+}
+
+pub(super) fn toggle_model_expanded(provider_id: &str, model_index: usize) {
+    EXPANDED_MODELS.with(|m| {
+        let mut map = m.borrow_mut();
+        let set = map.entry(provider_id.to_string()).or_default();
+        if !set.insert(model_index) {
+            set.remove(&model_index);
+        }
+    });
+}
+
+/// 删除 provider 时连带清掉它的展开记录,避免索引漂移。
+pub(super) fn clear_expanded_models_for_provider(provider_id: &str) {
+    EXPANDED_MODELS.with(|m| {
+        m.borrow_mut().remove(provider_id);
+    });
+}
+
+/// hint 字符串里 ✓ / ✗ 渲染。
+fn yn(b: bool) -> &'static str {
+    if b {
+        "✓"
+    } else {
+        "✗"
+    }
+}
+
 /// 一条模型条目(name + id + context + output)的可编辑 view handle。
 struct ModelRow {
     name_editor: ViewHandle<EditorView>,
     id_editor: ViewHandle<EditorView>,
     context_editor: ViewHandle<EditorView>,
     output_editor: ViewHandle<EditorView>,
+    /// 删除按钮 — 折叠态藏起来,展开后在 detail panel 末尾出现。
     remove_button_state: MouseStateHandle,
+    /// row 末尾的展开/折叠 chevron。
+    expand_button_state: MouseStateHandle,
+    /// detail panel 内 image/pdf/audio 三态 chip 的鼠标状态。
+    image_chip_state: MouseStateHandle,
+    pdf_chip_state: MouseStateHandle,
+    audio_chip_state: MouseStateHandle,
+    /// detail panel 内 reasoning / tool_call 两个 bool toggle 的状态。
+    reasoning_chip_state: MouseStateHandle,
+    tool_call_chip_state: MouseStateHandle,
 }
 
 /// 一条 provider 行的所有可编辑 view handle。
@@ -275,6 +329,12 @@ impl AgentProvidersWidget {
             context_editor,
             output_editor,
             remove_button_state: MouseStateHandle::default(),
+            expand_button_state: MouseStateHandle::default(),
+            image_chip_state: MouseStateHandle::default(),
+            pdf_chip_state: MouseStateHandle::default(),
+            audio_chip_state: MouseStateHandle::default(),
+            reasoning_chip_state: MouseStateHandle::default(),
+            tool_call_chip_state: MouseStateHandle::default(),
         }
     }
 
@@ -574,16 +634,22 @@ impl AgentProvidersWidget {
     }
 
     fn render_model_row(
-        provider_id: &str,
+        provider: &AgentProvider,
         index: usize,
+        model: &AgentProviderModel,
         row: &ModelRow,
         appearance: &Appearance,
     ) -> Box<dyn Element> {
-        let remove_button = Self::render_card_button(
-            "×",
-            row.remove_button_state.clone(),
-            AISettingsPageAction::RemoveAgentProviderModel {
-                provider_id: provider_id.to_owned(),
+        let provider_id = provider.id.as_str();
+        let is_expanded = is_model_expanded(provider_id, index);
+
+        // chevron:展开 ▾ / 折叠 ▸。复用 render_card_button 的视觉风格。
+        let chevron_label = if is_expanded { "▾" } else { "▸" };
+        let chevron_button = Self::render_card_button(
+            chevron_label,
+            row.expand_button_state.clone(),
+            AISettingsPageAction::ToggleAgentProviderModelExpanded {
+                provider_id: provider.id.clone(),
                 model_index: index,
             },
             appearance,
@@ -599,17 +665,222 @@ impl AgentProvidersWidget {
             .finish()
         };
 
-        Container::new(
+        let header_row = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(cell(2., &row.name_editor))
+            .with_child(cell(2., &row.id_editor))
+            .with_child(cell(1., &row.context_editor))
+            .with_child(cell(1., &row.output_editor))
+            .with_child(chevron_button)
+            .finish();
+
+        let mut col = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(header_row);
+
+        if is_expanded {
+            col = col.with_child(Self::render_model_detail_panel(
+                provider, index, model, row, appearance,
+            ));
+        }
+
+        Container::new(col.finish())
+            .with_margin_bottom(MODEL_ROW_GAP)
+            .finish()
+    }
+
+    /// 单条模型的展开 detail 面板:
+    /// - Modalities: image / pdf / audio 三态 chip(Auto / On / Off)
+    /// - Capabilities: reasoning / tool_call 两个 bool chip
+    /// - 底部 Remove 按钮
+    fn render_model_detail_panel(
+        provider: &AgentProvider,
+        index: usize,
+        model: &AgentProviderModel,
+        row: &ModelRow,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let label_color = theme.active_ui_text_color();
+        let dim_color = theme.disabled_ui_text_color();
+
+        // 推断结果(忽略用户覆盖),用于 hint 文字 "Auto: catalog says ✓✓✗"。
+        let inferred = crate::ai::agent_providers::attachment_caps::inferred_for_model(
+            &provider.id,
+            provider.api_type,
+            &model.id,
+        );
+
+        // ---- Modalities 区 ----
+        let modalities_label = Container::new(
+            Text::new(
+                "Modalities".to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(label_color.into())
+            .finish(),
+        )
+        .with_margin_top(FIELD_LABEL_MARGIN_TOP)
+        .with_margin_bottom(FIELD_LABEL_MARGIN_BOTTOM)
+        .finish();
+
+        let modality_chip = |label: &str,
+                             slot: Option<bool>,
+                             state: MouseStateHandle,
+                             kind: ModelCapabilityKind|
+         -> Box<dyn Element> {
+            // 三态视觉:Auto = 裸标签 / On = `● label` / Off = `○ label`。
+            // 沿用现有 ApiType / ReasoningEffort chip 的 `● {label}` selected 风格,
+            // Off 用空心圆 ○ 跟实心 ● 对照,Auto 不带前缀(跟未选中态一致)。
+            let chip_label = match slot {
+                None => label.to_string(),
+                Some(true) => format!("● {label}"),
+                Some(false) => format!("○ {label}"),
+            };
+            Self::render_card_button(
+                chip_label,
+                state,
+                AISettingsPageAction::CycleAgentProviderModelCapability {
+                    provider_id: provider.id.clone(),
+                    model_index: index,
+                    kind,
+                },
+                appearance,
+            )
+        };
+
+        let modalities_row = Wrap::row()
+            .with_spacing(6.)
+            .with_run_spacing(4.)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(modality_chip(
+                "Image",
+                model.image,
+                row.image_chip_state.clone(),
+                ModelCapabilityKind::Image,
+            ))
+            .with_child(modality_chip(
+                "PDF",
+                model.pdf,
+                row.pdf_chip_state.clone(),
+                ModelCapabilityKind::Pdf,
+            ))
+            .with_child(modality_chip(
+                "Audio",
+                model.audio,
+                row.audio_chip_state.clone(),
+                ModelCapabilityKind::Audio,
+            ))
+            .finish();
+
+        // 把 Auto 推断结果摊给用户看,免得用户摸不着 catalog 默认是什么。
+        let inferred_hint = format!(
+            "Auto = catalog/fallback says: Image {}, PDF {}, Audio {}. \
+             Click chip to cycle: Auto → On → Off → Auto.",
+            yn(inferred.images),
+            yn(inferred.pdf),
+            yn(inferred.audio),
+        );
+        let modalities_hint = Container::new(
+            Text::new(
+                inferred_hint,
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(dim_color.into())
+            .soft_wrap(true)
+            .finish(),
+        )
+        .with_margin_top(2.)
+        .finish();
+
+        // ---- Capabilities 区(reasoning / tool_call) ----
+        let capabilities_label = Container::new(
+            Text::new(
+                "Capabilities".to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
+            )
+            .with_color(label_color.into())
+            .finish(),
+        )
+        .with_margin_top(FIELD_LABEL_MARGIN_TOP)
+        .with_margin_bottom(FIELD_LABEL_MARGIN_BOTTOM)
+        .finish();
+
+        let bool_chip = |label: &str,
+                         on: bool,
+                         state: MouseStateHandle,
+                         action: AISettingsPageAction|
+         -> Box<dyn Element> {
+            let chip_label = if on {
+                format!("● {label}")
+            } else {
+                format!("○ {label}")
+            };
+            Self::render_card_button(chip_label, state, action, appearance)
+        };
+
+        let capabilities_row = Wrap::row()
+            .with_spacing(6.)
+            .with_run_spacing(4.)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(bool_chip(
+                "Reasoning",
+                model.reasoning,
+                row.reasoning_chip_state.clone(),
+                AISettingsPageAction::ToggleAgentProviderModelReasoning {
+                    provider_id: provider.id.clone(),
+                    model_index: index,
+                },
+            ))
+            .with_child(bool_chip(
+                "Tool Calling",
+                model.tool_call,
+                row.tool_call_chip_state.clone(),
+                AISettingsPageAction::ToggleAgentProviderModelToolCall {
+                    provider_id: provider.id.clone(),
+                    model_index: index,
+                },
+            ))
+            .finish();
+
+        // ---- Remove 按钮(展开后才出现,避免折叠态误删)----
+        let remove_button = Self::render_card_button(
+            "Remove model",
+            row.remove_button_state.clone(),
+            AISettingsPageAction::RemoveAgentProviderModel {
+                provider_id: provider.id.clone(),
+                model_index: index,
+            },
+            appearance,
+        );
+
+        let remove_row = Container::new(
             Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(cell(2., &row.name_editor))
-                .with_child(cell(2., &row.id_editor))
-                .with_child(cell(1., &row.context_editor))
-                .with_child(cell(1., &row.output_editor))
+                .with_main_axis_alignment(MainAxisAlignment::End)
                 .with_child(remove_button)
                 .finish(),
         )
-        .with_margin_bottom(MODEL_ROW_GAP)
+        .with_margin_top(FIELD_LABEL_MARGIN_TOP)
+        .finish();
+
+        // 整体 detail panel 用一个稍内缩 + 边框样式,跟主 row 拉开层级。
+        Container::new(
+            Flex::column()
+                .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                .with_child(modalities_label)
+                .with_child(modalities_row)
+                .with_child(modalities_hint)
+                .with_child(capabilities_label)
+                .with_child(capabilities_row)
+                .with_child(remove_row)
+                .finish(),
+        )
+        .with_margin_top(4.)
+        .with_margin_left(12.)
+        .with_margin_bottom(8.)
         .finish()
     }
 
@@ -764,11 +1035,14 @@ impl AgentProvidersWidget {
             models_column.add_child(header);
 
             for (idx, m_row) in row.model_rows.iter().enumerate() {
+                let model = match provider.models.get(idx) {
+                    Some(m) => m,
+                    // 极端情况:rebuild 间隙 settings 又被改了,model_rows 与 provider.models
+                    // 长度暂时不一致;跳过避免 panic,下一帧会自然修正。
+                    None => continue,
+                };
                 models_column.add_child(Self::render_model_row(
-                    &provider.id,
-                    idx,
-                    m_row,
-                    appearance,
+                    provider, idx, model, m_row, appearance,
                 ));
             }
         }

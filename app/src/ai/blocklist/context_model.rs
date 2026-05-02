@@ -52,6 +52,194 @@ pub struct PendingFile {
     pub mime_type: String,
 }
 
+/// 单个 text-like PendingFile inline 进 prompt 的硬上限,超出直接 skip(避免拉爆 context)。
+/// 与 `attachment_utils::MAX_ATTACHMENT_SIZE_BYTES`(10MB,用于 cloud upload)区别:
+/// 那个是上传字节上限,这个是 inline 进 LLM prompt 的 token 友好上限。
+const MAX_INLINE_TEXT_FILE_BYTES: usize = 256 * 1024;
+
+/// 单个 binary PendingFile(PDF / 音频 / 其它)送进 BYOP `Binary` ContentPart 的硬上限。
+/// 跟 cloud upload 用同一个 10MB 上限对齐,避免一次请求 base64 后撑爆 HTTP body。
+const MAX_INLINE_BINARY_FILE_BYTES: usize = 10 * 1024 * 1024;
+
+/// 判断 PendingFile 是否"看起来是文本",决定 P0 是否 inline。
+/// 走 mime + 扩展名双保险:`mime_guess` 对 Dockerfile/Makefile 这类无扩展名文件
+/// 会返回 `application/octet-stream`,需要补扩展名/文件名匹配。
+fn is_text_like(file: &PendingFile) -> bool {
+    let mime = file.mime_type.as_str();
+    if mime.starts_with("text/") {
+        return true;
+    }
+    // 常见文本类 application/* mime
+    matches!(
+        mime,
+        "application/json"
+            | "application/xml"
+            | "application/yaml"
+            | "application/x-yaml"
+            | "application/toml"
+            | "application/javascript"
+            | "application/typescript"
+            | "application/x-sh"
+            | "application/x-shellscript"
+            | "application/sql"
+            | "application/x-httpd-php"
+            | "application/x-python"
+            | "application/x-ruby"
+            | "application/graphql"
+    ) || is_text_like_by_filename(&file.file_name)
+}
+
+/// 文件名 / 扩展名兜底,覆盖无扩展名约定文件(Dockerfile / Makefile / .env 等)。
+fn is_text_like_by_filename(file_name: &str) -> bool {
+    let lower = file_name.to_ascii_lowercase();
+    // 无扩展名的约定文件
+    if matches!(
+        lower.as_str(),
+        "dockerfile"
+            | "makefile"
+            | "rakefile"
+            | "gemfile"
+            | "procfile"
+            | "vagrantfile"
+            | "license"
+            | "readme"
+            | "changelog"
+            | "authors"
+            | "contributors"
+            | "notice"
+    ) {
+        return true;
+    }
+    // 扩展名兜底
+    let ext = match lower.rsplit_once('.') {
+        Some((_, ext)) => ext,
+        None => return false,
+    };
+    matches!(
+        ext,
+        "md" | "markdown"
+            | "rst"
+            | "txt"
+            | "log"
+            | "csv"
+            | "tsv"
+            | "ini"
+            | "cfg"
+            | "conf"
+            | "config"
+            | "env"
+            | "properties"
+            | "lock"
+            | "gitignore"
+            | "gitattributes"
+            | "dockerignore"
+            | "editorconfig"
+            | "py"
+            | "rb"
+            | "rs"
+            | "go"
+            | "java"
+            | "kt"
+            | "kts"
+            | "scala"
+            | "swift"
+            | "c"
+            | "h"
+            | "cc"
+            | "cpp"
+            | "cxx"
+            | "hpp"
+            | "hxx"
+            | "cs"
+            | "js"
+            | "mjs"
+            | "cjs"
+            | "jsx"
+            | "ts"
+            | "tsx"
+            | "vue"
+            | "svelte"
+            | "html"
+            | "htm"
+            | "xml"
+            | "css"
+            | "scss"
+            | "sass"
+            | "less"
+            | "json"
+            | "json5"
+            | "jsonc"
+            | "yaml"
+            | "yml"
+            | "toml"
+            | "sh"
+            | "bash"
+            | "zsh"
+            | "fish"
+            | "ps1"
+            | "bat"
+            | "cmd"
+            | "sql"
+            | "graphql"
+            | "gql"
+            | "proto"
+            | "diff"
+            | "patch"
+    )
+}
+
+/// 读 PendingFile 的内容,转成 BYOP / warp-own 双路都能消费的 `FileContext`。
+/// - text-like 命中 + UTF-8 解析成功 → `StringContent`(P0 路径,所有模型可用)
+/// - 否则按 binary 处理 → `BinaryContent(Vec<u8>)`(P1 路径,BYOP 升级到 `Binary` ContentPart)
+/// - 超过对应字节上限 / 读失败 → log warn + 跳过
+///
+/// 设计权衡:warp-own 协议路径上 `BinaryContent` 在 `convert.rs:759` 里被 `Vec<api::FileContent>::from`
+/// 直接丢弃(返回空 vec),所以即便我们在这里把所有 binary 都塞进 context 也不会
+/// 污染 warp-own 数据流;只有 BYOP 的 `user_context::render_user_attachments` 会
+/// 真正消费 BinaryContent 并升级成 `ContentPart::Binary`。
+fn read_pending_file_for_context(file: &PendingFile) -> Option<FileContext> {
+    let bytes = match std::fs::read(&file.file_path) {
+        Ok(b) => b,
+        Err(e) => {
+            log::warn!(
+                "Failed to read attached file {} for inline context: {e}",
+                file.file_path.display()
+            );
+            return None;
+        }
+    };
+
+    // 先按 text-like 试 UTF-8(不止扩展名命中,内容真能解析才落 text 路径)
+    if is_text_like(file) && bytes.len() <= MAX_INLINE_TEXT_FILE_BYTES {
+        if let Ok(content) = std::str::from_utf8(&bytes) {
+            return Some(FileContext::new(
+                file.file_name.clone(),
+                AnyFileContent::StringContent(content.to_owned()),
+                None,
+                None,
+            ));
+        }
+    }
+
+    // text 路径 miss → 按 binary 处理(给 BYOP 的 Binary ContentPart 用)。
+    // text-like 但超大或非 UTF-8 时也走这条路,避免数据丢失。
+    if bytes.len() > MAX_INLINE_BINARY_FILE_BYTES {
+        log::warn!(
+            "Skipping attached file {} ({} bytes) — exceeds {} byte binary cap",
+            file.file_path.display(),
+            bytes.len(),
+            MAX_INLINE_BINARY_FILE_BYTES
+        );
+        return None;
+    }
+    Some(FileContext::new(
+        file.file_name.clone(),
+        AnyFileContent::BinaryContent(bytes),
+        None,
+        None,
+    ))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AttachmentType {
     Image,
@@ -482,6 +670,19 @@ impl BlocklistAIContextModel {
             for attachment in &self.pending_attachments {
                 if let PendingAttachment::Image(image) = attachment {
                     context.push(AIAgentContext::Image(image.clone()));
+                }
+            }
+
+            // OpenWarp P0/P1: 把 PendingFile 同步读入并以 AIAgentContext::File 推进 context。
+            // - text-like (UTF-8 解析成功) → StringContent → 走 user_context.rs::render_file
+            //   渲染成 <file> XML 块(BYOP)/ api::input_context::File(warp-own)
+            // - binary (PDF / 音频 / 其它) → BinaryContent → 走 BYOP user_context Binary
+            //   ContentPart 升级路径(warp-own 在 convert.rs:759 直接丢弃,无副作用)
+            for attachment in &self.pending_attachments {
+                if let PendingAttachment::File(file) = attachment {
+                    if let Some(file_context) = read_pending_file_for_context(file) {
+                        context.push(AIAgentContext::File(file_context));
+                    }
                 }
             }
         }

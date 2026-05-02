@@ -10,6 +10,7 @@
 //! 把 Agent 的 multi-agent 调用分流到本地 Provider。
 
 pub mod active_ai;
+pub mod attachment_caps;
 pub mod chat_stream;
 pub mod llm_id;
 pub mod models_dev;
@@ -84,6 +85,13 @@ fn build_byop_llm_infos(app: &AppContext) -> Vec<LLMInfo> {
             } else {
                 model.name.clone()
             };
+            // 三层优先级解析最终能力:用户在 settings 三态 chip 强制开关 →
+            // models.dev catalog 推断 → substring fallback。
+            // 这个函数也是 chat_stream 决策塞 ContentPart::Binary 时用的同一个,
+            // UI 显示与运行时行为永远一致。
+            let resolved_caps =
+                attachment_caps::resolve_for_model(&provider.id, provider.api_type, model);
+            let vision_supported = resolved_caps.images;
             out.push(LLMInfo {
                 display_name: format!("{provider_label} / {display_name}"),
                 base_model_name: format!("{provider_label} / {display_name}"),
@@ -95,7 +103,7 @@ fn build_byop_llm_infos(app: &AppContext) -> Vec<LLMInfo> {
                 },
                 description: None,
                 disable_reason: None,
-                vision_supported: false,
+                vision_supported,
                 spec: None,
                 provider: LLMProvider::Unknown,
                 host_configs: HashMap::new(),

@@ -169,6 +169,15 @@ impl<P: BackingView> PaneHeader<P> {
             return;
         }
 
+        // openWarp: AI 对话面板不再渲染右上角分享按钮(关联功能裁剪)
+        if self
+            .sharing_dialog()
+            .as_ref(app)
+            .has_ai_conversation_target()
+        {
+            return;
+        }
+
         let is_unsharable_conversation = self
             .sharing_dialog()
             .as_ref(app)

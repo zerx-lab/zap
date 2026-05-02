@@ -68,12 +68,33 @@ pub struct Model {
     pub reasoning: bool,
     #[serde(default = "default_true")]
     pub tool_call: bool,
+    /// 是否支持文件附件(attachment 字段,与 modalities 互补:
+    /// modalities 描述 native 多模态;attachment 涵盖 PDF / 通用文件附件协议)。
+    #[serde(default)]
+    pub attachment: bool,
+    /// 输入 / 输出 modalities,典型值:`text` / `image` / `audio` / `video` / `pdf`。
+    #[serde(default)]
+    pub modalities: ModelModalities,
     /// 上下文窗口上限。
     #[serde(default)]
     pub limit: ModelLimit,
     /// "alpha" / "beta" / "deprecated" 标签。
     #[serde(default)]
     pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModelModalities {
+    #[serde(default)]
+    pub input: Vec<String>,
+    #[serde(default)]
+    pub output: Vec<String>,
+}
+
+impl ModelModalities {
+    pub fn supports_input(&self, modality: &str) -> bool {
+        self.input.iter().any(|m| m.eq_ignore_ascii_case(modality))
+    }
 }
 
 fn default_true() -> bool {
@@ -113,6 +134,48 @@ fn cache_path() -> PathBuf {
 /// 没数据返回 `None`,UI 应展示 "正在拉取" / 重试按钮。
 pub fn cached() -> Option<Catalog> {
     state().read().ok().and_then(|s| s.catalog.clone())
+}
+
+/// 一个模型从 models.dev 抽出的能力快照,用于 BYOP UI / chat_stream 决策附件类型。
+#[derive(Debug, Clone, Default)]
+pub struct ModelCaps {
+    pub vision: bool,
+    pub pdf: bool,
+    pub audio: bool,
+    pub attachment: bool,
+}
+
+impl ModelCaps {
+    pub fn from_model(m: &Model) -> Self {
+        Self {
+            vision: m.modalities.supports_input("image"),
+            pdf: m.modalities.supports_input("pdf") || m.attachment,
+            audio: m.modalities.supports_input("audio"),
+            attachment: m.attachment,
+        }
+    }
+}
+
+/// 在已加载的 catalog 里按 model_id 查找,返回该模型在 models.dev 上声明的能力。
+///
+/// 优先用 `provider_id` 精确匹配 catalog provider key;miss 时退化到「全 catalog
+/// 扫描第一个 model.id 命中」。这样既能精确匹配(用户填的 provider.id 与 models.dev
+/// 一致时),又能应对用户自定义 provider id(比如 "openrouter" 或 "siliconflow"
+/// 这种聚合 provider 转发上游模型,id 与 models.dev 上游 provider 不同)。
+pub fn lookup_caps(provider_id: &str, model_id: &str) -> Option<ModelCaps> {
+    let s = state().read().ok()?;
+    let catalog = s.catalog.as_ref()?;
+    if let Some(p) = catalog.get(provider_id) {
+        if let Some(m) = p.models.get(model_id) {
+            return Some(ModelCaps::from_model(m));
+        }
+    }
+    for p in catalog.values() {
+        if let Some(m) = p.models.get(model_id) {
+            return Some(ModelCaps::from_model(m));
+        }
+    }
+    None
 }
 
 /// 把磁盘缓存读进内存(同步,非阻塞;只在 process 启动或 UI 第一次需要时调用)。
@@ -245,7 +308,12 @@ pub fn filter_catalog(catalog: &Catalog, query: &str) -> Vec<(String, Provider)>
 }
 
 /// 把 models.dev 的 Model 转换成本地 settings 用的 AgentProviderModel。
+///
+/// 默认把 catalog 推断的 image/pdf/audio 写进字段(用户首次 sync / quick-add 时
+/// 直接看到模型能力被同步进 toml,不需要展开 detail 才看到)。
+/// 后续 sync 时调用方只往 None 槽位填新值,Some(_) 视为用户显式覆盖跳过。
 pub fn into_agent_provider_model(model: &Model) -> crate::settings::AgentProviderModel {
+    let caps = ModelCaps::from_model(model);
     crate::settings::AgentProviderModel {
         name: if model.name.is_empty() {
             model.id.clone()
@@ -257,5 +325,8 @@ pub fn into_agent_provider_model(model: &Model) -> crate::settings::AgentProvide
         max_output_tokens: model.limit.output,
         reasoning: model.reasoning,
         tool_call: model.tool_call,
+        image: Some(caps.vision),
+        pdf: Some(caps.pdf),
+        audio: Some(caps.audio),
     }
 }

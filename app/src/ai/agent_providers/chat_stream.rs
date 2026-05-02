@@ -49,8 +49,8 @@ use warp_multi_agent_api as api;
 
 use genai::adapter::AdapterKind;
 use genai::chat::{
-    ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent, ContentPart, MessageContent,
-    Tool as GenaiTool, ToolCall, ToolResponse,
+    Binary, ChatMessage, ChatOptions, ChatRequest, ChatRole, ChatStreamEvent, ContentPart,
+    MessageContent, Tool as GenaiTool, ToolCall, ToolResponse,
 };
 use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
 use genai::{Client, ModelIden, ServiceTarget};
@@ -72,6 +72,7 @@ use super::tools;
 // 并把 warp 客户端已经收集好的 AIAgentContext(env / git / skills / project_rules / codebase / current_time)
 // 渲染进 system,让 BYOP 路径也能拥有跟 warp 自家路径相当的环境信息。
 
+use super::attachment_caps;
 use super::prompt_renderer;
 use super::user_context;
 use crate::ai::agent::AIAgentContext;
@@ -286,12 +287,76 @@ impl AssistantBuffer {
     }
 }
 
+/// 构造一条 user `ChatMessage`,按 model capability 决定要不要切到
+/// `MessageContent::Parts(Text + Binary[])` 多模态形态。
+///
+/// - 没有 binaries → 走老路 `ChatMessage::user(text)` 纯文本,与 P0 行为一致
+/// - 有 binaries 且 model 支持对应 mime → `Parts(vec![Text(text), Binary(...), ...])`,
+///   genai adapter 自动按线协议适配(OpenAI image_url/file、Anthropic image/document、
+///   Gemini inline_data 等)
+/// - binaries 但 model 不支持 → log warn 跳过该 part,降级为纯文本(prefix XML 里的
+///   `<image .../>` / `<file binary=true .../>` 占位仍然在,LLM 至少知道用户附了什么)
+fn build_user_message_with_binaries(
+    text: String,
+    binaries: Vec<user_context::UserBinary>,
+    api_type: AgentProviderApiType,
+    model_id: &str,
+) -> ChatMessage {
+    if binaries.is_empty() {
+        return ChatMessage::user(text);
+    }
+    let caps = attachment_caps::caps_for(api_type, model_id);
+
+    let mut parts: Vec<ContentPart> = Vec::with_capacity(1 + binaries.len());
+    parts.push(ContentPart::Text(text));
+
+    let mut dropped: Vec<(String, String)> = Vec::new();
+    for bin in binaries {
+        if !caps.supports_mime(&bin.content_type) {
+            dropped.push((bin.name.clone(), bin.content_type.clone()));
+            continue;
+        }
+        parts.push(ContentPart::Binary(Binary::from_base64(
+            bin.content_type,
+            bin.data,
+            Some(bin.name),
+        )));
+    }
+
+    if !dropped.is_empty() {
+        log::warn!(
+            "[byop] dropped {} attachment(s) — model {api_type:?}/{model_id} doesn't support: {dropped:?}",
+            dropped.len()
+        );
+    }
+
+    // 若过滤后只剩 Text(全部 binaries 被 caps 拒绝),退回纯文本以保持 message
+    // 形态与现有 `sanitize_tool_call_pairs` / `ensure_ends_with_user` 兼容。
+    if parts.len() == 1 {
+        if let Some(ContentPart::Text(t)) = parts.into_iter().next() {
+            return ChatMessage::user(t);
+        }
+        return ChatMessage::user("");
+    }
+
+    ChatMessage {
+        role: ChatRole::User,
+        content: MessageContent::from_parts(parts),
+        options: None,
+    }
+}
+
 /// 把 RequestParams 翻译为 genai `ChatRequest`(含 system + messages + tools)。
 ///
 /// `force_echo_reasoning`:由 `super::reasoning::model_requires_reasoning_echo`
 /// 决定。true 时所有 assistant message 强制挂 reasoning_content(空串占位),
 /// 修复 DeepSeek-v4-flash / Kimi 等收紧校验的 thinking-mode endpoint。
-fn build_chat_request(params: &RequestParams, force_echo_reasoning: bool) -> ChatRequest {
+fn build_chat_request(
+    params: &RequestParams,
+    force_echo_reasoning: bool,
+    api_type: AgentProviderApiType,
+    model_id: &str,
+) -> ChatRequest {
     let agent_ctx = latest_input_context(&params.input);
     let mut system_text = prompt_renderer::render_system(&params.model, agent_ctx);
     // OpenWarp:legacy SSH 会话画像补丁。`render_system` 走 AIAgentContext,
@@ -443,8 +508,9 @@ fn build_chat_request(params: &RequestParams, force_echo_reasoning: bool) -> Cha
                 } else if let Some(command_id) = params.lrc_command_id.as_deref() {
                     prefixes.push(render_running_command_id_context(command_id));
                 }
-                if let Some(attachments_prefix) = user_context::render_user_attachments(context) {
-                    prefixes.push(attachments_prefix);
+                let user_attachments = user_context::collect_user_attachments(context);
+                if let Some(p) = &user_attachments.prefix {
+                    prefixes.push(p.clone());
                 }
                 let full_text = if prefixes.is_empty() {
                     query.clone()
@@ -453,7 +519,7 @@ fn build_chat_request(params: &RequestParams, force_echo_reasoning: bool) -> Cha
                 };
                 log::info!(
                     "[byop-diag] build_chat_request UserQuery: query_len={} \
-                     running_command={} prefixes={} full_text_len={}",
+                     running_command={} prefixes={} full_text_len={} binaries={}",
                     query.len(),
                     match request_running_command {
                         Some(rc) => format!(
@@ -464,9 +530,15 @@ fn build_chat_request(params: &RequestParams, force_echo_reasoning: bool) -> Cha
                         None => "None".to_owned(),
                     },
                     prefixes.len(),
-                    full_text.len()
+                    full_text.len(),
+                    user_attachments.binaries.len(),
                 );
-                messages.push(ChatMessage::user(full_text));
+                messages.push(build_user_message_with_binaries(
+                    full_text,
+                    user_attachments.binaries,
+                    api_type,
+                    model_id,
+                ));
             }
             AIAgentInput::ActionResult { result, .. } => {
                 // 上一轮模型回了 tool_calls,client 端执行完后 result 走 `params.input`
@@ -497,14 +569,18 @@ fn build_chat_request(params: &RequestParams, force_echo_reasoning: bool) -> Cha
                 if let Some(lrc_prefix) = render_lrc_request_context(params) {
                     prefixes.push(lrc_prefix);
                 }
-                if let Some(attachments_prefix) = user_context::render_user_attachments(context) {
-                    prefixes.push(attachments_prefix);
+                let user_attachments = user_context::collect_user_attachments(context);
+                if let Some(p) = &user_attachments.prefix {
+                    prefixes.push(p.clone());
                 }
                 if !prefixes.is_empty() {
-                    messages.push(ChatMessage::user(format!(
-                        "{}\n\nContinue.",
-                        prefixes.join("\n\n")
-                    )));
+                    let full_text = format!("{}\n\nContinue.", prefixes.join("\n\n"));
+                    messages.push(build_user_message_with_binaries(
+                        full_text,
+                        user_attachments.binaries,
+                        api_type,
+                        model_id,
+                    ));
                 }
             }
             AIAgentInput::AutoCodeDiffQuery { .. }
@@ -1311,7 +1387,7 @@ pub async fn generate_byop_output(
     _cancellation_rx: futures::channel::oneshot::Receiver<()>,
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let force_echo_reasoning = super::reasoning::model_requires_reasoning_echo(api_type, &model_id);
-    let chat_req = build_chat_request(&params, force_echo_reasoning);
+    let chat_req = build_chat_request(&params, force_echo_reasoning, api_type, &model_id);
     let chat_opts = build_chat_options(api_type, &model_id, reasoning_effort);
     let client = build_client(api_type, base_url, api_key);
     let conversation_id = params
