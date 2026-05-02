@@ -155,8 +155,6 @@ const CREATE_TEAM_ICON_WIDTH: f32 = 16.;
 const CREATE_TEAM_ICON_HEIGHT: f32 = 16.;
 const CREATE_TEAM_TEXT: &str = "Share commands & knowledge with your teammates.";
 
-const LOADING_ICON_WIDTH: f32 = 16.;
-const LOADING_ICON_HEIGHT: f32 = 16.;
 const MENU_WIDTH: f32 = 194.;
 const CLOUD_OFFLINE_ICON_WIDTH: f32 = 20.;
 const CLOUD_OFFLINE_ICON_HEIGHT: f32 = 18.;
@@ -480,7 +478,6 @@ pub enum DriveIndexEvent {
 
 #[derive(Clone, Default)]
 struct MouseStateHandles {
-    warp_drive_initial_load_mouse_state: MouseStateHandle,
     sorting_button_mouse_state: MouseStateHandle,
     retry_button_mouse_state: MouseStateHandle,
     trash_row_mouse_state: MouseStateHandle,
@@ -541,7 +538,6 @@ pub struct DriveIndex {
     sorting_choice: DriveSortOrder,
     auth_state: Arc<AuthState>,
     space_menu_open_for_space: Option<SpaceMenuState>,
-    show_warp_drive_loading_icon: bool,
     should_show_personal_object_limit_status: bool,
     /// A hashmap of location (space/folder) to a list of hashed IDs of objects inside
     /// the space/folder, used for rendering our objects
@@ -939,10 +935,8 @@ impl DriveIndex {
 
         let sorting_choice = *WarpDriveSettings::as_ref(ctx).sorting_choice.value();
 
-        // Hide Warp Drive loading icon once initial load is complete
         let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
         ctx.spawn(initial_load_complete, |me, _, ctx| {
-            me.show_warp_drive_loading_icon = false;
             me.initialize_section_states(ctx);
             me.has_initialized_sections.set();
             ctx.notify();
@@ -1014,7 +1008,6 @@ impl DriveIndex {
             sorting_choice,
             auth_state: AuthStateProvider::as_ref(ctx).get().clone(),
             space_menu_open_for_space: None,
-            show_warp_drive_loading_icon: true,
             sorted_orders_by_location: Default::default(),
             ordered_items: Default::default(),
             has_initialized_sections: Default::default(),
@@ -2501,10 +2494,6 @@ impl DriveIndex {
 
         let mut title_right_side = Flex::row();
 
-        if self.show_warp_drive_loading_icon && self.is_online(app) {
-            title_right_side.add_child(self.render_warp_drive_loading_icon(appearance));
-        }
-
         // Only show the global retry button if there are errored objects
         if self.num_errored_objects > 0 && self.is_online(app) {
             title_right_side.add_child(self.render_retry_button(appearance));
@@ -2940,55 +2929,6 @@ impl DriveIndex {
         )
         .with_padding_right(6.)
         .finish()
-    }
-
-    fn render_warp_drive_loading_icon(&self, appearance: &Appearance) -> Box<dyn warpui::Element> {
-        // Use same padding as icon_button (4px) to center the icon within ICON_DIMENSIONS
-        let icon_button_padding = (ICON_DIMENSIONS - LOADING_ICON_WIDTH) / 2.;
-        let loading_icon = Container::new(
-            ConstrainedBox::new(
-                Icon::Refresh
-                    .to_warpui_icon(
-                        appearance
-                            .theme()
-                            .sub_text_color(appearance.theme().surface_1()),
-                    )
-                    .finish(),
-            )
-            .with_width(LOADING_ICON_WIDTH)
-            .with_height(LOADING_ICON_HEIGHT)
-            .finish(),
-        )
-        .with_uniform_padding(icon_button_padding)
-        .with_margin_right(4.)
-        .finish();
-
-        let hoverable = Hoverable::new(
-            self.mouse_state_handles
-                .warp_drive_initial_load_mouse_state
-                .clone(),
-            |mouse_state| {
-                let mut stack = Stack::new().with_child(loading_icon);
-                if mouse_state.is_hovered() {
-                    let tooltip = appearance
-                        .ui_builder()
-                        .tool_tip(String::from("Syncing Warp Drive"));
-
-                    stack.add_positioned_overlay_child(
-                        tooltip.build().finish(),
-                        OffsetPositioning::offset_from_parent(
-                            vec2f(0., 4.),
-                            ParentOffsetBounds::Unbounded,
-                            ParentAnchor::BottomMiddle,
-                            ChildAnchor::TopMiddle,
-                        ),
-                    );
-                };
-                stack.finish()
-            },
-        );
-
-        hoverable.finish()
     }
 
     fn render_sorting_button(&self, appearance: &Appearance) -> Box<dyn warpui::Element> {
