@@ -1836,10 +1836,19 @@ pub async fn generate_byop_output(
     Ok(Box::pin(stream))
 }
 
-/// 用独立 BYOP 配置发一个短的非工具请求,要求模型对首条 user query 输出一个
-/// 5–10 词的会话标题。所有错误吞掉(返回 Err 让上游打 warn log,不影响主流程)。
+/// 用独立 BYOP 配置发一个短的非工具请求,让模型对首条 user query 生成会话标题。
+/// 所有错误吞掉(返回 Err 让上游打 warn log,不影响主流程)。
 ///
 /// 实现委托给 `oneshot::byop_oneshot_completion`,这里只负责拼 prompt 和清洗输出。
+///
+/// ## prompt 设计
+///
+/// - **system**: 见 `prompts/tasks/title_system.md`,结构化 task/rules/examples,
+///   覆盖中英双语示例,显式禁止 "回答用户问题 / 拒绝 / 加引号"。
+/// - **user**: 把原始 `user_query` 包在 `<user>...</user>` 里,前置一句明确的
+///   "Generate a title for this conversation:",避免弱模型把 user 当主指令直接答复
+///   (典型坏 case:user="你是谁" → 模型答"我是 Claude"被当作标题)。
+/// - **temperature**: 0.3 — opencode title agent 用 0.5,这里更保守,降低跑题。
 pub(crate) async fn generate_title_via_byop(
     tg: &TitleGenInput,
     user_query: &str,
@@ -1851,25 +1860,76 @@ pub(crate) async fn generate_title_via_byop(
         api_type: tg.api_type,
         reasoning_effort: tg.reasoning_effort,
     };
-    // 中英双语都覆盖的 system,要求 plain text(无引号、无 markdown)。
-    let system = "You generate concise conversation titles. \
-                  Reply with ONLY a 4-8 word title (no quotes, no punctuation at the end, no markdown). \
-                  Match the language of the user's message. \
-                  Do not answer the question — just title it.";
+    let system = include_str!("prompts/tasks/title_system.md");
+    let user_prompt = format!(
+        "Generate a title for this conversation:\n<user>{}</user>",
+        user_query
+    );
     let opts = super::oneshot::OneshotOptions {
         max_chars: Some(1000),
+        temperature: Some(0.3),
         ..Default::default()
     };
-    let raw = super::oneshot::byop_oneshot_completion(&cfg, system, user_query, &opts).await?;
+    let raw = super::oneshot::byop_oneshot_completion(&cfg, system, &user_prompt, &opts).await?;
     Ok(sanitize_title(&raw))
 }
 
-/// 清洗 title 文本:trim、剥引号/反引号、去尾标点、截断到 80 字符上限。
-/// 空字符串 → None(让上游跳过 emit)。
+/// 清洗 title 文本。空字符串 → None(让上游跳过 emit)。
+///
+/// 处理顺序:
+/// 1. 剥 `<think>...</think>` / `<reasoning>...</reasoning>` 思考块(reasoning 模型常见前缀)。
+/// 2. 取首行非空内容(模型常前置"好的,标题是:"再换行给标题)。
+/// 3. 剥 `Title:` / `标题:` / `Thread:` / `Subject:` 等前缀(大小写不敏感)。
+/// 4. 剥首尾引号 / 反引号(中英文)。
+/// 5. 去尾标点。
+/// 6. 50 字符截断(按 char,保护 CJK),超过则尾部加 `…`。
 fn sanitize_title(raw: &str) -> Option<String> {
-    let mut s = raw.trim().to_owned();
-    // 剥首尾引号(中英文)。
-    let quotes = ['"', '\'', '`', '“', '”', '‘', '’', '《', '》'];
+    // 1. 剥 reasoning 标签(可能有多个,DOTALL 模式)。
+    let mut s = raw.to_owned();
+    for tag in &["think", "reasoning", "thought", "scratchpad"] {
+        let open = format!("<{}>", tag);
+        let close = format!("</{}>", tag);
+        while let (Some(start), Some(end_rel)) = (
+            s.find(&open),
+            s.find(&close).map(|e| e + close.len()),
+        ) {
+            if end_rel <= start {
+                break;
+            }
+            s.replace_range(start..end_rel, "");
+        }
+    }
+
+    // 2. 取首行非空。
+    let first_line = s
+        .lines()
+        .map(|l| l.trim())
+        .find(|l| !l.is_empty())
+        .unwrap_or("")
+        .to_owned();
+    let mut s = first_line;
+
+    // 3. 剥前缀(循环剥,处理 "Title: 标题: foo" 这类双前缀)。
+    let prefixes = [
+        "title:", "subject:", "thread:", "标题:", "标题：", "主题:", "主题：",
+    ];
+    loop {
+        let lower = s.to_lowercase();
+        let mut stripped = false;
+        for p in &prefixes {
+            if lower.starts_with(p) {
+                s = s[p.len()..].trim_start().to_owned();
+                stripped = true;
+                break;
+            }
+        }
+        if !stripped {
+            break;
+        }
+    }
+
+    // 4. 剥首尾引号(中英文)。
+    let quotes = ['"', '\'', '`', '“', '”', '‘', '’', '《', '》', '「', '」'];
     while let Some(c) = s.chars().next() {
         if quotes.contains(&c) {
             s.remove(0);
@@ -1885,11 +1945,12 @@ fn sanitize_title(raw: &str) -> Option<String> {
             break;
         }
     }
-    // 去尾标点。
+
+    // 5. 去尾标点。
     while let Some(c) = s.chars().last() {
         if matches!(
             c,
-            '.' | '。' | '!' | '！' | '?' | '？' | ',' | '，' | ';' | '；'
+            '.' | '。' | '!' | '！' | '?' | '？' | ',' | '，' | ';' | '；' | ':' | ':'
         ) {
             let new_len = s.len() - c.len_utf8();
             s.truncate(new_len);
@@ -1897,13 +1958,22 @@ fn sanitize_title(raw: &str) -> Option<String> {
             break;
         }
     }
+
     let s = s.trim().to_owned();
     if s.is_empty() {
         return None;
     }
-    // 80 字符截断(按 char 而不是 byte,保护 CJK)。
-    let truncated: String = s.chars().take(80).collect();
-    Some(truncated)
+
+    // 6. 50 字符截断(按 char,保护 CJK)。超长加省略号。
+    const MAX_CHARS: usize = 50;
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() > MAX_CHARS {
+        let mut truncated: String = chars.iter().take(MAX_CHARS - 1).collect();
+        truncated.push('…');
+        Some(truncated)
+    } else {
+        Some(s)
+    }
 }
 
 // ---------------------------------------------------------------------------
