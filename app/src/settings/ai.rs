@@ -1823,6 +1823,89 @@ define_settings_group!(AISettings, settings: [
         toml_path: "agents.warp_agent.providers",
         description: "User-configured custom Agent providers (OpenAI-compatible).",
     }
+
+    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 opencode `Config.compaction.auto`。
+    // true 时按 token-overflow 自动触发摘要;false 仅手动 /compact /compact-and 触发。
+    byop_compaction_auto: ByopCompactionAuto {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop_compaction.auto",
+        description: "Enable BYOP automatic conversation compaction on context overflow.",
+    }
+
+    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 opencode `Config.compaction.prune`。
+    // true 时每次 LLM 请求前清旧 tool output(替换为占位符)。
+    byop_compaction_prune: ByopCompactionPrune {
+        type: bool,
+        default: true,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop_compaction.prune",
+        description: "Auto-prune older tool outputs to free BYOP context.",
+    }
+
+    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 opencode `Config.compaction.tail_turns`(默认 2)。
+    // 保留最近 N 个 user turn 作 tail,前面的进入 head 给摘要 LLM。0 关闭压缩。
+    byop_compaction_tail_turns: ByopCompactionTailTurns {
+        type: u32,
+        default: 2u32,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop_compaction.tail_turns",
+        description: "Number of recent user turns to keep verbatim during compaction.",
+    }
+
+    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 `Config.compaction.preserve_recent_tokens`。
+    // 0 = 自动按公式算(min(MAX=8000, max(MIN=2000, usable * 0.25)));> 0 强制覆盖。
+    byop_compaction_preserve_recent_tokens: ByopCompactionPreserveRecentTokens {
+        type: u32,
+        default: 0u32,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop_compaction.preserve_recent_tokens",
+        description: "Override the recent-tokens preservation budget (0 = auto).",
+    }
+
+    // OpenWarp BYOP 本地会话压缩 — 1:1 对齐 `Config.compaction.reserved`。
+    // overflow 判定时 usable = input_limit - reserved。0 = 自动按 min(20_000, max_output) 算。
+    byop_compaction_reserved: ByopCompactionReserved {
+        type: u32,
+        default: 0u32,
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop_compaction.reserved",
+        description: "Reserved buffer tokens for compaction overflow check (0 = auto).",
+    }
+
+    // OpenWarp BYOP 本地会话压缩 — 摘要专用模型(可选)。
+    // 设置后:摘要 LLM 调用走这个 provider+model 而非当前 conversation 模型。
+    // 留空两个字段 = 用 conversation 当前模型。
+    byop_compaction_model_provider_id: ByopCompactionModelProviderId {
+        type: String,
+        default: String::new(),
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop_compaction.model.provider_id",
+        description: "Optional dedicated provider id for compaction LLM calls.",
+    }
+
+    byop_compaction_model_id: ByopCompactionModelId {
+        type: String,
+        default: String::new(),
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop_compaction.model.model_id",
+        description: "Optional dedicated model id for compaction LLM calls.",
+    }
 ]);
 
 impl AISettings {

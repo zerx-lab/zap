@@ -12361,7 +12361,7 @@ impl TerminalView {
     fn summarize_conversation(&mut self, ctx: &mut ViewContext<Self>) {
         self.ai_controller.update(ctx, |controller, ctx| {
             controller
-                .send_slash_command_request(SlashCommandRequest::Summarize { prompt: None }, ctx);
+                .send_slash_command_request(SlashCommandRequest::Summarize { prompt: None, overflow: false }, ctx);
         });
     }
 

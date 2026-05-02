@@ -35,6 +35,11 @@ pub enum SlashCommandRequest {
     },
     Summarize {
         prompt: Option<String>,
+        /// OpenWarp BYOP 本地会话压缩:本次摘要是否由 token-overflow 自动触发。
+        /// chat_stream::SummarizeConversation 分支据此决定 follow-up 文案
+        /// (overflow 路径会拼一段 "previous request exceeded ..." 解释)。
+        /// /compact /compact-and 手动触发时为 false;auto-trigger 路径为 true。
+        overflow: bool,
     },
     FetchReviewComments {
         repo_path: String,
@@ -59,6 +64,7 @@ impl SlashCommandRequest {
         if let Some(prompt) = query.strip_prefix(commands::COMPACT.name) {
             return Some(Self::Summarize {
                 prompt: prompt.strip_prefix(' ').map(String::from),
+                overflow: false, // 文本输入路径只用于手动 /compact,永不为自动 overflow
             });
         }
 
@@ -226,8 +232,8 @@ impl SlashCommandRequest {
                     repo_paths: repos,
                 }]
             }
-            SlashCommandRequest::Summarize { prompt, .. } => {
-                vec![AIAgentInput::SummarizeConversation { prompt, overflow: false }]
+            SlashCommandRequest::Summarize { prompt, overflow } => {
+                vec![AIAgentInput::SummarizeConversation { prompt, overflow }]
             }
             SlashCommandRequest::FetchReviewComments { repo_path } => {
                 vec![AIAgentInput::FetchReviewComments { repo_path, context }]

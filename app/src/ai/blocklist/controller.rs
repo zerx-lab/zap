@@ -2029,10 +2029,19 @@ impl BlocklistAIController {
         request_params.parent_agent_id = parent_agent_id;
         request_params.agent_name = agent_name;
 
-        // OpenWarp BYOP 本地会话压缩:把 conversation.compaction_state.clone() 注入 request_params。
+        // OpenWarp BYOP 本地会话压缩:
+        //   1. 自动 prune 旧 tool output(对齐 opencode `compaction.ts:297-341` prune)
+        //   2. 把 conversation.compaction_state.clone() 注入 request_params
+        //
         // chat_stream::build_chat_request 会据此投影 messages(隐去已压缩区间 + 替换 compacted tool output);
         // SummarizeConversation input 路径还会切 head + 拼 SUMMARY_TEMPLATE。
         // 非 BYOP 路径(走 server protobuf)不读这个字段,无副作用。
+        let compaction_cfg = crate::ai::byop_compaction::CompactionConfig::from_settings(ctx);
+        history_model.update(ctx, |history_model, _ctx| {
+            if let Some(convo) = history_model.conversation_mut(&conversation_id) {
+                crate::ai::byop_compaction::commit::prune_now(convo, &compaction_cfg);
+            }
+        });
         if let Some(convo) = history_model
             .as_ref(ctx)
             .conversation(&conversation_id)
@@ -2930,7 +2939,7 @@ impl BlocklistAIController {
                 if summarize_overflow.is_none() {
                     let aggregate_count = aggregate_token_count;
                     if aggregate_count > 0 {
-                        let cfg = crate::ai::byop_compaction::CompactionConfig::default();
+                        let cfg = crate::ai::byop_compaction::CompactionConfig::from_settings(ctx);
                         let model_limit =
                             crate::ai::byop_compaction::overflow::ModelLimit::FALLBACK;
                         let counts = crate::ai::byop_compaction::overflow::TokenCounts {
@@ -2943,11 +2952,12 @@ impl BlocklistAIController {
                                 crate::ai::byop_compaction::usable(&cfg, model_limit)
                             );
                             // 通过 SlashCommandRequest::Summarize 触发(与 /compact-and 同链路);
-                            // overflow=false → 自动触发的"安静"摘要,不带 follow-up;
-                            // 后续 PR 可加 overflow=true 路径(需要让 SlashCommandRequest 携带该 flag)。
+                            // overflow=true → chat_stream 拼摘要请求时携带 overflow 标记,
+                            // commit_summarization 写回时也以 overflow=true 落 state(便于 UI 区分)。
                             self.send_slash_command_request(
                                 crate::ai::blocklist::controller::SlashCommandRequest::Summarize {
                                     prompt: None,
+                                    overflow: true,
                                 },
                                 ctx,
                             );

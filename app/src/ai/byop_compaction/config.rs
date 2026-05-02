@@ -57,4 +57,37 @@ impl CompactionConfig {
             MAX_PRESERVE_RECENT_TOKENS.min(MIN_PRESERVE_RECENT_TOKENS.max(usable_tokens / 4))
         })
     }
+
+    /// 从 `AISettings` 反序列化(对齐 opencode `Config.compaction.*`)。
+    ///
+    /// 字段映射:
+    /// - `byop_compaction_auto` → `auto`
+    /// - `byop_compaction_prune` → `prune`
+    /// - `byop_compaction_tail_turns` → `tail_turns`(0 也保留,意为禁用 tail 切分)
+    /// - `byop_compaction_preserve_recent_tokens` → `preserve_recent_tokens`(0 → None,走公式)
+    /// - `byop_compaction_reserved` → `reserved`(0 → None,走 min(20_000, max_output))
+    /// - `byop_compaction_model_provider_id` + `byop_compaction_model_id` → `compaction_model`
+    ///   (任一为空 → None,回退到 conversation 当前 model)
+    pub fn from_settings(app: &warpui::AppContext) -> Self {
+        use crate::settings::AISettings;
+        use warpui::SingletonEntity as _;
+        let s = AISettings::as_ref(app);
+        let provider_id = s.byop_compaction_model_provider_id.to_string();
+        let model_id = s.byop_compaction_model_id.to_string();
+        let compaction_model = if !provider_id.is_empty() && !model_id.is_empty() {
+            Some(CompactionModelRef { provider_id, model_id })
+        } else {
+            None
+        };
+        let preserve_raw: u32 = *s.byop_compaction_preserve_recent_tokens;
+        let reserved_raw: u32 = *s.byop_compaction_reserved;
+        Self {
+            auto: *s.byop_compaction_auto,
+            prune: *s.byop_compaction_prune,
+            tail_turns: *s.byop_compaction_tail_turns as usize,
+            preserve_recent_tokens: if preserve_raw == 0 { None } else { Some(preserve_raw as usize) },
+            reserved: if reserved_raw == 0 { None } else { Some(reserved_raw as usize) },
+            compaction_model,
+        }
+    }
 }
