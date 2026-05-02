@@ -155,6 +155,9 @@ hex = "0.4.3"
 # This matches the version of hyper used by reqwest.
 hyper = "1.6.0"
 html5ever = "0.35.0"
+# OpenWarp BYOP webfetch:HTML→Markdown(纯 Rust 端口的 Turndown 实现,
+# 对应 opencode webfetch.ts 用的 turndown JS 库)。
+htmd = "0.2"
 http = "1.1.0"
 humantime = "2.1.0"
 image = { version = "0.25.9", default-features = false, features = [

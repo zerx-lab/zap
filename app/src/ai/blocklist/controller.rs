@@ -2691,7 +2691,13 @@ impl BlocklistAIController {
                     // 修正参数重试。`can_attempt_resume_on_error=false` 防 LLM 持续输出坏 args 导致死循环。
                     // 只在本轮新加的 messages 里查找 synthetic 错误标记,避免历史持久化的
                     // 同标记反复命中导致死循环。
-                    let needs_byop_error_resume = conversation.all_tasks().any(|task| {
+                    // OpenWarp BYOP:两类 synthetic ToolCallResult 需要 auto-resume
+                    // (二者都不入 actions_to_queue,exchange 静默结束 → 模型卡死等结果)。
+                    // 1. invalid_arguments — from_args 解析失败兜底(原始)
+                    // 2. _byop_intercepted — webfetch / websearch 等本地拦截工具结果
+                    //    (chat_stream::dispatch_byop_web_tool 不走 protobuf executor,
+                    //     直接合成 result,没有 AIAgentAction 入队)
+                    let needs_byop_local_resume = conversation.all_tasks().any(|task| {
                         task.messages().any(|msg| {
                             newly_added_message_ids.contains(&MessageId::new(msg.id.clone()))
                                 && matches!(
@@ -2700,15 +2706,18 @@ impl BlocklistAIController {
                                         message::ToolCallResult { result: None, .. },
                                     )),
                                 )
-                                && msg
+                                && (msg
                                     .server_message_data
                                     .contains(r#""error":"invalid_arguments""#)
+                                    || msg
+                                        .server_message_data
+                                        .contains(r#""_byop_intercepted":true"#))
                         })
                     });
-                    if needs_byop_error_resume {
+                    if needs_byop_local_resume {
                         log::info!(
-                            "[byop] detected synthetic invalid_arguments tool_result without queued \
-                             action → schedule auto-resume so model receives error feedback. \
+                            "[byop] detected synthetic local tool_result (invalid_arguments \
+                             or _byop_intercepted) without queued action → schedule auto-resume. \
                              conversation_id={conversation_id:?}"
                         );
                         let network_status = NetworkStatus::handle(ctx);
@@ -2731,7 +2740,7 @@ impl BlocklistAIController {
                     log::info!(
                         "[byop-diag] AfterStreamFinished: actions_to_queue is EMPTY (\
                          was_passive={was_passive_request}, unfinished={is_any_exchange_unfinished}, \
-                         byop_resume={needs_byop_error_resume}) conversation_id={conversation_id:?}"
+                         byop_resume={needs_byop_local_resume}) conversation_id={conversation_id:?}"
                     );
                 }
 

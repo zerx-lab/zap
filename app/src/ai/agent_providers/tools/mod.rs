@@ -23,6 +23,7 @@ pub mod ask;
 pub mod codebase;
 pub mod documents;
 pub mod edit;
+pub mod exa;
 pub mod files;
 pub mod long_shell;
 pub mod markers;
@@ -31,6 +32,9 @@ pub mod search;
 pub mod shell;
 pub mod skill;
 pub mod suggest;
+pub mod web_runtime;
+pub mod webfetch;
+pub mod websearch;
 
 use anyhow::Result;
 use serde_json::Value;
@@ -91,6 +95,11 @@ pub const REGISTRY: &[&OpenAiTool] = &[
     &markers::OPEN_CODE_REVIEW,
     &markers::INIT_PROJECT,
     &markers::TRANSFER_SHELL_CONTROL,
+    // BYOP-only 网络工具:不映射到 protobuf executor variant,由 chat_stream
+    // 在 parse_incoming_tool_call 之前按 name 拦截,直接调 web_runtime 跑 HTTP。
+    // gating:profile.web_search_enabled=false 时,build_tools_array 会过滤掉。
+    &webfetch::WEBFETCH,
+    &websearch::WEBSEARCH,
 ];
 
 /// 按 OpenAI function name 反查注册表。

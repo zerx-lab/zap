@@ -111,6 +111,8 @@ genai.workspace = true
 getset.workspace = true
 handlebars.workspace = true
 hex.workspace = true
+# OpenWarp BYOP webfetch:HTML→Markdown(Turndown 的 Rust 端口)。
+htmd.workspace = true
 # BYOP system prompt 模板渲染。轻量(运行时引擎),Jinja2 子集。
 # 默认 features(builtins / serde / multi_template / macros / debug ...)够用。
 minijinja = "2"

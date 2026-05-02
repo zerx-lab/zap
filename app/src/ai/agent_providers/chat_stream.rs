@@ -1046,15 +1046,52 @@ fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
     // 其他工具保留(read_files/grep/ask_user_question 等),允许模型做必要的
     // 信息收集和反问。
     let is_lrc = params.lrc_command_id.is_some();
+    let web_enabled = params.web_search_enabled;
+    // PromptSuggestionsViaMAA 是 cargo feature gated(`app/src/lib.rs:2409` 用
+    // `#[cfg(feature = "prompt_suggestions_via_maa")]` 注册)。flag 关闭时,
+    // executor (`action_model/execute/suggest_prompt.rs:56-77`) 不 emit chip event
+    // 但仍创建 oneshot channel 等 result —— 没人调 `complete_suggest_prompt_action()`
+    // → conversation 永挂在 "Warping..."。同问题影响 suggest_new_conversation。
+    // 对策:flag 关时直接不暴露给上游模型,模型看不到就不会调。
+    let prompt_suggestions_enabled =
+        warp_core::features::FeatureFlag::PromptSuggestionsViaMAA.is_enabled();
+    // 动态占位替换:某些工具描述含 `{{year}}`(如 websearch,对齐 opencode
+    // websearch.ts:30-32 的 description getter),build 时替换成当前年份。
+    // 模型每次看到的描述都带正确年份,不会被训练数据里的旧年份污染。
+    let current_year = chrono::Local::now().format("%Y").to_string();
     let mut out: Vec<GenaiTool> = tools::REGISTRY
         .iter()
         .filter(|t| {
             if is_lrc && t.name == "run_shell_command" {
                 return false;
             }
+            // BYOP web 工具按 profile.web_search_enabled gating(用户已关闭隐私
+            // 开关时不暴露给上游模型,避免误调外网请求)。
+            if !web_enabled
+                && (t.name == tools::webfetch::TOOL_NAME
+                    || t.name == tools::websearch::TOOL_NAME)
+            {
+                return false;
+            }
+            // suggest_prompt / suggest_new_conversation:依赖 PromptSuggestionsViaMAA
+            // feature 才有 chip UI 渲染;flag 关时调用会让 conversation 永挂。
+            if !prompt_suggestions_enabled
+                && (t.name == "suggest_prompt" || t.name == "suggest_new_conversation")
+            {
+                return false;
+            }
             true
         })
-        .map(|t| t.to_genai_tool())
+        .map(|t| {
+            let description = if t.description.contains("{{year}}") {
+                t.description.replace("{{year}}", &current_year)
+            } else {
+                t.description.to_owned()
+            };
+            GenaiTool::new(t.name)
+                .with_description(description)
+                .with_schema((t.parameters)())
+        })
         .collect();
 
     if let Some(ctx) = params.mcp_context.as_ref() {
@@ -1741,6 +1778,37 @@ pub async fn generate_byop_output(
                 call.call_id,
                 args_repr,
             );
+
+            // OpenWarp BYOP web 工具拦截:webfetch / websearch 不映射到 protobuf
+            // executor variant,在这里直接跑本地 HTTP,合成 (carrier ToolCall,
+            // ToolCallResult) 一对消息,绕开 parse_incoming_tool_call。
+            if call.fn_name == tools::webfetch::TOOL_NAME
+                || call.fn_name == tools::websearch::TOOL_NAME
+            {
+                let args_str = if call.fn_arguments.is_string() {
+                    call.fn_arguments.as_str().unwrap_or("").to_owned()
+                } else {
+                    call.fn_arguments.to_string()
+                };
+                let result_json = dispatch_byop_web_tool(&call.fn_name, &args_str).await;
+                let result_content = serde_json::to_string(&result_json)
+                    .unwrap_or_else(|_| r#"{"status":"serialize_error"}"#.to_owned());
+                final_messages.push(make_tool_call_carrier_message(
+                    &current_task_id,
+                    &request_id,
+                    &call.call_id,
+                    &call.fn_name,
+                    &args_str,
+                ));
+                final_messages.push(make_tool_call_result_message(
+                    &current_task_id,
+                    &request_id,
+                    call.call_id.clone(),
+                    result_content,
+                ));
+                continue;
+            }
+
             match parse_incoming_tool_call(&call, mcp_context.as_ref()) {
                 Ok(warp_tool) => {
                     final_messages.push(make_tool_call_message(
@@ -2041,6 +2109,59 @@ fn make_append_event(task_id: &str, message_id: &str, kind: AppendKind) -> api::
                 }],
             },
         )),
+    }
+}
+
+/// BYOP web 工具(`webfetch` / `websearch`)的本地分发器。
+///
+/// 不通过 protobuf executor —— 直接在本地用 reqwest 跑 HTTP,把结构化结果
+/// 序列化成 JSON Value 给上游 LLM。错误也序列化成 `{status:"error", ...}`,
+/// 让模型看到标准 tool_result。
+async fn dispatch_byop_web_tool(tool_name: &str, args_str: &str) -> Value {
+    use tools::web_runtime;
+    // 短超时 + 默认安全配置;系统全局共享一个 client 也可,这里每次新建以避免污染。
+    let client = match reqwest::Client::builder()
+        .pool_idle_timeout(std::time::Duration::from_secs(30))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!("[byop] reqwest client build failed: {e:#}");
+            return web_runtime::error_to_json(tool_name, &anyhow::anyhow!(e.to_string()));
+        }
+    };
+    if tool_name == tools::webfetch::TOOL_NAME {
+        match serde_json::from_str::<web_runtime::FetchArgs>(args_str) {
+            Ok(args) => match web_runtime::run_webfetch(&client, args).await {
+                Ok(out) => web_runtime::fetch_output_to_json(&out),
+                Err(e) => {
+                    log::warn!("[byop][webfetch] error: {e:#}");
+                    web_runtime::error_to_json(tool_name, &e)
+                }
+            },
+            Err(e) => web_runtime::error_to_json(
+                tool_name,
+                &anyhow::anyhow!(format!("invalid arguments: {e}")),
+            ),
+        }
+    } else {
+        // websearch
+        match serde_json::from_str::<web_runtime::SearchToolArgs>(args_str) {
+            Ok(args) => {
+                let api_key = std::env::var("EXA_API_KEY").ok();
+                match web_runtime::run_websearch(&client, args, api_key.as_deref(), None).await {
+                    Ok(out) => web_runtime::search_output_to_json(&out),
+                    Err(e) => {
+                        log::warn!("[byop][websearch] error: {e:#}");
+                        web_runtime::error_to_json(tool_name, &e)
+                    }
+                }
+            }
+            Err(e) => web_runtime::error_to_json(
+                tool_name,
+                &anyhow::anyhow!(format!("invalid arguments: {e}")),
+            ),
+        }
     }
 }
 
