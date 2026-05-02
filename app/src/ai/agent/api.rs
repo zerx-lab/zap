@@ -135,6 +135,15 @@ pub struct RequestParams {
     /// OpenWarp BYOP 专用:LRC 当前快照。`UserQuery.running_command` 只覆盖用户输入轮,
     /// auto-resume / tool result 后续轮需要通过这里继续携带最新 PTY 内容。
     pub lrc_running_command: Option<RunningCommand>,
+    /// OpenWarp BYOP 本地会话压缩 sidecar 快照(controller 把 conversation.compaction_state.clone() 塞进来)。
+    /// `chat_stream::build_chat_request` 据此:
+    ///   1. 过滤 [`crate::ai::byop_compaction::state::CompactionState::hidden_message_ids`] 里的 messages
+    ///   2. 在被隐去区间的位置插入"摘要 user/assistant 对"
+    ///   3. 把 `tool_output_compacted_at` 不为空的 ToolCallResult 替换为占位符
+    ///   4. 在 `AIAgentInput::SummarizeConversation` 路径切 head + 拼 SUMMARY_TEMPLATE 作 user message
+    ///
+    /// 默认 `None` = 兼容路径(无压缩)。
+    pub compaction_state: Option<crate::ai::byop_compaction::state::CompactionState>,
     /// OpenWarp BYOP 专用:本轮是否需要模拟上游 CreateTask 流程来升级 optimistic CLI subtask。
     /// 只有用户刚 tag-in 的首轮需要;已存在 CLI subagent 的后续轮只复用 task,不能重复 spawn。
     pub lrc_should_spawn_subagent: bool,
@@ -336,6 +345,9 @@ impl RequestParams {
             lrc_running_command: None,
             lrc_should_spawn_subagent: false,
             byop_target_task_id,
+            // BYOP-only:由 controller 在 dispatch 到 BYOP exec 前回填(setter 风格,
+            // 避免穿过 ConversationRequestData / 非 BYOP 路径)。
+            compaction_state: None,
         }
     }
 }

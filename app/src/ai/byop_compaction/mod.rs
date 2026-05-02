@@ -8,9 +8,12 @@
 //!
 //! 与 warp 服务端 protobuf `SummarizeConversation` 解耦,只在 BYOP 路径生效。
 pub mod algorithm;
+pub mod commit;
 pub mod config;
+pub mod message_view;
 pub mod overflow;
 pub mod prompt;
+pub mod state;
 pub mod token;
 
 pub use config::CompactionConfig;

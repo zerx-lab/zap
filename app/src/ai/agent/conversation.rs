@@ -227,6 +227,12 @@ pub struct AIConversation {
     /// event log. Used on restore to resume event delivery without
     /// re-delivering already-processed events.
     last_event_sequence: Option<i64>,
+
+    /// OpenWarp BYOP 本地会话压缩 sidecar — 与 warp protobuf message 解耦,
+    /// 通过 message_id 索引挂"is_summary / tool_output_compacted_at / synthetic_continue"等元数据。
+    /// 默认空表 = 未压缩状态,完全无侵入。
+    /// 详见 [`crate::ai::byop_compaction`]。
+    pub(crate) compaction_state: crate::ai::byop_compaction::state::CompactionState,
 }
 
 pub(crate) fn artifact_from_fork_proto(
@@ -277,6 +283,7 @@ impl AIConversation {
             parent_conversation_id: None,
             is_remote_child: false,
             last_event_sequence: None,
+            compaction_state: Default::default(),
         }
     }
 
@@ -458,6 +465,7 @@ impl AIConversation {
             parent_conversation_id,
             is_remote_child: false,
             last_event_sequence,
+            compaction_state: Default::default(),
         })
     }
 

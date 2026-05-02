@@ -782,9 +782,35 @@ impl Input {
                 }
                 self.open_repos_menu(ctx);
             }
+            compact if command.name == commands::COMPACT.name => {
+                // OpenWarp:`/compact` 与 `/compact-and` 共用本地会话压缩链路 —
+                // dispatch `WorkspaceAction::SummarizeAIConversation`,initial_prompt: None
+                // 表示"压缩完不发后续 prompt",仅做摘要静默落到 conversation。
+                // 自定义指令(`/compact <指令>`)进 prompt 字段,在 BYOP build_chat_request
+                // 路径下会拼到 SUMMARY_TEMPLATE 后面作为 plugin_context。
+                //
+                // 非 BYOP 路径下,`SummarizeConversation { prompt }` 仍走 server protobuf
+                // (`api::request::input::SummarizeConversation`),server 端处理摘要 —
+                // 之前 prefix 注入的语义被 SummarizeConversation 完整替代。
+                if self
+                    .ai_context_model
+                    .as_ref(ctx)
+                    .selected_conversation_id(ctx)
+                    .is_none()
+                {
+                    show_error_toast(
+                        "/compact requires an active conversation".to_owned(),
+                        ctx,
+                    );
+                    return true;
+                };
+                ctx.dispatch_typed_action(&WorkspaceAction::SummarizeAIConversation {
+                    prompt: argument.cloned(),
+                    initial_prompt: None,
+                });
+            }
             command_that_just_sends_ai_request_with_prefix
-                if command.name == commands::COMPACT.name
-                    || command.name == commands::PLAN.name
+                if command.name == commands::PLAN.name
                     || command.name == commands::ORCHESTRATE.name =>
             {
                 // These slash commands just send AI requests with the slash command text as a

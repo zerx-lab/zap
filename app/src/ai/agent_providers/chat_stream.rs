@@ -57,6 +57,10 @@ use genai::{Client, ModelIden, ServiceTarget};
 
 use crate::ai::agent::api::{RequestParams, ResponseStream};
 use crate::ai::agent::{AIAgentInput, RunningCommand};
+use crate::ai::byop_compaction::{
+    self,
+    state::CompactionState,
+};
 use crate::server::server_api::AIApiError;
 use crate::settings::AgentProviderApiType;
 use ai::agent::convert::ConvertToAPITypeError;
@@ -387,6 +391,89 @@ fn build_chat_request(
             .unwrap_or((0, 0))
     });
 
+    // OpenWarp BYOP 本地会话压缩:把 conversation.compaction_state 应用到 message 序列。
+    //   1. 过滤已被某次压缩覆盖的 (user, assistant) 对(`hidden_message_ids`)
+    //   2. 在被隐去区间的位置插入一对合成的 (user "已压缩,以下为摘要" + assistant 摘要文本) message —
+    //      这一步通过 `summary_inserts` 索引在主 loop 里就近 emit
+    //   3. ToolCallResult 的 marker.tool_output_compacted_at 不为空时,后面分支替换 content 为占位符
+    //
+    // 当前 input 是 `AIAgentInput::SummarizeConversation` 时:进一步用 select 算法把 messages
+    // 切到 head(去掉 tail),最后 input loop 末尾会追加 `build_prompt(...)` 作为 user message
+    // (走完整的 SUMMARY_TEMPLATE),让上游 LLM 输出结构化摘要。
+    let is_summarization_request = params
+        .input
+        .iter()
+        .any(|i| matches!(i, AIAgentInput::SummarizeConversation { .. }));
+    let summarization_overflow = params.input.iter().any(|i| {
+        matches!(i, AIAgentInput::SummarizeConversation { overflow: true, .. })
+    });
+    let _ = summarization_overflow; // 当前在 input loop 内的 follow-up 文案分支会用,目前先 silence dead
+
+    let summary_inserts: std::collections::HashMap<String, String> =
+        if let Some(state) = params.compaction_state.as_ref() {
+            // user_msg_id → summary_text;遇到该 user_msg_id 时(它本来要被 hidden)替换为合成的摘要对
+            state
+                .completed()
+                .iter()
+                .filter_map(|c| c.summary_text.as_ref().map(|s| (c.user_msg_id.clone(), s.clone())))
+                .collect()
+        } else {
+            std::collections::HashMap::new()
+        };
+    let hidden_msg_ids: std::collections::HashSet<String> = params
+        .compaction_state
+        .as_ref()
+        .map(|s| s.hidden_message_ids())
+        .unwrap_or_default();
+    let compacted_tool_msg_ids: std::collections::HashSet<String> = params
+        .compaction_state
+        .as_ref()
+        .map(|s| {
+            // 收集所有标记了 tool_output_compacted_at 的 ToolCallResult message_ids
+            // 通过遍历 all_msgs 并查 marker 实现
+            let mut out = std::collections::HashSet::new();
+            for msg in &all_msgs {
+                if let Some(api::message::Message::ToolCallResult(_)) = &msg.message {
+                    if s.marker(&msg.id).and_then(|m| m.tool_output_compacted_at).is_some() {
+                        out.insert(msg.id.clone());
+                    }
+                }
+            }
+            out
+        })
+        .unwrap_or_default();
+
+    // 摘要请求路径:用 byop_compaction::algorithm::select 切 head;tail 不送上游
+    let summarize_head_end: Option<usize> = if is_summarization_request {
+        // 临时投影成 WarpMessageView 算 select
+        let state_for_select = params
+            .compaction_state
+            .clone()
+            .unwrap_or_default();
+        let tool_names = byop_compaction::message_view::build_tool_name_lookup(
+            all_msgs.iter().copied(),
+        );
+        let views = byop_compaction::message_view::project(
+            &all_msgs,
+            &state_for_select,
+            &tool_names,
+        );
+        let cfg = byop_compaction::CompactionConfig::default();
+        let model_limit = byop_compaction::overflow::ModelLimit::FALLBACK;
+        let result = byop_compaction::algorithm::select(
+            &views,
+            &cfg,
+            model_limit,
+            |slice| {
+                slice.iter().map(byop_compaction::algorithm::MessageRef::estimate_size).sum()
+            },
+        );
+        // head_end 是 views 里"head 区间"上界,与 all_msgs 同序
+        Some(result.head_end)
+    } else {
+        None
+    };
+
     let mut buf = AssistantBuffer::new(force_echo_reasoning);
     // OpenWarp:历史里被 skip 掉的 subagent ToolCall 对应的 call_id —— 它们的
     // ToolCallResult 也必须 skip,否则会成为孤儿 tool_response,Anthropic 直接 400
@@ -394,17 +481,42 @@ fn build_chat_request(
     let mut skipped_subagent_call_ids: std::collections::HashSet<String> =
         std::collections::HashSet::new();
 
-    for msg in all_msgs {
+    for (idx, msg) in all_msgs.iter().enumerate() {
+        // 摘要请求:tail 区间不送上游(只送 head + 末尾追加 SUMMARY_TEMPLATE)
+        if let Some(head_end) = summarize_head_end {
+            if idx >= head_end {
+                continue;
+            }
+        }
         let Some(inner) = &msg.message else {
             continue;
         };
         match inner {
             api::message::Message::UserQuery(u) => {
+                // 压缩投影:hidden 区间的 user message 替换为合成的"以下为已压缩历史的摘要"对
+                if hidden_msg_ids.contains(&msg.id) {
+                    if let Some(summary_text) = summary_inserts.get(&msg.id) {
+                        buf.flush_into(&mut messages);
+                        messages.push(ChatMessage::user(
+                            "Conversation history was compacted. Below is the structured summary of all prior turns.".to_string(),
+                        ));
+                        messages.push(ChatMessage::assistant(summary_text.clone()));
+                    }
+                    // 没有 summary_text 的 hidden user 直接 skip(不应该发生,防御性)
+                    continue;
+                }
                 buf.flush_into(&mut messages);
                 // 历史轮的 user query 没有 AIAgentContext 数据(InputContext 在 warp 协议
                 // 是单 Request 级 payload,不持久化到 message),只送 query 文本。
                 // 这跟 warp 自家路径行为一致 — 历史轮不重发附件 context。
                 messages.push(ChatMessage::user(u.query.clone()));
+            }
+            // hidden assistant message 直接 skip(它是某次压缩对的 assistant_msg_id,
+            // 摘要文本已经在对应 user 分支注入)
+            api::message::Message::AgentReasoning(_) | api::message::Message::AgentOutput(_)
+                if hidden_msg_ids.contains(&msg.id) =>
+            {
+                continue;
             }
             api::message::Message::AgentReasoning(r) => {
                 // 把上一轮的 reasoning 挂到下一个要 flush 的 assistant message 上。
@@ -460,7 +572,10 @@ fn build_chat_request(
                 }
                 // BYOP 持久化的 ToolCallResult 走 server_message_data(content 已是 JSON 字符串);
                 // server 端 emit 走 result oneof 结构化 variant — 兼容两路。
-                let content = if tcr.result.is_some() {
+                let content = if compacted_tool_msg_ids.contains(&msg.id) {
+                    // 压缩投影:被 prune 的 tool output 替换为占位符,不送实际内容上游
+                    r#"{"status":"compacted","note":"tool output was pruned by local compaction"}"#.to_string()
+                } else if tcr.result.is_some() {
                     tools::serialize_result(tcr)
                 } else if !msg.server_message_data.is_empty() {
                     msg.server_message_data.clone()
@@ -583,10 +698,34 @@ fn build_chat_request(
                     ));
                 }
             }
+            AIAgentInput::SummarizeConversation { prompt, overflow: _ } => {
+                // OpenWarp BYOP 本地会话压缩入口 — 1:1 对齐 opencode `compaction.ts processCompaction`。
+                //
+                // 此前 messages loop 已根据 `summarize_head_end` 把序列切到 head(去掉 tail);
+                // 这里追加最后一条 user message:`build_prompt(previous_summary, plugin_context)`,
+                // 它包含 SUMMARY_TEMPLATE(9 段 Markdown 模板)+ 增量摘要锚点。
+                //
+                // 模型会 emit 一段结构化 Markdown 摘要文本,controller 接到 stream 完成
+                // 后把它写回 conversation.compaction_state(参见 Phase 6 controller 改动)。
+                let prev_summary = params
+                    .compaction_state
+                    .as_ref()
+                    .and_then(|s| s.previous_summary())
+                    .map(str::to_string);
+                let mut anchor_context: Vec<String> = Vec::new();
+                if let Some(custom) = prompt.as_ref().filter(|p| !p.is_empty()) {
+                    // /compact <自定义指令> 走这里 — 把用户指令拼到 plugin_context 段
+                    anchor_context.push(format!("Additional instructions from the user:\n{custom}"));
+                }
+                let nextp = byop_compaction::prompt::build_prompt(
+                    prev_summary.as_deref(),
+                    &anchor_context,
+                );
+                messages.push(ChatMessage::user(nextp));
+            }
             AIAgentInput::AutoCodeDiffQuery { .. }
             | AIAgentInput::CreateNewProject { .. }
-            | AIAgentInput::CodeReview { .. }
-            | AIAgentInput::SummarizeConversation { .. } => {
+            | AIAgentInput::CodeReview { .. } => {
                 // 暂时忽略
             }
             _ => {}

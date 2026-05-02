@@ -2391,6 +2391,12 @@ pub enum AIAgentInput {
 
     SummarizeConversation {
         prompt: Option<String>,
+        /// OpenWarp BYOP:本字段标记本次摘要是否由 token-overflow 自动触发,
+        /// `chat_stream::SummarizeConversation` 分支据此决定 follow-up 文案
+        /// (overflow 路径会拼一段 "previous request exceeded ..." 解释)。
+        /// 非 BYOP 路径(走 protobuf `api::request::input::SummarizeConversation`)
+        /// 不读这个字段。所有现有调用点保持 `overflow: false`。
+        overflow: bool,
     },
 
     /// Invoke a skill. The skill content is passed as instructions to the agent.

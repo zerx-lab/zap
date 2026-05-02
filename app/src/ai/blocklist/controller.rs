@@ -2029,6 +2029,17 @@ impl BlocklistAIController {
         request_params.parent_agent_id = parent_agent_id;
         request_params.agent_name = agent_name;
 
+        // OpenWarp BYOP 本地会话压缩:把 conversation.compaction_state.clone() 注入 request_params。
+        // chat_stream::build_chat_request 会据此投影 messages(隐去已压缩区间 + 替换 compacted tool output);
+        // SummarizeConversation input 路径还会切 head + 拼 SUMMARY_TEMPLATE。
+        // 非 BYOP 路径(走 server protobuf)不读这个字段,无副作用。
+        if let Some(convo) = history_model
+            .as_ref(ctx)
+            .conversation(&conversation_id)
+        {
+            request_params.compaction_state = Some(convo.compaction_state.clone());
+        }
+
         // OpenWarp BYOP:检测当前请求是否绑定 LRC(alt-screen 长命令)。
         // - tag-in 首轮:注入 command_id + running_command,并让 chat_stream 合成 subagent
         //   CreateTask 事件来升级 master 路径已经创建的 optimistic CLI subtask。
@@ -2477,11 +2488,15 @@ impl BlocklistAIController {
                                         );
                                     }
                                 }
+                                // OpenWarp BYOP 本地会话压缩:在 stream finished 前拿 summarization 标志
+                                let summarize_overflow =
+                                    response_stream.as_ref(ctx).summarization_overflow();
                                 self.handle_response_stream_finished(
                                     &stream_id,
                                     finished_event,
                                     conversation_id,
                                     did_input_contain_user_query,
+                                    summarize_overflow,
                                     ctx,
                                 );
                             }
@@ -2859,8 +2874,20 @@ impl BlocklistAIController {
         mut finished_event: warp_multi_agent_api::response_event::StreamFinished,
         conversation_id: AIConversationId,
         did_request_contain_user_query: bool,
+        summarize_overflow: Option<bool>,
         ctx: &mut ModelContext<Self>,
     ) {
+        // OpenWarp BYOP 本地会话压缩:在 token_usage move 进下面 closure 前先聚合,
+        // 用于 auto overflow 检查(后面 Done 分支用)。
+        let aggregate_token_count: usize = finished_event
+            .token_usage
+            .iter()
+            .map(|u| {
+                (u.total_input + u.output + u.input_cache_read + u.input_cache_write) as usize
+            })
+            .max()
+            .unwrap_or(0);
+
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         history_model.update(ctx, |history_model, _| {
             // Update conversation cost and usage information before updating and
@@ -2879,6 +2906,16 @@ impl BlocklistAIController {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         match finished_event.reason {
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::Done(_)) | None => {
+                // OpenWarp BYOP 本地会话压缩 - 写回 summary
+                if let Some(overflow) = summarize_overflow {
+                    history_model.update(ctx, |history_model, _ctx| {
+                        if let Some(convo) = history_model.conversation_mut(&conversation_id) {
+                            crate::ai::byop_compaction::commit::commit_summarization(
+                                convo, overflow,
+                            );
+                        }
+                    });
+                }
                 history_model.update(ctx, |history_model, ctx| {
                     history_model.mark_response_stream_completed_successfully(
                         stream_id,
@@ -2887,6 +2924,36 @@ impl BlocklistAIController {
                         ctx,
                     );
                 });
+
+                // OpenWarp BYOP 本地会话压缩 - auto overflow 触发(对齐 opencode `processor.ts:395-403`)
+                // 仅在本流不是摘要本身时检查,防止递归。
+                if summarize_overflow.is_none() {
+                    let aggregate_count = aggregate_token_count;
+                    if aggregate_count > 0 {
+                        let cfg = crate::ai::byop_compaction::CompactionConfig::default();
+                        let model_limit =
+                            crate::ai::byop_compaction::overflow::ModelLimit::FALLBACK;
+                        let counts = crate::ai::byop_compaction::overflow::TokenCounts {
+                            total: aggregate_count,
+                            ..Default::default()
+                        };
+                        if crate::ai::byop_compaction::is_overflow(&cfg, counts, model_limit) {
+                            log::info!(
+                                "[byop-compaction] auto overflow detected: tokens={aggregate_count} usable={}",
+                                crate::ai::byop_compaction::usable(&cfg, model_limit)
+                            );
+                            // 通过 SlashCommandRequest::Summarize 触发(与 /compact-and 同链路);
+                            // overflow=false → 自动触发的"安静"摘要,不带 follow-up;
+                            // 后续 PR 可加 overflow=true 路径(需要让 SlashCommandRequest 携带该 flag)。
+                            self.send_slash_command_request(
+                                crate::ai::blocklist::controller::SlashCommandRequest::Summarize {
+                                    prompt: None,
+                                },
+                                ctx,
+                            );
+                        }
+                    }
+                }
             }
             Some(warp_multi_agent_api::response_event::stream_finished::Reason::Other(_)) => {
                 let error_message = "Response stream finished unexpectedly (with finish reason `Other`).";
@@ -3191,3 +3258,4 @@ fn byop_get_running_command_for_lrc(terminal_model: &TerminalModel) -> Option<Ru
         is_alt_screen_active,
     })
 }
+

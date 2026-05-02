@@ -361,6 +361,8 @@ impl BlocklistAIController {
             finished,
             conversation_id,
             did_exchange_contain_user_query,
+            // shared session 路径不会触发本地压缩(来自远端 viewer 同步流),始终 None
+            None,
             ctx,
         );
     }
