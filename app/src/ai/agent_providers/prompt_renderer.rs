@@ -8,8 +8,9 @@
 //! 1. 从 `params.input` 抽出最近一条 `UserQuery.context: Arc<[AIAgentContext]>`
 //!    (warp `convert_to.rs::convert_input` 取的也是同一份)
 //! 2. `collect_prompt_context` 把每个 enum variant 拍成扁平 `PromptContext` struct
-//! 3. 渲染 `system/default.j2`(BYOP 不按模型族分发 — 用户配置的 model id
-//!    是任意字符串,子串匹配既不可靠又导致行为不一致)
+//! 3. `pick_template` 按 model id 子串匹配选 `system/{anthropic,gpt,beast,codex,
+//!    gemini,kimi,trinity,default}.j2`(对齐 opencode
+//!    `packages/opencode/src/session/system.ts::provider`)
 //! 4. minijinja 渲染
 //!
 //! ## 模板加载
@@ -58,15 +59,26 @@ fn build_env() -> Environment<'static> {
     )
     .expect("footer partial parses");
 
-    // BYOP 不按模型分发 system prompt:用户配置的模型 id 是任意字符串
-    // (deepseek-chat / glm-4 / qwen2.5 / openrouter 路径下的 anthropic/claude-3 等),
-    // 子串匹配既不可靠又会让行为不一致。一份合并好的 default.j2 已涵盖所有
-    // 必要约束(ADE 风格、工具规约、长运行命令、git 安全、文件编辑规则等)。
-    env.add_template(
-        "system/default.j2",
-        include_str!("prompts/system/default.j2"),
-    )
-    .expect("default system parses");
+    // 按 model id 子串匹配分发 system prompt(对齐 opencode
+    // `packages/opencode/src/session/system.ts::provider`)。OpenRouter 路径形如
+    // `anthropic/claude-3.5-sonnet` / `google/gemini-2.5-flash` / `openai/gpt-4o`
+    // 也能正确命中。识别不到家族就走 default.j2 兜底,所以自定义 model id 安全。
+    for (name, src) in [
+        (
+            "system/default.j2",
+            include_str!("prompts/system/default.j2") as &str,
+        ),
+        ("system/anthropic.j2", include_str!("prompts/system/anthropic.j2")),
+        ("system/gpt.j2", include_str!("prompts/system/gpt.j2")),
+        ("system/beast.j2", include_str!("prompts/system/beast.j2")),
+        ("system/codex.j2", include_str!("prompts/system/codex.j2")),
+        ("system/gemini.j2", include_str!("prompts/system/gemini.j2")),
+        ("system/kimi.j2", include_str!("prompts/system/kimi.j2")),
+        ("system/trinity.j2", include_str!("prompts/system/trinity.j2")),
+    ] {
+        env.add_template(name, src)
+            .unwrap_or_else(|e| panic!("template {name} parses: {e}"));
+    }
 
     env
 }
@@ -79,9 +91,49 @@ fn env() -> &'static Environment<'static> {
 // 模板选择
 // ---------------------------------------------------------------------------
 
-/// 当前 BYOP 永远使用同一份 system prompt(`system/default.j2`)。
-/// 保留函数以便后续真要按模型族分发时不动调用方。
-pub fn pick_template(_model_id: &str) -> &'static str {
+/// 按 model id 子串匹配选模板(对齐 opencode
+/// `packages/opencode/src/session/system.ts::provider`)。
+///
+/// 匹配规则(顺序敏感,先到先得):
+/// - `gpt-4` / `o1` / `o3` / `o4` → beast(强自治 + sequential thinking)
+/// - 其他 `gpt` 中含 `codex` → codex(apply_file_diffs + 严格 final answer formatting)
+/// - 其他 `gpt` → gpt(pragmatic engineer + commentary/final 双通道)
+/// - `gemini-` → gemini(Core Mandates + Workflows + 大量 examples)
+/// - `claude` / `sonnet` / `opus` / `haiku` → anthropic(Claude Code 风格)
+/// - `trinity` → trinity(一 tool 一 message 风格)
+/// - `kimi` → kimi(SAME language + AGENTS.md)
+/// - 其他 → default.j2(兜底)
+///
+/// 全程 lowercase 后匹配,兼容 `GPT-4o` / `OPENAI/gpt-4o` / `Anthropic/Claude-3.5`
+/// 这种用户大小写写法。OpenRouter 形式 `provider/model` 也能正确命中。
+pub fn pick_template(model_id: &str) -> &'static str {
+    let id = model_id.to_ascii_lowercase();
+
+    if id.contains("gpt-4") || id.contains("o1") || id.contains("o3") || id.contains("o4") {
+        return "system/beast.j2";
+    }
+    if id.contains("gpt") {
+        if id.contains("codex") {
+            return "system/codex.j2";
+        }
+        return "system/gpt.j2";
+    }
+    if id.contains("gemini-") {
+        return "system/gemini.j2";
+    }
+    if id.contains("claude")
+        || id.contains("sonnet")
+        || id.contains("opus")
+        || id.contains("haiku")
+    {
+        return "system/anthropic.j2";
+    }
+    if id.contains("trinity") {
+        return "system/trinity.j2";
+    }
+    if id.contains("kimi") {
+        return "system/kimi.j2";
+    }
     "system/default.j2"
 }
 
@@ -269,20 +321,60 @@ mod tests {
     use crate::ai_assistant::execution_context::{WarpAiExecutionContext, WarpAiOsContext};
 
     #[test]
-    fn pick_template_always_returns_default() {
-        // BYOP 不按模型分发 — 任何 model id 都拿同一份。
-        for id in [
-            "claude-sonnet-4-5",
-            "gpt-4o",
-            "gpt-5-codex",
-            "gemini-2.0-flash",
-            "kimi-k2",
-            "deepseek-chat",
-            "qwen2.5-coder",
-            "my-custom-model",
-            "",
+    fn pick_template_dispatches_by_model_family() {
+        // 直连形式
+        for (id, want) in [
+            ("claude-sonnet-4-5", "system/anthropic.j2"),
+            ("claude-opus-4-1", "system/anthropic.j2"),
+            ("haiku-3-5", "system/anthropic.j2"),
+            ("gpt-4o", "system/beast.j2"),
+            ("gpt-4-turbo", "system/beast.j2"),
+            ("o1-preview", "system/beast.j2"),
+            ("o3-mini", "system/beast.j2"),
+            ("o4-mini", "system/beast.j2"),
+            ("gpt-5-codex", "system/codex.j2"),
+            ("gpt-3.5-turbo", "system/gpt.j2"),
+            ("gemini-2.0-flash", "system/gemini.j2"),
+            ("gemini-2.5-pro", "system/gemini.j2"),
+            ("kimi-k2", "system/kimi.j2"),
+            ("trinity-v1", "system/trinity.j2"),
+            // 兜底
+            ("deepseek-chat", "system/default.j2"),
+            ("qwen2.5-coder", "system/default.j2"),
+            ("glm-4", "system/default.j2"),
+            ("my-custom-model", "system/default.j2"),
+            ("", "system/default.j2"),
         ] {
-            assert_eq!(pick_template(id), "system/default.j2", "id={id}");
+            assert_eq!(pick_template(id), want, "id={id}");
+        }
+    }
+
+    #[test]
+    fn pick_template_handles_openrouter_path_form() {
+        // OpenRouter 形式 `provider/model`,子串匹配仍命中正确家族
+        for (id, want) in [
+            ("anthropic/claude-3.5-sonnet", "system/anthropic.j2"),
+            ("anthropic/claude-opus-4", "system/anthropic.j2"),
+            ("openai/gpt-4o", "system/beast.j2"),
+            ("openai/gpt-5-codex", "system/codex.j2"),
+            ("openai/o1-preview", "system/beast.j2"),
+            ("google/gemini-2.5-flash", "system/gemini.j2"),
+            ("moonshot/kimi-k2", "system/kimi.j2"),
+        ] {
+            assert_eq!(pick_template(id), want, "id={id}");
+        }
+    }
+
+    #[test]
+    fn pick_template_is_case_insensitive() {
+        for (id, want) in [
+            ("Claude-Sonnet-4", "system/anthropic.j2"),
+            ("GPT-4o", "system/beast.j2"),
+            ("Gemini-2.5-Pro", "system/gemini.j2"),
+            ("KIMI-K2", "system/kimi.j2"),
+            ("Anthropic/Claude-3.5", "system/anthropic.j2"),
+        ] {
+            assert_eq!(pick_template(id), want, "id={id}");
         }
     }
 
@@ -315,18 +407,22 @@ mod tests {
     }
 
     #[test]
-    fn render_uses_default_regardless_of_model() {
-        // 任何 model id 都走 default.j2 — 内容里都应有 OpenWarp ADE 开头。
+    fn render_produces_non_empty_for_all_families() {
+        // 任意 model id 都能渲染出非空字符串(包含 OpenWarp 自我标识)。
         for id in [
             "claude-sonnet-4-5",
             "gpt-4o",
+            "gpt-5-codex",
+            "gemini-2.5-pro",
+            "kimi-k2",
+            "trinity-v1",
             "deepseek-chat",
             "weird-model",
         ] {
             let out = render_system(&LLMId::from(format!("byop:p:{id}").as_str()), &[]);
             assert!(
-                out.contains("AI coding agent inside OpenWarp"),
-                "id={id} out={out}"
+                out.contains("OpenWarp"),
+                "id={id} should mention OpenWarp, got: {out}"
             );
         }
     }
