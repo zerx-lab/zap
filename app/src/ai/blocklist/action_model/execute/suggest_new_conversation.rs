@@ -52,6 +52,10 @@ impl SuggestNewConversationExecutor {
 
         let message_id = message_id.clone();
         let receiver = self.suggest_new_conversation_result_rx.clone().1;
+        // OpenWarp:没有"开新对话?"确认弹窗 view 组件,调用 fast-fail Reject 防止
+        // BYOP loop 永挂等 receiver。模型看到 Rejected 即可,不影响主流程。
+        // 同步往 channel 发一次 Reject,后面 receiver.recv() 立即拿到。
+        let _ = self.suggest_new_conversation_result_rx.0.try_send(NewConversationDecision::Reject);
         ActionExecution::new_async(async move { receiver.recv().await }, move |result, _ctx| {
             match result {
                 Ok(NewConversationDecision::Accept) => {

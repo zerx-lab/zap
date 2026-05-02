@@ -32,8 +32,9 @@ pub(crate) use execute::MalformedFinalLineProxyEvent;
 pub use execute::{
     read_local_file_context, EditAcceptAndContinueClickedEvent, EditAcceptClickedEvent,
     EditResolvedEvent, EditStats, NewConversationDecision, PromptSuggestionExecutor,
-    ReadFileContextResult, RequestFileEditsExecutor, RequestFileEditsFormatKind,
-    RequestFileEditsTelemetryEvent, ShellCommandExecutor, ShellCommandExecutorEvent,
+    PromptSuggestionExecutorEvent, ReadFileContextResult, RequestFileEditsExecutor,
+    RequestFileEditsFormatKind, RequestFileEditsTelemetryEvent, ShellCommandExecutor,
+    ShellCommandExecutorEvent,
 };
 
 use futures::future::{join_all, BoxFuture};

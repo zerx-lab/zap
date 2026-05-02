@@ -1047,14 +1047,12 @@ fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
     // 信息收集和反问。
     let is_lrc = params.lrc_command_id.is_some();
     let web_enabled = params.web_search_enabled;
-    // PromptSuggestionsViaMAA 是 cargo feature gated(`app/src/lib.rs:2409` 用
-    // `#[cfg(feature = "prompt_suggestions_via_maa")]` 注册)。flag 关闭时,
-    // executor (`action_model/execute/suggest_prompt.rs:56-77`) 不 emit chip event
-    // 但仍创建 oneshot channel 等 result —— 没人调 `complete_suggest_prompt_action()`
-    // → conversation 永挂在 "Warping..."。同问题影响 suggest_new_conversation。
-    // 对策:flag 关时直接不暴露给上游模型,模型看不到就不会调。
-    let prompt_suggestions_enabled =
-        warp_core::features::FeatureFlag::PromptSuggestionsViaMAA.is_enabled();
+    // OpenWarp BYOP:`suggest_prompt` chip UI 已通过 view 层订阅
+    // PromptSuggestionExecutorEvent 恢复(见 `terminal/view.rs::
+    // handle_suggest_prompt_executor_event`),可以暴露给模型。
+    // `suggest_new_conversation` 仍 filter:UX 没有现成弹窗组件,executor 已改为
+    // fast-fail Cancelled(见 `action_model/execute/suggest_new_conversation.rs`),
+    // filter 是冗余防御以避免无效调用噪声。
     // 动态占位替换:某些工具描述含 `{{year}}`(如 websearch,对齐 opencode
     // websearch.ts:30-32 的 description getter),build 时替换成当前年份。
     // 模型每次看到的描述都带正确年份,不会被训练数据里的旧年份污染。
@@ -1073,11 +1071,10 @@ fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
             {
                 return false;
             }
-            // suggest_prompt / suggest_new_conversation:依赖 PromptSuggestionsViaMAA
-            // feature 才有 chip UI 渲染;flag 关时调用会让 conversation 永挂。
-            if !prompt_suggestions_enabled
-                && (t.name == "suggest_prompt" || t.name == "suggest_new_conversation")
-            {
+            // suggest_new_conversation:无 UI 实现,executor 在 OpenWarp 改为
+            // fast-fail Cancelled。这里 filter 掉避免模型调用产生无意义的
+            // tool_call→cancelled 往返(纯 token 浪费)。
+            if t.name == "suggest_new_conversation" {
                 return false;
             }
             true

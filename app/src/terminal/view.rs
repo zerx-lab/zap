@@ -210,6 +210,7 @@ use crate::ai::{
     blocklist::{
         AIBlock, AIBlockEvent, ATTACH_AS_AGENT_MODE_CONTEXT_TEXT, BlocklistAIActionEvent,
         BlocklistAIActionModel, BlocklistAIContextEvent, BlocklistAIContextModel,
+        PromptSuggestionExecutor, PromptSuggestionExecutorEvent,
         BlocklistAIController, BlocklistAIControllerEvent, BlocklistAIHistoryEvent,
         BlocklistAIHistoryModel, BlocklistAIInputEvent, BlocklistAIInputModel, InputConfig,
         InputType, LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel,
@@ -3615,6 +3616,15 @@ impl TerminalView {
         ctx.subscribe_to_model(
             &ai_action_model.as_ref(ctx).shell_command_executor(ctx),
             Self::handle_shell_command_executor_event,
+        );
+        // OpenWarp BYOP:订阅 suggest_prompt 工具的 chip event,把模型主动建议的 prompt
+        // 渲染成 input 上方的 chip。原版 emit 被 PromptSuggestionsViaMAA cargo feature
+        // gate(`action_model/execute/suggest_prompt.rs:56`),OSS 默认无人订阅 → chip
+        // 永远不显示 → oneshot channel 永挂 → conversation 卡死。已去掉 emit gate,
+        // 这里补上 view 层订阅。
+        ctx.subscribe_to_model(
+            &ai_action_model.as_ref(ctx).suggest_prompt_executor(ctx),
+            Self::handle_suggest_prompt_executor_event,
         );
 
         let find_bar = ctx.add_typed_action_view(|ctx| Find::new(find_model.clone(), ctx));
@@ -8736,6 +8746,11 @@ impl TerminalView {
         let should_start_new_conversation = suggestion.should_start_new_conversation;
         let conversation_id = banner_state.conversation_id;
         let trigger_block_id = trigger.as_ref().and_then(|t| t.block_id());
+        // OpenWarp BYOP:克隆 byop_action_id + prompt,用于 accept 末尾通知 executor
+        // (`complete_suggest_prompt_action(Accepted { query })` 关 oneshot channel)。
+        let byop_banner_for_completion = banner_state.byop_action_id.is_some()
+            .then(|| banner_state.clone());
+        let prompt_for_byop_completion = prompt.clone();
         log::debug!(
             "[passive-suggestions] accepting prompt suggestion: trigger={}, trigger_block_id={}",
             if trigger.is_some() { "Some" } else { "None" },
@@ -8826,6 +8841,24 @@ impl TerminalView {
                 },
                 ctx
             );
+        }
+
+        // OpenWarp BYOP:模型主动建议的 chip 被用户接受 → 通知 executor 关
+        // oneshot channel,让 BYOP loop 拿到 `Accepted{query}` result,模型下一轮
+        // 可见到"用户已采纳并提交了那条 prompt"的 tool_result。
+        if let Some(banner) = byop_banner_for_completion.as_ref() {
+            self.complete_byop_suggest_prompt_if_needed(
+                banner,
+                Some(prompt_for_byop_completion),
+                ctx,
+            );
+            // 清掉 banner 防止下次 click 重复触发(reject path 已经 clear,accept
+            // path 之前没显式 clear,统一在这里清)。
+            self.inline_banners_state.prompt_suggestions_banner = None;
+            self.input.update(ctx, |input, ctx| {
+                input.set_prompt_suggestions_banner_state(None, ctx);
+                input.notify_and_notify_children(ctx);
+            });
         }
 
         true
@@ -13442,12 +13475,10 @@ impl TerminalView {
     }
 
     fn clear_prompt_suggestions(&mut self, ctx: &mut ViewContext<Self>) {
-        if self
-            .inline_banners_state
-            .prompt_suggestions_banner
-            .take()
-            .is_some()
-        {
+        if let Some(banner) = self.inline_banners_state.prompt_suggestions_banner.take() {
+            // OpenWarp BYOP:若该 chip 来自 suggest_prompt 工具,需要 cancel 掉
+            // 对应 oneshot channel,否则 BYOP loop 永挂等 result。
+            self.complete_byop_suggest_prompt_if_needed(&banner, None, ctx);
             self.input.update(ctx, |input, ctx| {
                 input.set_prompt_suggestions_banner_state(None, ctx);
                 input.notify_and_notify_children(ctx);
@@ -13458,6 +13489,30 @@ impl TerminalView {
                 ai_block.ignore_passive_actions(ctx);
             });
         };
+    }
+
+    /// 如果 banner 携带 BYOP `byop_action_id`,调 `complete_suggest_prompt_action`
+    /// 关闭 oneshot channel。`accepted_query=Some` 时回 Accepted,否则回 Cancelled。
+    fn complete_byop_suggest_prompt_if_needed(
+        &self,
+        banner: &PromptSuggestionBannerState,
+        accepted_query: Option<String>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(_action_id) = banner.byop_action_id.as_ref() else {
+            return;
+        };
+        let result = match accepted_query {
+            Some(query) => crate::ai::agent::SuggestPromptResult::Accepted { query },
+            None => crate::ai::agent::SuggestPromptResult::Cancelled,
+        };
+        let executor = self
+            .ai_action_model
+            .as_ref(ctx)
+            .suggest_prompt_executor(ctx);
+        executor.update(ctx, |executor, _ctx| {
+            executor.complete_suggest_prompt_action(result);
+        });
     }
 
     fn update_input_prompt_suggestions_banner_state(&mut self, ctx: &mut ViewContext<Self>) {
@@ -13591,6 +13646,64 @@ impl TerminalView {
         self.update_scroll_position_locking(ScrollPositionUpdate::AfterEnd, ctx);
     }
 
+    /// OpenWarp BYOP:模型主动调 `suggest_prompt` 工具时,executor emit 此事件携带
+    /// prompt + label + action_id。
+    ///
+    /// **设计语义**:`suggest_prompt` 是 fire-and-forget(对齐 opencode agentic 工具行为)
+    /// —— chip 一显示就**立即** complete oneshot(以 Accepted{query: prompt} 喂回模型),
+    /// 不等用户点击。这样:
+    /// 1. conversation 状态栏 "Warping..." 立即消失,模型下一轮自然 end_turn 收尾
+    /// 2. chip 仍在 UI 上挂着,用户点击 → 走 `resolve_prompt_suggestion` →
+    ///    `enter_agent_view(Some(prompt))`,把 prompt 当**新一轮 user input** 提交,
+    ///    跟用户手动键入那段 prompt 等价(独立于 oneshot channel)
+    ///
+    /// 之前误把"用户点 chip"当 oneshot 完成信号,导致用户不点 → conversation 永挂。
+    fn handle_suggest_prompt_executor_event(
+        &mut self,
+        _: ModelHandle<PromptSuggestionExecutor>,
+        event: &PromptSuggestionExecutorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            PromptSuggestionExecutorEvent::NewPromptSuggestion {
+                prompt,
+                label,
+                conversation_id,
+                ..
+            } => {
+                self.on_maa_prompt_suggestion_generated(
+                    prompt,
+                    label,
+                    0, // request_duration_ms — BYOP 本地工具,无服务端往返耗时
+                    None, // trigger — 不来自 shell command 等被动触发器
+                    Some(*conversation_id),
+                    None, // server_request_token — 非 server 触发
+                    ctx,
+                );
+                // 立即 complete oneshot 关 channel,但**必须用 Cancelled** —— 否则
+                // controller (`controller.rs:472` `should_trigger_request_upon_completion`)
+                // 检测 Accepted/非 Cancelled result 会强制触发新一轮 BYOP LLM call,
+                // 模型看到"用户接受了 chip"+ 没有新 user message,返回空响应,
+                // UX 卡在 "Warping..." 又一次。Cancelled 让 controller 不触发 follow-up
+                // request,当前轮自然结束。
+                //
+                // 用户点 chip 是另一条路径:`resolve_prompt_suggestion` →
+                // `enter_agent_view(Some(prompt))` 把 prompt 作为新 user query 发送
+                // (跟 mastra `append({role:'user', content: prompt})` 等价),触发
+                // 全新一轮对话,跟本 oneshot channel 无关。
+                let executor = self
+                    .ai_action_model
+                    .as_ref(ctx)
+                    .suggest_prompt_executor(ctx);
+                executor.update(ctx, |executor, _ctx| {
+                    executor.complete_suggest_prompt_action(
+                        crate::ai::agent::SuggestPromptResult::Cancelled,
+                    );
+                });
+            }
+        }
+    }
+
     fn handle_maa_passive_suggestions_event(
         &mut self,
         _: ModelHandle<MaaPassiveSuggestionsModel>,
@@ -13676,6 +13789,7 @@ impl TerminalView {
             trigger,
             conversation_id,
             server_request_token: server_request_token.clone(),
+            byop_action_id: None,
         };
 
         self.inline_banners_state.prompt_suggestions_banner = Some(banner_state.clone());
@@ -13957,6 +14071,7 @@ impl TerminalView {
                     trigger: Some(trigger),
                     conversation_id: None,
                     server_request_token: None,
+                    byop_action_id: None,
                 };
 
                 self.inline_banners_state.prompt_suggestions_banner = Some(banner_state.clone());
