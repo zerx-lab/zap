@@ -742,9 +742,13 @@ impl Input {
                     return true;
                 };
 
+                // menu 路径无参数时 argument 是 Some(""),规范化为 None,避免摘要后
+                // 触发一次空 user query 浪费 token。
+                let initial_prompt =
+                    argument.cloned().filter(|p: &String| !p.is_empty());
                 ctx.dispatch_typed_action(&WorkspaceAction::SummarizeAIConversation {
                     prompt: None,
-                    initial_prompt: argument.cloned(),
+                    initial_prompt,
                 });
             }
             queue if command.name == commands::QUEUE.name => {
@@ -804,8 +808,11 @@ impl Input {
                     );
                     return true;
                 };
+                // menu 路径无参数时 argument 是 Some(""),规范化为 None,
+                // 避免 chat_stream 拼摘要 prompt 时多走一次空 filter 分支。
+                let prompt = argument.cloned().filter(|p: &String| !p.is_empty());
                 ctx.dispatch_typed_action(&WorkspaceAction::SummarizeAIConversation {
-                    prompt: argument.cloned(),
+                    prompt,
                     initial_prompt: None,
                 });
             }
