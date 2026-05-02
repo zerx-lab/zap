@@ -311,7 +311,6 @@ settings-ai-knowledge-section = Rules
 settings-ai-voice-section = 语音
 settings-ai-other-section = 其他
 settings-ai-third-party-cli-section = 第三方 CLI 智能体
-settings-ai-agent-attribution-section = 智能体署名
 settings-ai-experimental-section = 实验性
 settings-ai-aws-bedrock-section = AWS Bedrock
 settings-ai-agents-header = 智能体
@@ -406,7 +405,6 @@ settings-ai-voice-key = 激活语音输入的按键
 settings-ai-voice-key-hint = 按住以激活。
 
 # 其他区段
-settings-ai-show-oz-changelog = 在新会话视图中显示 Oz 更新日志
 settings-ai-show-use-agent-footer = 显示"使用智能体"页脚
 settings-ai-use-agent-footer-description = 在长时间运行的命令中提示使用启用了"完整终端使用"的智能体。
 settings-ai-show-conversation-history = 在工具面板中显示会话历史
@@ -427,10 +425,6 @@ settings-ai-toolbar-commands-label = 启用工具栏的命令
 settings-ai-toolbar-commands-description = 添加正则表达式,匹配的命令将显示编码智能体工具栏。
 settings-ai-coding-agent-other = 其他
 settings-ai-coding-agent-select-header = 选择编码智能体
-
-# 智能体署名
-settings-ai-enable-agent-attribution = 启用智能体署名
-settings-ai-agent-attribution-description = Oz 可在其创建的提交信息和 Pull Request 中添加署名
 
 # 实验性 / Cloud Agent
 settings-ai-cloud-agent-computer-use = 在 Cloud Agent 中启用计算机使用

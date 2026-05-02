@@ -322,7 +322,6 @@ settings-ai-knowledge-section = Knowledge
 settings-ai-voice-section = Voice
 settings-ai-other-section = Other
 settings-ai-third-party-cli-section = Third party CLI agents
-settings-ai-agent-attribution-section = Agent Attribution
 settings-ai-experimental-section = Experimental
 settings-ai-aws-bedrock-section = AWS Bedrock
 settings-ai-agents-header = Agents
@@ -417,7 +416,6 @@ settings-ai-voice-key = Key for Activating Voice Input
 settings-ai-voice-key-hint = Press and hold to activate.
 
 # Other section
-settings-ai-show-oz-changelog = Show Oz changelog in new conversation view
 settings-ai-show-use-agent-footer = Show "Use Agent" footer
 settings-ai-use-agent-footer-description = Shows hint to use the "Full Terminal Use"-enabled agent in long running commands.
 settings-ai-show-conversation-history = Show conversation history in tools panel
@@ -438,10 +436,6 @@ settings-ai-toolbar-commands-label = Commands that enable the toolbar
 settings-ai-toolbar-commands-description = Add regex patterns to show the coding agent toolbar for matching commands.
 settings-ai-coding-agent-other = Other
 settings-ai-coding-agent-select-header = Select coding agent
-
-# Agent Attribution
-settings-ai-enable-agent-attribution = Enable agent attribution
-settings-ai-agent-attribution-description = Oz can add attribution to commit messages and pull requests it creates
 
 # Experimental / Cloud Agent
 settings-ai-cloud-agent-computer-use = Computer use in Cloud Agents
