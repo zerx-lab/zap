@@ -1206,8 +1206,13 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::Appearance),
             SettingsNavItem::Page(SettingsSection::Features),
             SettingsNavItem::Page(SettingsSection::Keybindings),
-            // 去中心化分支:Privacy 页全部内容(secret redaction / 云端对话 /
-            // network log / 数据管理 / 隐私政策)都属于云端能力,整页隐藏。
+            // 去中心化分支:Privacy 页恢复入口。原以为"全部内容是云端能力"判断有误——
+            // 页内核心 widget 多数纯本地:SecretRedactionWidget(敏感信息混淆,本地正则)、
+            // NetworkLogWidget(网络日志控制台,本地代理)、DataManagementWidget(外链)、
+            // PrivacyPolicyWidget(外链)。CloudConversationStorageWidget 的本地开关
+            // 控制是否把 AI 对话推到云,P4c 已 stub 掉同步外发。AppAnalyticsWidget /
+            // CrashReportsWidget 自身有 should_render 在 OpenWarp 自动隐藏。
+            SettingsNavItem::Page(SettingsSection::Privacy),
             SettingsNavItem::Page(SettingsSection::About),
         ];
 
