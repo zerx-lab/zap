@@ -15,7 +15,6 @@ use warp_core::channel::Channel;
 use warpui::{r#async::block_on, AppContext, SingletonEntity};
 
 use crate::antivirus::{AntivirusInfo, AntivirusInfoEvent};
-use crate::auth::anonymous_id::get_or_create_anonymous_id;
 use crate::auth::{AuthStateProvider, UserUid};
 use crate::channel::ChannelState;
 use crate::features::FeatureFlag;
@@ -407,56 +406,11 @@ pub fn crash() {
     panic!("openWarp: crash() invoked for local panic-hook smoke test");
 }
 
-/// Sets the user id if `Some`, otherwise sets the current user ID to be an anonymous ID indicating
-/// the user hasn't logged in yet.
-fn set_optional_user_information(
-    user_id: Option<UserUid>,
-    email: Option<String>,
-    ctx: &mut AppContext,
-) {
-    let user_id = user_id.map(|uid| uid.as_string()).unwrap_or_else(|| {
-        // If the user isn't signed in, set an anonymous ID.  This allows us to
-        // compute more accurate crash-free user metrics.
-        let anonymous_id = get_or_create_anonymous_id(ctx);
-        format!("anon.{anonymous_id}")
-    });
-    // Only send along emails if we're on WarpDev.
-    // We try to keep PII out of Sentry as much as possible.
-    let email = if ChannelState::channel() == Channel::Dev {
-        email
-    } else {
-        None
-    };
-
-    // Set user for Rust sentry.
-    sentry::configure_scope(|scope| {
-        scope.set_user(Some(sentry::User {
-            id: Some(user_id.clone()),
-            email,
-            ip_address: None,
-            username: None,
-            other: BTreeMap::new(),
-        }));
-    });
-
-    #[cfg(linux_or_windows)]
-    sentry_minidump::set_user_id(user_id.as_str());
-    #[cfg(all(target_os = "macos", feature = "cocoa_sentry"))]
-    mac::set_user_id(user_id.as_str());
-}
-
-pub fn set_user_id(user_id: UserUid, email: Option<String>, ctx: &mut AppContext) {
-    // On macOS, Sentry will error if we try to set a user without initializing the SDK.
-    // If crash reporting was disabled, but the user enables it later, we'll set user info as part of initialization.
-    if matches!(
-        &*RUST_SENTRY_CLIENT_GUARD.lock(),
-        RustSentryClientGuard::Initialized { .. }
-    ) {
-        set_optional_user_information(Some(user_id), email, ctx);
-    } else {
-        log::info!("Sentry is not initialized; not setting Sentry user info");
-    }
-}
+/// openWarp 闭源遥测剥离 P2/P4a:Sentry 已不再 init,
+/// 原 `set_optional_user_information` 唯一调用者就是这里(且仅在 Initialized 分支),
+/// P2 后 RUST_SENTRY_CLIENT_GUARD 永远 Uninitialized,该路径死。函数本体已删,
+/// 此处保留 `set_user_id` 公开签名仅是为了 `auth_manager.rs` 用户登录回调编译通过。
+pub fn set_user_id(_user_id: UserUid, _email: Option<String>, _ctx: &mut AppContext) {}
 
 fn release_version() -> &'static str {
     ChannelState::app_version().unwrap_or("<no tag>")

@@ -17,7 +17,6 @@ use crate::{
 };
 
 use super::{
-    anonymous_id::get_or_create_anonymous_id,
     auth_manager::user_persistence::PersistedUser,
     credentials::Credentials,
     user::{AnonymousUserType, FirebaseAuthTokens, PersonalObjectLimits, PrincipalType, User},
@@ -38,12 +37,13 @@ pub(super) enum PersistAction {
 
 /// AuthState holds information about the currently-logged in user.
 /// If you need to access AuthState, you can use the AuthStateProvider singleton model.
+///
+/// openWarp 闭源遥测剥离 P4a:`anonymous_id` 字段已删,P0 阶段已让 `anonymous_id()` 返回
+/// `Uuid::nil()`,字段本身和 `get_or_create_anonymous_id`(已删)/`anonymous_id` 模块
+/// (已删)失去意义。
 pub struct AuthState {
     /// The currently logged-in User. None if the user isn't logged in currently.
     user: RwLock<Option<User>>,
-
-    /// An anonymous UUID. Can be used to consistently identify an anonymous user who is not logged in.
-    anonymous_id: Uuid,
 
     /// State that indicates whether the current user's refresh token has been
     /// invalidated, meaning a reauth is required.
@@ -54,10 +54,9 @@ pub struct AuthState {
 }
 
 impl AuthState {
-    fn new(ctx: &AppContext) -> Self {
+    fn new(_ctx: &AppContext) -> Self {
         Self {
             user: RwLock::new(None),
-            anonymous_id: get_or_create_anonymous_id(ctx),
             needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(None),
         }
@@ -67,7 +66,6 @@ impl AuthState {
     pub fn new_for_test() -> Self {
         Self {
             user: RwLock::new(Some(User::test())),
-            anonymous_id: Uuid::new_v4(),
             needs_reauth: AtomicBool::new(false),
             credentials: RwLock::new(Some(Credentials::Test)),
         }
@@ -386,11 +384,12 @@ impl AuthState {
         self.user.read().as_ref().map(|user| user.local_id)
     }
 
-    /// Returns the user's anonymous id.
+    /// Returns a nil UUID string.
     ///
-    /// openWarp 闭源遥测剥离 P0:此值是 Rudder/Sentry/HTTP `X-Experiment-Id`
-    /// 三条外发链路共用的跨会话追踪 key,统一返回 nil-UUID 切断追踪。
-    /// `self.anonymous_id` 字段与底层 `get_or_create_anonymous_id` 暂留死代码,P4 物理清理。
+    /// openWarp 闭源遥测剥离 P0/P4a:原本用于 Rudder/Sentry/HTTP `X-Experiment-Id`
+    /// 三条外发链路的跨会话追踪 key,P0 已切断、P4a 已删字段。保留函数签名以兼容
+    /// 仍在调用此函数的下游(server_api / lib.rs::record_app_*),P4b/P4c/P4d 后
+    /// 删除最后调用者时一并删除。
     pub fn anonymous_id(&self) -> String {
         Uuid::nil().to_string()
     }
@@ -491,7 +490,6 @@ impl AuthStateProvider {
         Self {
             auth_state: Arc::new(AuthState {
                 user: RwLock::new(None),
-                anonymous_id: Uuid::new_v4(),
                 needs_reauth: AtomicBool::new(false),
                 credentials: RwLock::new(None),
             }),

@@ -1798,13 +1798,10 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             NetworkStatus::handle(ctx)
                 .update(ctx, move |me, ctx| me.reachability_changed(reachable, ctx));
         })),
-        on_become_active: Some(Box::new(move |ctx| {
-            let auth_state = AuthStateProvider::as_ref(ctx).get();
-            ctx.record_app_focus(
-                auth_state.user_id().map(|uid| uid.as_string()),
-                auth_state.anonymous_id(),
-            );
-        })),
+        // openWarp 闭源遥测剥离 P4d:on_become_active 原会触发 ctx.record_app_focus
+        // 累积每日聚焦时长 → Rudder。剥离后 callback 留空(回调本身仍由平台层触发,
+        // 仅删 telemetry 副作用)。
+        on_become_active: Some(Box::new(move |_ctx| {})),
         on_screen_changed: Some(Box::new(move |ctx| {
             ctx.dispatch_global_action(
                 "root_view:move_quake_mode_window_from_screen_change",
@@ -1852,12 +1849,7 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
                 }
             }
             ctx.dispatch_global_action("root_view:update_quake_mode_state", &update_quake_mode_arg);
-
-            let auth_state = AuthStateProvider::as_ref(ctx).get();
-            ctx.record_app_blur(
-                auth_state.user_id().map(|uid| uid.as_string()),
-                auth_state.anonymous_id(),
-            );
+            // openWarp 闭源遥测剥离 P4d:on_resigned_active 原同步累积聚焦时长 → Rudder。
         })),
         on_will_terminate: Some(Box::new(move |ctx| {
             NotebookManager::handle(ctx).update(ctx, |manager, ctx| {
@@ -1870,11 +1862,7 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
                 writer.terminate();
             });
 
-            let auth_state = AuthStateProvider::as_ref(ctx).get();
-            ctx.try_record_daily_app_focus_duration(
-                auth_state.user_id().map(|uid| uid.as_string()),
-                auth_state.anonymous_id(),
-            );
+            // openWarp 闭源遥测剥离 P4d:on_will_terminate 原最后 flush 一次每日聚焦时长。
             TelemetryCollector::handle(ctx).update(ctx, |telemetry_collector, ctx| {
                 telemetry_collector.flush_telemetry_events_for_shutdown(ctx);
             });

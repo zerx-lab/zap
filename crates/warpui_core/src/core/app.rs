@@ -46,7 +46,6 @@ use std::{
 use crate::{
     accessibility::{AccessibilityVerbosity, ActionAccessibilityContent},
     actions::StandardAction,
-    app_focus_telemetry::AppFocusInfo,
     assets,
     core::{ActionType, Window},
     fonts::{self, ExternalFontFamily, RequestedFallbackFontSource},
@@ -650,7 +649,6 @@ pub struct AppContext {
     pub(super) pending_effects: VecDeque<Effect>,
     pending_flushes: usize,
     flushing_effects: bool,
-    app_focus_info: AppFocusInfo,
     #[allow(clippy::type_complexity)]
     first_frame_callback: Option<Box<dyn Fn(&mut AppContext)>>,
     frame_drawn_callback: Option<Box<FrameDrawnCallback>>,
@@ -796,7 +794,6 @@ impl AppContext {
             pending_effects: VecDeque::new(),
             pending_flushes: 0,
             flushing_effects: false,
-            app_focus_info: AppFocusInfo::new(),
             first_frame_callback: None,
             frame_drawn_callback: None,
             global_shortcuts: Default::default(),
@@ -4250,22 +4247,10 @@ impl AppContext {
         });
     }
 
-    pub fn record_app_focus(&mut self, user_id: Option<String>, anonymous_id: String) {
-        self.app_focus_info.record_app_focus(user_id, anonymous_id);
-    }
-
-    pub fn record_app_blur(&mut self, user_id: Option<String>, anonymous_id: String) {
-        self.app_focus_info.record_app_blur(user_id, anonymous_id);
-    }
-
-    pub fn try_record_daily_app_focus_duration(
-        &mut self,
-        user_id: Option<String>,
-        anonymous_id: String,
-    ) {
-        self.app_focus_info
-            .try_record_daily_app_focus_duration(user_id, anonymous_id);
-    }
+    // openWarp 闭源遥测剥离 P4d:`record_app_focus` / `record_app_blur` /
+    // `try_record_daily_app_focus_duration` 三个 AppContext 方法 + `AppFocusInfo`
+    // 字段已删,原仅用于 Daily App Focus Duration 事件上报到 Rudder。调用站点
+    // 在 app/src/lib.rs::app_callbacks 同步删除。
 
     pub fn is_screen_reader_enabled(&self) -> Option<bool> {
         self.platform_delegate.is_screen_reader_enabled()

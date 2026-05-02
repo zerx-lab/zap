@@ -48,7 +48,6 @@ use crate::auth::UserUid;
 use crate::server::graphql::{default_request_options, get_user_facing_error_message};
 use crate::server::ids::ApiKeyUid;
 use crate::server::server_api::register_error;
-use crate::server::server_api::EXPERIMENT_ID_HEADER;
 use crate::settings::PrivacySettingsSnapshot;
 use crate::{
     auth::{
@@ -359,10 +358,8 @@ impl AuthClient for ServerApi {
                 self.client.clone(),
                 warp_graphql::client::RequestOptions {
                     auth_token: auth_token.map(ToOwned::to_owned),
-                    headers: std::collections::HashMap::from([(
-                        EXPERIMENT_ID_HEADER.to_string(),
-                        self.auth_state.anonymous_id(),
-                    )]),
+                    // openWarp 闭源遥测剥离 P4b:删 X-Warp-Experiment-Id 注入。
+                    headers: std::collections::HashMap::new(),
                     ..default_request_options()
                 },
             )
@@ -423,7 +420,17 @@ impl AuthClient for ServerApi {
         }
     }
 
+    // openWarp 闭源遥测剥离 P4c:原 4 个隐私设置同步函数(set_is_telemetry_enabled /
+    // set_is_crash_reporting_enabled / set_is_cloud_conversation_storage_enabled /
+    // update_user_settings)用户每次切开关时都会发 `UpdateUserSettings` GraphQL mutation
+    // 到 app.warp.dev。P3 只切了周期 update_user_settings,本轮 P4c 把 4 个全 stub 成 Ok(())。
+    // 上游调用站点(privacy.rs / settings_view / auth_view_body 等 ~10 处)无需改,
+    // 调用 trait 方法即可继续工作,只是不再外发。`UpdateUserSettings*` 类型 + GraphQL mutation
+    // 文件本身留作 P4 后续清理(其他调用站点已死,但物理删需级联 graphql 包)。
     async fn set_is_telemetry_enabled(&self, value: bool) -> Result<()> {
+        let _ = value;
+        return Ok(());
+        #[allow(unreachable_code)]
         let variables = UpdateUserSettingsVariables {
             input: UpdateUserSettingsInput {
                 telemetry_enabled: Some(value),
@@ -448,6 +455,9 @@ impl AuthClient for ServerApi {
     }
 
     async fn set_is_crash_reporting_enabled(&self, value: bool) -> Result<()> {
+        let _ = value;
+        return Ok(());
+        #[allow(unreachable_code)]
         let variables = UpdateUserSettingsVariables {
             input: UpdateUserSettingsInput {
                 crash_reporting_enabled: Some(value),
@@ -474,6 +484,9 @@ impl AuthClient for ServerApi {
     }
 
     async fn set_is_cloud_conversation_storage_enabled(&self, value: bool) -> Result<()> {
+        let _ = value;
+        return Ok(());
+        #[allow(unreachable_code)]
         let variables = UpdateUserSettingsVariables {
             input: UpdateUserSettingsInput {
                 cloud_conversation_storage_enabled: Some(value),
@@ -500,6 +513,9 @@ impl AuthClient for ServerApi {
     }
 
     async fn update_user_settings(&self, settings_snapshot: PrivacySettingsSnapshot) -> Result<()> {
+        let _ = settings_snapshot;
+        return Ok(());
+        #[allow(unreachable_code)]
         let variables = UpdateUserSettingsVariables {
             input: UpdateUserSettingsInput {
                 telemetry_enabled: Some(settings_snapshot.is_telemetry_enabled()),
