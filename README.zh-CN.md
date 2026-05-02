@@ -76,6 +76,19 @@ cd openwarp
 ./script/presubmit   # fmt / clippy / tests
 ```
 
+若要直接用 `cargo`,**必须显式指定 OSS 二进制**:
+
+```bash
+cargo build --release --bin warp-oss
+cargo run   --release --bin warp-oss
+```
+
+> ⚠️ 不要不带过滤地跑 `cargo build --release`,也不要 `--bin {warp,stable,dev,preview}` ——
+> 这些入口(`local.rs` / `stable.rs` / `dev.rs` / `preview.rs`)通过 Warp 私有的
+> `warp-channel-config` 二进制加载 channel 配置,而该二进制位于闭源私仓。编译能过,
+> 但运行时会 panic 提示 `./script/install_channel_config`,而那个脚本会去 clone 只有 Warp
+> 员工才有 SSH 权限的私仓。OpenWarp 用户只需要 `warp-oss` 这一个 bin。
+
 详见 [WARP.md](WARP.md) 获取完整工程指南(代码风格、测试、平台说明)。
 
 ## 📜 协议

@@ -1481,6 +1481,7 @@ impl AISettingsPageView {
                 }
                 widgets.push(Box::new(CLIAgentWidget::default()));
                 widgets.push(Box::new(AwsBedrockWidget::new(ctx)));
+                widgets.push(Box::new(AgentProvidersWidget::new(ctx)));
                 widgets.push(Box::new(AgentAttributionWidget::default()));
                 widgets.push(Box::new(OtherAIWidget::default()));
                 if FeatureFlag::AgentModeComputerUse.is_enabled() {

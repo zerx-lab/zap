@@ -165,6 +165,7 @@ impl AgentProvidersWidget {
                         name: buffer_text,
                     },
                 );
+                collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
 
@@ -194,6 +195,7 @@ impl AgentProvidersWidget {
                         id: buffer_text,
                     },
                 );
+                collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
 
@@ -228,6 +230,7 @@ impl AgentProvidersWidget {
                         context_window: value,
                     },
                 );
+                collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
 
@@ -262,6 +265,7 @@ impl AgentProvidersWidget {
                         max_output_tokens: value,
                     },
                 );
+                collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
 
@@ -302,6 +306,7 @@ impl AgentProvidersWidget {
                     provider_id: provider_id_for_name.clone(),
                     name: buffer_text,
                 });
+                collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
 
@@ -327,6 +332,7 @@ impl AgentProvidersWidget {
                         base_url: buffer_text,
                     },
                 );
+                collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
 
@@ -358,6 +364,7 @@ impl AgentProvidersWidget {
                         api_key: buffer_text,
                     },
                 );
+                collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
 
@@ -869,6 +876,23 @@ fn parse_token_count(input: &str) -> u32 {
         .map(|n| (n * multiplier as f64).round() as u64)
         .and_then(|v| u32::try_from(v).ok())
         .unwrap_or(0)
+}
+
+/// 失焦时把编辑器选区折叠到末尾。
+///
+/// 每个输入框是一个独立的 `EditorView`,各自维护自己的 selection range。
+/// 选区高亮的绘制不受焦点状态影响(见 `app/src/editor/view/element.rs:1091`),
+/// 所以双击/三击/拖选后失焦,旧选区会一直留在 buffer 上,与其它编辑器的选区
+/// 同时显示,看起来像"多个 select 状态"。这里在 Blurred 时把 head/tail 都
+/// 收到末尾,视觉上释放选中。
+fn collapse_selection_if_blurred(
+    editor: &ViewHandle<EditorView>,
+    event: &EditorEvent,
+    ctx: &mut ViewContext<AISettingsPageView>,
+) {
+    if matches!(event, EditorEvent::Blurred) {
+        editor.update(ctx, |editor, ctx| editor.move_to_buffer_end(ctx));
+    }
 }
 
 fn single_line_editor_options(
