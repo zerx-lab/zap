@@ -12,6 +12,8 @@ bash script/setup-merge-drivers.sh
 
 下列 commit 已评估,在 openWarp 中**永久跳过**,后续 sync 时不需要再评估:
 
+> **为什么不能用 `merge=openwarp-ours` 路径排除来代替?** 已实验验证:把 ai/agent_sdk/、blocklist/、ambient_agent/、slash_commands/ 等路径加进自治区后,这 10 个 commit 物理上能 cherry-pick(冲突自动消化),**但新增文件**(codex.rs / wake_driver.rs / orchestration_event_streamer 等)会引用自治区中已不存在的字段、enum 变体、trait 方法,导致 **85+ 编译错误**。修这些错误需要逐个补回 openWarp 已删的 cloud/orchestration API,得不偿失。所以保持 commit 级黑名单。
+
 | Commit | 标题 | 跳过原因 |
 |---|---|---|
 | `b59e351` | add /continue-locally slash command | 依赖 cloud Oz handoff(`conversation_is_cloud_oz_for_slash_command` 已删) |
