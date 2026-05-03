@@ -9,6 +9,11 @@
 # - 不签名:不传 --read-passwords-from-env(macOS) / 不设 SIGN_TOOL_CMD(Windows)
 # - 不上传 GCS / Sentry / Slack / changelog,不调 channel-versions repository_dispatch
 # - 复用 ./.github/actions/{prepare_environment,get_channel_config}
+#
+# 流水线结构(先打包后发布,避免出现空 Release):
+#   prepare_metadata → release_{macos,windows,linux} (上传成 workflow artifact)
+#                    → publish_release (全部 build 成功后下载 artifact 并创建 Release)
+# 任意 build job 失败 → publish_release 因 needs 跳过 → 不会留下没有安装包的 Release。
 
 name: OpenWarp Release
 
@@ -33,12 +38,14 @@ env:
   CHANNEL: oss
 
 jobs:
-  prepare_release:
-    name: Prepare release
+  prepare_metadata:
+    name: Prepare metadata
     runs-on: ubuntu-latest
     outputs:
       release_tag: ${{ steps.compute_tag.outputs.tag }}
       release_branch: ${{ steps.compute_tag.outputs.branch }}
+      release_name: ${{ steps.get-config.outputs.release_base_name }} ${{ steps.compute_tag.outputs.tag }}
+      release_body: ${{ steps.get-config.outputs.release_body_text }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -66,21 +73,10 @@ jobs:
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
           echo "Release tag: $TAG / build ref: $BRANCH"
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
-        with:
-          name: ${{ steps.get-config.outputs.release_base_name }} ${{ steps.compute_tag.outputs.tag }}
-          tag_name: ${{ steps.compute_tag.outputs.tag }}
-          body: ${{ steps.get-config.outputs.release_body_text }}
-          draft: false
-          prerelease: false
-          make_latest: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
   release_macos:
     name: Build Release (macOS ${{ matrix.dmg_name_suffix }})
     runs-on: ${{ matrix.runner }}
-    needs: prepare_release
+    needs: prepare_metadata
     # macos-26 / macos-26-intel(Pro standard)无 sccache,full cargo build + bundle + create-dmg
     # 实测 90min 卡在 cargo build 阶段被取消;参考 Windows standard 1h43m,留 buffer 设 180
     timeout-minutes: 180
@@ -94,7 +90,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: ${{ needs.prepare_release.outputs.release_branch }}
+          ref: ${{ needs.prepare_metadata.outputs.release_branch }}
 
       - uses: ./.github/actions/prepare_environment
         with:
@@ -123,24 +119,25 @@ jobs:
           script/bundle --channel "$CHANNEL" --arch ${{ matrix.arch }} --dmg-name-suffix "${{ matrix.dmg_name_suffix }}"
         shell: bash
         env:
-          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          GIT_RELEASE_TAG: ${{ needs.prepare_metadata.outputs.release_tag }}
 
-      - name: Add DMG to GitHub release assets
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          tag_name: ${{ needs.prepare_release.outputs.release_tag }}
-          files: ${{ steps.bundle_app.outputs.dmg_path }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: openwarp-macos-${{ matrix.dmg_name_suffix }}
+          path: ${{ steps.bundle_app.outputs.dmg_path }}
+          if-no-files-found: error
+          retention-days: 7
 
   release_windows:
     name: Build Release (Windows x64)
     runs-on: windows-latest
-    needs: prepare_release
+    needs: prepare_metadata
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: ${{ needs.prepare_release.outputs.release_branch }}
+          ref: ${{ needs.prepare_metadata.outputs.release_branch }}
 
       - uses: ./.github/actions/prepare_environment
         with:
@@ -154,26 +151,27 @@ jobs:
         run: script/bundle -Channel $CHANNEL -skip_build_installer --arch x64
         shell: bash
         env:
-          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          GIT_RELEASE_TAG: ${{ needs.prepare_metadata.outputs.release_tag }}
 
       - name: Bundle app (unsigned installer)
         id: bundle_app
         run: script/bundle -Channel $CHANNEL -skip_build_binary --arch x64
         shell: bash
         env:
-          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          GIT_RELEASE_TAG: ${{ needs.prepare_metadata.outputs.release_tag }}
 
-      - name: Add installer to GitHub release assets
-        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          tag_name: ${{ needs.prepare_release.outputs.release_tag }}
-          files: ${{ steps.bundle_app.outputs.installer_path }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          name: openwarp-windows-x64
+          path: ${{ steps.bundle_app.outputs.installer_path }}
+          if-no-files-found: error
+          retention-days: 7
 
   release_linux:
     name: Build Release (Linux x86_64 AppImage)
     runs-on: ubuntu-22.04
-    needs: prepare_release
+    needs: prepare_metadata
     # 用 22.04 (glibc 2.35) 而不是 ubuntu-latest (24.04, glibc 2.39),
     # AppImage 用 host glibc 链接,22.04 产物能在更多旧发行版上跑
     # (Debian 11 / Ubuntu 20.04 + 等)。
@@ -181,7 +179,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
-          ref: ${{ needs.prepare_release.outputs.release_branch }}
+          ref: ${{ needs.prepare_metadata.outputs.release_branch }}
 
       - uses: ./.github/actions/prepare_environment
         with:
@@ -206,14 +204,47 @@ jobs:
         run: script/bundle --channel "$CHANNEL" --arch x86_64 --packages appimage
         shell: bash
         env:
-          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          GIT_RELEASE_TAG: ${{ needs.prepare_metadata.outputs.release_tag }}
           # ubuntu-22.04 默认有 libfuse2 但 24.04 没有;统一开 EXTRACT_AND_RUN
           # 让 linuxdeploy/appimagetool 不依赖 FUSE 内核模块,跨 runner 版本都稳。
           APPIMAGE_EXTRACT_AND_RUN: 1
 
-      - name: Add AppImage to GitHub release assets
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: openwarp-linux-x86_64
+          path: ${{ steps.bundle_app.outputs.appimage_path }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish_release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-latest
+    # 必须等所有平台都 build 成功才发布;任一失败 → 此 job 跳过 → 不会出现空 Release。
+    needs:
+      - prepare_metadata
+      - release_macos
+      - release_windows
+      - release_linux
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -lh dist
+        shell: bash
+
+      - name: Create GitHub release with all assets
         uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
-          tag_name: ${{ needs.prepare_release.outputs.release_tag }}
-          files: ${{ steps.bundle_app.outputs.appimage_path }}
+          name: ${{ needs.prepare_metadata.outputs.release_name }}
+          tag_name: ${{ needs.prepare_metadata.outputs.release_tag }}
+          body: ${{ needs.prepare_metadata.outputs.release_body }}
+          draft: false
+          prerelease: false
+          make_latest: "true"
+          files: dist/*
           token: ${{ secrets.GITHUB_TOKEN }}
