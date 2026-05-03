@@ -1,8 +1,10 @@
 # OpenWarp 发布流水线 — 在 openWarp 分支上 push tag (v*) 即触发
 #
 # 与上游 create_release.yml 的差异:
-# - 仅 macOS arm64 + Windows x64,Linux/Web/CLI/Universal/Win-arm64/macOS x86_64 全砍
-#   (macOS x86_64 在 macos-26-intel 上 release 编译稳定爆 3h job 上限,直接砍掉)
+# - 仅 macOS arm64 + Windows x64 + Linux x86_64(AppImage),
+#   Web/CLI/Universal/Win-arm64/macOS x86_64/Linux 的 deb/rpm/arch 全砍
+#   (macOS x86_64 在 macos-26-intel 上 release 编译稳定爆 3h job 上限,直接砍掉;
+#    Linux 只产 AppImage,deb/rpm 模板里写死了 releases.warp.dev 源/GPG key,对 OSS fork 不适用)
 # - 单 channel: preview(由 release_configurations.json 提供配置)
 # - 不签名:不传 --read-passwords-from-env(macOS) / 不设 SIGN_TOOL_CMD(Windows)
 # - 不上传 GCS / Sentry / Slack / changelog,不调 channel-versions repository_dispatch
@@ -166,4 +168,52 @@ jobs:
         with:
           tag_name: ${{ needs.prepare_release.outputs.release_tag }}
           files: ${{ steps.bundle_app.outputs.installer_path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  release_linux:
+    name: Build Release (Linux x86_64 AppImage)
+    runs-on: ubuntu-22.04
+    needs: prepare_release
+    # 用 22.04 (glibc 2.35) 而不是 ubuntu-latest (24.04, glibc 2.39),
+    # AppImage 用 host glibc 链接,22.04 产物能在更多旧发行版上跑
+    # (Debian 11 / Ubuntu 20.04 + 等)。
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.prepare_release.outputs.release_branch }}
+
+      - uses: ./.github/actions/prepare_environment
+        with:
+          target_os: linux
+          is_self_hosted: false
+          install_release_deps: true
+
+      - name: Ensure rust target is installed
+        run: rustup target add x86_64-unknown-linux-gnu
+        shell: bash
+
+      - name: Install linuxdeploy
+        # script/linux/install_linuxdeploy 不被 install_build_deps 调用,需手动跑;
+        # 它把 linuxdeploy AppImage 放到 ~/.local/bin,加到 PATH 里。
+        run: |
+          ./script/linux/install_linuxdeploy
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        shell: bash
+
+      - name: Build AppImage (unsigned)
+        id: bundle_app
+        run: script/bundle --channel "$CHANNEL" --arch x86_64 --packages appimage
+        shell: bash
+        env:
+          GIT_RELEASE_TAG: ${{ needs.prepare_release.outputs.release_tag }}
+          # ubuntu-22.04 默认有 libfuse2 但 24.04 没有;统一开 EXTRACT_AND_RUN
+          # 让 linuxdeploy/appimagetool 不依赖 FUSE 内核模块,跨 runner 版本都稳。
+          APPIMAGE_EXTRACT_AND_RUN: 1
+
+      - name: Add AppImage to GitHub release assets
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: ${{ needs.prepare_release.outputs.release_tag }}
+          files: ${{ steps.bundle_app.outputs.appimage_path }}
           token: ${{ secrets.GITHUB_TOKEN }}
