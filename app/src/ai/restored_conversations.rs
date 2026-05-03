@@ -23,24 +23,31 @@ pub struct RestoredAgentConversations {
 }
 
 impl RestoredAgentConversations {
-    pub fn new(conversations: Vec<AgentConversation>) -> Self {
+    /// 转换持久化会话; 把转换失败的 conversation_id 收集起来,调用方负责把它们从 sqlite 中清理掉,
+    /// 否则下次启动会重复尝试转换并打 warn,白白拖慢启动。
+    pub fn new(conversations: Vec<AgentConversation>) -> (Self, Vec<String>) {
         let mut conversations_by_id = HashMap::new();
+        let mut failed_to_restore = Vec::new();
         for conversation in conversations.into_iter() {
             let conversation_id = conversation.conversation.conversation_id.clone();
             let Some(conversation) =
                 convert_persisted_conversation_to_ai_conversation_with_metadata(conversation)
             else {
                 log::warn!(
-                    "Failed to convert persisted conversation {conversation_id} to AIConversation"
+                    "Failed to convert persisted conversation {conversation_id} to AIConversation; will purge from sqlite"
                 );
+                failed_to_restore.push(conversation_id);
                 continue;
             };
             conversations_by_id.insert(conversation.id(), conversation);
         }
 
-        Self {
-            conversations: conversations_by_id,
-        }
+        (
+            Self {
+                conversations: conversations_by_id,
+            },
+            failed_to_restore,
+        )
     }
 
     /// Gets a reference to a restored conversation without removing it.

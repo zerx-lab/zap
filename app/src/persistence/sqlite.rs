@@ -481,6 +481,13 @@ fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<Writer
                             }
                         }
                         ModelEvent::Terminate => {
+                            // 退出前主动把 WAL 全部 checkpoint 回主库并清空,
+                            // 避免下次启动时 sqlite3_open 触发 "WAL mode database file was recovered" 恢复。
+                            if let Err(e) = current_conn
+                                .batch_execute("PRAGMA wal_checkpoint(TRUNCATE);")
+                            {
+                                log::warn!("Failed to checkpoint WAL on shutdown: {e:?}");
+                            }
                             log::info!("Shutting down SQLite writer thread");
                             return;
                         }

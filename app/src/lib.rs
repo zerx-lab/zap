@@ -47,7 +47,6 @@ pub mod i18n;
 mod input_classifier;
 mod interval_timer;
 mod linear;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod menu;
 mod modal;
 mod network;
@@ -1568,7 +1567,29 @@ fn initialize_app(
         let conversations = &multi_agent_conversations;
         ctx.add_singleton_model(move |_| BlocklistAIHistoryModel::new(ai_queries, conversations));
     }
-    ctx.add_singleton_model(move |_| RestoredAgentConversations::new(multi_agent_conversations));
+    {
+        let (restored, failed_to_restore) =
+            RestoredAgentConversations::new(multi_agent_conversations);
+        // 把无法转换的持久化会话从 sqlite 中清理掉,避免每次启动都重复尝试 + 打 warn
+        if !failed_to_restore.is_empty() {
+            if let Some(sender) = crate::global_resource_handles::GlobalResourceHandlesProvider::as_ref(ctx)
+                .get()
+                .model_event_sender
+                .as_ref()
+            {
+                if let Err(e) = sender.send(
+                    crate::persistence::ModelEvent::DeleteMultiAgentConversations {
+                        conversation_ids: failed_to_restore,
+                    },
+                ) {
+                    log::error!(
+                        "Failed to purge unconvertible persisted conversations from sqlite: {e:?}"
+                    );
+                }
+            }
+        }
+        ctx.add_singleton_model(move |_| restored);
+    }
     ctx.add_singleton_model(|_| CLIAgentSessionsModel::new());
     // ActiveAgentViewsModel is used to track active agent conversations and notify listeners when they change.
     ctx.add_singleton_model(|_| ActiveAgentViewsModel::new());
@@ -2081,9 +2102,16 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             ctx.dispatch_global_action("workspace:save_app", &());
         })),
         on_window_moved: Some(Box::new(move |ctx| {
+            // 启动期 winit 会连续触发若干次 move/resize,这阶段的 save_app 没有意义且拖慢启动
+            if ctx.windows().stage() == ApplicationStage::Starting {
+                return;
+            }
             ctx.dispatch_global_action("workspace:save_app", &());
         })),
         on_window_resized: Some(Box::new(move |ctx| {
+            if ctx.windows().stage() == ApplicationStage::Starting {
+                return;
+            }
             ctx.dispatch_global_action("workspace:save_app", &());
         })),
         ..Default::default()

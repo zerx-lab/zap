@@ -1448,6 +1448,11 @@ fn maybe_adjust_window_vertically(window: &winit::window::Window) -> Option<i32>
         adjustment = bottom_of_monitor - bottom_of_window;
     }
 
+    // 偏移为 0 视为窗口已经完全在屏幕内,跳过移窗与日志
+    if adjustment == 0 {
+        return None;
+    }
+
     if adjustment.unsigned_abs() <= current_monitor.size().height {
         window.set_outer_position(winit::dpi::PhysicalPosition::new(
             window_position.x,
