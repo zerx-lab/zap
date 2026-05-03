@@ -8,3 +8,17 @@ input_classifier/models/**/*tokenizer.json linguist-generated=true
 .github/workflows/openwarp_release.yml merge=openwarp-ours
 app/channels/oss/dev.warp.OpenWarp.desktop merge=openwarp-ours
 lib/rust-genai/** merge=openwarp-ours
+
+# openWarp 自治区(BYOP / cloud 清理 / i18n / footer 删改 等已永久分叉)
+# 上游对这些路径的所有改动一律自动保留 openWarp 版本
+app/src/ai/agent_sdk/** merge=openwarp-ours
+app/src/ai/blocklist/action_model/** merge=openwarp-ours
+app/src/ai/blocklist/agent_view/** merge=openwarp-ours
+app/src/ai/blocklist/controller.rs merge=openwarp-ours
+app/src/ai/blocklist/controller/** merge=openwarp-ours
+app/src/ai/blocklist/history_model/conversation_loader.rs merge=openwarp-ours
+app/src/ai/blocklist/orchestration_event_poller*.rs merge=openwarp-ours
+app/src/ai/execution_profiles/editor/** merge=openwarp-ours
+app/src/terminal/input/slash_commands/** merge=openwarp-ours
+app/src/terminal/view/ambient_agent/** merge=openwarp-ours
+app/src/search/slash_command_menu/** merge=openwarp-ours
