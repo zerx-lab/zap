@@ -66,8 +66,28 @@ pub fn model_reasoning_variants(
             }
             vec![]
         }
-        // genai DeepSeek adapter 不消费 reasoning_effort;Ollama 后端模型 id 任意。
-        AgentProviderApiType::DeepSeek | AgentProviderApiType::Ollama => vec![],
+        // DeepSeek thinking-mode 模型(deepseek-reasoner / v4 / thinking / r1)。
+        // OpenWarp 本地 fork(`lib/rust-genai`)放宽了 adapter_shared.rs 的注入条件,
+        // 让 `reasoning_effort` 顶层字段按 DeepSeek thinking_mode 文档下发。
+        //
+        // Ollama 后端模型 id 任意,保守留空。
+        AgentProviderApiType::DeepSeek => {
+            if id.contains("deepseek-reasoner")
+                || id.contains("deepseek-v4")
+                || id.contains("deepseek-thinking")
+                || id.contains("deepseek-r1")
+            {
+                // DeepSeek 官方思考深度只有 high / max 两档(low/medium/xhigh
+                // 即便服务端 deserializer 接受也只是同档别名,picker 不暴露冗余项)。
+                // Off 档走"关闭思考":本地 fork genai 已支持 ChatOptions::extra_body,
+                // chat_stream 在 DeepSeek+Off 时改发
+                // `extra_body = {"thinking": {"type": "disabled"}}` 顶层合并。
+                vec![R::High, R::Max, R::Off]
+            } else {
+                vec![]
+            }
+        }
+        AgentProviderApiType::Ollama => vec![],
     }
 }
 
@@ -108,9 +128,9 @@ fn is_opus_4_7_or_higher(model_name: &str) -> bool {
 ///   `claude-3-7-sonnet`(extended thinking 起点)及更新版本
 /// - **OpenAI / OpenAIResp**:`o1` / `o3` / `o4` 系列、`gpt-5`、`codex`
 /// - **Gemini**:`gemini-2.5*` / `gemini-3*`(2.5 起 thinking,3.x 全系)
-/// - **DeepSeek**:`deepseek-reasoner` / `deepseek-r1` / `deepseek-v4-flash` /
-///   `deepseek-thinking`(genai DeepSeek adapter **未接 reasoning_effort 字段**,
-///   client 把 reasoning_effort 注入也会被丢弃 — 此处保守返回 `false`)
+/// - **DeepSeek**:`deepseek-reasoner` / `deepseek-r1` / `deepseek-v4*` /
+///   `deepseek-thinking`(官方两档:high / max 走 `reasoning_effort` 顶层字段,
+///   Off 档走 `extra_body.thinking.type=disabled` 关闭思考)
 /// - **Ollama**:走 OpenAI 兼容路径,后端模型 id 不可控,**保守返回 `false`**
 ///   (用户若确实在跑 thinking 模型,可在 Settings 显式调档,后续再放宽)
 pub fn model_supports_reasoning(api_type: AgentProviderApiType, model_id: &str) -> bool {
@@ -269,11 +289,20 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_and_ollama_always_false() {
-        assert!(!model_supports_reasoning(
-            AgentProviderApiType::DeepSeek,
-            "deepseek-reasoner"
-        ));
+    fn deepseek_thinking_models_supported() {
+        let t = AgentProviderApiType::DeepSeek;
+        assert!(model_supports_reasoning(t, "deepseek-reasoner"));
+        assert!(model_supports_reasoning(t, "deepseek-v4"));
+        assert!(model_supports_reasoning(t, "deepseek-v4-flash"));
+        assert!(model_supports_reasoning(t, "deepseek-thinking"));
+        assert!(model_supports_reasoning(t, "deepseek-r1"));
+        // 普通 chat 模型不带 thinking
+        assert!(!model_supports_reasoning(t, "deepseek-chat"));
+        assert!(!model_supports_reasoning(t, "deepseek-coder"));
+    }
+
+    #[test]
+    fn ollama_always_false() {
         assert!(!model_supports_reasoning(
             AgentProviderApiType::Ollama,
             "qwq-32b"
@@ -386,11 +415,30 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_and_ollama_variants_empty() {
+    fn deepseek_thinking_variants_two_levels_plus_off() {
+        let v =
+            model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-reasoner");
+        // DeepSeek 官方:仅 high / max 两档 + Off
+        assert_eq!(v.len(), 3);
+        assert_eq!(v[0], ReasoningEffortSetting::High);
+        assert_eq!(v[1], ReasoningEffortSetting::Max);
+        assert_eq!(v[2], ReasoningEffortSetting::Off);
+        // 不应暴露冗余别名
+        assert!(!v.contains(&ReasoningEffortSetting::Medium));
+        assert!(!v.contains(&ReasoningEffortSetting::Low));
+        assert!(!v.contains(&ReasoningEffortSetting::XHigh));
+    }
+
+    #[test]
+    fn deepseek_chat_variants_empty() {
         assert!(
-            model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-reasoner")
+            model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-chat")
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn ollama_variants_empty() {
         assert!(model_reasoning_variants(AgentProviderApiType::Ollama, "qwq-32b").is_empty());
     }
 

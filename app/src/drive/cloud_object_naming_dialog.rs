@@ -32,7 +32,18 @@ const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_PADDING: f32 = 12.;
 const BUTTON_MARGIN_BETWEEN: f32 = 8.;
 
+<<<<<<< HEAD
 /// Struct holding necessary infromation and states for the dialog
+=======
+const NOTEBOOK_TITLE: &str = "Notebook name";
+const FOLDER_TITLE: &str = "Folder name";
+const ENV_VAR_COLLECTION_TITLE: &str = "Collection name";
+const CREATE_BUTTON_TEXT: &str = "Create";
+const CANCEL_BUTTON_TEXT: &str = "Cancel";
+const RENAME_BUTTON_TEXT: &str = "Rename";
+
+/// Struct holding necessary information and states for the dialog
+>>>>>>> origin/openWarp
 /// that opens when creating or updating a folder or notebook.
 ///
 /// This dialog can be opened for a folder or a space. If open_for_folder_id = None, it's a space.

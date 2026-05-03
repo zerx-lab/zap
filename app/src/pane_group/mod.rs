@@ -34,7 +34,6 @@ use crate::pane_group::pane::ActionOrigin;
 use crate::quit_warning::UnsavedStateSummary;
 #[cfg(target_family = "wasm")]
 use crate::server::cloud_objects::update_manager::UpdateManager;
-use crate::server::server_api::ServerApiProvider;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
 use crate::shell_indicator::ShellIndicatorType;
@@ -86,7 +85,7 @@ use warp_util::path::convert_wsl_to_windows_host_path;
 #[cfg(feature = "local_fs")]
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::{
-    Clipped, CrossAxisAlignment, DispatchEventResult, EventHandler, Flex, MainAxisSize, Shrinkable,
+    CrossAxisAlignment, DispatchEventResult, EventHandler, Flex, MainAxisSize, Shrinkable,
     Stack,
 };
 use warpui::keymap::{Context, EditableBinding, FixedBinding};
@@ -146,7 +145,6 @@ use crate::terminal::view::{
 };
 use crate::terminal::{MockTerminalManager, ShellLaunchData, ShellLaunchState};
 use crate::{cmd_or_ctrl_shift, send_telemetry_from_ctx};
-use session_sharing_protocol::sharer::SessionSourceType;
 use settings::Setting as _;
 
 use crate::code::active_file::ActiveFileModel;
@@ -169,10 +167,6 @@ pub mod tree;
 pub mod working_directories;
 
 use focus_state::PaneGroupFocusState;
-
-#[cfg(test)]
-#[path = "mod_tests.rs"]
-mod tests;
 
 pub use crate::code_review::CodeReviewPanelArg;
 pub use pane::ai_document_pane::AIDocumentPane;
@@ -6460,16 +6454,6 @@ impl PaneGroup {
                     .map(|p| p.display().to_string());
                 (id, local_path)
             })
-    }
-
-    #[cfg(test)]
-    pub fn is_share_session_modal_open(&self) -> bool {
-        self.terminal_with_open_share_session_modal.is_some()
-    }
-
-    #[cfg(test)]
-    pub fn share_session_modal(&self) -> &ViewHandle<ShareSessionModal> {
-        &self.share_session_modal
     }
 
     pub(crate) fn start_agent_mode_in_new_pane(

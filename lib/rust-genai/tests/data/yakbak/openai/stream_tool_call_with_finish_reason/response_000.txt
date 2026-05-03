@@ -1,0 +1,6 @@
+data: {"id":"yakbak-fixture-tool-finish","created":1775744502,"object":"chat.completion.chunk","model":"yakbak-openai-compat-model","choices":[{"index":0,"finish_reason":"tool_calls","delta":{"role":"assistant","tool_calls":[{"id":"call_yakbak_fixture_0","index":0,"type":"function","function":{"name":"get_weather","arguments":"{\"city\": \"Paris\", \"country\": \"France\", \"unit\": \"C\"}"}}]}}]}
+
+data: {"id":"yakbak-fixture-tool-finish","created":1775744502,"object":"chat.completion.chunk","model":"yakbak-openai-compat-model","choices":[{"index":0,"finish_reason":"tool_calls","delta":{"role":"assistant","content":""}}],"usage":{"prompt_tokens":163,"completion_tokens":11,"total_tokens":174}}
+
+data: [DONE]
+

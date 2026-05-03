@@ -1,0 +1,10 @@
+# rustfmt doc - https://rust-lang.github.io/rustfmt/
+
+# JC Style 
+hard_tabs = true
+edition = "2024"
+max_width = 120
+chain_width = 80
+array_width = 80
+
+# imports_granularity = "Module" # unstable for now (use IDE)

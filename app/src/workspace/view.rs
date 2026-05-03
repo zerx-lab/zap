@@ -254,7 +254,7 @@ use crate::resource_center::{
     ResourceCenterEvent, ResourceCenterPage, ResourceCenterView, Tip, TipAction, TipsCompleted,
 };
 use crate::reward_view::{RewardEvent, RewardKind, RewardView};
-use crate::root_view::{quake_mode_window_id, NewWorkspaceSource, OpenLaunchConfigArg};
+use crate::root_view::{NewWorkspaceSource, OpenLaunchConfigArg};
 use crate::search::command_search::searcher::{
     AcceptedHistoryItem, AcceptedWorkflow, CommandSearchItemAction,
 };
@@ -267,7 +267,7 @@ use crate::server::server_api::{ServerApi, ServerApiEvent, ServerApiProvider, Se
 use crate::server::telemetry::{
     AddTabWithShellSource, AnonymousUserSignupEntrypoint, CloseTarget, EnvVarTelemetryMetadata,
     FileTreeSource, KnowledgePaneEntrypoint, LaunchConfigUiLocation,
-    MCPServerCollectionPaneEntrypoint, OpenedWarpAISource, SharingDialogSource, TierLimitHitEvent,
+    MCPServerCollectionPaneEntrypoint, OpenedWarpAISource, SharingDialogSource,
     WarpDriveSource,
 };
 use crate::session_management::{SessionNavigationData, SessionSource};
@@ -275,7 +275,7 @@ use crate::settings::{
     active_theme_kind, respect_system_theme, AccessibilitySettings, AliasExpansionSettings,
     AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings, FontSettings,
     GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, PrivacySettings,
-    SelectionSettings, Settings, SshSettings, ThemeSettings,
+    SelectionSettings, SshSettings, ThemeSettings,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
@@ -328,7 +328,7 @@ use crate::user_config::{
 };
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 use crate::util::bindings::{
-    keybinding_name_to_display_string, keybinding_name_to_keystroke, trigger_to_keystroke,
+    keybinding_name_to_display_string, keybinding_name_to_keystroke,
 };
 use crate::util::links;
 use crate::util::traffic_lights::{traffic_light_data, TrafficLightMouseStates, TrafficLightSide};
@@ -2774,10 +2774,16 @@ impl Workspace {
         if FeatureFlag::SshRemoteServer.is_enabled() {
             ctx.subscribe_to_model(
                 &RemoteServerManager::handle(ctx),
-                |me, _handle, event, ctx| {
-                    if matches!(event, RemoteServerManagerEvent::SessionConnected { .. }) {
+                |me, _handle, event, ctx| match event {
+                    RemoteServerManagerEvent::SessionConnected { .. } => {
                         me.update_active_session(ctx);
                     }
+                    RemoteServerManagerEvent::SetupStateChanged { state, .. }
+                        if state.is_failed() =>
+                    {
+                        me.update_active_session(ctx);
+                    }
+                    _ => {}
                 },
             );
         }
@@ -3363,6 +3369,15 @@ impl Workspace {
                 self.sync_window_button_visibility(ctx);
                 ctx.notify();
             }
+            TabSettingsChangedEvent::ShowVerticalTabPanelInRestoredWindows { .. } => {
+                if FeatureFlag::VerticalTabs.is_enabled()
+                    && *TabSettings::as_ref(ctx).use_vertical_tabs
+                    && *TabSettings::as_ref(ctx).show_vertical_tab_panel_in_restored_windows
+                {
+                    self.vertical_tabs_panel_open = true;
+                }
+                ctx.notify();
+            }
             TabSettingsChangedEvent::ShowCodeReviewButton { .. } => {
                 // Close the right panel if it's open and the setting was just disabled.
                 if !*TabSettings::as_ref(ctx).show_code_review_button {
@@ -3655,7 +3670,15 @@ impl Workspace {
         match workspace_setting {
             NewWorkspaceSource::Restored {
                 window_snapshot, ..
-            } => window_snapshot.vertical_tabs_panel_open,
+            } => {
+                if should_default_open
+                    && *TabSettings::as_ref(ctx).show_vertical_tab_panel_in_restored_windows
+                {
+                    true
+                } else {
+                    window_snapshot.vertical_tabs_panel_open
+                }
+            }
             NewWorkspaceSource::TransferredTab {
                 vertical_tabs_panel_open,
                 ..
@@ -12746,7 +12769,10 @@ impl Workspace {
             pane_group::Event::SyncInput(input_type) => {
                 self.process_sync_event_for_all_synced_pane_groups(input_type, ctx);
             }
-            pane_group::Event::TerminalViewStateChanged => ctx.notify(),
+            pane_group::Event::TerminalViewStateChanged => {
+                self.update_active_session(ctx);
+                ctx.notify();
+            }
             pane_group::Event::OnboardingTutorialCompleted => {
                 self.pending_session_config_tab_config_chip = false;
                 self.show_session_config_tab_config_chip = false;
@@ -14009,24 +14035,33 @@ impl Workspace {
 
         if let Some(terminal_handle) = pane_group_handle.as_ref(ctx).active_session_view(ctx) {
             #[cfg_attr(not(feature = "local_fs"), allow(unused_variables))]
-            let (session, path_if_local, is_local, is_wsl_session, session_id, pwd) =
-                terminal_handle.read(ctx, |terminal, ctx| {
-                    let active_session_id = terminal.active_block_session_id();
-                    let session = active_session_id
-                        .and_then(|id| terminal.sessions_model().as_ref(ctx).get(id));
-                    let path_if_local = terminal.active_session_path_if_local(ctx);
-                    let is_local = terminal.active_session_is_local(ctx);
-                    let is_wsl_session = session.as_ref().map(|s| s.is_wsl()).unwrap_or(false);
-                    let pwd = terminal.pwd();
-                    (
-                        session,
-                        path_if_local,
-                        is_local,
-                        is_wsl_session,
-                        active_session_id,
-                        pwd,
-                    )
-                });
+            let (
+                session,
+                path_if_local,
+                is_local,
+                is_wsl_session,
+                session_id,
+                pwd,
+                has_pending_ssh,
+            ) = terminal_handle.read(ctx, |terminal, ctx| {
+                let active_session_id = terminal.active_block_session_id();
+                let session =
+                    active_session_id.and_then(|id| terminal.sessions_model().as_ref(ctx).get(id));
+                let path_if_local = terminal.active_session_path_if_local(ctx);
+                let is_local = terminal.active_session_is_local(ctx);
+                let is_wsl_session = session.as_ref().map(|s| s.is_wsl()).unwrap_or(false);
+                let pwd = terminal.pwd();
+                let has_pending_ssh = terminal.has_pending_ssh_command();
+                (
+                    session,
+                    path_if_local,
+                    is_local,
+                    is_wsl_session,
+                    active_session_id,
+                    pwd,
+                    has_pending_ssh,
+                )
+            });
 
             let window_id = ctx.window_id();
             let working_directory_clone = path_if_local.clone();
@@ -14056,8 +14091,9 @@ impl Workspace {
             // `connect_session` was called at `InitShell` time.
             let has_remote_server = is_remote
                 && FeatureFlag::SshRemoteServer.is_enabled()
-                && session_id
-                    .is_some_and(|sid| RemoteServerManager::as_ref(ctx).session(sid).is_some());
+                && session_id.is_some_and(|sid| {
+                    RemoteServerManager::as_ref(ctx).is_session_potentially_active(sid)
+                });
 
             // When the session has a remote server, tell it about the current
             // directory so it can start indexing and push repo metadata back.
@@ -14076,6 +14112,18 @@ impl Workspace {
                 is_unsupported_session,
                 has_remote_server,
             );
+
+            // When an SSH command is running (pending host set + block
+            // still long-running), the old local session is still active
+            // so the enablement computes as `Enabled`. Override to
+            // `PendingRemoteSession` so the file tree shows loading
+            // instead of the stale local tree.
+            let enablement =
+                if has_pending_ssh && matches!(enablement, CodingPanelEnablementState::Enabled) {
+                    CodingPanelEnablementState::PendingRemoteSession
+                } else {
+                    enablement
+                };
 
             self.left_panel_view.update(ctx, |left_panel, ctx| {
                 left_panel.update_coding_panel_enablement(enablement, ctx);
@@ -17734,7 +17782,7 @@ impl Workspace {
         let mut main_content = Flex::row();
 
         // In horizontal tabs mode, config-driven panels render inside this row
-        // so they share the same background/corner-radius wrapper from render_main_panel.
+        // alongside the terminal area.
         // In vertical tabs mode, panels are rendered in render_panels instead.
         if !vertical_tabs_active {
             let config = TabSettings::as_ref(app)
@@ -18277,23 +18325,6 @@ impl Workspace {
         container.finish()
     }
 
-    fn render_main_panel(
-        &self,
-        app: &AppContext,
-        terminal_view: Box<dyn Element>,
-    ) -> Box<dyn Element> {
-        if FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(app).use_vertical_tabs {
-            Shrinkable::new(1.0, terminal_view).finish()
-        } else {
-            let main_content = Container::new(terminal_view)
-                .with_background(util::get_terminal_background_fill(self.window_id, app))
-                .with_corner_radius(*PANEL_CORNER_RADIUS)
-                .finish();
-
-            Shrinkable::new(1.0, main_content).finish()
-        }
-    }
-
     fn render_panel_separator(app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         ConstrainedBox::new(
@@ -18337,8 +18368,7 @@ impl Workspace {
             && *TabSettings::as_ref(app).use_vertical_tabs;
 
         // In vertical tabs mode, config-driven panels are rendered here.
-        // In horizontal tabs mode, they're rendered inside render_banner_and_active_tab
-        // so they share the same background/corner-radius wrapper.
+        // In horizontal tabs mode, they're rendered inside render_banner_and_active_tab.
         if vertical_tabs_active {
             let config = TabSettings::as_ref(app)
                 .header_toolbar_chip_selection
@@ -18374,7 +18404,9 @@ impl Workspace {
         if prev_panel_added {
             panels_view.add_child(Self::render_panel_separator(app));
         }
-        panels_view = panels_view.with_child(self.render_main_panel(app, terminal_view));
+        // The outer workspace container in `render` already paints the terminal
+        // background fill, so don't paint it again here (see APP-4328).
+        panels_view = panels_view.with_child(Shrinkable::new(1.0, terminal_view).finish());
         prev_panel_added = true;
 
         if vertical_tabs_active {
@@ -21385,7 +21417,9 @@ impl View for Workspace {
             // Hide the vertical tab rail for simplified WASM views (notebooks, shared sessions, etc.)
             let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish(), true);
             outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
-            outer_column.finish()
+            Container::new(outer_column.finish())
+                .with_background(util::get_terminal_background_fill(self.window_id, app))
+                .finish()
         } else {
             let mut outer_column = Flex::column();
             if tab_bar_mode == ShowTabBar::Stacked {

@@ -5,7 +5,6 @@ pub mod oz_launch;
 // Re-export slide types for convenience
 pub use oz_launch::OzLaunchSlide;
 
-use crate::settings::PrivacySettings;
 use crate::ui_components::blended_colors;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, PrimaryTheme, SecondaryTheme};

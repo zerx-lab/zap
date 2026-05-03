@@ -4,6 +4,9 @@ app/frameworks/dev/Carthage
 app/frameworks/**/*.xcframework
 /target
 /app/target
+/lib/*
+!/lib/rust-genai/
+/lib/rust-genai/target/
 /warp.xcworkspace
 .idea/
 .DS_Store
@@ -61,3 +64,6 @@ __pycache__/
 
 # logo 生成脚本的依赖
 /scripts/node_modules/
+
+# Project notes
+.note/

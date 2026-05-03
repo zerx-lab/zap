@@ -14,7 +14,7 @@ use warp_graphql::mutations::create_anonymous_user::{
 };
 use warpui::{clipboard::ClipboardContent, Entity, ModelContext, SingletonEntity, UpdateModel};
 
-use super::auth_state::{AuthState, PersistAction};
+use super::auth_state::AuthState;
 use super::auth_view_modal::{AuthRedirectPayload, AuthViewVariant};
 use super::credentials::{Credentials, FirebaseToken, LoginToken};
 use super::user::User;
@@ -52,7 +52,6 @@ use crate::{
 };
 #[cfg(target_family = "wasm")]
 use url::Url;
-use user_persistence::PersistedUser;
 
 #[derive(Debug)]
 pub enum AuthManagerEvent {
@@ -254,7 +253,7 @@ impl AuthManager {
 
     /// Authenticate asynchronously using the OAuth2 device authorization flow.
     ///
-    /// This is only used by the Warp CLI if running on a devic that does not have the Warp app installed.
+    /// This is only used by the Warp CLI if running on a device that does not have the Warp app installed.
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub fn authorize_device(&self, ctx: &mut ModelContext<Self>) {
         // Clear any stale user state so old credentials don't interfere

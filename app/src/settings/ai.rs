@@ -768,6 +768,20 @@ impl AgentProviderApiType {
         }
     }
 
+    /// 反向解析 Debug 格式名(`OpenAi` / `DeepSeek` 等),用于 BYOPLastUsedReasoningMap
+    /// 这种 `<api_type>:<model_id>` 复合 key 的 hydrate 场景。未知字符串返回 None。
+    pub fn from_debug_str(s: &str) -> Option<Self> {
+        Some(match s {
+            "OpenAi" => Self::OpenAi,
+            "OpenAiResp" => Self::OpenAiResp,
+            "Gemini" => Self::Gemini,
+            "Anthropic" => Self::Anthropic,
+            "Ollama" => Self::Ollama,
+            "DeepSeek" => Self::DeepSeek,
+            _ => return None,
+        })
+    }
+
     /// 当用户没填 base_url 时使用的默认 endpoint。新建 provider / 切换 ApiType
     /// 时,UI 可调用此方法预填,便于新手。
     ///
@@ -1059,6 +1073,59 @@ impl settings_value::SettingsValue for ToolbarCommandMap {
                 .filter_map(|v| v.as_str().map(|s| (s.to_string(), String::new())))
                 .collect();
             return Some(ToolbarCommandMap::new(result));
+        }
+        None
+    }
+}
+
+/// 持久化记忆"上次某 (api_type, model) 用过的 reasoning effort 档位"。
+/// key 形式:`<api_type>:<model_id>`,例如 `DeepSeek:deepseek-v4-pro`。
+/// value 是 `ReasoningEffortSetting` 枚举(serde_json snake_case)。
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct BYOPLastUsedReasoningMap(pub IndexMap<String, ReasoningEffortSetting>);
+
+impl BYOPLastUsedReasoningMap {
+    pub fn new(map: IndexMap<String, ReasoningEffortSetting>) -> Self {
+        Self(map)
+    }
+
+    /// 拼 key:`<api_type>:<model_id>`。api_type 用 Debug 拼出 `DeepSeek` 等驼峰名,
+    /// 跟 ReasoningEffortSetting 的 serde 形式无关。
+    pub fn make_key(api_type: AgentProviderApiType, model_id: &str) -> String {
+        format!("{api_type:?}:{model_id}")
+    }
+}
+
+impl std::ops::Deref for BYOPLastUsedReasoningMap {
+    type Target = IndexMap<String, ReasoningEffortSetting>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl schemars::JsonSchema for BYOPLastUsedReasoningMap {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "BYOPLastUsedReasoningMap".into()
+    }
+
+    fn json_schema(gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        gen.subschema_for::<HashMap<String, String>>()
+    }
+}
+
+impl settings_value::SettingsValue for BYOPLastUsedReasoningMap {
+    fn to_file_value(&self) -> serde_json::Value {
+        serde_json::to_value(&self.0).unwrap_or_default()
+    }
+
+    fn from_file_value(value: &serde_json::Value) -> Option<Self> {
+        if value.is_object() {
+            if let Ok(map) =
+                serde_json::from_value::<IndexMap<String, ReasoningEffortSetting>>(value.clone())
+            {
+                return Some(Self::new(map));
+            }
         }
         None
     }
@@ -1898,6 +1965,31 @@ define_settings_group!(AISettings, settings: [
         private: false,
         toml_path: "agents.byop_compaction.model.model_id",
         description: "Optional dedicated model id for compaction LLM calls.",
+    }
+
+    // OpenWarp BYOP 模型 + 思考深度持久化(picker 切换后立即写入,新 tab/重启沿用)。
+    // 模型用 LLMId 字符串形式;空串 = 没有 last_used,落回 profile 默认。
+    byop_last_used_model_id: ByopLastUsedModelId {
+        type: String,
+        default: String::new(),
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop.last_used_model_id",
+        description: "Last selected BYOP model id (picker hydrates new tabs/sessions from this).",
+    }
+
+    // OpenWarp BYOP per-(api_type, model) 思考深度记忆。
+    // key = `<api_type>:<model_id>`,value = ReasoningEffortSetting。picker 切换写入。
+    byop_last_used_reasoning: ByopLastUsedReasoning {
+        type: BYOPLastUsedReasoningMap,
+        default: BYOPLastUsedReasoningMap::default(),
+        supported_platforms: SupportedPlatforms::ALL,
+        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+        private: false,
+        toml_path: "agents.byop.last_used_reasoning",
+        max_table_depth: 1,
+        description: "Per-(api_type, model) reasoning effort memory for BYOP picker.",
     }
 ]);
 

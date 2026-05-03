@@ -1,0 +1,29 @@
+name: Bug Report
+description: File a bug report.
+title: "bug - "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: textarea
+    attributes:
+      label: Bug description & expected
+      description: Describe the bug
+      placeholder: Ran {this}, did {that}, expected {the other}
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Narrow cargo test
+      description: If possible, give the narrow cargo test to show the error
+      placeholder:  cargo test --test tests_p_openai test_tool_full_flow_ok
+  - type: input
+    attributes:
+      label: Adapter
+      description: The AdapterKind if known
+  - type: input
+    attributes:
+      label: Model
+      description: The Model name if known

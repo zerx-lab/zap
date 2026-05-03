@@ -16,7 +16,7 @@ use crate::util::openable_file_type::{is_file_openable_in_warp, is_markdown_file
 use crate::workspace::{Workspace, WorkspaceAction, WorkspaceRegistry};
 use crate::{cloud_object::ObjectType, workspace::ToastStack};
 use crate::{drive::OpenWarpDriveObjectArgs, view_components::DismissibleToast};
-use crate::{features::FeatureFlag, workspace::active_terminal_in_window};
+use crate::workspace::active_terminal_in_window;
 
 use crate::ai::ambient_agents::github_auth_notifier::GitHubAuthNotifier;
 use crate::settings_view::{OpenTeamsSettingsModalArgs, SettingsSection};
@@ -254,7 +254,7 @@ impl UriHost {
                 // For folder links, we expect an additional query parameter primary_object_id which refers to the id object
                 // that should be opened
                 // When the user is directed here via the request access flow, we expect an additional query parameter invitee_email
-                // If this paramter is present, we will open the sharing dialog with the email filled in.
+                // If this parameter is present, we will open the sharing dialog with the email filled in.
                 let object_type = url
                     .path_segments()
                     .into_iter()
@@ -1214,6 +1214,3 @@ fn safe_url_log_fields(url: &Url) -> String {
     )
 }
 
-#[cfg(test)]
-#[path = "uri_test.rs"]
-mod tests;

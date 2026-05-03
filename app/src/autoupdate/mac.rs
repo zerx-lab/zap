@@ -29,7 +29,7 @@ use crate::{
     safe_info,
 };
 
-use super::{release_assets_directory_url, DownloadReady};
+use super::{github, release_assets_directory_url, DownloadReady};
 
 // Relative path to the directory containing old executables from before an autoupdate.
 //
@@ -339,12 +339,100 @@ pub(super) async fn download_update_and_cleanup(
     last_successful_update_id: Option<&str>,
     client: &http_client::Client,
 ) -> Result<DownloadReady> {
+    // openWarp 走 GitHub Release:DMG 直接下载到用户 Downloads,完成后用 `open`
+    // 拉起 Finder 显示该文件。不解压、不验签、不覆盖 .app —— 用户手动拖拽安装。
+    if matches!(ChannelState::channel(), Channel::Oss) {
+        return download_oss_to_downloads(client).await;
+    }
+
     let result =
         download_and_extract_binary(ChannelState::channel(), version_info, update_id, client).await;
     if result.is_err() {
         cleanup_all_except(last_successful_update_id).await;
     }
     result
+}
+
+/// openWarp(Channel::Oss)专用下载路径:DMG → Downloads + 打开 Finder。
+async fn download_oss_to_downloads(client: &http_client::Client) -> Result<DownloadReady> {
+    use std::time::Duration as StdDuration;
+
+    const DOWNLOAD_TIMEOUT: StdDuration = StdDuration::from_secs(900);
+
+    let dmg_name = oss_dmg_name();
+
+    let release = match github::cached_release() {
+        Some(r) => r,
+        None => github::fetch_latest_release(client).await?,
+    };
+
+    let asset = release.find_asset(&dmg_name).ok_or_else(|| {
+        anyhow!(
+            "GitHub Release {} 缺少资产 {dmg_name},请前往 {} 手动下载",
+            release.tag_name,
+            release.html_url
+        )
+    })?;
+
+    let download_dir = dirs::download_dir()
+        .ok_or_else(|| anyhow!("无法定位用户下载目录(dirs::download_dir 返回 None)"))?;
+    if !download_dir.exists() {
+        fs::create_dir_all(&download_dir)
+            .map_err(|e| anyhow!("创建下载目录 {} 失败: {e:#}", download_dir.display()))?;
+    }
+    let target_path = download_dir.join(&dmg_name);
+
+    let already_downloaded = match fs::metadata(&target_path) {
+        Ok(meta) => meta.len() == asset.size,
+        Err(_) => false,
+    };
+
+    if already_downloaded {
+        log::info!(
+            "openWarp DMG 已存在,跳过下载: {} ({} bytes)",
+            target_path.display(),
+            asset.size
+        );
+    } else {
+        log::info!(
+            "Downloading {} to {} ...",
+            asset.browser_download_url,
+            target_path.display()
+        );
+        let bytes = client
+            .get(asset.browser_download_url.as_str())
+            .timeout(DOWNLOAD_TIMEOUT)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        fs::write(&target_path, &bytes)
+            .map_err(|e| anyhow!("写入 DMG {} 失败: {e:#}", target_path.display()))?;
+        log::info!("openWarp DMG 下载完成: {}", target_path.display());
+    }
+
+    // `open -R <file>` 在 Finder 里显示并选中该文件;失败仅记日志。
+    if let Err(e) = blocking::Command::new("/usr/bin/open")
+        .arg("-R")
+        .arg(&target_path)
+        .spawn()
+    {
+        log::warn!("打开 Finder 失败(已下载完成): {e:#}");
+    }
+
+    Ok(DownloadReady::Yes)
+}
+
+fn oss_dmg_name() -> String {
+    // 与 script/macos/bundle 在 OSS 分支生成的命名对齐:
+    //   FINAL_DMG_NAME="OpenWarp-${arch}.dmg"  (workflow 当前只构建 arm64)
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        "x86_64"
+    };
+    format!("OpenWarp-{arch}.dmg")
 }
 
 /// Apply the downloaded update.

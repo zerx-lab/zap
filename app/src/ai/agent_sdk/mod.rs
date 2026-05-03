@@ -7,10 +7,6 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use crate::ai::agent::api::convert_conversation::{
-    convert_conversation_data_to_ai_conversation, RestorationMode,
-};
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_sdk::driver::harness::{harness_kind, HarnessKind};
 use crate::ai::agent_sdk::driver::{AgentDriverOptions, AgentRunPrompt, Task};
@@ -57,7 +53,6 @@ use crate::{
         ids::{ServerId, SyncId},
         server_api::{ai::AgentConfigSnapshot, ServerApiProvider},
     },
-    terminal::view::ConversationRestorationInNewPaneType,
 };
 use driver::AgentDriverError;
 use warp_graphql::object_permissions::OwnerType;

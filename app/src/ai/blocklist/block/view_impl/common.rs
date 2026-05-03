@@ -24,12 +24,12 @@ use warpui::{
     assets::asset_cache::{AssetCache, AssetSource, AssetState},
     elements::{
         new_scrollable::{ScrollableAppearance, SingleAxisConfig},
-        Align, Axis, Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox,
-        Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty, EventHandler,
-        Expanded, Fill, Flex, FormattedTextElement, HeadingFontSizeMultipliers, Hoverable,
-        Image as WarpImage, MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable,
-        OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition,
-        ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Stack, Table,
+        Align, Axis, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle,
+        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty,
+        EventHandler, Expanded, Fill, Flex, FormattedTextElement, HeadingFontSizeMultipliers,
+        Hoverable, Image as WarpImage, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+        NewScrollable, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
+        SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Stack, Table,
         TableColumnWidth, TableConfig, TableHeader, TableVerticalSizing, Text, Wrap,
     },
     fonts::{Properties, Weight},
@@ -565,19 +565,6 @@ pub fn render_warping_indicator_base(
 
     let text = render_output_status_text(warping_indicator_text, appearance, app);
 
-    let mut row = Flex::row()
-        .with_cross_axis_alignment(CrossAxisAlignment::Start)
-        .with_spacing(6.);
-
-    if let Some(icon) = icon {
-        row = row.with_child(
-            ConstrainedBox::new(icon)
-                .with_width(icon_size(app) - STATUS_ICON_SIZE_DELTA)
-                .with_height(icon_size(app) - STATUS_ICON_SIZE_DELTA)
-                .finish(),
-        );
-    }
-
     let text_content = {
         let mut row = Flex::row().with_child(Shrinkable::new(1., text).finish());
 
@@ -636,14 +623,29 @@ pub fn render_warping_indicator_base(
         );
     }
 
+    let mut row = Flex::row()
+        .with_cross_axis_alignment(CrossAxisAlignment::Start)
+        .with_spacing(6.);
+
+    if let Some(icon) = icon {
+        row = row.with_child(
+            ConstrainedBox::new(icon)
+                .with_width(icon_size(app) - STATUS_ICON_SIZE_DELTA)
+                .with_height(icon_size(app) - STATUS_ICON_SIZE_DELTA)
+                .finish(),
+        );
+    }
+
     row = row.with_child(Expanded::new(1., text_col.finish()).finish());
 
     if let Some(buttons) = buttons {
         row = row.with_child(buttons);
     }
 
+    let content = Clipped::new(row.finish()).finish();
+
     if is_passive_code_diff {
-        Container::new(row.finish())
+        Container::new(content)
             // Use custom padding for the passive code diff block
             .with_padding_top(8.)
             .with_padding_bottom(4.)
@@ -651,7 +653,7 @@ pub fn render_warping_indicator_base(
             .finish()
     } else {
         let mut container = Container::new(
-            ConstrainedBox::new(row.finish())
+            ConstrainedBox::new(content)
                 .with_height(STATUS_FOOTER_VERTICAL_PADDING * 2. + appearance.monospace_font_size())
                 .finish(),
         )
@@ -1239,6 +1241,7 @@ pub fn render_text_sections<V: View, A: Action>(
                         working_directory: props.current_working_directory,
                         open_code_block_action_factory: props.open_code_block_action_factory,
                         copy_code_action_factory: props.copy_code_action_factory,
+                        selectable: props.selectable,
                         #[cfg(feature = "local_fs")]
                         resolved_code_block_paths: props.resolved_code_block_paths,
                     },
@@ -2310,7 +2313,7 @@ fn is_supported_blocklist_image_source(source: &str) -> bool {
         .map(|ext| {
             matches!(
                 ext.to_ascii_lowercase().as_str(),
-                "jpg" | "jpeg" | "png" | "gif" | "webp" | "svg"
+                "jpg" | "jpeg" | "png" | "gif" | "bmp" | "tiff" | "tif" | "webp" | "ico" | "svg"
             )
         })
         .unwrap_or(false)
@@ -2650,6 +2653,8 @@ pub struct CodeSectionProps<'a, A: 'static> {
     pub working_directory: Option<&'a String>,
     pub open_code_block_action_factory: Option<OpenCodeBlockActionFactory<A>>,
     pub copy_code_action_factory: Option<CopyCodeActionFactory<A>>,
+    /// Whether the code block text should be selectable within the parent SelectableArea.
+    pub selectable: bool,
     /// Pre-resolved code block file paths from the background detection task.
     /// Keyed by original path; value is the resolved absolute path (or None if unresolvable).
     #[cfg(feature = "local_fs")]
@@ -2851,6 +2856,7 @@ pub fn render_code_output_section<A: Action>(
                     footer_element: language_text,
                     mouse_handles: props.button_handles.cloned(),
                 },
+                props.selectable,
                 app,
                 source,
             )

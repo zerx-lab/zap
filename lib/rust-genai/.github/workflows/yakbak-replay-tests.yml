@@ -1,0 +1,42 @@
+name: Yakbak Replay Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  replay-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run OpenAI replay tests
+        run: cargo test --test tests_yakbak_openai_resp
+
+      - name: Run Gemini replay tests
+        run: cargo test --test tests_yakbak_gemini
+
+      - name: Run GitHub Copilot replay tests
+        run: cargo test --test tests_yakbak_github_copilot
+
+      - name: Run Ollama Cloud replay tests
+        run: cargo test --test tests_yakbak_ollama_cloud

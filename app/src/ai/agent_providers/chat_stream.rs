@@ -57,7 +57,13 @@ use genai::{Client, ModelIden, ServiceTarget};
 
 use crate::ai::agent::api::{RequestParams, ResponseStream};
 use crate::ai::agent::{AIAgentInput, RunningCommand};
+<<<<<<< HEAD
 use crate::ai::byop_compaction::{self, state::CompactionState};
+=======
+use crate::ai::byop_compaction::{
+    self,
+};
+>>>>>>> origin/openWarp
 use crate::server::server_api::AIApiError;
 use crate::settings::AgentProviderApiType;
 use ai::agent::convert::ConvertToAPITypeError;
@@ -1438,10 +1444,25 @@ fn build_chat_options(
     //   等老模型注入 thinking 参数被上游 400 拒绝。
     if let Some(effort) = effort_setting.to_genai() {
         if super::reasoning::model_supports_reasoning(api_type, model_id) {
-            log::info!(
-                "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
-            );
-            opts = opts.with_reasoning_effort(effort);
+            // DeepSeek 关闭思考必须走 `extra_body.thinking.type=disabled`,
+            // 服务端不接受 `reasoning_effort: "none"`(400 unknown variant)。
+            // 其他 provider 的 Off 档维持原 reasoning_effort 路径。
+            let deepseek_off = matches!(api_type, AgentProviderApiType::DeepSeek)
+                && matches!(
+                    effort_setting,
+                    crate::settings::ReasoningEffortSetting::Off
+                );
+            if deepseek_off {
+                log::info!(
+                    "[byop] DeepSeek Off → extra_body thinking.type=disabled (model={model_id})"
+                );
+                opts = opts.with_extra_body(json!({"thinking": {"type": "disabled"}}));
+            } else {
+                log::info!(
+                    "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
+                );
+                opts = opts.with_reasoning_effort(effort);
+            }
         } else {
             log::info!(
                 "[byop] reasoning_effort SKIPPED: model={model_id} not in capability list \
@@ -2235,7 +2256,7 @@ fn sanitize_title(raw: &str) -> Option<String> {
     while let Some(c) = s.chars().last() {
         if matches!(
             c,
-            '.' | '。' | '!' | '！' | '?' | '？' | ',' | '，' | ';' | '；' | ':' | ':'
+            '.' | '。' | '!' | '！' | '?' | '？' | ',' | '，' | ';' | '；' | ':' | '：'
         ) {
             let new_len = s.len() - c.len_utf8();
             s.truncate(new_len);

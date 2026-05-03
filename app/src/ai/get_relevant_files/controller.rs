@@ -20,11 +20,10 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 use crate::{
     ai::{
         agent::AIAgentActionId,
-        get_relevant_files::api::{FileContext, GetRelevantFiles},
         outline::{OutlineStatus, RepoOutlines},
     },
     report_error, send_telemetry_from_ctx,
-    server::server_api::{AIApiError, ServerApiProvider},
+    server::server_api::AIApiError,
     TelemetryEvent,
 };
 

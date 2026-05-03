@@ -13,9 +13,9 @@ use syntax_highlightable::SyntaxHighlightable;
 use url::Url;
 
 use crate::{
-    ai::{blocklist::secret_redaction::find_secrets_in_text, AIRequestUsageModel},
+    ai::blocklist::secret_redaction::find_secrets_in_text,
     appearance::Appearance,
-    auth::{auth_state::AuthState, AuthStateProvider, UserUid},
+    auth::{auth_state::AuthState, AuthStateProvider},
     cloud_object::{
         breadcrumbs::ContainingObject,
         model::{
@@ -73,13 +73,13 @@ use crate::{
         icons::Icon,
     },
     util::bindings::CustomAction,
-    view_components::{DismissibleToast, ToastLink, ToastType},
+    view_components::{DismissibleToast, ToastType},
     workflows::{
         workflow::{Argument, Workflow},
         CloudWorkflow,
     },
-    workspace::{ToastStack, WorkspaceAction},
-    FeatureFlag, UserWorkspaces,
+    workspace::ToastStack,
+    FeatureFlag,
 };
 
 use warp_core::{context_flag::ContextFlag, settings::Setting, ui::theme::AnsiColorIdentifier};

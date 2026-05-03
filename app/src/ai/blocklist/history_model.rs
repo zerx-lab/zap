@@ -6,7 +6,6 @@ use chrono::{DateTime, Local, NaiveDateTime};
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warp_multi_agent_api::response_event::stream_finished::ConversationUsageMetadata;
 use warp_multi_agent_api::{
     client_action::{Action, StartNewConversation},
@@ -32,7 +31,6 @@ use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::input_suggestions::HistoryOrder;
 use crate::persistence::model::AgentConversationData;
 use crate::persistence::ModelEvent;
-use crate::server::server_api::ServerApiProvider;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::view::blocklist_filter;
 use crate::GlobalResourceHandlesProvider;
@@ -1909,7 +1907,7 @@ impl BlocklistAIHistoryModel {
             return;
         }
 
-        // There's a slight concern here that the conversations we're preserving might not have persisted succesfully
+        // There's a slight concern here that the conversations we're preserving might not have persisted successfully
         // because of some unexpected error. Attempting to then restore these conversations would lead to unexpected behavior.
         // In the future it might be worthwhile to check that these conversations exist in the database before marking them as historical,
         // but for now this is an edge case that we don't need to worry about too much.
