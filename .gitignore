@@ -4,7 +4,9 @@ app/frameworks/dev/Carthage
 app/frameworks/**/*.xcframework
 /target
 /app/target
-/lib
+/lib/*
+!/lib/rust-genai/
+/lib/rust-genai/target/
 /warp.xcworkspace
 .idea/
 .DS_Store

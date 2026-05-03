@@ -1,0 +1,3 @@
+{"model":"gemma3:4b","created_at":"2026-04-10T13:19:59.948798825Z","message":{"role":"assistant","content":"The sky appears blue due to a phenomenon called Rayleigh scattering, where shorter wavelengths of sunlight (blue and violet) are scattered more by the Earth’s atmosphere than longer wavelengths like red and orange."},"done":false}
+{"model":"gemma3:4b","created_at":"2026-04-10T13:19:59.955113763Z","message":{"role":"assistant","content":""},"done":false}
+{"model":"gemma3:4b","created_at":"2026-04-10T13:20:00.156773998Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":499049129,"prompt_eval_count":21,"eval_count":40}

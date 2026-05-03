@@ -1,0 +1,55 @@
+[package]
+name = "genai"
+version = "0.6.0-beta.18"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Multi-AI Providers Library for Rust. (OpenAI, Gemini, Anthropic, xAI, Ollama, Groq, DeepSeek, Grok, GitHub Copilot)"
+keywords = ["generative-ai","openai","chatgpt","gemini","ollama"]
+homepage = "https://github.com/jeremychone/rust-genai"
+repository = "https://github.com/jeremychone/rust-genai"
+
+[workspace]
+# Keep this fork out of the OpenWarp parent workspace.
+
+[lints.rust]
+unsafe_code = "forbid"
+# unused = { level = "allow", priority = -1 } # For exploratory dev.
+# missing_docs = "warn"
+
+[dependencies]
+# -- Tracing
+tracing = { version = "0.1", features = ["default"] }
+# -- Async
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std", "test-util", "io-util"]}
+futures = "0.3"
+tokio-stream = "0.1"
+# -- Json
+serde = { version = "1", features = ["derive", "rc"] } # Opted to rc for Arc<T> serialization
+serde_json = "1"
+serde_with = "3"
+# -- Web
+reqwest = {version = "0.13",  features = ["json", "stream", "gzip"]}
+eventsource-stream = "0.2"
+bytes = "1.6"
+# -- File
+base64 = "0.22.0"
+mime_guess = "2"
+# -- Others
+derive_more = { version = "2", features = ["from", "display"] }
+paste = "1"
+value-ext = "0.1.3"
+strum = { version = "0.28", features = ["derive"] }
+uuid = { version = "1.21.0", features = ["v4"] }
+regex = "1"
+
+[dev-dependencies]
+simple-fs = "0.12"
+tracing-subscriber = {version = "0.3", features = ["env-filter"]}
+serial_test = "3.2"
+base64 = "0.22.0"  # Check for the latest version
+bitflags = "2.8"
+gcp_auth = "0.12"
+# -- Yakbak (HTTP record/replay for integration tests)
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio", "http1"] }
+http-body-util = "0.1"

@@ -1,0 +1,87 @@
+# -- Base
+.*
+!.gitignore
+!.github
+
+_*
+# '_' in src dir, ok.
+!**/src/**/_*
+!**/spec/**/_*
+
+*.lock
+*.lockb
+*.log
+
+# -- AIPack related
+ako-config.jsonc
+
+# -- Rust
+target/
+# !Cargo.lock # commented by default
+!.cargo/
+
+# -- Safety net
+dist/
+out/
+
+*.html
+# Doc Files
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+*.doc
+*.xls
+*.ppt
+*.page
+
+# Data Files
+*.db3
+*.parquet
+*.map
+*.zip
+*.gz
+*.tar
+*.tgz
+*.vsix
+
+# Videos
+*.mov
+*.mp4
+*.webm
+*.ogg
+*.avi
+
+# Audio
+*.mp3
+*.wav
+*.flac
+
+# Images
+*.icns
+*.ico
+*.jpeg
+*.jpg
+*.png
+*.bmp
+
+# -- Test data (one by one)
+!tests/data/duck-small.jpg
+!tests/data/other-one.png
+!tests/data/small.pdf
+
+# -- Nodejs
+node_modules/
+!.mocharc.yaml
+report.*.json
+
+# -- Python
+__pycache__/
+
+
+# -- others
+# Allows .env (make sure only dev info)
+# !.env # Commented by default
+
+# Allow vscode
+# !.vscode # Commented by default
