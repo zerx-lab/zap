@@ -311,7 +311,8 @@ elif [[ $RELEASE_CHANNEL = "oss" ]]; then
     WARP_SCHEME_NAME="openwarp"
     # The OSS channel does not ship Sentry, so drop the cocoa_sentry feature
     # (which would otherwise pull in the Sentry framework dependency).
-    FEATURES="release_bundle,extern_plist"
+    # autoupdate 走 GitHub Release(zerx-lab/warp),仅下载 DMG 到 Downloads,不自动覆盖 .app。
+    FEATURES="release_bundle,extern_plist,autoupdate"
 fi
 
 OUT_DIR="target/$TARGET_PROFILE_DIR/bundle/osx"

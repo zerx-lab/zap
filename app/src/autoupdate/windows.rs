@@ -1,6 +1,6 @@
 use crate::server::telemetry::TelemetryEvent;
 use anyhow::anyhow;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context as _, Result};
 use channel_versions::VersionInfo;
 use command::blocking::Command;
 use lazy_static::lazy_static;
@@ -14,7 +14,7 @@ use tempfile::TempPath;
 use warp_core::channel::{Channel, ChannelState};
 use warpui::AppContext;
 
-use super::{release_assets_directory_url, DownloadReady};
+use super::{github, release_assets_directory_url, DownloadReady};
 use crate::util::windows::install_dir;
 
 lazy_static! {
@@ -30,6 +30,12 @@ pub(super) async fn download_update_and_cleanup(
     client: &http_client::Client,
 ) -> Result<DownloadReady> {
     const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
+
+    // openWarp 走 GitHub Release:下载到用户 Downloads 目录,完成后用 explorer
+    // 打开目录并高亮 installer。不走 Inno Setup 静默安装,由用户手动运行。
+    if matches!(ChannelState::channel(), Channel::Oss) {
+        return download_oss_to_downloads(client).await;
+    }
 
     let installer_file_name = installer_file_name()?;
     let url = format!(
@@ -175,6 +181,12 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
 }
 
 pub(super) fn relaunch() -> Result<()> {
+    // openWarp 仅下载 installer 到 Downloads,由用户手动运行,不在此处拉起 Inno Setup。
+    if matches!(ChannelState::channel(), Channel::Oss) {
+        log::info!("openWarp: 跳过 Inno Setup 自动安装,installer 已落 Downloads。");
+        return Ok(());
+    }
+
     let install_dir = install_dir()?;
     let Some(installer_path) = INSTALLER_PATH.lock().take() else {
         bail!("No installer path");
@@ -246,6 +258,79 @@ fn app_name_prefix(channel: Channel) -> &'static str {
         Channel::Local => "warp",
         Channel::Integration => "integration",
         Channel::Dev => "WarpDev",
-        Channel::Oss => "warp-oss",
+        // 与 script/windows/bundle.ps1 OSS 分支 INSTALLER_NAME=OpenWarp+Setup 对齐,
+        // 这样 GitHub Release 资产名 OpenWarpSetup.exe 能被 installer_file_name() 正确生成。
+        Channel::Oss => "OpenWarp",
     }
+}
+
+/// openWarp(Channel::Oss)专用下载路径:从 GitHub Release 拉 installer 落到 Downloads,
+/// 完成后用 explorer 打开目录并高亮文件,不走 Inno Setup 自动安装。
+async fn download_oss_to_downloads(client: &http_client::Client) -> Result<DownloadReady> {
+    const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
+
+    let installer_name = installer_file_name()?;
+
+    let release = match github::cached_release() {
+        Some(r) => r,
+        None => github::fetch_latest_release(client).await?,
+    };
+
+    let asset = release.find_asset(&installer_name).with_context(|| {
+        format!(
+            "GitHub Release {} 缺少资产 {installer_name},请前往 {} 手动下载",
+            release.tag_name, release.html_url
+        )
+    })?;
+
+    let download_dir = dirs::download_dir()
+        .ok_or_else(|| anyhow!("无法定位用户下载目录(dirs::download_dir 返回 None)"))?;
+    if !download_dir.exists() {
+        fs::create_dir_all(&download_dir).with_context(|| {
+            format!("创建下载目录失败: {}", download_dir.display())
+        })?;
+    }
+    let target_path = download_dir.join(&installer_name);
+
+    // 已存在且大小一致 → 跳过下载(GitHub asset.size 是权威值)
+    let already_downloaded = match fs::metadata(&target_path) {
+        Ok(meta) => meta.len() == asset.size,
+        Err(_) => false,
+    };
+
+    if already_downloaded {
+        log::info!(
+            "openWarp installer 已存在,跳过下载: {} ({} bytes)",
+            target_path.display(),
+            asset.size
+        );
+    } else {
+        log::info!(
+            "Downloading {} to {} ...",
+            asset.browser_download_url,
+            target_path.display()
+        );
+        let bytes = client
+            .get(asset.browser_download_url.as_str())
+            .timeout(DOWNLOAD_TIMEOUT)
+            .send()
+            .await?
+            .error_for_status()?
+            .bytes()
+            .await?;
+        let mut file = File::create(&target_path)
+            .with_context(|| format!("创建文件失败: {}", target_path.display()))?;
+        file.write_all(&bytes)?;
+        log::info!("openWarp installer 下载完成: {}", target_path.display());
+    }
+
+    // 用 explorer /select,<file> 打开下载目录并高亮文件;失败仅记日志,不阻塞下载结果。
+    if let Err(e) = Command::new("explorer")
+        .arg(format!("/select,{}", target_path.display()))
+        .spawn()
+    {
+        log::warn!("打开 explorer 失败(已下载完成): {e:#}");
+    }
+
+    Ok(DownloadReady::Yes)
 }

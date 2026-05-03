@@ -115,7 +115,8 @@ if ("$CHANNEL" -eq 'local') {
     $APP_NAME = 'OpenWarp'
     # The OSS channel does not ship Sentry, so drop the crash_reporting feature
     # (which would otherwise pull in the Sentry SDK as a dependency).
-    $FEATURES = 'release_bundle,gui,nld_improvements'
+    # autoupdate 走 GitHub Release(zerx-lab/warp),仅下载到 Downloads,不调 Inno Setup。
+    $FEATURES = 'release_bundle,gui,nld_improvements,autoupdate'
 }
 
 $BINARY_PATH = "$CARGO_TARGET_OUTPUT_DIR\$BINARY_NAME"

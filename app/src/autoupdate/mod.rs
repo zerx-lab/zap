@@ -1,5 +1,6 @@
 mod changelog;
 mod channel_versions;
+pub(crate) mod github;
 #[cfg(target_os = "linux")]
 pub mod linux;
 #[cfg(target_os = "macos")]
@@ -749,6 +750,13 @@ async fn fetch_version(
     update_id: &str,
     server_api: Arc<ServerApi>,
 ) -> Result<VersionInfo> {
+    // openWarp 走 GitHub Releases(zerx-lab/warp),完全旁路 Warp 官方
+    // channel_versions / GCS。提前返回避免后续 fetch_channel_versions 必然失败。
+    if matches!(channel, Channel::Oss) {
+        let release = github::fetch_latest_release(server_api.http_client()).await?;
+        return Ok(VersionInfo::new(release.version().to_string()));
+    }
+
     let versions = fetch_channel_versions(update_id, server_api.clone(), false, is_daily).await?;
 
     let channel_version = match channel {
@@ -814,6 +822,12 @@ pub fn apply_update(
     _initiating_workspace: &mut Workspace,
     _ctx: &mut ViewContext<Workspace>,
 ) -> Result<ReadyForRelaunch> {
+    // openWarp 仅把安装包下载到 Downloads,由用户手动运行,绝不自动重启。
+    if matches!(ChannelState::channel(), Channel::Oss) {
+        log::info!("openWarp: apply_update no-op,installer 已落 Downloads。");
+        return Ok(ReadyForRelaunch::No);
+    }
+
     cfg_if::cfg_if! {
         if #[cfg(any(target_os = "macos", windows))] {
             // macOS applies the update during the download step. Windows does it during
