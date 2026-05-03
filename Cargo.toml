@@ -216,9 +216,8 @@ prost-reflect = "0.16.3"
 prost-types = "0.14.3"
 rand = "0.8.2"
 rangemap = "1.3.0"
-# BYOP(Bring Your Own Provider)模式下用 genai 调用 5 种原生协议:
-#   - OpenAI / OpenAIResp(/v1/responses, GPT-5 Codex)
-#   - Gemini / Anthropic / Ollama
+# BYOP(Bring Your Own Provider)模式下用 genai 调用原生协议:
+#   - OpenAI / OpenAIResp / DeepSeek / Anthropic / Gemini / Ollama
 # 通过 ServiceTargetResolver 显式绑定 endpoint + auth + AdapterKind,
 # 完全绕过 genai 的"按模型名识别 provider"默认行为,避免误识别。
 # pin 到精确 beta patch — 0.6.x 仍在 beta,API 有可能再调,锁版本避免被动升级。
@@ -226,6 +225,8 @@ rangemap = "1.3.0"
 # 这是 DeepSeek thinking-mode + tool calling 多轮回传 reasoning_content 的唯一干净口子
 # (0.5.3 没有此 API,会触发 issue #138 — assistant 含 tool_calls 的 turn 缺
 # reasoning_content 字段被 DeepSeek 服务端 400)。
+# 实际通过 [patch.crates-io] 重定向到本地 fork lib/rust-genai(含 DeepSeek
+# reasoning_effort 解锁的 1 行修改,见 patch 段注释)。
 genai = "=0.6.0-beta.18"
 reqwest = { version = "0.12.28", default-features = false, features = [
   "blocking",
@@ -524,6 +525,14 @@ tink-hybrid = { git = "https://github.com/warpdotdev/tink-rust", branch = "warpd
 
 tikv-jemallocator = { git = "https://github.com/warpdotdev/jemallocator.git", rev = "2ee30bfdf7059223b54810e4ea6c666f0a379e0b" }
 tikv-jemalloc-sys = { git = "https://github.com/warpdotdev/jemallocator.git", rev = "2ee30bfdf7059223b54810e4ea6c666f0a379e0b" }
+
+# OpenWarp 本地 fork — 解锁 DeepSeek thinking_mode `reasoning_effort` 顶层注入。
+# 上游 genai 0.6.0-beta.18 在 adapter_shared.rs:85 把 reasoning_effort 注入条件
+# 硬编码为 `adapter_kind == OpenAI`,DeepSeek 走 else 分支被吞,即便 client 端把
+# ChatOptions::reasoning_effort 设为 high/medium/low,HTTP body 顶层也不会出现该字段。
+# fork 把判定改为 `OpenAI | DeepSeek`,符合 DeepSeek 官方 thinking_mode 文档。
+# 同时上游计划提 PR(deepseek-reasoning-effort 分支),合并后可撤回这条 patch。
+genai = { path = "lib/rust-genai" }
 
 [patch."https://github.com/warpdotdev/warp-proto-apis.git"]
 # Uncomment for local development of warp-proto-apis

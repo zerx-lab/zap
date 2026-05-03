@@ -4,6 +4,7 @@ app/frameworks/dev/Carthage
 app/frameworks/**/*.xcframework
 /target
 /app/target
+/lib
 /warp.xcworkspace
 .idea/
 .DS_Store

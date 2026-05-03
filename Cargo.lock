@@ -5336,8 +5336,6 @@ dependencies = [
 [[package]]
 name = "genai"
 version = "0.6.0-beta.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c4cdcea8e154cc3b2a6dc4a965acc8523ce94e760320e33dbe9fe304cecba77"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -5345,6 +5343,7 @@ dependencies = [
  "eventsource-stream",
  "futures",
  "mime_guess",
+ "paste",
  "regex",
  "reqwest 0.13.3",
  "serde",

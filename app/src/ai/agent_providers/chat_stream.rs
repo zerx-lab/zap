@@ -1438,21 +1438,25 @@ fn build_chat_options(
     //   等老模型注入 thinking 参数被上游 400 拒绝。
     if let Some(effort) = effort_setting.to_genai() {
         if super::reasoning::model_supports_reasoning(api_type, model_id) {
-            log::info!(
-                "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
-            );
-            // ⚠️ DeepSeek 已解锁 picker,但 genai 0.6.0-beta.18
-            // `adapter_shared.rs:84-95` 硬编码 adapter_kind == OpenAI 才注入,
-            // DeepSeek 走 else 分支被吞 — 字段实际不会出现在 HTTP body 上。
-            // 等 fork patch genai 后才真正生效。抓包验证用此日志辅助。
-            if matches!(api_type, AgentProviderApiType::DeepSeek) {
-                log::warn!(
-                    "[byop] reasoning_effort accepted into ChatOptions but genai 0.6 \
-                     will drop it for DeepSeek adapter (shared layer hard-filter); \
-                     HTTP body will NOT carry reasoning_effort until genai fork lands"
+            // DeepSeek 关闭思考必须走 `extra_body.thinking.type=disabled`,
+            // 服务端不接受 `reasoning_effort: "none"`(400 unknown variant)。
+            // 其他 provider 的 Off 档维持原 reasoning_effort 路径。
+            let deepseek_off = matches!(api_type, AgentProviderApiType::DeepSeek)
+                && matches!(
+                    effort_setting,
+                    crate::settings::ReasoningEffortSetting::Off
                 );
+            if deepseek_off {
+                log::info!(
+                    "[byop] DeepSeek Off → extra_body thinking.type=disabled (model={model_id})"
+                );
+                opts = opts.with_extra_body(json!({"thinking": {"type": "disabled"}}));
+            } else {
+                log::info!(
+                    "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
+                );
+                opts = opts.with_reasoning_effort(effort);
             }
-            opts = opts.with_reasoning_effort(effort);
         } else {
             log::info!(
                 "[byop] reasoning_effort SKIPPED: model={model_id} not in capability list \

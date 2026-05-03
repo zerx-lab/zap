@@ -67,12 +67,8 @@ pub fn model_reasoning_variants(
             vec![]
         }
         // DeepSeek thinking-mode 模型(deepseek-reasoner / v4 / thinking / r1)。
-        //
-        // ⚠️ 当前 genai 0.6.0-beta.18 `adapter_shared.rs:84-95` 把 reasoning_effort
-        // 注入条件硬编码为 `adapter_kind == OpenAI`,DeepSeek 走 else 分支被吞 —
-        // 即便 picker 出现并写入 ChatOptions,字段也不会出现在请求体上。
-        // 解锁完整链路必须 fork genai 在 patch 那行加 `| DeepSeek`(2 行改动),
-        // 第一阶段先放出 picker 走通 client 端调用链,确认无误后再做 fork。
+        // OpenWarp 本地 fork(`lib/rust-genai`)放宽了 adapter_shared.rs 的注入条件,
+        // 让 `reasoning_effort` 顶层字段按 DeepSeek thinking_mode 文档下发。
         //
         // Ollama 后端模型 id 任意,保守留空。
         AgentProviderApiType::DeepSeek => {
@@ -81,9 +77,14 @@ pub fn model_reasoning_variants(
                 || id.contains("deepseek-thinking")
                 || id.contains("deepseek-r1")
             {
-                // DeepSeek 官方 thinking_mode 仅 high / max 两档(low/medium 服务端
-                // 静默映射为 high,xhigh 映射为 max),picker 不再暴露假选项。
-                vec![R::High, R::Max, R::Off]
+                // DeepSeek 服务端实际接受 high / medium / low / max / xhigh 五档
+                // (官方文档只列了 high/max,400 报错时返回的合法 variant 列表
+                // 揭示了实际支持值)。
+                //
+                // Off 档走"关闭思考":本地 fork genai 已支持 ChatOptions::extra_body,
+                // chat_stream 在 DeepSeek+Off 时不发 reasoning_effort,改发
+                // `extra_body = {"thinking": {"type": "disabled"}}` 顶层合并。
+                vec![R::High, R::Medium, R::Low, R::Max, R::XHigh, R::Off]
             } else {
                 vec![]
             }
@@ -128,9 +129,9 @@ fn is_opus_4_7_or_higher(model_name: &str) -> bool {
 /// - **OpenAI / OpenAIResp**:`o1` / `o3` / `o4` 系列、`gpt-5`、`codex`
 /// - **Gemini**:`gemini-2.5*` / `gemini-3*`(2.5 起 thinking,3.x 全系)
 /// - **DeepSeek**:`deepseek-reasoner` / `deepseek-r1` / `deepseek-v4*` /
-///   `deepseek-thinking`(picker 已解锁,但 genai 0.6 `adapter_shared.rs` 仍
-///   硬编码 `adapter_kind == OpenAI` 才注入 reasoning_effort,字段实际发不出去 —
-///   等 fork patch genai 后才真正生效)
+///   `deepseek-thinking`(本地 fork 已放宽 genai 注入条件,`reasoning_effort`
+///   顶层字段下发;5 档(high/medium/low/max/xhigh)走 effort,Off 档走
+///   `extra_body.thinking.type=disabled` 关闭思考)
 /// - **Ollama**:走 OpenAI 兼容路径,后端模型 id 不可控,**保守返回 `false`**
 ///   (用户若确实在跑 thinking 模型,可在 Settings 显式调档,后续再放宽)
 pub fn model_supports_reasoning(api_type: AgentProviderApiType, model_id: &str) -> bool {
@@ -419,11 +420,21 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_thinking_variants_have_max() {
+    fn deepseek_thinking_variants_have_five_levels_plus_off() {
         let v =
             model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-reasoner");
-        assert!(v.contains(&ReasoningEffortSetting::Max));
-        assert!(v.contains(&ReasoningEffortSetting::High));
+        for expected in [
+            ReasoningEffortSetting::High,
+            ReasoningEffortSetting::Medium,
+            ReasoningEffortSetting::Low,
+            ReasoningEffortSetting::Max,
+            ReasoningEffortSetting::XHigh,
+            // Off 档由 chat_stream 翻译为 extra_body.thinking.type=disabled,
+            // 不直接走 reasoning_effort 路径
+            ReasoningEffortSetting::Off,
+        ] {
+            assert!(v.contains(&expected), "missing {expected:?}");
+        }
         assert_eq!(v.first().copied(), Some(ReasoningEffortSetting::High));
         assert_eq!(v.last().copied(), Some(ReasoningEffortSetting::Off));
     }
