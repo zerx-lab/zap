@@ -1,5 +1,6 @@
 use parking_lot::FairMutex;
 use serde::{de, Deserialize, Serialize};
+use settings::Setting as _;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, OnceLock},
@@ -563,12 +564,30 @@ impl LLMPreferences {
 
         let base_llm_for_terminal_view = HashMap::new();
 
+        // Hydrate `last_used_reasoning` from persisted BYOP settings so picker
+        // remembers per-(api_type, model) effort across restarts and new tabs.
+        let last_used_reasoning = {
+            use crate::settings::AISettings;
+            let s = AISettings::as_ref(&*ctx);
+            let mut map = HashMap::new();
+            for (key, effort) in s.byop_last_used_reasoning.iter() {
+                if let Some((api_type_str, model_id)) = key.split_once(':') {
+                    if let Some(api_type) =
+                        crate::settings::AgentProviderApiType::from_debug_str(api_type_str)
+                    {
+                        map.insert((api_type, model_id.to_owned()), *effort);
+                    }
+                }
+            }
+            map
+        };
+
         let me = Self {
             models_by_feature,
             last_update: None,
             base_llm_for_terminal_view,
             reasoning_effort_per_terminal: HashMap::new(),
-            last_used_reasoning: HashMap::new(),
+            last_used_reasoning,
         };
 
         // In agent mode eval builds, eagerly kick off a fetch of the model list from the server
@@ -591,6 +610,10 @@ impl LLMPreferences {
     }
 
     /// Returns `LLMInfo` for the currently selected LLM to be used for Agent Mode.
+    ///
+    /// 优先级:terminal-view override > AISettings.byop_last_used_model_id(全局
+    /// 最近使用 — picker 切换后立即写入,新 tab/重启沿用)> profile.base_model >
+    /// default_llm_info()。
     fn get_preferred_base_model(
         &self,
         app: &AppContext,
@@ -602,6 +625,17 @@ impl LLMPreferences {
                 if let Some(llm_info) = self.models_by_feature.agent_mode.info_for_id(llm_id) {
                     return llm_info;
                 }
+            }
+        }
+
+        // BYOP picker last_used 比 profile 默认更贴近用户最新意图。
+        let last_used = crate::settings::AISettings::as_ref(app)
+            .byop_last_used_model_id
+            .to_string();
+        if !last_used.is_empty() {
+            let llm_id: LLMId = last_used.into();
+            if let Some(llm_info) = self.models_by_feature.agent_mode.info_for_id(&llm_id) {
+                return llm_info;
             }
         }
 
@@ -881,6 +915,16 @@ impl LLMPreferences {
             self.trigger_snapshot_save(ctx);
             ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
         }
+
+        // 始终写 byop_last_used_model_id(即便 changed=false 也覆盖一遍,统一新 tab 行为)。
+        // picker 显式切换 = 用户最强意图,新 tab/重启都应沿用。
+        use warp_core::errors::report_if_error;
+        let llm_id_str = preferred_llm_id.as_str().to_owned();
+        crate::settings::AISettings::handle(ctx).update(ctx, |settings, ctx| {
+            if settings.byop_last_used_model_id.to_string() != llm_id_str {
+                report_if_error!(settings.byop_last_used_model_id.set_value(llm_id_str, ctx));
+            }
+        });
     }
 
     /// Triggers a snapshot save to persist LLM override changes.
@@ -1135,7 +1179,9 @@ impl LLMPreferences {
             .unwrap_or(crate::settings::ReasoningEffortSetting::Auto)
     }
 
-    /// 设置指定 terminal-view 的 reasoning effort,同时更新 last-used 记忆。
+    /// 设置指定 terminal-view 的 reasoning effort,同时更新 last-used 记忆,
+    /// 并把 (api_type, model) → effort 映射立即写入 AISettings 持久化层
+    /// (新 tab / 重启都会读到最新值)。
     pub fn set_reasoning_effort(
         &mut self,
         terminal_view_id: EntityId,
@@ -1148,6 +1194,18 @@ impl LLMPreferences {
             .insert(terminal_view_id, effort);
         self.last_used_reasoning
             .insert((api_type, model_id.to_owned()), effort);
+
+        // 同步写 AISettings.byop_last_used_reasoning(per-(api_type, model))。
+        use warp_core::errors::report_if_error;
+        let key = crate::settings::BYOPLastUsedReasoningMap::make_key(api_type, model_id);
+        crate::settings::AISettings::handle(ctx).update(ctx, |settings, ctx| {
+            let mut map = settings.byop_last_used_reasoning.value().0.clone();
+            map.insert(key, effort);
+            report_if_error!(settings
+                .byop_last_used_reasoning
+                .set_value(crate::settings::BYOPLastUsedReasoningMap::new(map), ctx));
+        });
+
         ctx.emit(LLMPreferencesEvent::UpdatedReasoningEffort);
     }
 }
