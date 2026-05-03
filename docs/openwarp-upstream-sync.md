@@ -14,7 +14,18 @@ bash script/setup-merge-drivers.sh
 
 | Commit | 标题 | 跳过原因 |
 |---|---|---|
-| _(目前 0 条)_ | | |
+| `b59e351` | add /continue-locally slash command | 依赖 cloud Oz handoff(`conversation_is_cloud_oz_for_slash_command` 已删) |
+| `9551831` | Initial codex CLI harness setup | `load_conversation_from_server` 在 openWarp 已 stub 为 None |
+| `70c725f` | Conversation resuming for codex | 依赖 9551831 的 cloud 加载链路 |
+| `2bdbb61` | Save and upload codex conversation transcript | cloud 链路 |
+| `5c89948` | add hook for file editing | snapshot DeclarationsWriter 走 OzHandoff cloud 链路 |
+| `1148ae3` | Wake up remote Claude Code agents on new events | cloud agent orchestration,5 处冲突且本质 cloud-tied |
+| `6995005` | Scope orchestration SSE subscriptions | cloud orchestration SSE 流,openWarp 无 |
+| `1314819` | Merge org and user command denylists | UI 重写,与 openWarp i18n + render_list_section 路径完全不同 |
+| `fd8e0fb` | preserve user query modes in CloudMode | CloudMode UI,openWarp 已删 cloud 路径 |
+| `71054d6` | Remove `NotAmbientAgent` state | 大型 ambient_agent 重构,32 处冲突,openWarp 已分叉 |
+| `99f80df` | Fix bad merge for remote server(替代 SSH 对齐分支) | 已通过整族对齐(f0c8b7f→b19866a→99f80df→e75b315)合入,单独路径过时 |
+| `6eefa4b` | OSS .desktop align Exec | openWarp 用 `warp-oss` + `OpenWarp`,与上游 `warp-terminal-oss` 命名分叉 |
 
 ## openWarp 已删除/特化的模块(合并时若被恢复,需手工删除)
 
