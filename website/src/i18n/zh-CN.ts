@@ -211,7 +211,7 @@ export const zhCN = {
     desc: "克隆仓库本地构建,或关注 GitHub 接收每次发布更新。",
     button: "前往 GitHub",
     command_label: "克隆仓库",
-    command: "git clone -b openWarp https://github.com/zerx-lab/warp",
+    command: "git clone https://github.com/zerx-lab/warp",
     copy: "复制",
     copied: "已复制",
     steps: [

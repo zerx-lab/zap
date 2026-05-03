@@ -213,7 +213,7 @@ export const en: Dict = {
     desc: "Clone the repo and build locally, or watch GitHub for the next release.",
     button: "Go to GitHub",
     command_label: "Clone the repo",
-    command: "git clone -b openWarp https://github.com/zerx-lab/warp",
+    command: "git clone https://github.com/zerx-lab/warp",
     copy: "Copy",
     copied: "Copied",
     steps: [
