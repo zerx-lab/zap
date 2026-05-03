@@ -77,14 +77,12 @@ pub fn model_reasoning_variants(
                 || id.contains("deepseek-thinking")
                 || id.contains("deepseek-r1")
             {
-                // DeepSeek 服务端实际接受 high / medium / low / max / xhigh 五档
-                // (官方文档只列了 high/max,400 报错时返回的合法 variant 列表
-                // 揭示了实际支持值)。
-                //
+                // DeepSeek 官方思考深度只有 high / max 两档(low/medium/xhigh
+                // 即便服务端 deserializer 接受也只是同档别名,picker 不暴露冗余项)。
                 // Off 档走"关闭思考":本地 fork genai 已支持 ChatOptions::extra_body,
-                // chat_stream 在 DeepSeek+Off 时不发 reasoning_effort,改发
+                // chat_stream 在 DeepSeek+Off 时改发
                 // `extra_body = {"thinking": {"type": "disabled"}}` 顶层合并。
-                vec![R::High, R::Medium, R::Low, R::Max, R::XHigh, R::Off]
+                vec![R::High, R::Max, R::Off]
             } else {
                 vec![]
             }
@@ -129,9 +127,8 @@ fn is_opus_4_7_or_higher(model_name: &str) -> bool {
 /// - **OpenAI / OpenAIResp**:`o1` / `o3` / `o4` 系列、`gpt-5`、`codex`
 /// - **Gemini**:`gemini-2.5*` / `gemini-3*`(2.5 起 thinking,3.x 全系)
 /// - **DeepSeek**:`deepseek-reasoner` / `deepseek-r1` / `deepseek-v4*` /
-///   `deepseek-thinking`(本地 fork 已放宽 genai 注入条件,`reasoning_effort`
-///   顶层字段下发;5 档(high/medium/low/max/xhigh)走 effort,Off 档走
-///   `extra_body.thinking.type=disabled` 关闭思考)
+///   `deepseek-thinking`(官方两档:high / max 走 `reasoning_effort` 顶层字段,
+///   Off 档走 `extra_body.thinking.type=disabled` 关闭思考)
 /// - **Ollama**:走 OpenAI 兼容路径,后端模型 id 不可控,**保守返回 `false`**
 ///   (用户若确实在跑 thinking 模型,可在 Settings 显式调档,后续再放宽)
 pub fn model_supports_reasoning(api_type: AgentProviderApiType, model_id: &str) -> bool {
@@ -420,23 +417,18 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_thinking_variants_have_five_levels_plus_off() {
+    fn deepseek_thinking_variants_two_levels_plus_off() {
         let v =
             model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-reasoner");
-        for expected in [
-            ReasoningEffortSetting::High,
-            ReasoningEffortSetting::Medium,
-            ReasoningEffortSetting::Low,
-            ReasoningEffortSetting::Max,
-            ReasoningEffortSetting::XHigh,
-            // Off 档由 chat_stream 翻译为 extra_body.thinking.type=disabled,
-            // 不直接走 reasoning_effort 路径
-            ReasoningEffortSetting::Off,
-        ] {
-            assert!(v.contains(&expected), "missing {expected:?}");
-        }
-        assert_eq!(v.first().copied(), Some(ReasoningEffortSetting::High));
-        assert_eq!(v.last().copied(), Some(ReasoningEffortSetting::Off));
+        // DeepSeek 官方:仅 high / max 两档 + Off
+        assert_eq!(v.len(), 3);
+        assert_eq!(v[0], ReasoningEffortSetting::High);
+        assert_eq!(v[1], ReasoningEffortSetting::Max);
+        assert_eq!(v[2], ReasoningEffortSetting::Off);
+        // 不应暴露冗余别名
+        assert!(!v.contains(&ReasoningEffortSetting::Medium));
+        assert!(!v.contains(&ReasoningEffortSetting::Low));
+        assert!(!v.contains(&ReasoningEffortSetting::XHigh));
     }
 
     #[test]
