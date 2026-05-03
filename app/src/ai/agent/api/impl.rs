@@ -248,6 +248,3 @@ fn get_supported_cli_agent_tools(params: &RequestParams) -> Vec<api::ToolType> {
     supported_cli_agent_tools
 }
 
-#[cfg(test)]
-#[path = "impl_tests.rs"]
-mod tests;

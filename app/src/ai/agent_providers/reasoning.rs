@@ -66,8 +66,29 @@ pub fn model_reasoning_variants(
             }
             vec![]
         }
-        // genai DeepSeek adapter 不消费 reasoning_effort;Ollama 后端模型 id 任意。
-        AgentProviderApiType::DeepSeek | AgentProviderApiType::Ollama => vec![],
+        // DeepSeek thinking-mode 模型(deepseek-reasoner / v4 / thinking / r1)。
+        //
+        // ⚠️ 当前 genai 0.6.0-beta.18 `adapter_shared.rs:84-95` 把 reasoning_effort
+        // 注入条件硬编码为 `adapter_kind == OpenAI`,DeepSeek 走 else 分支被吞 —
+        // 即便 picker 出现并写入 ChatOptions,字段也不会出现在请求体上。
+        // 解锁完整链路必须 fork genai 在 patch 那行加 `| DeepSeek`(2 行改动),
+        // 第一阶段先放出 picker 走通 client 端调用链,确认无误后再做 fork。
+        //
+        // Ollama 后端模型 id 任意,保守留空。
+        AgentProviderApiType::DeepSeek => {
+            if id.contains("deepseek-reasoner")
+                || id.contains("deepseek-v4")
+                || id.contains("deepseek-thinking")
+                || id.contains("deepseek-r1")
+            {
+                // DeepSeek 官方 thinking_mode 仅 high / max 两档(low/medium 服务端
+                // 静默映射为 high,xhigh 映射为 max),picker 不再暴露假选项。
+                vec![R::High, R::Max, R::Off]
+            } else {
+                vec![]
+            }
+        }
+        AgentProviderApiType::Ollama => vec![],
     }
 }
 
@@ -106,9 +127,10 @@ fn is_opus_4_7_or_higher(model_name: &str) -> bool {
 ///   `claude-3-7-sonnet`(extended thinking 起点)及更新版本
 /// - **OpenAI / OpenAIResp**:`o1` / `o3` / `o4` 系列、`gpt-5`、`codex`
 /// - **Gemini**:`gemini-2.5*` / `gemini-3*`(2.5 起 thinking,3.x 全系)
-/// - **DeepSeek**:`deepseek-reasoner` / `deepseek-r1` / `deepseek-v4-flash` /
-///   `deepseek-thinking`(genai DeepSeek adapter **未接 reasoning_effort 字段**,
-///   client 把 reasoning_effort 注入也会被丢弃 — 此处保守返回 `false`)
+/// - **DeepSeek**:`deepseek-reasoner` / `deepseek-r1` / `deepseek-v4*` /
+///   `deepseek-thinking`(picker 已解锁,但 genai 0.6 `adapter_shared.rs` 仍
+///   硬编码 `adapter_kind == OpenAI` 才注入 reasoning_effort,字段实际发不出去 —
+///   等 fork patch genai 后才真正生效)
 /// - **Ollama**:走 OpenAI 兼容路径,后端模型 id 不可控,**保守返回 `false`**
 ///   (用户若确实在跑 thinking 模型,可在 Settings 显式调档,后续再放宽)
 pub fn model_supports_reasoning(api_type: AgentProviderApiType, model_id: &str) -> bool {
@@ -267,11 +289,20 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_and_ollama_always_false() {
-        assert!(!model_supports_reasoning(
-            AgentProviderApiType::DeepSeek,
-            "deepseek-reasoner"
-        ));
+    fn deepseek_thinking_models_supported() {
+        let t = AgentProviderApiType::DeepSeek;
+        assert!(model_supports_reasoning(t, "deepseek-reasoner"));
+        assert!(model_supports_reasoning(t, "deepseek-v4"));
+        assert!(model_supports_reasoning(t, "deepseek-v4-flash"));
+        assert!(model_supports_reasoning(t, "deepseek-thinking"));
+        assert!(model_supports_reasoning(t, "deepseek-r1"));
+        // 普通 chat 模型不带 thinking
+        assert!(!model_supports_reasoning(t, "deepseek-chat"));
+        assert!(!model_supports_reasoning(t, "deepseek-coder"));
+    }
+
+    #[test]
+    fn ollama_always_false() {
         assert!(!model_supports_reasoning(
             AgentProviderApiType::Ollama,
             "qwq-32b"
@@ -388,11 +419,25 @@ mod tests {
     }
 
     #[test]
-    fn deepseek_and_ollama_variants_empty() {
+    fn deepseek_thinking_variants_have_max() {
+        let v =
+            model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-reasoner");
+        assert!(v.contains(&ReasoningEffortSetting::Max));
+        assert!(v.contains(&ReasoningEffortSetting::High));
+        assert_eq!(v.first().copied(), Some(ReasoningEffortSetting::High));
+        assert_eq!(v.last().copied(), Some(ReasoningEffortSetting::Off));
+    }
+
+    #[test]
+    fn deepseek_chat_variants_empty() {
         assert!(
-            model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-reasoner")
+            model_reasoning_variants(AgentProviderApiType::DeepSeek, "deepseek-chat")
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn ollama_variants_empty() {
         assert!(model_reasoning_variants(AgentProviderApiType::Ollama, "qwq-32b").is_empty());
     }
 

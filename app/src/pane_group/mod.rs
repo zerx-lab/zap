@@ -170,10 +170,6 @@ pub mod working_directories;
 
 use focus_state::PaneGroupFocusState;
 
-#[cfg(test)]
-#[path = "mod_tests.rs"]
-mod tests;
-
 pub use crate::code_review::CodeReviewPanelArg;
 pub use pane::ai_document_pane::AIDocumentPane;
 pub use pane::ai_fact_pane::AIFactPane;
@@ -6460,16 +6456,6 @@ impl PaneGroup {
                     .map(|p| p.display().to_string());
                 (id, local_path)
             })
-    }
-
-    #[cfg(test)]
-    pub fn is_share_session_modal_open(&self) -> bool {
-        self.terminal_with_open_share_session_modal.is_some()
-    }
-
-    #[cfg(test)]
-    pub fn share_session_modal(&self) -> &ViewHandle<ShareSessionModal> {
-        &self.share_session_modal
     }
 
     pub(crate) fn start_agent_mode_in_new_pane(

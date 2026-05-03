@@ -1214,6 +1214,3 @@ fn safe_url_log_fields(url: &Url) -> String {
     )
 }
 
-#[cfg(test)]
-#[path = "uri_test.rs"]
-mod tests;

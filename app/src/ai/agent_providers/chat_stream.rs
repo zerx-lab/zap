@@ -1441,6 +1441,17 @@ fn build_chat_options(
             log::info!(
                 "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
             );
+            // ⚠️ DeepSeek 已解锁 picker,但 genai 0.6.0-beta.18
+            // `adapter_shared.rs:84-95` 硬编码 adapter_kind == OpenAI 才注入,
+            // DeepSeek 走 else 分支被吞 — 字段实际不会出现在 HTTP body 上。
+            // 等 fork patch genai 后才真正生效。抓包验证用此日志辅助。
+            if matches!(api_type, AgentProviderApiType::DeepSeek) {
+                log::warn!(
+                    "[byop] reasoning_effort accepted into ChatOptions but genai 0.6 \
+                     will drop it for DeepSeek adapter (shared layer hard-filter); \
+                     HTTP body will NOT carry reasoning_effort until genai fork lands"
+                );
+            }
             opts = opts.with_reasoning_effort(effort);
         } else {
             log::info!(
