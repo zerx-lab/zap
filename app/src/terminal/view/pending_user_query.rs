@@ -3,7 +3,7 @@ use warpui::{SingletonEntity, ViewContext};
 
 use crate::{
     ai::{
-        agent::{conversation::AIConversationId, CancellationReason},
+        agent::{CancellationReason, conversation::AIConversationId},
         blocklist::block::{FinishReason, PendingUserQueryBlock, PendingUserQueryBlockEvent},
     },
     auth::AuthStateProvider,

@@ -364,7 +364,14 @@ pub fn render_privacy_settings_overlay_body<A: Action + Clone + 'static>(
                 .finish(),
             )
             .with_child(render_privacy_settings_toggles(
+<<<<<<< HEAD
                 appearance, app, handles, actions,
+=======
+                appearance,
+                app,
+                handles,
+                actions,
+>>>>>>> origin/main
             ))
             .with_child(render_close_overlay_button(
                 appearance,
@@ -506,7 +513,11 @@ pub fn render_privacy_settings_toggles<A: Action + Clone + 'static>(
 
     let crash_reporting_description = render_description(
         appearance,
+<<<<<<< HEAD
         crate::t!("auth-privacy-settings-crash-reports-description"),
+=======
+        "Crash reporting helps Warp's engineering team understand stability and improve performance.".into(),
+>>>>>>> origin/main
     );
 
     let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);

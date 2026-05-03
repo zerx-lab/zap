@@ -18,7 +18,12 @@ pub const SEARCH_TOOL_NAME: &str = "web_search_exa";
 pub fn endpoint_url(api_key: Option<&str>) -> String {
     match api_key {
         Some(k) if !k.trim().is_empty() => {
+<<<<<<< HEAD
             let encoded: String = url::form_urlencoded::byte_serialize(k.as_bytes()).collect();
+=======
+            let encoded: String =
+                url::form_urlencoded::byte_serialize(k.as_bytes()).collect();
+>>>>>>> origin/main
             format!("{EXA_BASE_URL}?exaApiKey={encoded}")
         }
         _ => EXA_BASE_URL.to_owned(),
@@ -36,10 +41,14 @@ pub struct SearchArgs {
     pub num_results: u32,
     /// "fallback" / "preferred"
     pub livecrawl: String,
+<<<<<<< HEAD
     #[serde(
         rename = "contextMaxCharacters",
         skip_serializing_if = "Option::is_none"
     )]
+=======
+    #[serde(rename = "contextMaxCharacters", skip_serializing_if = "Option::is_none")]
+>>>>>>> origin/main
     pub context_max_characters: Option<u32>,
 }
 
@@ -76,9 +85,13 @@ pub fn build_request_body(tool_name: &str, args: &SearchArgs) -> Value {
 pub fn parse_sse_body(body: &str) -> Result<Option<String>> {
     let mut last_err: Option<anyhow::Error> = None;
     for line in body.split('\n') {
+<<<<<<< HEAD
         let Some(payload) = line
             .strip_prefix("data: ")
             .or_else(|| line.strip_prefix("data:"))
+=======
+        let Some(payload) = line.strip_prefix("data: ").or_else(|| line.strip_prefix("data:"))
+>>>>>>> origin/main
         else {
             continue;
         };

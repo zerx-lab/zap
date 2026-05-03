@@ -1,8 +1,8 @@
 use warpui::{
+    Element,
     elements::{Border, ConstrainedBox, Container, CornerRadius, Flex, ParentElement, Radius},
     fonts::Weight,
     ui_components::components::{UiComponent, UiComponentStyles},
-    Element,
 };
 
 use crate::appearance::Appearance;

@@ -36,7 +36,12 @@ pub const DEFAULT_FETCH_TIMEOUT_SECS: u64 = 30;
 pub const MAX_FETCH_TIMEOUT_SECS: u64 = 120;
 pub const SEARCH_TIMEOUT_SECS: u64 = 25;
 
+<<<<<<< HEAD
 pub const CHROME_UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+=======
+pub const CHROME_UA: &str =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+>>>>>>> origin/main
      (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 pub const FALLBACK_UA: &str = "OpenWarp";
 
@@ -136,7 +141,15 @@ pub async fn run_webfetch(client: &reqwest::Client, args: FetchArgs) -> Result<F
 
     let status = resp.status();
     if !status.is_success() {
+<<<<<<< HEAD
         bail!("HTTP {} fetching {}", status.as_u16(), args.url);
+=======
+        bail!(
+            "HTTP {} fetching {}",
+            status.as_u16(),
+            args.url
+        );
+>>>>>>> origin/main
     }
 
     let content_type = resp
@@ -291,7 +304,12 @@ fn strip_tag_block(html: &str, tag: &str) -> String {
         // 必须接着 `>` 或空白(避免误吞 <scriptlike>)
         let after = abs_open + open.len();
         match html.as_bytes().get(after) {
+<<<<<<< HEAD
             Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r') | Some(b'/') => {}
+=======
+            Some(b'>') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r')
+            | Some(b'/') => {}
+>>>>>>> origin/main
             _ => {
                 out.push_str(&html[cursor..=abs_open]);
                 cursor = abs_open + 1;

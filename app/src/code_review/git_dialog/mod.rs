@@ -482,7 +482,6 @@ pub enum GitDialogMode {
 pub struct GitDialog {
     repo_path: PathBuf,
     branch_name: String,
-    parent_branch_name: Option<String>,
     mode: GitDialogMode,
     loading: bool,
     confirm_button: ViewHandle<ActionButton>,
@@ -494,7 +493,6 @@ impl GitDialog {
     pub fn new_for_commit(
         repo_path: PathBuf,
         branch_name: String,
-        parent_branch_name: Option<String>,
         allow_create_pr: bool,
         has_upstream: bool,
         ctx: &mut ViewContext<Self>,
@@ -509,7 +507,6 @@ impl GitDialog {
         let this = Self {
             repo_path,
             branch_name,
-            parent_branch_name,
             mode: GitDialogMode::Commit(state),
             loading: false,
             confirm_button,
@@ -536,7 +533,6 @@ impl GitDialog {
         Self {
             repo_path,
             branch_name,
-            parent_branch_name: None,
             mode: GitDialogMode::Push(state),
             loading: false,
             confirm_button,
@@ -548,16 +544,15 @@ impl GitDialog {
     pub fn new_for_pr(
         repo_path: PathBuf,
         branch_name: String,
-        parent_branch_name: Option<String>,
+        base_branch_name: Option<String>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
         let (confirm_button, cancel_button, close_button) =
             Self::build_dialog_buttons(pr::confirm_label_for(), Some(pr::confirm_icon_for()), ctx);
-        let state = pr::new_state(&repo_path, parent_branch_name.as_deref(), ctx);
+        let state = pr::new_state(&repo_path, base_branch_name, ctx);
         Self {
             repo_path,
             branch_name,
-            parent_branch_name,
             mode: GitDialogMode::CreatePr(state),
             loading: false,
             confirm_button,
@@ -672,6 +667,20 @@ impl GitDialog {
         }
     }
 
+    fn header_icon(&self) -> Icon {
+        match &self.mode {
+            GitDialogMode::Commit(_) => Icon::GitCommit,
+            GitDialogMode::Push(state) => {
+                if state.publish {
+                    Icon::UploadCloud
+                } else {
+                    Icon::ArrowUp
+                }
+            }
+            GitDialogMode::CreatePr(_) => Icon::Github,
+        }
+    }
+
     fn render_body(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         match &self.mode {
@@ -685,6 +694,7 @@ impl GitDialog {
     /// it in centered overlay chrome with a blurred background.
     fn render_dialog(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let theme = appearance.theme();
 
         let close = ChildView::new(&self.close_button).finish();
         let cancel = ChildView::new(&self.cancel_button).finish();
@@ -693,6 +703,25 @@ impl GitDialog {
             .finish();
 
         let body = self.render_body(app);
+
+        let surface2 = theme.surface_2();
+        let icon_color = theme.main_text_color(surface2).into_solid();
+        let header_icon = Container::new(
+            ConstrainedBox::new(
+                IconElement::new(
+                    <Icon as Into<&'static str>>::into(self.header_icon()),
+                    icon_color,
+                )
+                .finish(),
+            )
+            .with_width(16.)
+            .with_height(16.)
+            .finish(),
+        )
+        .with_uniform_padding(8.)
+        .with_background(surface2)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
+        .finish();
 
         let dialog = Dialog::new(
             self.title().to_string(),
@@ -703,6 +732,7 @@ impl GitDialog {
                 ..dialog_styles(appearance)
             },
         )
+        .with_header_icon(header_icon)
         .with_close_button(close)
         .with_child(body)
         .with_separator()

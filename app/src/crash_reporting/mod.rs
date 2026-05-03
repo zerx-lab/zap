@@ -303,7 +303,13 @@ fn get_environment() -> Cow<'static, str> {
 /// 6 处散落的 `sentry::capture_*` 调用单独改造为 `log::error!`。
 /// 完整物理删 sentry crate 依赖留作 P4。
 fn init_sentry(_user_id: Option<UserUid>, _email: Option<String>, _ctx: &mut AppContext) {
+<<<<<<< HEAD
     log::info!("openWarp: Sentry 已剥离,init_sentry 仅安装本地 panic→logfile hook,不向远端上报");
+=======
+    log::info!(
+        "openWarp: Sentry 已剥离,init_sentry 仅安装本地 panic→logfile hook,不向远端上报"
+    );
+>>>>>>> origin/main
 
     use std::sync::Once;
     static PANIC_HOOK_INSTALLED: Once = Once::new();
@@ -319,7 +325,16 @@ fn init_sentry(_user_id: Option<UserUid>, _email: Option<String>, _ctx: &mut App
                 .payload()
                 .downcast_ref::<&'static str>()
                 .map(|s| s.to_string())
+<<<<<<< HEAD
                 .or_else(|| panic_info.payload().downcast_ref::<String>().cloned())
+=======
+                .or_else(|| {
+                    panic_info
+                        .payload()
+                        .downcast_ref::<String>()
+                        .cloned()
+                })
+>>>>>>> origin/main
                 .unwrap_or_else(|| "<non-string panic payload>".to_string());
 
             let thread = std::thread::current()

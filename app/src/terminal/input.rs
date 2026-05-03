@@ -3813,7 +3813,7 @@ impl Input {
                 });
             }
             InlineProfileSelectorEvent::ManageProfiles => {
-                ctx.emit(Event::OpenSettings(SettingsSection::WarpAgent));
+                ctx.emit(Event::OpenSettings(SettingsSection::AgentProfiles));
             }
             InlineProfileSelectorEvent::Dismissed => {
                 if self

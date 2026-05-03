@@ -348,6 +348,10 @@ impl Args {
             command = command.mut_subcommand("artifact", |c| c.hide(true));
         }
 
+        // Wire up `--version` / `-V` using the same version metadata used elsewhere in the
+        // app, so the CLI reports the build's release tag.
+        command = command.version(version_string());
+
         // Substitute the actual binary name into help output. Ideally clap would do this for us.
         let bin_name =
             binary_name().unwrap_or_else(|| ChannelState::channel().cli_command_name().to_string());
@@ -598,7 +602,7 @@ pub struct TerminalServerArgs {
 
 #[derive(Debug, Copy, Clone, clap::ValueEnum)]
 pub enum RecoveryMechanism {
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     #[value(name = "force-x11")]
     X11,
     #[value(name = "force-dedicated-gpu")]
@@ -685,6 +689,15 @@ pub fn binary_name() -> Option<String> {
     // Unfortunately, we can't use Command::get_bin_name because it's not populated until args are parsed.
     let arg0 = env::args().next()?;
     Path::new(&arg0).file_name()?.to_str().map(|s| s.to_owned())
+}
+
+/// The version string shown for `--version` / `-V`.
+///
+/// Sourced from [`ChannelState::app_version`], which is populated from the
+/// `GIT_RELEASE_TAG` env var at compile time. Falls back to a placeholder for
+/// untagged builds (e.g. local `cargo run`).
+pub fn version_string() -> &'static str {
+    ChannelState::app_version().unwrap_or("<unknown>")
 }
 
 #[cfg(test)]

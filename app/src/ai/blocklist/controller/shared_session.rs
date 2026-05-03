@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use session_sharing_protocol::common::{AgentAttachment, ParticipantId, ServerConversationToken};
 use warp_core::features::FeatureFlag;
-use warp_multi_agent_api::response_event::{stream_finished, ClientActions};
+use warp_multi_agent_api::response_event::{ClientActions, stream_finished};
 use warp_multi_agent_api::{client_action::Action, message::Message};
 
 use super::response_stream::ResponseStreamId;
@@ -14,7 +14,7 @@ use super::{BlocklistAIController, RequestInput};
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
 use crate::ai::agent::{AIAgentActionId, AIAgentAttachment, EntrypointType};
 use crate::ai::attachment_utils::{
-    build_file_attachment_map, download_file, sanitize_filename, DownloadedAttachment,
+    DownloadedAttachment, build_file_attachment_map, download_file, sanitize_filename,
 };
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::ai::blocklist::history_model::BlocklistAIHistoryModel;

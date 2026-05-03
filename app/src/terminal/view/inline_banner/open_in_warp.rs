@@ -1,20 +1,20 @@
 use std::sync::Arc;
 
-use warpui::{elements::MouseStateHandle, fonts::Weight, Element, EntityId};
+use warpui::{Element, EntityId, elements::MouseStateHandle, fonts::Weight};
 
 use crate::{
     appearance::Appearance,
     terminal::{
         model::session::Session,
-        view::{open_in_warp::OpenablePath, InlineBannerId, TerminalAction},
+        view::{InlineBannerId, TerminalAction, open_in_warp::OpenablePath},
     },
     util::openable_file_type::OpenableFileType,
 };
 
 use super::{
-    render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
-    InlineBannerContent, InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonFont,
-    InlineBannerTextButtonVariant,
+    InlineBannerButtonState, InlineBannerCloseButton, InlineBannerContent, InlineBannerStyle,
+    InlineBannerTextButton, InlineBannerTextButtonFont, InlineBannerTextButtonVariant,
+    render_inline_block_list_banner,
 };
 
 #[derive(Clone, Copy, Debug)]

@@ -81,8 +81,13 @@ fn render_header_name_label(appearance: &Appearance) -> Box<dyn Element> {
             appearance.ui_font_family(),
             13.,
         )
+<<<<<<< HEAD
         .with_color(appearance.theme().active_ui_text_color().into())
         .finish(),
+=======
+            .with_color(appearance.theme().active_ui_text_color().into())
+            .finish(),
+>>>>>>> origin/main
     )
     .with_margin_top(16.)
     .finish()

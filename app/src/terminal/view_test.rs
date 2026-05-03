@@ -1,17 +1,21 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::pin::pin;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::ai::agent::conversation::ConversationStatus;
+use parking_lot::FairMutex;
 use warp_terminal::model::escape_sequences::{BRACKETED_PASTE_END, BRACKETED_PASTE_START};
-use warpui::{notification::UserNotification, Presenter, WindowInvalidation};
+use warpui::{Presenter, WindowInvalidation, notification::UserNotification};
 
 use crate::ai::agent::task::TaskId;
 use crate::ai::blocklist::block::cli_controller::UserTakeOverReason;
-use warpui::App;
+use warpui::{App, ReadModel};
 
 use crate::pane_group::focus_state::PaneGroupFocusState;
-use crate::pane_group::{BackingView, TerminalPaneId};
+use crate::pane_group::{pane::PaneStack, BackingView, TerminalPaneId};
+use crate::settings::import::model::ImportedConfigModel;
 use crate::terminal::model::grid::Dimensions as _;
 use crate::{
     terminal::alt_screen::should_intercept_mouse,
@@ -25,9 +29,10 @@ use crate::settings::{AISettings, AppEditorSettings, WarpPromptSeparator};
 
 use crate::ai::blocklist::agent_view::toolbar_item::AgentToolbarItemKind;
 use crate::ai::blocklist::{
-    agent_view::AgentViewEntryOrigin, BlocklistAIHistoryModel, InputConfig, InputType,
+    BlocklistAIHistoryModel, InputConfig, InputType, agent_view::AgentViewEntryOrigin,
 };
 use crate::features::FeatureFlag;
+use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::event::{
     CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventType,
 };
@@ -36,7 +41,6 @@ use crate::terminal::cli_agent_sessions::{
     CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentRichInputCloseReason, CLIAgentSession,
     CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
 };
-use crate::terminal::CLIAgent;
 
 use crate::terminal::block_list_element::{SnackbarPoint, SnackbarTranslationMode};
 use crate::terminal::block_list_viewport::{ClampingMode, ScrollLines};
@@ -45,14 +49,45 @@ use crate::view_components::find::FindWithinBlockState;
 
 use crate::terminal::model::ansi::{self, InitShellValue};
 use crate::terminal::model::ansi::{BootstrappedValue, PreexecValue};
-use crate::terminal::model::blocks::{insert_block, TotalIndex};
+use crate::terminal::model::blocks::{TotalIndex, insert_block};
 use crate::terminal::model::terminal_model::WithinBlock;
 
-use crate::terminal::MockTerminalManager;
+use crate::terminal::{MockTerminalManager, TerminalManager, TerminalModel};
 use crate::test_util::terminal::initialize_app_for_terminal_view;
 use crate::test_util::{add_window_with_terminal, assert_eventually};
 
 use super::*;
+
+fn add_window_with_cloud_mode_terminal(app: &mut App) -> ViewHandle<TerminalView> {
+    let tips_model = app.add_model(|_| Default::default());
+    let (_, terminal) = app.add_window(WindowStyle::NotStealFocus, |ctx| {
+        TerminalView::new_for_test_with_cloud_mode(tips_model, None, true, ctx)
+    });
+    terminal
+}
+
+struct TestTerminalManager {
+    model: Arc<FairMutex<TerminalModel>>,
+    view: ViewHandle<TerminalView>,
+}
+
+impl TerminalManager for TestTerminalManager {
+    fn model(&self) -> Arc<FairMutex<TerminalModel>> {
+        self.model.clone()
+    }
+
+    fn view(&self) -> ViewHandle<TerminalView> {
+        self.view.clone()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
 
 /// Test to verify that blocks created through normal execution
 /// have the correct local status set
@@ -252,9 +287,11 @@ fn unregister_cli_agent_session_restores_unlocked_input_config() {
                 sessions.remove_session(view.view_id, ctx);
             });
             assert!(!view.has_active_cli_agent_input_session(ctx));
-            assert!(CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.view_id)
-                .is_none());
+            assert!(
+                CLIAgentSessionsModel::as_ref(ctx)
+                    .session(view.view_id)
+                    .is_none()
+            );
         });
 
         terminal.read(&app, |view, ctx| {
@@ -328,6 +365,100 @@ fn command_first_word_and_suffix_handles_alias_without_args() {
 }
 
 #[test]
+fn escape_pops_nested_cloud_agent_view_with_long_running_command() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+        let _cloud_mode = FeatureFlag::CloudMode.override_enabled(true);
+
+        let parent_terminal = add_window_with_terminal(&mut app, None);
+        let cloud_terminal = add_window_with_cloud_mode_terminal(&mut app);
+
+        let parent_view = parent_terminal.clone();
+        let cloud_view = cloud_terminal.clone();
+        let parent_model = parent_terminal.read(&app, |view, _| view.model.clone());
+        let cloud_model = cloud_terminal.read(&app, |view, _| view.model.clone());
+        let pane_stack = app.update(move |ctx| {
+            let parent_manager = ctx.add_model(|_| {
+                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
+                    model: parent_model,
+                    view: parent_view.clone(),
+                });
+                manager
+            });
+            let cloud_manager = ctx.add_model(|_| {
+                let manager: Box<dyn TerminalManager> = Box::new(TestTerminalManager {
+                    model: cloud_model,
+                    view: cloud_view.clone(),
+                });
+                manager
+            });
+            let pane_stack = ctx.add_model(|ctx| PaneStack::new(parent_manager, parent_view, ctx));
+            pane_stack.update(ctx, |stack, ctx| {
+                stack.push(cloud_manager, cloud_view, ctx);
+            });
+            pane_stack
+        });
+
+        cloud_terminal.update(&mut app, |view, ctx| {
+            view.enter_agent_view_for_new_conversation(None, AgentViewEntryOrigin::CloudAgent, ctx);
+            view.model
+                .lock()
+                .simulate_long_running_block("sleep 10", "running");
+
+            assert!(view.can_pop_nested_cloud_agent_view(ctx));
+            assert_eq!(view.can_exit_agent_view_for_terminal_view(ctx), Ok(()));
+        });
+
+        assert_eq!(
+            app.read_model(&pane_stack, |stack, _| stack.active_view().id()),
+            cloud_terminal.id()
+        );
+
+        cloud_terminal.update(&mut app, |view, ctx| {
+            view.handle_input_event(&InputEvent::Escape, ctx);
+        });
+
+        assert_eq!(
+            app.read_model(&pane_stack, |stack, _| stack.active_view().id()),
+            parent_terminal.id()
+        );
+    })
+}
+
+#[test]
+fn escape_does_not_exit_local_agent_view_with_long_running_command() {
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+
+        let terminal = add_window_with_terminal(&mut app, None);
+
+        terminal.update(&mut app, |view, ctx| {
+            view.enter_agent_view_for_new_conversation(
+                None,
+                AgentViewEntryOrigin::Input {
+                    was_prompt_autodetected: false,
+                },
+                ctx,
+            );
+            view.model
+                .lock()
+                .simulate_long_running_block("sleep 10", "running");
+
+            assert!(matches!(
+                view.can_exit_agent_view_for_terminal_view(ctx),
+                Err(ExitAgentViewError::LongRunningCommand)
+            ));
+
+            view.handle_input_event(&InputEvent::Escape, ctx);
+
+            assert!(view.agent_view_controller().as_ref(ctx).is_active());
+        });
+    })
+}
+
+#[test]
 fn root_cloud_mode_pane_sets_root_cloud_mode_context_key() {
     use crate::settings::import::model::ImportedConfigModel;
     App::test((), |mut app| async move {
@@ -339,10 +470,12 @@ fn root_cloud_mode_pane_sets_root_cloud_mode_context_key() {
         let terminal = add_window_with_terminal(&mut app, None);
 
         terminal.read(&app, |view, ctx| {
-            assert!(!view
-                .keymap_context(ctx)
-                .set
-                .contains(init::ROOT_CLOUD_MODE_PANE_KEY));
+            assert!(
+                !view
+                    .keymap_context(ctx)
+                    .set
+                    .contains(init::ROOT_CLOUD_MODE_PANE_KEY)
+            );
         });
 
         terminal.update(&mut app, |view, ctx| {
@@ -352,10 +485,11 @@ fn root_cloud_mode_pane_sets_root_cloud_mode_context_key() {
         });
 
         terminal.read(&app, |view, ctx| {
-            assert!(view
-                .keymap_context(ctx)
-                .set
-                .contains(init::ROOT_CLOUD_MODE_PANE_KEY));
+            assert!(
+                view.keymap_context(ctx)
+                    .set
+                    .contains(init::ROOT_CLOUD_MODE_PANE_KEY)
+            );
         });
 
         terminal.update(&mut app, |view, ctx| {
@@ -365,10 +499,12 @@ fn root_cloud_mode_pane_sets_root_cloud_mode_context_key() {
         });
 
         terminal.read(&app, |view, ctx| {
-            assert!(!view
-                .keymap_context(ctx)
-                .set
-                .contains(init::ROOT_CLOUD_MODE_PANE_KEY));
+            assert!(
+                !view
+                    .keymap_context(ctx)
+                    .set
+                    .contains(init::ROOT_CLOUD_MODE_PANE_KEY)
+            );
         });
     });
 }
@@ -407,8 +543,8 @@ fn test_clear_session_flag_state() {
     use warp_terminal::shell::ShellType;
 
     use crate::ai::blocklist::SerializedBlockListItem;
-    use crate::terminal::model::block::SerializedBlock;
     use crate::terminal::ShellHost;
+    use crate::terminal::model::block::SerializedBlock;
 
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
@@ -475,9 +611,11 @@ fn test_clear_session_flag_state() {
 }
 
 fn assert_block_has_find_match(find_model: &TerminalFindModel, block_index: BlockIndex) {
-    assert!(find_model
-        .block_list_find_run()
-        .is_some_and(|run| run.matches_for_block(block_index).next().is_some()));
+    assert!(
+        find_model
+            .block_list_find_run()
+            .is_some_and(|run| run.matches_for_block(block_index).next().is_some())
+    );
 }
 
 impl TerminalView {
@@ -1328,10 +1466,12 @@ fn test_stable_scrolling_during_grid_truncation() {
                 // Create a dummy, finished block and a long-running block.
                 model.simulate_block("ls", "foo");
                 model.simulate_long_running_block("cat", "");
-                assert!(model
-                    .block_list()
-                    .active_block()
-                    .is_active_and_long_running());
+                assert!(
+                    model
+                        .block_list()
+                        .active_block()
+                        .is_active_and_long_running()
+                );
 
                 // Add enough newlines so that the long-running block spans at
                 // least the viewport and surely exceeds the grid size.
@@ -3094,12 +3234,13 @@ fn inline_agent_view_exits_when_tagged_in_long_running_command_is_tagged_out() {
                 .set_is_agent_tagged_in(true);
 
             assert!(view.agent_view_controller().as_ref(ctx).is_inline());
-            assert!(view
-                .model
-                .lock()
-                .block_list()
-                .active_block()
-                .is_agent_tagged_in());
+            assert!(
+                view.model
+                    .lock()
+                    .block_list()
+                    .active_block()
+                    .is_agent_tagged_in()
+            );
 
             let model = view.model.lock();
             assert!(view.is_input_box_visible(&model, ctx));
@@ -3231,10 +3372,12 @@ fn use_agent_footer_renders_for_transfer_handoff_even_when_user_command_footer_s
                 let model = view.model.lock();
                 assert!(!view.should_render_use_agent_footer(&model, ctx));
                 let active_block_index = model.block_list().active_block_index();
-                assert!(model
-                    .block_list()
-                    .last_non_hidden_rich_content_block_after_block(Some(active_block_index))
-                    .is_none());
+                assert!(
+                    model
+                        .block_list()
+                        .last_non_hidden_rich_content_block_after_block(Some(active_block_index))
+                        .is_none()
+                );
             }
 
             let conversation_id = view.agent_view_controller().update(ctx, |controller, ctx| {
@@ -4408,18 +4551,20 @@ fn ctrl_c_does_not_accept_prompt_suggestion_banner() {
                 ctx,
             );
 
-            assert!(view
-                .inline_banners_state
-                .prompt_suggestions_banner
-                .is_some());
+            assert!(
+                view.inline_banners_state
+                    .prompt_suggestions_banner
+                    .is_some()
+            );
 
             // Ctrl-C should not accept the prompt suggestion.
             view.handle_action(&TerminalAction::CtrlC, ctx);
 
-            assert!(view
-                .inline_banners_state
-                .prompt_suggestions_banner
-                .is_some());
+            assert!(
+                view.inline_banners_state
+                    .prompt_suggestions_banner
+                    .is_some()
+            );
         });
     })
 }
@@ -4503,11 +4648,12 @@ fn linear_deeplink_does_not_auto_submit_when_already_in_agent_view() {
         });
 
         terminal.read(&app, |view, ctx| {
-            assert!(view
-                .agent_view_controller()
-                .as_ref(ctx)
-                .agent_view_state()
-                .is_fullscreen());
+            assert!(
+                view.agent_view_controller()
+                    .as_ref(ctx)
+                    .agent_view_state()
+                    .is_fullscreen()
+            );
         });
 
         // Now dispatch the Linear deeplink while already in fullscreen agent view.

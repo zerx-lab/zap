@@ -96,9 +96,13 @@ pub fn default_reasoning_for(
     api_type: AgentProviderApiType,
     model_id: &str,
 ) -> Option<ReasoningEffortSetting> {
+<<<<<<< HEAD
     model_reasoning_variants(api_type, model_id)
         .first()
         .copied()
+=======
+    model_reasoning_variants(api_type, model_id).first().copied()
+>>>>>>> origin/main
 }
 
 /// Opus 4.7 及更高版本(`claude-opus-4-7` / `claude-opus-5-0` ...)。
@@ -342,8 +346,15 @@ mod tests {
 
     #[test]
     fn opus_4_7_variants_have_xhigh_and_max() {
+<<<<<<< HEAD
         let v =
             model_reasoning_variants(AgentProviderApiType::Anthropic, "claude-opus-4-7-20260101");
+=======
+        let v = model_reasoning_variants(
+            AgentProviderApiType::Anthropic,
+            "claude-opus-4-7-20260101",
+        );
+>>>>>>> origin/main
         assert!(v.contains(&ReasoningEffortSetting::XHigh));
         assert!(v.contains(&ReasoningEffortSetting::Max));
         assert_eq!(v.first().copied(), Some(ReasoningEffortSetting::High));
@@ -374,8 +385,15 @@ mod tests {
 
     #[test]
     fn claude_3_5_haiku_variants_empty() {
+<<<<<<< HEAD
         let v =
             model_reasoning_variants(AgentProviderApiType::Anthropic, "claude-3-5-haiku-20241022");
+=======
+        let v = model_reasoning_variants(
+            AgentProviderApiType::Anthropic,
+            "claude-3-5-haiku-20241022",
+        );
+>>>>>>> origin/main
         assert!(v.is_empty());
     }
 

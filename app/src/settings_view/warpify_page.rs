@@ -21,7 +21,8 @@ use warpui::{
 };
 
 use crate::terminal::warpify::settings::{
-    EnableSshWarpification, SshExtensionInstallMode, UseSshTmuxWrapper, WarpifySettingsChangedEvent,
+    EnableSshWarpification, SshExtensionInstallMode, SshExtensionInstallModeSetting,
+    UseSshTmuxWrapper, WarpifySettingsChangedEvent,
 };
 use crate::ui_components::blended_colors;
 use crate::{
@@ -104,7 +105,7 @@ impl WarpifyPageView {
             me.update_button_states(model, ctx);
             if matches!(
                 event,
-                WarpifySettingsChangedEvent::SshExtensionInstallMode { .. }
+                WarpifySettingsChangedEvent::SshExtensionInstallModeSetting { .. }
             ) {
                 me.update_dropdown(ctx);
             }
@@ -730,8 +731,8 @@ impl SettingsWidget for SSHWidget {
                         Some(&install_ssh_desc),
                         None,
                         LocalOnlyIconState::for_setting(
-                            SshExtensionInstallMode::storage_key(),
-                            SshExtensionInstallMode::sync_to_cloud(),
+                            SshExtensionInstallModeSetting::storage_key(),
+                            SshExtensionInstallModeSetting::sync_to_cloud(),
                             &mut self.local_only_icon_tooltip_states.borrow_mut(),
                             app,
                         ),

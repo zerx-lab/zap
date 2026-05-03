@@ -7,12 +7,12 @@ use markdown_parser::{
 use warp_core::command::ExitCode;
 use warp_core::ui::{appearance::Appearance, color::blend::Blend as _};
 use warpui::{
+    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
     elements::{
         Border, Container, CornerRadius, CrossAxisAlignment, Flex, FormattedTextElement,
         HighlightedHyperlink, MainAxisSize, MouseStateHandle, ParentElement, Radius,
     },
     ui_components::{button::ButtonVariant, components::UiComponent as _},
-    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use crate::{

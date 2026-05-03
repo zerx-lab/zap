@@ -1,5 +1,19 @@
 # openWarp 上游同步指南
 
+<<<<<<< HEAD
+=======
+## 当前同步状态(基线 master = a5fde8f,本地 openWarp tip = e3e6eaf)
+
+上游 0443f3f..origin/master 共 **133 条 commit**,处理结果:
+
+| 状态 | 数量 | 说明 |
+|---|---|---|
+| **已合入** | **79** | A 类 31 fix + SSH 对齐 4 + B 类 2 + C1 入 5 + C2 入 8 + D 桶 4 通用 fix 28 + 1 个上游 99f80df 通过 SSH 整族对齐间接合入 |
+| **永久黑名单** | **54** | cloud / codex / OzHandoff / orchestration / cloud_mode 链路 + workflow + STAKEHOLDERS 治理 + 上游内部 docs |
+
+**所有 133 条 commit 已 100% 明确归属**,黑名单写在下方表格,后续 sync 用同一份判断标准。
+
+>>>>>>> origin/main
 ## 一次性配置(每个 clone)
 
 ```bash
@@ -28,6 +42,52 @@ bash script/setup-merge-drivers.sh
 | `71054d6` | Remove `NotAmbientAgent` state | 大型 ambient_agent 重构,32 处冲突,openWarp 已分叉 |
 | `99f80df` | Fix bad merge for remote server(替代 SSH 对齐分支) | 已通过整族对齐(f0c8b7f→b19866a→99f80df→e75b315)合入,单独路径过时 |
 | `6eefa4b` | OSS .desktop align Exec | openWarp 用 `warp-oss` + `OpenWarp`,与上游 `warp-terminal-oss` 命名分叉 |
+<<<<<<< HEAD
+=======
+| `4dddda6` | Preseed auth and trust settings for codex CLI | codex CLI harness 是 cloud-tied,openWarp BYOP 不需要 |
+| `5762baa` | feature flag + API binding scaffolding for cloud→cloud handoff | cloud→cloud 编排,openWarp 已删 cloud_conversations |
+| `0ab9e71` | Orchestration pills bar in Agent View (1/N) | orchestration UI,依赖已删 orchestration_event_streamer |
+| `88930cf` | Cache settings schema between Linux builds | openWarp 用自己的 openwarp_release.yml |
+| `99b287f` | ci: simplify external contributor check | openWarp 自有 workflow |
+| `0fca61d` | ci: label external-contributor PRs | openWarp 自有 workflow |
+| `805b3e2` | Increase timeout for linux builds | openWarp 自有 workflow |
+| `404bfbe` | ci: remove workflows now served by Vercel webhook | openWarp 不接 Vercel webhook |
+| `874a257` | Add stakeholders for `lsp` and `languages` crates | Warp 内部 code owners 治理,与 fork 无关 |
+| `d1601f5` | add stakeholders(vertical tabs / tab configs / worktree / notifications / rich input) | 同上 |
+| `67b929c` | Add @harryalbert as CLI agent stakeholder | 同上 |
+| `33c4885` | Add vkodithala as co-owner of skills/MCP/long-running commands | 同上 |
+| `a12d9e4` | Add more UI framework stakeholders | 同上 |
+| `182c1ac` | chore: assign / route to @warpdotdev/oss-maintainers in STAKEHOLDERS | 同上 |
+| `73074ba` | remove @moirahuang from context chips stakeholders | 同上 |
+| `1849795` | Point stable-skill instructions at resources/bundled/skills/ | Warp 内部 stable channel 用,openWarp 走 oss channel 无关 |
+| `bb5edc0` | Drop warp-internal references from docker/linux-dev README | 内部 dogfood docker 文档,openWarp 不用 |
+| `33c4860` | Update env_vars README to match current file layout | 上游 README 内部路径调整 |
+| `b740b82` | Update persistence README paths to crates/persistence | 同上 |
+| `799e13f` | docs: simplify PR template for public contributors | Warp 自己的 PR 模板 |
+| `6898ac2` | docs: surface #oss-contributors Slack channel | Warp 自己的 Slack |
+| `ed0cdae` | docs: attribute Alacritty/vte derivative code(2 more files) | 上游 license 归属 |
+| `a8f57a8` | Clarify `alacritty_terminal` origins for terminal model code | 同上注释类 |
+| `7784428` | Remove stray backticks from Windows installer README | Warp Windows installer README,openWarp 用 openwarp_release.yml 自己生成 |
+| `b7c64bc` | Add Build Status section linking to build.warp.dev | build.warp.dev 是 Warp 内部 dashboard |
+| `acb2fc6` | Add telemetry events for git button clicks | telemetry 事件,openWarp 不上报到 Warp 后端 |
+| `d0f045c` | Auto oss vs cost efficient 50/50 A/B test | Warp 实验框架 + 计费路径 |
+| `79df582` | Initialize privacy settings from `WarpDrivePrivacySettings` | WarpDrive 是 cloud,openWarp 不接 |
+| `899d966` | Show all personal runs in the conversation list | cloud personal runs,需要 server 支持 |
+| `9eaee8f` | Add experiment setup for SSH | 实验框架 |
+| `4ac7378` | Rename Warp Agent to Warp | cloud "Warp Agent" 品牌,openWarp 用本地名 |
+| `e058136` | Slash command menu working(cloud mode input v2) | cloud_mode_v2_view 已删 |
+| `199cd94` | Slash command menu sidecar(cloud mode input v2) | 同上 |
+| `9b3a990` | Enabled cloud mode input v2 on dogfood | 同上 |
+| `157f358` | Introduce `/harness` `/host` `/environment` slash commands | cloud mode 新命令,openWarp 删 cloud_mode_v2 |
+| `aa2ac33` | Skip onboarding UIs in SDK/headless mode | SDK / headless 是 cloud-tied 模式 |
+| `0ac090c` | [REMOTE-1326] Link shared sessions to local interactive Oz runs | Oz orchestration |
+| `10ec3d1` | Hide host selector menu if no default host present | cloud host selector,openWarp 无 |
+| `ac493e6` | Auto-open rich input for non-Oz harness cloud agent sessions | cloud agent |
+| `6184f4e` | Refactor AmbientAgentViewModel to handle follow-up run executions | 自治区核心,与 71054d6 同代次重构 |
+| `f696f5b` | Revert "Fix schema generator binary recompilation" | 上游回滚一个 commit,openWarp 没合那个原 commit |
+| `159a0bf` | ci: remove broken oz-for-oss adapter workflows | Warp 内部 workflow |
+| `59fc1a9` | use multi-harness cloud agent icons + status | cloud agent UI |
+>>>>>>> origin/main
 
 ## openWarp 已删除/特化的模块(合并时若被恢复,需手工删除)
 

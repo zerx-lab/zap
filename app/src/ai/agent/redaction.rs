@@ -53,10 +53,14 @@ pub(crate) fn redact_inputs(inputs: &mut [AIAgentInput]) {
             | AIAgentInput::StartFromAmbientRunPrompt { context, .. } => {
                 redact_context(Arc::make_mut(context));
             }
+<<<<<<< HEAD
             AIAgentInput::SummarizeConversation {
                 prompt,
                 overflow: _,
             } => {
+=======
+            AIAgentInput::SummarizeConversation { prompt, overflow: _ } => {
+>>>>>>> origin/main
                 if let Some(p) = prompt {
                     redact_secrets(p);
                 }

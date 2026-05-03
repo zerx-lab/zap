@@ -41,7 +41,12 @@ use settings::Setting;
 use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::llms::{
+<<<<<<< HEAD
     AvailableLLMs, DisableReason, LLMInfo, LLMProvider, LLMUsageMetadata, ModelsByFeature,
+=======
+    AvailableLLMs, DisableReason, LLMContextWindow, LLMInfo, LLMProvider, LLMUsageMetadata,
+    ModelsByFeature,
+>>>>>>> origin/main
 };
 use crate::settings::{AISettings, AgentProvider};
 
@@ -108,6 +113,10 @@ fn build_byop_llm_infos(app: &AppContext) -> Vec<LLMInfo> {
                 provider: LLMProvider::Unknown,
                 host_configs: HashMap::new(),
                 discount_percentage: None,
+<<<<<<< HEAD
+=======
+                context_window: LLMContextWindow::default(),
+>>>>>>> origin/main
             });
         }
     }
@@ -135,6 +144,10 @@ fn placeholder_llm_info() -> LLMInfo {
         provider: LLMProvider::Unknown,
         host_configs: HashMap::new(),
         discount_percentage: None,
+<<<<<<< HEAD
+=======
+        context_window: LLMContextWindow::default(),
+>>>>>>> origin/main
     }
 }
 

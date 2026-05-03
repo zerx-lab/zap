@@ -6,7 +6,7 @@ use crate::terminal::view::{TerminalAction, TerminalView};
 use crate::ui_components::icons::Icon;
 
 use session_sharing_protocol::common::{Role, WindowSize};
-use warpui::{elements::MouseStateHandle, ViewContext, ViewHandle};
+use warpui::{ViewContext, ViewHandle, elements::MouseStateHandle};
 
 use super::adapter::Participant;
 

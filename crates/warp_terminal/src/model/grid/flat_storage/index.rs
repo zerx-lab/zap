@@ -584,6 +584,7 @@ impl EntryBuilder {
 
     /// Builds an [`Entry`] and appends it to the provided index, or simply
     /// drops `self` if the [`Entry`] would be empty.
+    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
     pub fn append_to_index_if_nonempty(mut self, index: &mut Index) {
         #[cfg(debug_assertions)]
         {

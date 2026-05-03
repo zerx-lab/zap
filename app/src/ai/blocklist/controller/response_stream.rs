@@ -9,9 +9,13 @@ use warpui::{Entity, ModelContext};
 
 use crate::{
     ai::agent::{
-        api::{self, generate_multi_agent_output, ConvertToAPITypeError},
-        conversation::AIConversationId,
         AIAgentInput, AIIdentifiers, CancellationReason,
+        api::{self, ConvertToAPITypeError, generate_multi_agent_output},
+        conversation::AIConversationId,
+<<<<<<< HEAD
+        AIAgentInput, AIIdentifiers, CancellationReason,
+=======
+>>>>>>> origin/main
     },
     ai::blocklist::BlocklistAIHistoryModel,
     network::NetworkStatus,
@@ -102,8 +106,16 @@ fn byop_dispatch_info(
         let title_id = llm_prefs.get_active_title_model(ctx, None).id.clone();
         crate::ai::agent_providers::lookup_byop(ctx, &title_id).map(
             |(t_provider, t_api_key, t_model_id)| {
+<<<<<<< HEAD
                 let t_effort =
                     llm_prefs.get_reasoning_effort(None, t_provider.api_type, &t_model_id);
+=======
+                let t_effort = llm_prefs.get_reasoning_effort(
+                    None,
+                    t_provider.api_type,
+                    &t_model_id,
+                );
+>>>>>>> origin/main
                 TitleGenParams {
                     base_url: t_provider.base_url,
                     api_key: t_api_key,

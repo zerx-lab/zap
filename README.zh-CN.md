@@ -98,11 +98,49 @@ cargo run   --release --bin warp-oss
 - `warpui_core` / `warpui` crates 采用 [MIT](LICENSE-MIT)
 - 其余代码采用 [AGPL-3.0](LICENSE-AGPL)
 
+<<<<<<< HEAD
+=======
+## 🌿 分支与上游同步
+
+`zerx-lab/warp` 维护两条长期分支:
+
+| 分支 | 跟踪 | 用途 |
+| --- | --- | --- |
+| `main` | `zerx-lab/warp:main`(默认分支) | OpenWarp 主开发线,**所有 PR 都提到这条分支**。 |
+| `warp-upstream` | `warpdotdev/warp:master` | 上游 Warp 的纯净镜像,用于拉取上游更新,**不在此分支做 fork 自有改动**。 |
+
+**贡献者须知**
+
+PR 请提到 **`main`**,不要提到 `warp-upstream`。
+
+**维护者须知(具有写权限)**
+
+⚠️ **不要在 GitHub 网页上点 `main` 分支的 "Sync fork" 按钮**。这会把上游整段历史直接合并进 OpenWarp 主线,造成大规模冲突。拉取上游更新请通过镜像分支:
+
+```bash
+# 一次性配置
+git remote add upstream https://github.com/warpdotdev/warp.git
+
+# 刷新镜像分支
+git checkout warp-upstream
+git pull                          # 从 upstream/master 快进
+git push origin warp-upstream
+
+# 把需要的上游 commit 引入 main
+git checkout main
+git cherry-pick <sha>             # 或在需要整体同步时 merge warp-upstream
+```
+
+>>>>>>> origin/main
 ## 🤝 贡献
 
 欢迎社区贡献。完整流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+<<<<<<< HEAD
 提交 Issue 前,请先 [搜索现有 Issues](https://github.com/zerx-lab/openwarp/issues)。
+=======
+提交 Issue 前,请先 [搜索现有 Issues](https://github.com/zerx-lab/warp/issues)。
+>>>>>>> origin/main
 安全漏洞请按 [CONTRIBUTING.md#reporting-security-issues](CONTRIBUTING.md#reporting-security-issues) 私下上报。
 
 ## 🙏 致谢

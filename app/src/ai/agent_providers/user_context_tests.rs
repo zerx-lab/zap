@@ -168,10 +168,14 @@ fn file_binary_empty_omits_size_attr() {
     let out = render_user_attachments(&[AIAgentContext::File(f)]).unwrap();
     assert!(out.contains("path=\"C:\\Users\\me\\WarpSetup.exe\""));
     assert!(out.contains("binary=\"true\""));
+<<<<<<< HEAD
     assert!(
         !out.contains("size="),
         "空 BinaryContent 不应输出 size 属性"
     );
+=======
+    assert!(!out.contains("size="), "空 BinaryContent 不应输出 size 属性");
+>>>>>>> origin/main
     // .exe 默认 mime 是 application/vnd.microsoft.portable-executable 或 octet-stream,
     // 不强 assert 具体值,只验证 mime_type 属性存在
     assert!(out.contains("mime_type=\""));

@@ -11,13 +11,14 @@
 //! All platform-specific code is contained here so that the parent `mod.rs`
 //! is a thin dispatcher with no Unix assumptions.
 
-mod proxy;
+pub(super) mod proxy;
 
 use super::server_model::{ConnectionId, ServerModel};
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use warpui::r#async::executor;
 
+<<<<<<< HEAD
 /// Run the `remote-server-proxy` subcommand.
 ///
 /// Ensures the daemon is running (starting it if necessary), then bridges
@@ -30,12 +31,15 @@ pub fn run_proxy(identity_key: String) -> anyhow::Result<()> {
     proxy::run(&identity_key)
 }
 
+=======
+>>>>>>> origin/main
 /// Run the `remote-server-daemon` subcommand.
 ///
 /// Binds a Unix domain socket and writes a PID file, then delegates the
 /// WarpUI app startup to [`super::run_daemon_app`] with the Unix-specific
 /// `ServerModel` constructor.
 pub fn run_daemon(identity_key: String) -> anyhow::Result<()> {
+<<<<<<< HEAD
     // Log to a rotating file so daemon output is preserved across invocations.
     // The file is written to the same directory as client logs (~/Library/Logs
     // on macOS, ~/.local/share/warp-terminal on Linux). Since the daemon runs
@@ -45,6 +49,8 @@ pub fn run_daemon(identity_key: String) -> anyhow::Result<()> {
         log_destination: Some(warp_logging::LogDestination::File),
     })?;
 
+=======
+>>>>>>> origin/main
     // socket_path: ~/.warp[-channel]/remote-server/{identity_key}/server.sock
     //   The Unix domain socket the daemon binds on.  Proxy processes connect
     //   to it and bridge their SSH stdio channel through it.

@@ -1170,8 +1170,12 @@ define_settings_group!(AISettings, settings: [
     //
     // This is only used when `FeatureFlag::AgentView` is enabled.
     nld_in_terminal_enabled_internal: NLDInTerminalEnabled {
+        // openWarp:NLD in terminal 默认开。HeuristicClassifier 命中 CJK / 自然语言时
+        // 自动切到 AI 输入,这是 openWarp 中文用户能直接在终端写中文当 prompt 的前提。
+        // 上游默认 false 是因为 cloud 路线下用户先进 AgentView 全屏,在 terminal mode
+        // 不期望自动切换;openWarp 没有 cloud 全屏入口,terminal 即主输入区。
         type: bool,
-        default: false,
+        default: true,
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: false,

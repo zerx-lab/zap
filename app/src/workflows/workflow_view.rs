@@ -2634,10 +2634,18 @@ impl WorkflowView {
 
         ctx.spawn(
             async move { workflow_metadata::run(rendered).await },
+<<<<<<< HEAD
             move |pane, response, ctx| match response {
                 Some(metadata) => {
                     pane.ai_metadata_assist_state = AiAssistState::Generated;
                     pane.enable_editors(ctx);
+=======
+            move |pane, response, ctx| {
+                match response {
+                    Some(metadata) => {
+                        pane.ai_metadata_assist_state = AiAssistState::Generated;
+                        pane.enable_editors(ctx);
+>>>>>>> origin/main
 
                     let arguments = metadata
                         .arguments
@@ -2665,6 +2673,7 @@ impl WorkflowView {
 
                     send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
 
+<<<<<<< HEAD
                     pane.populate_missing_field_with_suggestion(workflow, ctx);
                     ctx.notify();
                 }
@@ -2683,6 +2692,27 @@ impl WorkflowView {
                     pane.enable_editors(ctx);
                     ctx.notify();
                 }
+=======
+                        pane.populate_missing_field_with_suggestion(workflow, ctx);
+                        ctx.notify();
+                    }
+                    None => {
+                        let err = GeneratedCommandMetadataError::BadCommand;
+                        pane.display_error_toast(err.user_facing_message(), ctx);
+
+                        send_telemetry_from_ctx!(
+                            TelemetryEvent::AutoGenerateMetadataError {
+                                error_payload: serde_json::json!(err)
+                            },
+                            ctx
+                        );
+
+                        pane.ai_metadata_assist_state = AiAssistState::PreRequest;
+                        pane.enable_editors(ctx);
+                        ctx.notify();
+                    }
+                }
+>>>>>>> origin/main
             },
         );
 

@@ -18,12 +18,16 @@ pub mod token;
 
 pub use config::CompactionConfig;
 <<<<<<< HEAD
+<<<<<<< HEAD
 pub use overflow::{is_overflow, usable, ModelLimit};
 pub use prompt::{build_prompt, SUMMARY_TEMPLATE};
 pub use token::estimate as estimate_tokens;
 =======
 pub use overflow::{is_overflow, usable};
 >>>>>>> origin/openWarp
+=======
+pub use overflow::{is_overflow, usable};
+>>>>>>> origin/main
 
 /// 字节级对齐 opencode `compaction.ts` 顶部常数(行 33-39, overflow.ts:6, util/token.ts:1)。
 pub mod consts {

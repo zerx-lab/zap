@@ -2,19 +2,19 @@ use std::ops::Deref;
 
 use serde::{Serialize, Serializer};
 
-use warpui::{platform::Cursor, ViewContext};
+use warpui::{ViewContext, platform::Cursor};
 
 use crate::{
     send_telemetry_from_ctx,
     server::telemetry::{LinkOpenMethod, TelemetryEvent},
     terminal::{
+        TerminalModel,
         model::{
+            RespectObfuscatedSecrets,
             grid::grid_handler::Link,
             index::Point,
             terminal_model::{WithinBlock, WithinModel},
-            RespectObfuscatedSecrets,
         },
-        TerminalModel,
     },
 };
 

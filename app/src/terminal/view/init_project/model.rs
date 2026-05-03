@@ -12,9 +12,9 @@ use crate::{
     ai::persisted_workspace::PersistedWorkspace,
     settings::CodeSettings,
     terminal::view::init_project::{
-        lsp_server_selector::LSPServerInfo, CodebaseIndexingResult, CreateEnvironmentResult,
-        InitActionResult, LanguageServersResult, ProjectScopedRulesResult, FILES_TO_CHECK,
-        LINKABLE_FILES,
+        CodebaseIndexingResult, CreateEnvironmentResult, FILES_TO_CHECK, InitActionResult,
+        LINKABLE_FILES, LanguageServersResult, ProjectScopedRulesResult,
+        lsp_server_selector::LSPServerInfo,
     },
     workspaces::user_workspaces::UserWorkspaces,
 };

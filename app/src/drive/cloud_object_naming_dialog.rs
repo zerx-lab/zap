@@ -43,7 +43,10 @@ const CANCEL_BUTTON_TEXT: &str = "Cancel";
 const RENAME_BUTTON_TEXT: &str = "Rename";
 
 /// Struct holding necessary information and states for the dialog
+<<<<<<< HEAD
 >>>>>>> origin/openWarp
+=======
+>>>>>>> origin/main
 /// that opens when creating or updating a folder or notebook.
 ///
 /// This dialog can be opened for a folder or a space. If open_for_folder_id = None, it's a space.

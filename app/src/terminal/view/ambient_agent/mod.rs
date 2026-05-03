@@ -21,17 +21,17 @@ pub use host_selector::{
 pub use loading_screen::{render_cloud_mode_error_screen, render_cloud_mode_loading_screen};
 pub use model::{AgentProgress, AmbientAgentViewModel, AmbientAgentViewModelEvent, Status};
 pub use model_selector::{ModelSelector, ModelSelectorAction, ModelSelectorEvent};
-pub use progress::{render_progress, ProgressProps, ProgressStep, ProgressStepState};
+pub use progress::{ProgressProps, ProgressStep, ProgressStepState, render_progress};
 pub use progress_ui_state::AmbientAgentProgressUIState;
-pub use tips::{get_cloud_mode_tips, CloudModeTip};
+pub use tips::{CloudModeTip, get_cloud_mode_tips};
 use warp_core::features::FeatureFlag;
 
-use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewState};
 use crate::ai::blocklist::BlocklistAIHistoryModel;
+use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewState};
 use crate::pane_group::TerminalViewResources;
-use crate::terminal::shared_session;
 use crate::terminal::TerminalManager;
 use crate::terminal::TerminalView;
+use crate::terminal::shared_session;
 use warpui::geometry::vector::Vector2F;
 use warpui::{AppContext, ModelHandle, SingletonEntity, ViewHandle, WindowId};
 

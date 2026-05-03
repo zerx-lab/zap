@@ -81,7 +81,10 @@ settings-section-code-indexing = Indexing and projects
 settings-section-editor-and-code-review = Editor and Code Review
 settings-section-cloud-environments = Environments
 settings-section-oz-cloud-api-keys = Oz Cloud API Keys
+<<<<<<< HEAD
 settings-title = Settings
+=======
+>>>>>>> origin/main
 
 # Context menu items (split / close pane)
 settings-pane-split-right = Split pane right
@@ -247,6 +250,7 @@ settings-platform-scope-personal = Personal
 settings-platform-scope-team = Team
 settings-platform-zero-state-title = No API Keys
 settings-platform-zero-state-description = Create a key to manage external access to Warp
+<<<<<<< HEAD
 settings-platform-create-api-key-description-personal = This API key is tied to your user and can make requests against your Warp account.
 settings-platform-create-api-key-description-team = This API key is tied to your team and can make requests on behalf of your team.
 settings-platform-create-api-key-name-placeholder = Warp API Key
@@ -263,6 +267,8 @@ settings-platform-create-api-key-done = Done
 settings-platform-create-api-key-creating = Creating…
 settings-platform-create-api-key-create = Create key
 settings-platform-create-api-key-toast-secret-copied = Secret key copied.
+=======
+>>>>>>> origin/main
 
 # --- ANCHOR-SUB-KEYBINDINGS (agent-settings-keybindings) ---
 settings-keybindings-search-placeholder = Search by name or by keys (ex. "cmd d")
@@ -546,6 +552,7 @@ settings-features-working-dir-previous = Previous session's directory
 settings-features-working-dir-custom = Custom directory
 settings-features-undo-close-enable = Enable reopening of closed sessions
 settings-features-undo-close-grace-period = Grace period (seconds)
+<<<<<<< HEAD
 settings-features-configure-global-hotkey = Configure Global Hotkey
 settings-features-make-default-terminal = Make Warp the default terminal
 settings-features-pin-top = Pin to top
@@ -592,6 +599,8 @@ settings-features-linux-selection-clipboard-tooltip = Whether the Linux primary 
 settings-features-changes-apply-new-windows = Changes will apply to new windows.
 settings-features-wayland-description = Enabling this setting disables global hotkey support. When disabled, text may be blurry if your Wayland compositor is using fraction scaling (ex: 125%).
 settings-features-restart-warp-to-apply = Restart Warp for changes to take effect.
+=======
+>>>>>>> origin/main
 
 # --- ANCHOR-SUB-TEAMS (agent-settings-teams) ---
 # settings_view/teams_page.rs strings (P0 + P1)
@@ -1998,6 +2007,7 @@ slash-cmd-rewind-desc = Rewind to a previous point in the conversation
 slash-cmd-export-to-clipboard-desc = Export current conversation to clipboard in markdown format
 slash-cmd-export-to-file-desc = Export current conversation to a markdown file
 slash-cmd-export-to-file-hint = <optional filename>
+<<<<<<< HEAD
 
 # --- ANCHOR-SUB-PROMPT-TIPS ---
 # Prompt editor modal (app/src/prompt/editor_modal.rs)
@@ -2450,3 +2460,5 @@ auth-logout-unsaved-files-warning = You have { $count } unsaved { $count ->
         [one] file
        *[other] files
     }.
+=======
+>>>>>>> origin/main

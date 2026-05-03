@@ -5,7 +5,7 @@ pub mod block;
 pub mod code_block;
 mod context_model;
 mod controller;
-pub(crate) mod orchestration_event_poller;
+pub(crate) mod orchestration_event_streamer;
 pub(crate) mod orchestration_events;
 mod passive_suggestions;
 pub(crate) mod task_status_sync_model;
@@ -30,8 +30,14 @@ pub(super) mod view_util;
 #[cfg_attr(target_family = "wasm", allow(unused_imports))]
 pub(crate) use action_model::{
     apply_edits, read_local_file_context, BlocklistAIActionEvent, BlocklistAIActionModel,
+<<<<<<< HEAD
     FileReadResult, PromptSuggestionExecutor, PromptSuggestionExecutorEvent, ReadFileContextResult,
     RequestFileEditsFormatKind, ShellCommandExecutor, ShellCommandExecutorEvent,
+=======
+    FileReadResult, PromptSuggestionExecutor, PromptSuggestionExecutorEvent,
+    ReadFileContextResult, RequestFileEditsFormatKind, ShellCommandExecutor,
+    ShellCommandExecutorEvent,
+>>>>>>> origin/main
 };
 
 #[cfg(any(test, feature = "integration_tests"))]

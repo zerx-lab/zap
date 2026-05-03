@@ -24,12 +24,16 @@ fn args(url: &str) -> FetchArgs {
 #[tokio::test]
 async fn rejects_non_http_scheme() {
     let client = build_client();
+<<<<<<< HEAD
     for bad in [
         "ftp://example.com",
         "file:///etc/passwd",
         "javascript:alert(1)",
         "",
     ] {
+=======
+    for bad in ["ftp://example.com", "file:///etc/passwd", "javascript:alert(1)", ""] {
+>>>>>>> origin/main
         let err = run_webfetch(&client, args(bad)).await.unwrap_err();
         assert!(
             err.to_string().contains("http://") || err.to_string().contains("https://"),
@@ -70,6 +74,7 @@ async fn html_to_markdown() {
     let out = run_webfetch(&client, args(&format!("{}/page", server.url())))
         .await
         .expect("ok");
+<<<<<<< HEAD
     assert!(
         out.output.contains("Hello"),
         "missing Hello: {}",
@@ -80,6 +85,10 @@ async fn html_to_markdown() {
         "missing World: {}",
         out.output
     );
+=======
+    assert!(out.output.contains("Hello"), "missing Hello: {}", out.output);
+    assert!(out.output.contains("World"), "missing World: {}", out.output);
+>>>>>>> origin/main
     assert!(
         out.output.contains('#') || !out.output.contains("<h1>"),
         "should be markdown not HTML: {}",
@@ -122,6 +131,7 @@ async fn json_pretty_print() {
     let out = run_webfetch(&client, args(&format!("{}/api", server.url())))
         .await
         .expect("ok");
+<<<<<<< HEAD
     assert!(
         out.output.starts_with("```json\n"),
         "missing fence: {}",
@@ -132,6 +142,10 @@ async fn json_pretty_print() {
         "not pretty: {}",
         out.output
     );
+=======
+    assert!(out.output.starts_with("```json\n"), "missing fence: {}", out.output);
+    assert!(out.output.contains("\"a\": 1"), "not pretty: {}", out.output);
+>>>>>>> origin/main
     assert!(out.output.ends_with("\n```"));
 }
 
@@ -208,11 +222,15 @@ async fn format_text_strips_html() {
     let out = run_webfetch(&client, a).await.expect("ok");
     assert!(out.output.contains("One"));
     assert!(out.output.contains("Two"));
+<<<<<<< HEAD
     assert!(
         !out.output.contains("alert(1)"),
         "script 内容应被剥离: {}",
         out.output
     );
+=======
+    assert!(!out.output.contains("alert(1)"), "script 内容应被剥离: {}", out.output);
+>>>>>>> origin/main
     assert_eq!(out.format, "text");
 }
 
@@ -400,11 +418,15 @@ async fn real_example_com_markdown() {
     let out = run_webfetch(&client, args("https://example.com"))
         .await
         .expect("real example.com");
+<<<<<<< HEAD
     assert!(
         out.output.to_lowercase().contains("example domain"),
         "got: {}",
         out.output
     );
+=======
+    assert!(out.output.to_lowercase().contains("example domain"), "got: {}", out.output);
+>>>>>>> origin/main
 }
 
 #[tokio::test]
@@ -493,10 +515,14 @@ fn fetch_output_omits_empty_attachments_in_json() {
         attachments: vec![],
     };
     let v = fetch_output_to_json(&out);
+<<<<<<< HEAD
     assert!(
         v.get("attachments").is_none(),
         "空 attachments 应被 skip: {v}"
     );
+=======
+    assert!(v.get("attachments").is_none(), "空 attachments 应被 skip: {v}");
+>>>>>>> origin/main
     assert_eq!(v["output"], "hi");
 }
 

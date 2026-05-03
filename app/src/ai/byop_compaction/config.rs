@@ -75,10 +75,14 @@ impl CompactionConfig {
         let provider_id = s.byop_compaction_model_provider_id.to_string();
         let model_id = s.byop_compaction_model_id.to_string();
         let compaction_model = if !provider_id.is_empty() && !model_id.is_empty() {
+<<<<<<< HEAD
             Some(CompactionModelRef {
                 provider_id,
                 model_id,
             })
+=======
+            Some(CompactionModelRef { provider_id, model_id })
+>>>>>>> origin/main
         } else {
             None
         };
@@ -88,6 +92,7 @@ impl CompactionConfig {
             auto: *s.byop_compaction_auto,
             prune: *s.byop_compaction_prune,
             tail_turns: *s.byop_compaction_tail_turns as usize,
+<<<<<<< HEAD
             preserve_recent_tokens: if preserve_raw == 0 {
                 None
             } else {
@@ -98,6 +103,10 @@ impl CompactionConfig {
             } else {
                 Some(reserved_raw as usize)
             },
+=======
+            preserve_recent_tokens: if preserve_raw == 0 { None } else { Some(preserve_raw as usize) },
+            reserved: if reserved_raw == 0 { None } else { Some(reserved_raw as usize) },
+>>>>>>> origin/main
             compaction_model,
         }
     }

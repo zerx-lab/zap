@@ -80,9 +80,13 @@ impl Default for CompactionState {
 
 impl CompactionState {
     pub const VERSION: u32 = 1;
+<<<<<<< HEAD
     fn current_version() -> u32 {
         Self::VERSION
     }
+=======
+    fn current_version() -> u32 { Self::VERSION }
+>>>>>>> origin/main
 
     pub fn marker(&self, msg_id: &str) -> Option<&MessageMarker> {
         self.markers.get(msg_id)
@@ -103,11 +107,15 @@ impl CompactionState {
     pub fn push_completed(&mut self, c: CompletedCompaction) {
         // 同步把 user 与 assistant 各自打上 marker(便于投影时单独识别)。
         self.upsert_marker(c.user_msg_id.clone(), |m| {
+<<<<<<< HEAD
             m.compaction_trigger = Some(if c.auto {
                 CompactionTrigger::Auto
             } else {
                 CompactionTrigger::Manual
             });
+=======
+            m.compaction_trigger = Some(if c.auto { CompactionTrigger::Auto } else { CompactionTrigger::Manual });
+>>>>>>> origin/main
         });
         self.upsert_marker(c.assistant_msg_id.clone(), |m| m.is_summary = true);
         self.completed.push(c);
@@ -120,9 +128,13 @@ impl CompactionState {
 
     /// 取最后一次完成的压缩(用于 [`super::prompt::build_prompt`] 的增量摘要锚点)。
     pub fn previous_summary(&self) -> Option<&str> {
+<<<<<<< HEAD
         self.completed
             .last()
             .and_then(|c| c.summary_text.as_deref())
+=======
+        self.completed.last().and_then(|c| c.summary_text.as_deref())
+>>>>>>> origin/main
     }
 
     pub fn completed(&self) -> &[CompletedCompaction] {

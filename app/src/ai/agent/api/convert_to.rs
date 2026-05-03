@@ -209,10 +209,14 @@ pub(super) fn convert_input(
                     )),
                 });
             }
+<<<<<<< HEAD
             AIAgentInput::SummarizeConversation {
                 prompt,
                 overflow: _,
             } => {
+=======
+            AIAgentInput::SummarizeConversation { prompt, overflow: _ } => {
+>>>>>>> origin/main
                 return Ok(api::request::Input {
                     context: None,
                     r#type: Some(api::request::input::Type::SummarizeConversation(

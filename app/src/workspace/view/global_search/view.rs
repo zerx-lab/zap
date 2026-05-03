@@ -2265,7 +2265,10 @@ impl GlobalSearchView {
 =======
             "Global search unavailable",
             "Global search requires access to your local workspace. Open a new session or navigate to an active session to view.",
+<<<<<<< HEAD
 >>>>>>> origin/openWarp
+=======
+>>>>>>> origin/main
             app,
         )
     }

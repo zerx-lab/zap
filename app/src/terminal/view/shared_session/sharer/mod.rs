@@ -3,11 +3,11 @@ use inactivity_modal::InactivityModal;
 
 use async_channel::Sender;
 use warpui::{
-    elements::MouseStateHandle, r#async::SpawnedFutureHandle, SingletonEntity, ViewContext,
-    ViewHandle,
+    SingletonEntity, ViewContext, ViewHandle, r#async::SpawnedFutureHandle,
+    elements::MouseStateHandle,
 };
 
-use crate::terminal::{shared_session::settings::SharedSessionSettings, TerminalView};
+use crate::terminal::{TerminalView, shared_session::settings::SharedSessionSettings};
 
 pub struct Sharer {
     pub(super) activity_tx: Sender<()>,

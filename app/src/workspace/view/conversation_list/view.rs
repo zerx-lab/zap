@@ -1002,7 +1002,13 @@ impl TypedActionView for ConversationListView {
                 }
                 ctx.notify();
             }
+<<<<<<< HEAD
             ConversationListViewAction::OpenShareDialog { conversation_id: _ } => {
+=======
+            ConversationListViewAction::OpenShareDialog {
+                conversation_id: _,
+            } => {
+>>>>>>> origin/main
                 // AI conversation sharing was removed alongside the CloudConversations feature.
             }
             ConversationListViewAction::DeleteFromOverflowMenu { conversation_id } => {

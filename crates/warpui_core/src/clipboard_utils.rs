@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use crate::clipboard::{Clipboard, ClipboardContent};
 
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
 use {arboard, image::ImageEncoder};
 
 use itertools::Itertools;
@@ -19,7 +19,7 @@ pub const CLIPBOARD_IMAGE_MIME_TYPES: &[&str] = &[
 ];
 
 /// Minimum bytes needed for image format detection.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
 const MIN_IMAGE_HEADER_SIZE: usize = 8;
 
 /// Check if a string has an image file extension.
@@ -270,7 +270,7 @@ pub fn strip_html_to_plain_text(html: &str) -> String {
 }
 
 /// Process clipboard image data, preserving original format or converting to PNG.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
 pub fn process_clipboard_image(
     arboard_image: &arboard::ImageData,
     filename: Option<String>,
@@ -295,7 +295,7 @@ pub fn process_clipboard_image(
 }
 
 /// Read image data from clipboard, checking for images before expensive filename extraction.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
 pub fn read_images_from_clipboard(
     clipboard: &mut arboard::Clipboard,
     html_content: &Option<String>,
@@ -336,9 +336,18 @@ pub fn read_images_from_clipboard(
             #[cfg(target_os = "windows")]
             {
                 if !matches!(err, arboard::Error::ContentNotAvailable) {
+<<<<<<< HEAD
                     log::debug!("arboard image() failed ({err:?}); trying custom Windows formats");
                 }
                 let filename = extract_filename_from_clipboard_content(html_content, text_content);
+=======
+                    log::debug!(
+                        "arboard image() failed ({err:?}); trying custom Windows formats"
+                    );
+                }
+                let filename =
+                    extract_filename_from_clipboard_content(html_content, text_content);
+>>>>>>> origin/main
                 if let Some(img) = try_read_image_via_custom_windows_formats(filename) {
                     return Some(vec![img]);
                 }
@@ -382,8 +391,13 @@ fn try_read_image_via_custom_windows_formats(
         13, // CF_UNICODETEXT
         15, // CF_HDROP
         16, // CF_LOCALE
+<<<<<<< HEAD
             // We DO probe 8 = CF_DIB and 17 = CF_DIBV5 — those carry raw DIB bytes
             // that we can decode via try_decode_dib_to_png below.
+=======
+        // We DO probe 8 = CF_DIB and 17 = CF_DIBV5 — those carry raw DIB bytes
+        // that we can decode via try_decode_dib_to_png below.
+>>>>>>> origin/main
     ];
 
     // CF_DIB = 8, CF_DIBV5 = 17. Treat these (and any registered format whose
@@ -410,7 +424,14 @@ fn try_read_image_via_custom_windows_formats(
 
     let names: Vec<String> = formats
         .iter()
+<<<<<<< HEAD
         .map(|&f| raw::format_name_big(f).unwrap_or_else(|| format!("<unknown {:#06x}>", f)))
+=======
+        .map(|&f| {
+            raw::format_name_big(f)
+                .unwrap_or_else(|| format!("<unknown {:#06x}>", f))
+        })
+>>>>>>> origin/main
         .collect();
     log::info!(
         "Custom-format fallback: clipboard has {} format(s): {:?}",
@@ -457,7 +478,13 @@ fn try_read_image_via_custom_windows_formats(
             }
             Ok(_) => continue,
             Err(err) => {
+<<<<<<< HEAD
                 log::debug!("Custom-format fallback: GetClipboardData({fmt:#06x}) failed: {err:?}");
+=======
+                log::debug!(
+                    "Custom-format fallback: GetClipboardData({fmt:#06x}) failed: {err:?}"
+                );
+>>>>>>> origin/main
                 continue;
             }
         }
@@ -521,7 +548,7 @@ fn try_decode_dib_to_png(
 }
 
 /// Try to preserve original image format using infer crate for detection.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
 pub fn try_preserve_original_format(
     bytes: &[u8],
     filename: Option<String>,
@@ -548,7 +575,7 @@ pub fn try_preserve_original_format(
 }
 
 /// Converts RGBA bitmap data to PNG format, returns None on invalid dimensions/encoding.
-#[cfg(any(target_os = "linux", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "windows"))]
 pub fn convert_raw_bitmap_to_png(
     width: usize,
     height: usize,

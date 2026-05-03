@@ -1,12 +1,12 @@
 //! The rendering logic for shared session banners.
 use chrono::{DateTime, Datelike, Local};
 use warpui::{
+    Element,
     elements::{
         Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, MainAxisSize,
         ParentElement, Radius, Rect, Shrinkable, Text,
     },
     fonts::{Properties, Weight},
-    Element,
 };
 
 use crate::appearance::Appearance;

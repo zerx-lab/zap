@@ -102,11 +102,50 @@ Same as upstream Warp:
 - `warpui_core` / `warpui` crates — [MIT](LICENSE-MIT)
 - Everything else — [AGPL-3.0](LICENSE-AGPL)
 
+<<<<<<< HEAD
 ## 🤝 Contributing
 
 Community contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full flow.
 
 Before filing, please [search existing issues](https://github.com/zerx-lab/openwarp/issues).
+=======
+## 🌿 Branches & upstream sync
+
+`zerx-lab/warp` keeps two long-lived branches:
+
+| Branch | Tracks | Purpose |
+| --- | --- | --- |
+| `main` | `zerx-lab/warp:main` (default) | OpenWarp's main development line. **All PRs target this.** |
+| `warp-upstream` | `warpdotdev/warp:master` | Pristine mirror of upstream Warp, used to pull in new commits. **No fork-local changes.** |
+
+**For contributors**
+
+Open PRs against **`main`**. Never against `warp-upstream`.
+
+**For maintainers (write access)**
+
+⚠️ **Do not click the "Sync fork" button** on `main` in the GitHub web UI. It would merge the entire upstream history straight into OpenWarp's main line and trigger large-scale conflicts. Pull upstream changes through the mirror branch instead:
+
+```bash
+# one-time setup
+git remote add upstream https://github.com/warpdotdev/warp.git
+
+# refresh the mirror
+git checkout warp-upstream
+git pull                          # fast-forwards from upstream/master
+git push origin warp-upstream
+
+# bring selected commits into main
+git checkout main
+git cherry-pick <sha>             # or merge warp-upstream when a full sync makes sense
+```
+
+## 🤝 Contributing
+
+Community contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full flow.
+
+Before filing, please [search existing issues](https://github.com/zerx-lab/warp/issues).
+>>>>>>> origin/main
 Security vulnerabilities should be reported privately per
 [CONTRIBUTING.md#reporting-security-issues](CONTRIBUTING.md#reporting-security-issues).
 

@@ -68,6 +68,7 @@ fn create_handler(agent: &CLIAgent) -> Option<Box<dyn CLIAgentSessionHandler>> {
         | CLIAgent::Droid
         | CLIAgent::Copilot
         | CLIAgent::CursorCli
+        | CLIAgent::Goose
         | CLIAgent::Unknown => None,
     }
 }

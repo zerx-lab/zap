@@ -64,9 +64,13 @@ pub static CREATE_NEW_PROJECT: LazyLock<StaticCommand> = LazyLock::new(|| Static
     icon_path: "bundled/svg/plus.svg",
     availability: Availability::LOCAL | Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
+<<<<<<< HEAD
     argument: Some(
         Argument::required().with_hint_text(t_static!("slash-cmd-create-new-project-hint")),
     ),
+=======
+    argument: Some(Argument::required().with_hint_text(t_static!("slash-cmd-create-new-project-hint"))),
+>>>>>>> origin/main
 });
 
 pub static EDIT_SKILL: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
@@ -115,7 +119,13 @@ pub static EDIT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
     icon_path: "bundled/svg/file-code-02.svg",
     availability: Availability::LOCAL,
     auto_enter_ai_mode: false,
+<<<<<<< HEAD
     argument: Some(Argument::optional().with_hint_text(t_static!("slash-cmd-open-file-hint"))),
+=======
+    argument: Some(
+        Argument::optional().with_hint_text(t_static!("slash-cmd-open-file-hint")),
+    ),
+>>>>>>> origin/main
 });
 
 pub static RENAME_TAB: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
@@ -291,7 +301,13 @@ pub static COMPACT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
         | Availability::NO_LRC_CONTROL
         | Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
+<<<<<<< HEAD
     argument: Some(Argument::optional().with_hint_text(t_static!("slash-cmd-compact-hint"))),
+=======
+    argument: Some(
+        Argument::optional().with_hint_text(t_static!("slash-cmd-compact-hint")),
+    ),
+>>>>>>> origin/main
 });
 
 pub static COMPACT_AND: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {
@@ -327,9 +343,13 @@ pub static FORK_AND_COMPACT: LazyLock<StaticCommand> = LazyLock::new(|| StaticCo
         | Availability::NO_LRC_CONTROL
         | Availability::AI_ENABLED,
     auto_enter_ai_mode: true,
+<<<<<<< HEAD
     argument: Some(
         Argument::optional().with_hint_text(t_static!("slash-cmd-fork-and-compact-hint")),
     ),
+=======
+    argument: Some(Argument::optional().with_hint_text(t_static!("slash-cmd-fork-and-compact-hint"))),
+>>>>>>> origin/main
 });
 
 pub static FORK_FROM: LazyLock<StaticCommand> = LazyLock::new(|| StaticCommand {

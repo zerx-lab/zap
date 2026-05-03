@@ -4,9 +4,15 @@
 //! 真实实现见 `super::message_view`。
 use std::hash::Hash;
 
+<<<<<<< HEAD
 use super::consts::{PRUNE_MINIMUM, PRUNE_PROTECT, PRUNE_PROTECTED_TOOLS};
 use super::overflow::{usable, ModelLimit};
 use super::CompactionConfig;
+=======
+use super::CompactionConfig;
+use super::consts::{PRUNE_MINIMUM, PRUNE_PROTECT, PRUNE_PROTECTED_TOOLS};
+use super::overflow::{ModelLimit, usable};
+>>>>>>> origin/main
 
 /// 消息的角色 — 用于 turn 检测与 select。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,11 +88,15 @@ pub fn turns<M: MessageRef>(messages: &[M]) -> Vec<Turn<M::Id>> {
         if msg.is_compaction_marker() {
             continue;
         }
+<<<<<<< HEAD
         result.push(Turn {
             start: i,
             end: n,
             id: msg.id(),
         });
+=======
+        result.push(Turn { start: i, end: n, id: msg.id() });
+>>>>>>> origin/main
     }
     let len = result.len();
     if len > 1 {
@@ -121,10 +131,14 @@ where
             start += 1;
             continue;
         }
+<<<<<<< HEAD
         return Some(Tail {
             start,
             id: messages[start].id(),
         });
+=======
+        return Some(Tail { start, id: messages[start].id() });
+>>>>>>> origin/main
     }
     None
 }
@@ -145,19 +159,27 @@ where
 {
     let limit = cfg.tail_turns;
     if limit == 0 {
+<<<<<<< HEAD
         return SelectResult {
             head_end: messages.len(),
             tail_start_id: None,
         };
+=======
+        return SelectResult { head_end: messages.len(), tail_start_id: None };
+>>>>>>> origin/main
     }
     let usable_tokens = usable(cfg, model);
     let budget = cfg.preserve_recent_budget(usable_tokens);
     let all = turns(messages);
     if all.is_empty() {
+<<<<<<< HEAD
         return SelectResult {
             head_end: messages.len(),
             tail_start_id: None,
         };
+=======
+        return SelectResult { head_end: messages.len(), tail_start_id: None };
+>>>>>>> origin/main
     }
     let recent_start = all.len().saturating_sub(limit);
     let recent: Vec<&Turn<M::Id>> = all[recent_start..].iter().collect();
@@ -173,10 +195,14 @@ where
         let size = sizes[i];
         if total + size <= budget {
             total += size;
+<<<<<<< HEAD
             keep = Some(Tail {
                 start: turn.start,
                 id: turn.id.clone(),
             });
+=======
+            keep = Some(Tail { start: turn.start, id: turn.id.clone() });
+>>>>>>> origin/main
             continue;
         }
         let remaining = budget.saturating_sub(total);
@@ -189,6 +215,7 @@ where
     }
 
     match keep {
+<<<<<<< HEAD
         None => SelectResult {
             head_end: messages.len(),
             tail_start_id: None,
@@ -201,6 +228,11 @@ where
             head_end: t.start,
             tail_start_id: Some(t.id),
         },
+=======
+        None => SelectResult { head_end: messages.len(), tail_start_id: None },
+        Some(t) if t.start == 0 => SelectResult { head_end: messages.len(), tail_start_id: None },
+        Some(t) => SelectResult { head_end: t.start, tail_start_id: Some(t.id) },
+>>>>>>> origin/main
     }
 }
 

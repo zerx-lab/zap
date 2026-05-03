@@ -1,21 +1,21 @@
-use warp_core::ui::{appearance::Appearance, Icon};
+use warp_core::ui::{Icon, appearance::Appearance};
 use warpui::{
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     elements::ParentElement,
     prelude::{
         ConstrainedBox, Container, CrossAxisAlignment, Cursor, Empty, Flex, Hoverable,
         MouseStateHandle, Text,
     },
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use crate::{
     ai::blocklist::{
-        agent_view::{agent_view_bg_color, AgentViewController},
-        inline_action::inline_action_icons,
         BlocklistAIHistoryEvent, BlocklistAIHistoryModel,
+        agent_view::{AgentViewController, agent_view_bg_color},
+        inline_action::inline_action_icons,
     },
     terminal::view::ambient_agent::{
-        is_cloud_agent_pre_first_exchange, AmbientAgentViewModel, AmbientAgentViewModelEvent,
+        AmbientAgentViewModel, AmbientAgentViewModelEvent, is_cloud_agent_pre_first_exchange,
     },
 };
 

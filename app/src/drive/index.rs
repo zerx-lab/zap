@@ -151,6 +151,11 @@ const HOVER_PREVIEW_Y_OFFSET: f32 = 0.;
 
 const CREATE_TEAM_ICON_WIDTH: f32 = 16.;
 const CREATE_TEAM_ICON_HEIGHT: f32 = 16.;
+<<<<<<< HEAD
+=======
+const CREATE_TEAM_TEXT: &str = "Share commands & knowledge with your teammates.";
+
+>>>>>>> origin/main
 const MENU_WIDTH: f32 = 194.;
 const CLOUD_OFFLINE_ICON_WIDTH: f32 = 20.;
 const CLOUD_OFFLINE_ICON_HEIGHT: f32 = 18.;

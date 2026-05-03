@@ -18,7 +18,11 @@ pub mod initializer;
 mod input;
 mod input_mode;
 pub mod language;
+<<<<<<< HEAD
 #[cfg(target_os = "linux")]
+=======
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+>>>>>>> origin/main
 mod linux;
 pub mod macros;
 pub mod manager;
@@ -52,7 +56,11 @@ pub use init::*;
 pub use input::*;
 pub use input_mode::*;
 pub use language::*;
+<<<<<<< HEAD
 #[cfg(target_os = "linux")]
+=======
+#[cfg(any(target_os = "linux", target_os = "freebsd"))]
+>>>>>>> origin/main
 pub use linux::*;
 pub use native_preference::*;
 pub use onboarding::*;

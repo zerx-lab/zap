@@ -144,6 +144,7 @@ impl ReasoningDepthSelector {
             }
         });
 
+<<<<<<< HEAD
         ctx.subscribe_to_model(
             &LLMPreferences::handle(ctx),
             |me, _, event, ctx| match event {
@@ -155,6 +156,16 @@ impl ReasoningDepthSelector {
                 LLMPreferencesEvent::UpdatedActiveCodingLLM => {}
             },
         );
+=======
+        ctx.subscribe_to_model(&LLMPreferences::handle(ctx), |me, _, event, ctx| match event {
+            LLMPreferencesEvent::UpdatedAvailableLLMs
+            | LLMPreferencesEvent::UpdatedActiveAgentModeLLM
+            | LLMPreferencesEvent::UpdatedReasoningEffort => {
+                me.refresh(ctx);
+            }
+            LLMPreferencesEvent::UpdatedActiveCodingLLM => {}
+        });
+>>>>>>> origin/main
 
         let mut me = Self {
             button,
@@ -184,7 +195,15 @@ impl ReasoningDepthSelector {
         ctx.notify();
     }
 
+<<<<<<< HEAD
     fn apply_selection(&mut self, effort: ReasoningEffortSetting, ctx: &mut ViewContext<Self>) {
+=======
+    fn apply_selection(
+        &mut self,
+        effort: ReasoningEffortSetting,
+        ctx: &mut ViewContext<Self>,
+    ) {
+>>>>>>> origin/main
         let Some((api_type, model_id)) = self.current_target.clone() else {
             return;
         };
@@ -195,13 +214,25 @@ impl ReasoningDepthSelector {
     }
 
     /// 解析当前选中模型 → 若是 BYOP 模型解出 (api_type, model_id),否则 None。
+<<<<<<< HEAD
     fn resolve_current_target(&self, ctx: &AppContext) -> Option<(AgentProviderApiType, String)> {
+=======
+    fn resolve_current_target(
+        &self,
+        ctx: &AppContext,
+    ) -> Option<(AgentProviderApiType, String)> {
+>>>>>>> origin/main
         let prefs = LLMPreferences::as_ref(ctx);
         let llm_id = prefs
             .get_active_base_model(ctx, Some(self.terminal_view_id))
             .id
             .clone();
+<<<<<<< HEAD
         let (provider, _api_key, model_id) = crate::ai::agent_providers::lookup_byop(ctx, &llm_id)?;
+=======
+        let (provider, _api_key, model_id) =
+            crate::ai::agent_providers::lookup_byop(ctx, &llm_id)?;
+>>>>>>> origin/main
         Some((provider.api_type, model_id))
     }
 
@@ -253,7 +284,13 @@ impl ReasoningDepthSelector {
     /// 当前是否应渲染(模型支持 reasoning)。
     fn is_visible(&self) -> bool {
         match &self.current_target {
+<<<<<<< HEAD
             Some((api_type, model_id)) => !model_reasoning_variants(*api_type, model_id).is_empty(),
+=======
+            Some((api_type, model_id)) => {
+                !model_reasoning_variants(*api_type, model_id).is_empty()
+            }
+>>>>>>> origin/main
             None => false,
         }
     }
