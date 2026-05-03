@@ -11,7 +11,6 @@ use warpui::r#async::{SpawnedFutureHandle, Timer};
 use regex::Regex;
 use settings::Setting as _;
 use warp_core::context_flag::ContextFlag;
-use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::WarpTheme;
 use warpui::elements::{
     Align, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -46,13 +45,13 @@ use crate::{
     channel::ChannelState,
     report_if_error, send_telemetry_from_ctx,
     server::telemetry::TelemetryEvent,
-    settings::{AISettings, PrivacySettings},
+    settings::PrivacySettings,
     terminal::safe_mode_settings::{SafeModeEnabled, SafeModeSettings},
     ui_components::icons::Icon,
     util::links::PRIVACY_POLICY_URL,
     workspaces::{
         user_workspaces::UserWorkspaces,
-        workspace::{AdminEnablementSetting, CustomerType, UgcCollectionEnablementSetting},
+        workspace::{CustomerType, UgcCollectionEnablementSetting},
     },
 };
 

@@ -82,7 +82,7 @@ impl Input {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
 
-        let model = self.model.lock();
+        let _model = self.model.lock();
 
         // We should likely rework this stack to not need to use `with_constrain_absolute_children`,
         // by reworking the positioning of the children to not depend on this.
@@ -322,7 +322,7 @@ impl Input {
     fn render_cloud_mode_v2_composing_input(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
         let menu_positioning = self.menu_positioning(app);
-        let model = self.model.lock();
+        let _model = self.model.lock();
 
         let mut stack = Stack::new();
 
@@ -543,13 +543,13 @@ impl Input {
 
     pub(super) fn render_ambient_agent_status_footer(&self, app: &AppContext) -> Box<dyn Element> {
         let ambient_agent_model = self.ambient_agent_view_model.as_ref(app);
-        let mut stack = Stack::new().with_constrain_absolute_children();
+        let stack = Stack::new().with_constrain_absolute_children();
 
         // Don't render status bar when agent has failed or is waiting for session
         let show_status_bar = ambient_agent_model.error_message().is_none()
             && !ambient_agent_model.is_waiting_for_session();
 
-        let model = self.model.lock();
+        let _model = self.model.lock();
 
         let save_position =
             SavePosition::new(stack.finish(), &self.status_free_input_save_position_id()).finish();

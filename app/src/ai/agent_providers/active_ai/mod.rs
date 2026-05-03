@@ -322,7 +322,7 @@ pub mod workflow_metadata {
     use super::*;
     use warpui::{AppContext, EntityId};
 
-    pub use parsing::{WorkflowArgumentDto, WorkflowMetadataDto};
+    pub use parsing::WorkflowMetadataDto;
 
     pub struct Input {
         pub command: String,

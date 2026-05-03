@@ -17,9 +17,7 @@ pub mod state;
 pub mod token;
 
 pub use config::CompactionConfig;
-pub use overflow::{ModelLimit, is_overflow, usable};
-pub use prompt::{SUMMARY_TEMPLATE, build_prompt};
-pub use token::estimate as estimate_tokens;
+pub use overflow::{is_overflow, usable};
 
 /// 字节级对齐 opencode `compaction.ts` 顶部常数(行 33-39, overflow.ts:6, util/token.ts:1)。
 pub mod consts {

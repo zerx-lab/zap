@@ -116,13 +116,10 @@ use crate::{
             DRIVE_OBJECT_ATTACHMENT_REGEX,
         },
         llms::{LLMPreferences, LLMPreferencesEvent},
-        predict::{
-            next_command_model::{
+        predict::next_command_model::{
                 is_command_valid, is_next_command_enabled, NextCommandModel, NextCommandModelEvent,
                 NextCommandSuggestionState, ZeroStateSuggestionInfo,
             },
-            predict_am_queries::PredictAMQueriesRequest,
-        },
         AIRequestUsageModel,
     },
     ai_assistant::execution_context::WarpAiExecutionContext,
@@ -232,7 +229,6 @@ use itertools::Itertools;
 use lazy_static::lazy_static;
 use ordered_float::Float;
 use regex::Regex;
-use serde_json::json;
 use session_sharing_protocol::common::{AgentAttachment, ParticipantId, ServerConversationToken};
 use settings::{Setting as _, ToggleableSetting};
 use std::{

@@ -254,7 +254,7 @@ use crate::resource_center::{
     ResourceCenterEvent, ResourceCenterPage, ResourceCenterView, Tip, TipAction, TipsCompleted,
 };
 use crate::reward_view::{RewardEvent, RewardKind, RewardView};
-use crate::root_view::{quake_mode_window_id, NewWorkspaceSource, OpenLaunchConfigArg};
+use crate::root_view::{NewWorkspaceSource, OpenLaunchConfigArg};
 use crate::search::command_search::searcher::{
     AcceptedHistoryItem, AcceptedWorkflow, CommandSearchItemAction,
 };
@@ -267,7 +267,7 @@ use crate::server::server_api::{ServerApi, ServerApiEvent, ServerApiProvider, Se
 use crate::server::telemetry::{
     AddTabWithShellSource, AnonymousUserSignupEntrypoint, CloseTarget, EnvVarTelemetryMetadata,
     FileTreeSource, KnowledgePaneEntrypoint, LaunchConfigUiLocation,
-    MCPServerCollectionPaneEntrypoint, OpenedWarpAISource, SharingDialogSource, TierLimitHitEvent,
+    MCPServerCollectionPaneEntrypoint, OpenedWarpAISource, SharingDialogSource,
     WarpDriveSource,
 };
 use crate::session_management::{SessionNavigationData, SessionSource};
@@ -275,7 +275,7 @@ use crate::settings::{
     active_theme_kind, respect_system_theme, AccessibilitySettings, AliasExpansionSettings,
     AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings, FontSettings,
     GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, PrivacySettings,
-    SelectionSettings, Settings, SshSettings, ThemeSettings,
+    SelectionSettings, SshSettings, ThemeSettings,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
@@ -328,7 +328,7 @@ use crate::user_config::{
 };
 use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 use crate::util::bindings::{
-    keybinding_name_to_display_string, keybinding_name_to_keystroke, trigger_to_keystroke,
+    keybinding_name_to_display_string, keybinding_name_to_keystroke,
 };
 use crate::util::links;
 use crate::util::traffic_lights::{traffic_light_data, TrafficLightMouseStates, TrafficLightSide};

@@ -14,7 +14,7 @@ use warp_graphql::mutations::create_anonymous_user::{
 };
 use warpui::{clipboard::ClipboardContent, Entity, ModelContext, SingletonEntity, UpdateModel};
 
-use super::auth_state::{AuthState, PersistAction};
+use super::auth_state::AuthState;
 use super::auth_view_modal::{AuthRedirectPayload, AuthViewVariant};
 use super::credentials::{Credentials, FirebaseToken, LoginToken};
 use super::user::User;
@@ -52,7 +52,6 @@ use crate::{
 };
 #[cfg(target_family = "wasm")]
 use url::Url;
-use user_persistence::PersistedUser;
 
 #[derive(Debug)]
 pub enum AuthManagerEvent {

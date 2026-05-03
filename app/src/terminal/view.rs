@@ -105,12 +105,10 @@ use crate::terminal::model::blocks::RemovableBlocklistItem;
 use crate::util::file::external_editor::{EditorSettings, settings::EditorLayout};
 use crate::util::truncation::truncate_from_end;
 
-use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::redaction::redact_secrets;
 use crate::ai::agent::todos::popup::{AgentTodosPopupEvent, AgentTodosPopupView};
 use crate::ai::agent::{
-    AIAgentPtyWriteMode, AgentReviewCommentBatch, CancellationReason, PassiveSuggestionTrigger,
-    ServerOutputId, ShellCommandCompletedTrigger,
+    AIAgentPtyWriteMode, AgentReviewCommentBatch, CancellationReason, PassiveSuggestionTrigger, ShellCommandCompletedTrigger,
 };
 use crate::ai::blocklist::block::{AIBlockAction, FinishReason};
 use crate::ai::blocklist::codebase_index_speedbump_banner::{
@@ -241,7 +239,6 @@ use crate::context_chips::prompt::Prompt;
 use crate::context_chips::prompt_type::PromptType;
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::settings::WarpDriveSettings;
-use crate::drive::sharing::ShareableObject;
 use crate::env_vars::{
     CloudEnvVarCollection, EnvVar,
     env_var_collection_block::{EnvVarCollectionBlock, EnvVarCollectionBlockEvent},
@@ -251,7 +248,6 @@ use crate::persistence::{self, FinishedCommandMetadata};
 use crate::safe_warn;
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::ids::{ObjectUid, SyncId};
-use crate::server::telemetry::SharingDialogSource;
 #[cfg(feature = "local_fs")]
 use crate::settings::import::model::ImportedConfigModel;
 use crate::settings::import::view::{SettingsImportEvent, SettingsImportView};

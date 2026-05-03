@@ -51,7 +51,7 @@ use crate::ai::blocklist::block::{
     CollapsibleElementState, CollapsibleExpansionState, FinishReason, ImportedCommentGroup,
 };
 use indexmap::IndexMap;
-use std::{cell::OnceCell, cmp::Ordering, collections::HashMap, rc::Rc, sync::Arc};
+use std::{cmp::Ordering, collections::HashMap, rc::Rc, sync::Arc};
 
 use crate::util::link_detection::{add_link_detection_mouse_interactions, DetectedLinksState};
 use crate::{

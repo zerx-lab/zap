@@ -6,7 +6,6 @@ use chrono::{DateTime, Local, NaiveDateTime};
 use itertools::Itertools as _;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp_core::features::FeatureFlag;
 use warp_multi_agent_api::response_event::stream_finished::ConversationUsageMetadata;
 use warp_multi_agent_api::{
     client_action::{Action, StartNewConversation},
@@ -32,7 +31,6 @@ use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::input_suggestions::HistoryOrder;
 use crate::persistence::model::AgentConversationData;
 use crate::persistence::ModelEvent;
-use crate::server::server_api::ServerApiProvider;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::view::blocklist_filter;
 use crate::GlobalResourceHandlesProvider;

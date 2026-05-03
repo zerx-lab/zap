@@ -4,7 +4,7 @@ use crate::ai::execution_profiles::{
     profiles::{AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId},
     AIExecutionProfile, ActionPermission, WriteToPtyPermission,
 };
-use crate::ai::llms::{DisableReason, LLMId, LLMInfo, LLMPreferences, LLMPreferencesEvent};
+use crate::ai::llms::{LLMId, LLMInfo, LLMPreferences, LLMPreferencesEvent};
 use crate::ai::paths::host_native_absolute_path;
 use crate::editor::InteractionState;
 use crate::editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions};
@@ -15,7 +15,6 @@ use crate::view_components::{
     action_button::{ActionButton, DangerSecondaryTheme},
     Dropdown, DropdownItem, FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
 };
-use crate::workspace::WorkspaceAction;
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
 use crate::TemplatableMCPServerManager;
 use crate::UserWorkspaces;
@@ -26,17 +25,13 @@ use crate::{
 use ai::api_keys::{ApiKeyManager, ApiKeyManagerEvent};
 use itertools::Itertools;
 use regex::Regex;
-use warp_core::ui::theme::color::internal_colors;
-use warpui::fonts::Properties;
-use warpui::platform::Cursor;
 use warpui::ui_components::switch::SwitchStateHandle;
 
 use std::path::{Path, PathBuf};
 use warpui::{
     elements::{
-        Align, Border, ChildView, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
-        Container, CrossAxisAlignment, Expanded, Flex, Highlight, MouseStateHandle, ParentElement,
-        PartialClickableElement, ScrollbarWidth, Text,
+        Align, ChildView, ClippedScrollStateHandle, ClippedScrollable,
+        Container, Flex, MouseStateHandle, ParentElement, ScrollbarWidth,
     },
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,

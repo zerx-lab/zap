@@ -59,7 +59,6 @@ use crate::ai::agent::api::{RequestParams, ResponseStream};
 use crate::ai::agent::{AIAgentInput, RunningCommand};
 use crate::ai::byop_compaction::{
     self,
-    state::CompactionState,
 };
 use crate::server::server_api::AIApiError;
 use crate::settings::AgentProviderApiType;
@@ -2245,7 +2244,7 @@ fn sanitize_title(raw: &str) -> Option<String> {
     while let Some(c) = s.chars().last() {
         if matches!(
             c,
-            '.' | '。' | '!' | '！' | '?' | '？' | ',' | '，' | ';' | '；' | ':' | ':'
+            '.' | '。' | '!' | '！' | '?' | '？' | ',' | '，' | ';' | '；' | ':' | '：'
         ) {
             let new_len = s.len() - c.len_utf8();
             s.truncate(new_len);

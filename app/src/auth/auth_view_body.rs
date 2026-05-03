@@ -7,7 +7,7 @@ use crate::{
     network::NetworkStatus,
     report_error, send_telemetry_from_ctx, send_telemetry_sync_from_ctx,
     server::telemetry::{AnonymousUserSignupEntrypoint, LoginEventSource, TelemetryEvent},
-    settings::{AISettings, PrivacySettings},
+    settings::PrivacySettings,
     themes::theme::Fill as ThemeFill,
     util::color::{darken, lighten},
 };

@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 use warp_core::channel::ChannelState;
-use warp_core::{features::FeatureFlag, report_error};
+use warp_core::report_error;
 use warp_multi_agent_api::ConversationData;
 
 use super::auth::AuthClient;

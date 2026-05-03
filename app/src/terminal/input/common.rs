@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
 use crate::{
-    ai::{
-        llms::{is_using_api_key_for_provider, LLMPreferences},
-        AIRequestUsageModel,
-    },
     appearance::Appearance,
     settings::{AISettings, InputSettings},
     terminal::{
@@ -13,7 +9,6 @@ use crate::{
         view::{TerminalAction, PADDING_LEFT},
     },
     ui_components::icons::Icon,
-    workspaces::user_workspaces::UserWorkspaces,
 };
 use pathfinder_geometry::vector::vec2f;
 use vim::vim::{VimMode, VimState};
@@ -29,7 +24,7 @@ use warpui::{
     fonts::Weight,
     presenter::ChildView,
     ui_components::components::{UiComponent, UiComponentStyles},
-    AppContext, EntityId, SingletonEntity, ViewHandle,
+    AppContext, SingletonEntity, ViewHandle,
 };
 
 /// Whether the terminal input message bar should be shown.

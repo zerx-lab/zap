@@ -8,15 +8,11 @@ use std::sync::Arc;
 use futures::FutureExt;
 use itertools::Itertools as _;
 use persistence::model::AgentConversationRecord;
-use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
-use crate::ai::agent::api::convert_conversation::{
-    convert_conversation_data_to_ai_conversation, RestorationMode,
-};
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
-    AIAgentHarness, AIConversation, AIConversationId, ServerAIConversationMetadata,
+    AIConversation, AIConversationId, ServerAIConversationMetadata,
 };
 use crate::ai::agent::task::Task;
 use crate::persistence::model::{AgentConversation, AgentConversationData};

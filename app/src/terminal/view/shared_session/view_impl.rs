@@ -1,6 +1,5 @@
 //! [`TerminalView`]-specific implementation for shared sessions.
 
-use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::auth::UserUid;
 use crate::context_chips::ContextChipKind;
 use crate::drive::sharing::ShareableObject;

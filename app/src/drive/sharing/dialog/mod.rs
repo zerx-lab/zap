@@ -358,7 +358,7 @@ impl SharingDialog {
 
     /// The Warp Drive server ID for the target object. `None` if the target is not a Warp Drive
     /// object.
-    fn target_cloud_object_id(&self, app: &AppContext) -> Option<ServerId> {
+    fn target_cloud_object_id(&self, _app: &AppContext) -> Option<ServerId> {
         match self.target.as_ref() {
             Some(ShareableObject::WarpDriveObject(id)) => Some(*id),
             _ => None,

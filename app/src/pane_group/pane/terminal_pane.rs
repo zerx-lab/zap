@@ -1,11 +1,10 @@
 //! Implementation of terminal panes.
 #[cfg(feature = "local_fs")]
 use crate::pane_group::CodeSource;
-use std::{collections::HashMap, sync::mpsc::SyncSender};
+use std::sync::mpsc::SyncSender;
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use url::Url;
-use warp_cli::agent::Harness;
 use warp_multi_agent_api as multi_agent_api;
 
 use warpui::{
@@ -15,19 +14,13 @@ use warpui::{
 use crate::{
     ai::{
         active_agent_views_model::ActiveAgentViewsModel,
-        agent::conversation::{AIConversationId, ConversationStatus},
-        ambient_agents::{task::HarnessConfig, AgentConfigSnapshot},
-        blocklist::{
-            agent_view::AgentViewEntryOrigin, orchestration_events::OrchestrationEventService,
-            BlocklistAIHistoryModel,
-        },
+        blocklist::BlocklistAIHistoryModel,
         llms::LLMPreferences,
         skills::SkillManager,
     },
     app_state::{AmbientAgentPaneSnapshot, LeafContents, TerminalPaneSnapshot},
     pane_group::{self, Direction, Event::OpenConversationHistory, PaneGroup},
     persistence::{BlockCompleted, ModelEvent},
-    server::server_api::ai::SpawnAgentRequest,
     session_management::SessionNavigationData,
     terminal::cli_agent_sessions::CLIAgentSessionsModel,
     terminal::{
@@ -48,13 +41,9 @@ use crate::{
 
 #[cfg(feature = "local_fs")]
 use crate::ai::blocklist::BlocklistAIHistoryEvent;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::server_api::ServerApiProvider;
 
 use warp_core::execution_mode::AppExecutionMode;
 
-#[cfg(not(target_family = "wasm"))]
-use super::local_harness_launch::{prepare_local_harness_child_launch, PreparedLocalHarnessLaunch};
 use super::{
     DetachType, PaneConfiguration, PaneContent, PaneId, PaneStackEvent, PaneView, ShareableLink,
     ShareableLinkError, TerminalPaneId,

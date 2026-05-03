@@ -11,7 +11,6 @@ use crate::settings_view::flags;
 use crate::terminal::input::{
     SET_INPUT_MODE_AGENT_ACTION_NAME, SET_INPUT_MODE_TERMINAL_ACTION_NAME,
 };
-use crate::terminal::shared_session::SharedSessionActionSource;
 use crate::terminal::ssh::error::{SSH_ERROR_BLOCK_VISIBLE_KEY, SshErrorBlockAction};
 use crate::terminal::view::passive_suggestions::PromptSuggestionResolution;
 use crate::terminal::view::{
@@ -31,7 +30,6 @@ use crate::{
     terminal::shared_session::SharedSessionStatus,
     util::bindings::CustomAction,
 };
-use warp_core::context_flag::ContextFlag;
 use warpui::keymap::ContextPredicate;
 use warpui::keymap::{BindingDescription, PerPlatformKeystroke};
 use warpui::platform::OperatingSystem;
