@@ -2,10 +2,10 @@ use serde::Serialize;
 use std::rc::Rc;
 
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::blocklist::prompt::prompt_alert::{
     PromptAlertEvent, PromptAlertState, PromptAlertView,
 };
+use crate::ai::blocklist::BlocklistAIInputModel;
 use crate::ai::predict::prompt_suggestions::ACCEPT_PROMPT_SUGGESTION_KEYBINDING;
 use crate::server::telemetry::InteractionSource;
 use crate::settings::InputSettings;
@@ -21,10 +21,10 @@ use warpui::elements::{
 use warpui::keymap::Keystroke;
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
+use warpui::{elements::MouseStateHandle, Element};
 use warpui::{
     AppContext, Entity, EventContext, ModelHandle, TypedActionView, ViewContext, ViewHandle,
 };
-use warpui::{Element, elements::MouseStateHandle};
 use warpui::{SingletonEntity, View};
 
 use crate::terminal::view::{InputType, PromptSuggestion};

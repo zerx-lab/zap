@@ -5,21 +5,21 @@ use std::rc::Rc;
 use warp_cli::agent::Harness;
 use warp_terminal::model::BlockId;
 
-use crate::ai::AIRequestUsageModel;
 use crate::ai::agent::conversation::{AIConversationId, ConversationStatus};
+use crate::ai::AIRequestUsageModel;
 use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
 use warpui::prelude::{Empty, Vector2F};
 
 use crate::ai::ambient_agents::telemetry::{CloudAgentTelemetryEvent, CloudModeEntryPoint};
-use crate::ai::blocklist::{BlocklistAIHistoryModel, agent_view::AgentViewEntryOrigin};
+use crate::ai::blocklist::{agent_view::AgentViewEntryOrigin, BlocklistAIHistoryModel};
 use crate::ai::conversation_details_panel::ConversationDetailsData;
 use crate::pane_group::TerminalViewResources;
 use crate::server::server_api::ai::SpawnAgentRequest;
-use crate::terminal::CLIAgent;
-use crate::terminal::view::TerminalView;
 use crate::terminal::view::ambient_agent::CloudModeInitialUserQuery;
 use crate::terminal::view::rich_content::{RichContentInsertionPosition, RichContentMetadata};
+use crate::terminal::view::TerminalView;
+use crate::terminal::CLIAgent;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::Align;
@@ -30,7 +30,7 @@ use super::loading_screen::{
     render_cloud_mode_github_auth_required_screen, render_cloud_mode_loading_screen,
 };
 use super::{
-    AmbientAgentEntryBlock, AmbientAgentViewModelEvent, is_cloud_agent_pre_first_exchange,
+    is_cloud_agent_pre_first_exchange, AmbientAgentEntryBlock, AmbientAgentViewModelEvent,
 };
 const CHILD_AGENT_GITHUB_AUTH_REQUIRED_BLOCKED_ACTION: &str =
     "GitHub authentication required before starting the child agent.";

@@ -7,7 +7,6 @@ use crate::drive::sharing::ShareableObject;
 use crate::editor::{InteractionState, ReplicaId};
 use crate::server::telemetry::SharingDialogSource;
 use crate::settings::InputModeSettings;
-use crate::terminal::TerminalModel;
 use crate::terminal::block_list_viewport::ScrollPositionUpdate;
 use crate::terminal::model::blocks::BlockListPoint;
 use crate::terminal::model::index::Point;
@@ -19,19 +18,20 @@ use crate::terminal::shared_session::role_change_modal::{
 };
 use crate::terminal::shared_session::settings::SharedSessionSettings;
 use crate::terminal::shared_session::{
-    COPY_LINK_TEXT, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionStatus,
-    join_link,
+    join_link, SharedSessionActionSource, SharedSessionScrollbackType, SharedSessionStatus,
+    COPY_LINK_TEXT,
 };
 use crate::terminal::view::{
     ContextMenuAction, Event, InlineBannerItem, InlineBannerType, RichContentInsertionPosition,
     SharedSessionBanners, SizeUpdateBuilder, TerminalAction, TerminalView,
 };
+use crate::terminal::TerminalModel;
 use crate::view_components::{DismissibleToast, ToastFlavor};
-use crate::{TelemetryEvent, send_telemetry_from_ctx};
 use crate::{
     menu::{MenuItem, MenuItemFields},
     terminal::shared_session::presence_manager::{Event as PresenceManagerEvent, PresenceManager},
 };
+use crate::{send_telemetry_from_ctx, TelemetryEvent};
 use chrono::{DateTime, Local};
 use itertools::Itertools;
 use session_sharing_protocol::common::{
@@ -62,14 +62,14 @@ use crate::terminal::shared_session::participant_avatar_view::ParticipantAvatarV
 use session_sharing_protocol::common::ParticipantList;
 use session_sharing_protocol::common::ParticipantPresenceUpdate;
 
-use warpui::AppContext;
 use warpui::elements::MouseStateHandle;
+use warpui::AppContext;
 
-use super::ConversationEndedTombstoneView;
 use super::adapter::{Adapter, Kind, Participant};
-use super::sharer::Sharer;
 use super::sharer::inactivity_modal::InactivityModalEvent;
+use super::sharer::Sharer;
 use super::viewer::Viewer;
+use super::ConversationEndedTombstoneView;
 
 impl TerminalView {
     pub fn sharer_session_kind(&self) -> Option<&Kind> {

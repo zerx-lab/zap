@@ -4,16 +4,15 @@ use crate::report_if_error;
 use crate::send_telemetry_from_ctx;
 use crate::server::telemetry::{PromptChoice, TelemetryEvent};
 use crate::settings::EnforceMinimumContrast;
-use crate::terminal::SizeInfo;
 use crate::terminal::blockgrid_element::BlockGridElement;
-use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::model::blockgrid::BlockGrid;
+use crate::terminal::model::ObfuscateSecrets;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::view::block_onboarding::util;
+use crate::terminal::SizeInfo;
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use settings::Setting as _;
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
     elements::{
         Align, Border, Clipped, ConstrainedBox, Container, CornerRadius, Flex,
         FormattedTextElement, HighlightedHyperlink, Hoverable, HyperlinkUrl, MainAxisAlignment,
@@ -22,6 +21,7 @@ use warpui::{
     fonts::Weight,
     platform::Cursor,
     ui_components::components::{UiComponent, UiComponentStyles},
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 const CONFIRM_MARGIN_TOP: f32 = 16.;

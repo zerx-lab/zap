@@ -3,17 +3,17 @@ use std::sync::Arc;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Border, ChildAnchor, ChildView, OffsetPositioning, ParentAnchor, ParentElement as _,
         ParentOffsetBounds, Stack,
     },
     fonts::{Properties, Weight},
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use warp_core::ui::appearance::Appearance;
-use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::theme::Fill;
 
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};

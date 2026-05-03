@@ -229,35 +229,47 @@ impl QueryFilter {
     }
 
     /// Returns placeholder text to be shown in an empty input when the filter is active.
-    pub fn placeholder_text(&self) -> &'static str {
+    pub fn placeholder_text(&self) -> String {
         match self {
-            QueryFilter::History => "Search history",
-            QueryFilter::Workflows => "Search workflows",
-            QueryFilter::AgentModeWorkflows => "Search prompts",
-            QueryFilter::Notebooks => "Search notebooks",
-            QueryFilter::Plans => "Search plans",
-            QueryFilter::NaturalLanguage => "e.g. replace string in file",
-            QueryFilter::Actions => "Search actions",
-            QueryFilter::Sessions => "Search sessions",
-            QueryFilter::Conversations => "Search conversations",
-            QueryFilter::HistoricalConversations => "Search historical conversations",
-            QueryFilter::LaunchConfigurations => "Search launch configurations",
-            QueryFilter::Drive => "Search objects in drive",
-            QueryFilter::EnvironmentVariables => "Search environment variables",
-            QueryFilter::PromptHistory => "Search prompt history",
-            QueryFilter::Files => "Search files",
-            QueryFilter::Commands => "Search commands",
-            QueryFilter::Blocks => "Search blocks",
-            QueryFilter::Code => "Search code symbols",
-            QueryFilter::Rules => "Search AI rules",
-            QueryFilter::Repos => "Search code repos",
-            QueryFilter::DiffSets => "Search diff sets",
-            QueryFilter::StaticSlashCommands => "Search static slash commands",
-            QueryFilter::Skills => "Search skills",
-            QueryFilter::BaseModels => "Search base models",
-            QueryFilter::FullTerminalUseModels => "Search full terminal use models",
+            QueryFilter::History => crate::t!("search-filter-placeholder-history"),
+            QueryFilter::Workflows => crate::t!("search-filter-placeholder-workflows"),
+            QueryFilter::AgentModeWorkflows => {
+                crate::t!("search-filter-placeholder-agent-mode-workflows")
+            }
+            QueryFilter::Notebooks => crate::t!("search-filter-placeholder-notebooks"),
+            QueryFilter::Plans => crate::t!("search-filter-placeholder-plans"),
+            QueryFilter::NaturalLanguage => crate::t!("search-filter-placeholder-natural-language"),
+            QueryFilter::Actions => crate::t!("search-filter-placeholder-actions"),
+            QueryFilter::Sessions => crate::t!("search-filter-placeholder-sessions"),
+            QueryFilter::Conversations => crate::t!("search-filter-placeholder-conversations"),
+            QueryFilter::HistoricalConversations => {
+                crate::t!("search-filter-placeholder-historical-conversations")
+            }
+            QueryFilter::LaunchConfigurations => {
+                crate::t!("search-filter-placeholder-launch-configurations")
+            }
+            QueryFilter::Drive => crate::t!("search-filter-placeholder-drive"),
+            QueryFilter::EnvironmentVariables => {
+                crate::t!("search-filter-placeholder-environment-variables")
+            }
+            QueryFilter::PromptHistory => crate::t!("search-filter-placeholder-prompt-history"),
+            QueryFilter::Files => crate::t!("search-filter-placeholder-files"),
+            QueryFilter::Commands => crate::t!("search-filter-placeholder-commands"),
+            QueryFilter::Blocks => crate::t!("search-filter-placeholder-blocks"),
+            QueryFilter::Code => crate::t!("search-filter-placeholder-code"),
+            QueryFilter::Rules => crate::t!("search-filter-placeholder-rules"),
+            QueryFilter::Repos => crate::t!("search-filter-placeholder-repos"),
+            QueryFilter::DiffSets => crate::t!("search-filter-placeholder-diff-sets"),
+            QueryFilter::StaticSlashCommands => {
+                crate::t!("search-filter-placeholder-static-slash-commands")
+            }
+            QueryFilter::Skills => crate::t!("search-filter-placeholder-skills"),
+            QueryFilter::BaseModels => crate::t!("search-filter-placeholder-base-models"),
+            QueryFilter::FullTerminalUseModels => {
+                crate::t!("search-filter-placeholder-full-terminal-use-models")
+            }
             QueryFilter::CurrentDirectoryConversations => {
-                "Search conversations in current directory"
+                crate::t!("search-filter-placeholder-current-directory-conversations")
             }
         }
     }
@@ -295,34 +307,48 @@ impl QueryFilter {
     }
 
     /// Returns the display name (e.g. the string to be used in UI) representing the filter.
-    pub fn display_name(&self) -> &'static str {
+    pub fn display_name(&self) -> String {
         match self {
-            QueryFilter::History => "history",
-            QueryFilter::Workflows => "workflows",
-            QueryFilter::AgentModeWorkflows => "prompts",
-            QueryFilter::Notebooks => "notebooks",
-            QueryFilter::Plans => "plans",
-            QueryFilter::NaturalLanguage => "AI command suggestions",
-            QueryFilter::Actions => "actions",
-            QueryFilter::Sessions => "sessions",
-            QueryFilter::Conversations => "conversations",
-            QueryFilter::LaunchConfigurations => "launch configurations",
-            QueryFilter::Drive => "Warp Drive",
-            QueryFilter::EnvironmentVariables => "environment variables",
-            QueryFilter::PromptHistory => "prompt history",
-            QueryFilter::Files => "files",
-            QueryFilter::Commands => "commands",
-            QueryFilter::Blocks => "blocks",
-            QueryFilter::Code => "code",
-            QueryFilter::Rules => "rules",
-            QueryFilter::Repos => "repos",
-            QueryFilter::DiffSets => "diff sets",
-            QueryFilter::StaticSlashCommands => "slash commands",
-            QueryFilter::HistoricalConversations => "historical conversations",
-            QueryFilter::Skills => "skills",
-            QueryFilter::BaseModels => "base models",
-            QueryFilter::FullTerminalUseModels => "full terminal use models",
-            QueryFilter::CurrentDirectoryConversations => "current directory conversations",
+            QueryFilter::History => crate::t!("search-filter-display-history"),
+            QueryFilter::Workflows => crate::t!("search-filter-display-workflows"),
+            QueryFilter::AgentModeWorkflows => {
+                crate::t!("search-filter-display-agent-mode-workflows")
+            }
+            QueryFilter::Notebooks => crate::t!("search-filter-display-notebooks"),
+            QueryFilter::Plans => crate::t!("search-filter-display-plans"),
+            QueryFilter::NaturalLanguage => crate::t!("search-filter-display-natural-language"),
+            QueryFilter::Actions => crate::t!("search-filter-display-actions"),
+            QueryFilter::Sessions => crate::t!("search-filter-display-sessions"),
+            QueryFilter::Conversations => crate::t!("search-filter-display-conversations"),
+            QueryFilter::LaunchConfigurations => {
+                crate::t!("search-filter-display-launch-configurations")
+            }
+            QueryFilter::Drive => crate::t!("search-filter-display-drive"),
+            QueryFilter::EnvironmentVariables => {
+                crate::t!("search-filter-display-environment-variables")
+            }
+            QueryFilter::PromptHistory => crate::t!("search-filter-display-prompt-history"),
+            QueryFilter::Files => crate::t!("search-filter-display-files"),
+            QueryFilter::Commands => crate::t!("search-filter-display-commands"),
+            QueryFilter::Blocks => crate::t!("search-filter-display-blocks"),
+            QueryFilter::Code => crate::t!("search-filter-display-code"),
+            QueryFilter::Rules => crate::t!("search-filter-display-rules"),
+            QueryFilter::Repos => crate::t!("search-filter-display-repos"),
+            QueryFilter::DiffSets => crate::t!("search-filter-display-diff-sets"),
+            QueryFilter::StaticSlashCommands => {
+                crate::t!("search-filter-display-static-slash-commands")
+            }
+            QueryFilter::HistoricalConversations => {
+                crate::t!("search-filter-display-historical-conversations")
+            }
+            QueryFilter::Skills => crate::t!("search-filter-display-skills"),
+            QueryFilter::BaseModels => crate::t!("search-filter-display-base-models"),
+            QueryFilter::FullTerminalUseModels => {
+                crate::t!("search-filter-display-full-terminal-use-models")
+            }
+            QueryFilter::CurrentDirectoryConversations => {
+                crate::t!("search-filter-display-current-directory-conversations")
+            }
         }
     }
 

@@ -41,8 +41,7 @@ extern "system" fn child_exit_callback(ctx: *mut c_void, timed_out: bool) {
     // 读取 shell 进程退出码并打日志,用于排查"opencode 等 TUI 退出后 shell
     // 也跟着死"这类问题(对照 Windows Terminal 行为时定位根因)。
     let mut exit_code: u32 = 0;
-    let exit_code_log = match unsafe { GetExitCodeProcess(event_tx.child_handle, &mut exit_code) }
-    {
+    let exit_code_log = match unsafe { GetExitCodeProcess(event_tx.child_handle, &mut exit_code) } {
         Ok(()) => format!("exit_code={exit_code} (0x{exit_code:08X})"),
         Err(err) => format!("GetExitCodeProcess failed: {err}"),
     };

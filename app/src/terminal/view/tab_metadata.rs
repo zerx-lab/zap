@@ -1,5 +1,5 @@
 use crate::context_chips::display_chip::GitLineChanges;
-use crate::context_chips::{ContextChipKind, git_line_changes_from_chips};
+use crate::context_chips::{git_line_changes_from_chips, ContextChipKind};
 use crate::terminal::TerminalView;
 use warpui::AppContext;
 

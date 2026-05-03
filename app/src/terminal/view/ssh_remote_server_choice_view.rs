@@ -19,20 +19,19 @@
 use settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::{
-    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
     elements::{
         Border, ChildView, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
         MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Text,
     },
     platform::Cursor,
     ui_components::components::{UiComponent, UiComponentStyles},
+    AppContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
 };
 
 use crate::{
-    Appearance,
     ai::blocklist::{
-        block::keyboard_navigable_buttons::{KeyboardNavigableButtons, rich_navigation_button},
+        block::keyboard_navigable_buttons::{rich_navigation_button, KeyboardNavigableButtons},
         inline_action::inline_action_header::{HeaderConfig, INLINE_ACTION_HORIZONTAL_PADDING},
     },
     send_telemetry_from_ctx,
@@ -40,6 +39,7 @@ use crate::{
     terminal::model::session::SessionId,
     terminal::warpify::settings::{SshExtensionInstallMode, WarpifySettings},
     ui_components::blended_colors,
+    Appearance,
 };
 
 const PROMPT_BORDER_RADIUS: f32 = 8.;

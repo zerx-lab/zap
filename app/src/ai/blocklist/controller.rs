@@ -12,15 +12,15 @@ use input_context::{input_context_for_request, parse_context_attachments};
 pub use slash_command::*;
 
 use self::response_stream::{PendingTitleGeneration, ResponseStream, ResponseStreamEvent};
-use super::ResponseStreamId;
 use super::agent_view::AgentViewEntryOrigin;
+use super::ResponseStreamId;
 use super::{
-    BlocklistAIInputModel, InputType,
     action_model::{BlocklistAIActionEvent, BlocklistAIActionModel},
     agent_view::{AgentViewController, AgentViewControllerEvent},
     context_model::BlocklistAIContextModel,
     history_model::{BlocklistAIHistoryEvent, BlocklistAIHistoryModel},
     input_model::InputConfig,
+    BlocklistAIInputModel, InputType,
 };
 use crate::ai::agent::api::{self, ServerConversationToken};
 use crate::ai::agent::conversation::{AIConversation, ConversationStatus};
@@ -36,14 +36,14 @@ use crate::ai::document::ai_document_model::{
 };
 use crate::ai::llms::LLMId;
 use crate::ai::{
-    AIRequestUsageModel,
     agent::{
-        AIAgentActionResultType, AIAgentAttachment, AIAgentContext, AIAgentExchangeId,
-        AIAgentInput, AIAgentOutputStatus, AIIdentifiers, EntrypointType, FinishedAIAgentOutput,
-        MessageId, RenderableAIError, RequestCost, RequestMetadata, StaticQueryType, UserQueryMode,
-        conversation::AIConversationId,
+        conversation::AIConversationId, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
+        AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers, EntrypointType,
+        FinishedAIAgentOutput, MessageId, RenderableAIError, RequestCost, RequestMetadata,
+        StaticQueryType, UserQueryMode,
     },
     llms::LLMPreferences,
+    AIRequestUsageModel,
 };
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::features::FeatureFlag;
@@ -54,14 +54,14 @@ use crate::persistence::ModelEvent;
 use crate::search::slash_command_menu::static_commands::commands;
 use crate::server::server_api::AIApiError;
 use crate::terminal::model::block::{
-    BlockId, CURSOR_MARKER, formatted_terminal_contents_for_input,
+    formatted_terminal_contents_for_input, BlockId, CURSOR_MARKER,
 };
 use crate::terminal::ssh::util::InteractiveSshCommand;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::terminal::{
-    ShellLaunchData,
-    model::session::{SessionType, active_session::ActiveSession},
+    model::session::{active_session::ActiveSession, SessionType},
     model::terminal_model::TerminalModel,
+    ShellLaunchData,
 };
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -77,9 +77,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use warp_core::assertions::safe_assert;
 use warp_multi_agent_api::{
-    ClientAction, Task, ToolType,
     client_action::{Action, UpdateTaskDescription},
-    message,
+    message, ClientAction, Task, ToolType,
 };
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 
@@ -2042,10 +2041,7 @@ impl BlocklistAIController {
                 crate::ai::byop_compaction::commit::prune_now(convo, &compaction_cfg);
             }
         });
-        if let Some(convo) = history_model
-            .as_ref(ctx)
-            .conversation(&conversation_id)
-        {
+        if let Some(convo) = history_model.as_ref(ctx).conversation(&conversation_id) {
             request_params.compaction_state = Some(convo.compaction_state.clone());
         }
 
@@ -2891,9 +2887,7 @@ impl BlocklistAIController {
         let aggregate_token_count: usize = finished_event
             .token_usage
             .iter()
-            .map(|u| {
-                (u.total_input + u.output + u.input_cache_read + u.input_cache_write) as usize
-            })
+            .map(|u| (u.total_input + u.output + u.input_cache_read + u.input_cache_write) as usize)
             .max()
             .unwrap_or(0);
 
@@ -3268,4 +3262,3 @@ fn byop_get_running_command_for_lrc(terminal_model: &TerminalModel) -> Option<Ru
         is_alt_screen_active,
     })
 }
-

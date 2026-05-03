@@ -1,11 +1,11 @@
-use warpui::{Element, elements::MouseStateHandle};
+use warpui::{elements::MouseStateHandle, Element};
 
 use crate::{appearance::Appearance, terminal::view::TerminalAction};
 
 use super::{
-    InlineBannerButtonState, InlineBannerCloseButton, InlineBannerContent, InlineBannerIcon,
-    InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonVariant,
-    render_inline_block_list_banner,
+    render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
+    InlineBannerContent, InlineBannerIcon, InlineBannerStyle, InlineBannerTextButton,
+    InlineBannerTextButtonVariant,
 };
 
 pub struct AwsBedrockLoginBannerState {

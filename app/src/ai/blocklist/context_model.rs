@@ -240,9 +240,8 @@ fn read_pending_file_for_context(file: &PendingFile) -> Option<FileContext> {
 
     // 2) 多模态 binary(image/pdf/audio):需要把 bytes 真送给模型,读取并落 BinaryContent
     let mime = file.mime_type.to_ascii_lowercase();
-    let is_multimodal_mime = mime.starts_with("image/")
-        || mime == "application/pdf"
-        || mime.starts_with("audio/");
+    let is_multimodal_mime =
+        mime.starts_with("image/") || mime == "application/pdf" || mime.starts_with("audio/");
     if is_multimodal_mime {
         if let Some(size) = metadata_size {
             if size as usize <= MAX_INLINE_BINARY_FILE_BYTES {

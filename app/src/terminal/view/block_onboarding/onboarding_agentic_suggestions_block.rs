@@ -3,25 +3,23 @@ use crate::ai::blocklist::{
     BlocklistAIActionEvent, BlocklistAIActionModel, BlocklistAIHistoryEvent,
     BlocklistAIHistoryModel,
 };
-use crate::terminal::History;
-use crate::terminal::TerminalView;
 use crate::terminal::event::BlockType;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::model_events::{ModelEvent, ModelEventDispatcher};
 use crate::terminal::shell::ShellType;
+use crate::terminal::History;
+use crate::terminal::TerminalView;
 use crate::ui_components::icons as UIIcon;
 use crate::user_config::themes_dir;
 use lazy_static::lazy_static;
+use markdown_parser::weight::CustomWeight;
 use markdown_parser::FormattedText;
 use markdown_parser::FormattedTextFragment;
 use markdown_parser::FormattedTextLine;
-use markdown_parser::weight::CustomWeight;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
-use warpui::TypedActionView;
-use warpui::WeakViewHandle;
 use warpui::elements::CornerRadius;
 use warpui::elements::CrossAxisAlignment;
 use warpui::elements::FormattedTextElement;
@@ -29,13 +27,15 @@ use warpui::elements::Radius;
 use warpui::keymap::Keystroke;
 use warpui::ui_components::components::UiComponent;
 use warpui::ui_components::components::UiComponentStyles;
+use warpui::TypedActionView;
+use warpui::WeakViewHandle;
 use warpui::{
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, ViewContext,
     elements::{
         Border, ConstrainedBox, Container, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
         MouseStateHandle, ParentElement, Text, Wrap,
     },
     platform::Cursor,
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, View, ViewContext,
 };
 
 const ONBOARDING_BOX_WIDTH: f32 = 210.;

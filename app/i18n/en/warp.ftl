@@ -81,6 +81,7 @@ settings-section-code-indexing = Indexing and projects
 settings-section-editor-and-code-review = Editor and Code Review
 settings-section-cloud-environments = Environments
 settings-section-oz-cloud-api-keys = Oz Cloud API Keys
+settings-title = Settings
 
 # Context menu items (split / close pane)
 settings-pane-split-right = Split pane right
@@ -246,6 +247,22 @@ settings-platform-scope-personal = Personal
 settings-platform-scope-team = Team
 settings-platform-zero-state-title = No API Keys
 settings-platform-zero-state-description = Create a key to manage external access to Warp
+settings-platform-create-api-key-description-personal = This API key is tied to your user and can make requests against your Warp account.
+settings-platform-create-api-key-description-team = This API key is tied to your team and can make requests on behalf of your team.
+settings-platform-create-api-key-name-placeholder = Warp API Key
+settings-platform-create-api-key-expiration-one-day = 1 day
+settings-platform-create-api-key-expiration-thirty-days = 30 days
+settings-platform-create-api-key-expiration-ninety-days = 90 days
+settings-platform-create-api-key-label-type = Type
+settings-platform-create-api-key-label-expiration = Expiration
+settings-platform-create-api-key-error-no-current-team = Unable to create a team API key because there is no current team.
+settings-platform-create-api-key-error-create-failed = Failed to create API key. Please try again.
+settings-platform-create-api-key-secret-once = This secret key is shown only once. Copy and store it securely.
+settings-platform-create-api-key-copied = Copied
+settings-platform-create-api-key-done = Done
+settings-platform-create-api-key-creating = Creating…
+settings-platform-create-api-key-create = Create key
+settings-platform-create-api-key-toast-secret-copied = Secret key copied.
 
 # --- ANCHOR-SUB-KEYBINDINGS (agent-settings-keybindings) ---
 settings-keybindings-search-placeholder = Search by name or by keys (ex. "cmd d")
@@ -529,6 +546,52 @@ settings-features-working-dir-previous = Previous session's directory
 settings-features-working-dir-custom = Custom directory
 settings-features-undo-close-enable = Enable reopening of closed sessions
 settings-features-undo-close-grace-period = Grace period (seconds)
+settings-features-configure-global-hotkey = Configure Global Hotkey
+settings-features-make-default-terminal = Make Warp the default terminal
+settings-features-pin-top = Pin to top
+settings-features-pin-bottom = Pin to bottom
+settings-features-pin-left = Pin to left
+settings-features-pin-right = Pin to right
+settings-features-default-option = Default
+settings-features-tab-behavior-completions = Open completions menu
+settings-features-tab-behavior-autosuggestions = Accept autosuggestion
+settings-features-tab-behavior-user-defined = User defined
+settings-features-new-tab-placement-all = After all tabs
+settings-features-new-tab-placement-current = After current tab
+settings-features-width-percent = Width %
+settings-features-height-percent = Height %
+settings-features-autohide-on-focus-loss = Autohides on loss of keyboard focus
+settings-features-long-running-prefix = When a command takes longer than
+settings-features-long-running-suffix = seconds to complete
+settings-features-keybinding-label = Keybinding
+settings-features-click-set-global-hotkey = Click to set global hotkey
+settings-features-cancel = Cancel
+settings-features-save = Save
+settings-features-press-new-shortcut = Press new keyboard shortcut
+settings-features-change-keybinding = Change keybinding
+settings-features-active-screen = Active Screen
+settings-features-wayland-window-restore-warning = Window positions won't be restored on Wayland.
+settings-features-see-docs = See docs.
+settings-features-allowed-values-1-20 = Allowed Values: 1-20
+settings-features-supports-floating-1-20 = Supports floating point values between 1 and 20.
+settings-features-auto-open-code-review-description = When this setting is on, the code review panel will open on the first accepted diff of a conversation
+settings-features-default-terminal-current = Warp is the default terminal
+settings-features-takes-effect-new-sessions = This change will take effect in new sessions
+settings-features-seconds = seconds
+settings-features-vim-system-clipboard = Set unnamed register as system clipboard
+settings-features-vim-status-bar = Show Vim status bar
+settings-features-tab-behavior-right-arrow-accepts = → accepts autosuggestions.
+settings-features-tab-behavior-key-accepts = { $keybinding } accepts autosuggestions.
+settings-features-completions-open-while-typing-sentence = Completions open as you type.
+settings-features-completions-open-while-typing-or-key = Completions open as you type (or { $keybinding }).
+settings-features-open-completions-unbound = Opening the completion menu is unbound.
+settings-features-tab-behavior-key-opens-completions = { $keybinding } opens completion menu.
+settings-features-word-characters-label = Characters considered part of a word
+settings-features-new-tab-placement = New tab placement
+settings-features-linux-selection-clipboard-tooltip = Whether the Linux primary clipboard should be supported.
+settings-features-changes-apply-new-windows = Changes will apply to new windows.
+settings-features-wayland-description = Enabling this setting disables global hotkey support. When disabled, text may be blurry if your Wayland compositor is using fraction scaling (ex: 125%).
+settings-features-restart-warp-to-apply = Restart Warp for changes to take effect.
 
 # --- ANCHOR-SUB-TEAMS (agent-settings-teams) ---
 # settings_view/teams_page.rs strings (P0 + P1)
@@ -1935,3 +1998,455 @@ slash-cmd-rewind-desc = Rewind to a previous point in the conversation
 slash-cmd-export-to-clipboard-desc = Export current conversation to clipboard in markdown format
 slash-cmd-export-to-file-desc = Export current conversation to a markdown file
 slash-cmd-export-to-file-hint = <optional filename>
+
+# --- ANCHOR-SUB-PROMPT-TIPS ---
+# Prompt editor modal (app/src/prompt/editor_modal.rs)
+prompt-editor-title = Edit prompt
+prompt-editor-warp-prompt-section = Warp terminal prompt
+prompt-editor-shell-prompt-section = Shell prompt (PS1)
+prompt-editor-restore-default = Restore default
+prompt-editor-same-line-prompt = Same line prompt
+prompt-editor-separator = Separator
+prompt-editor-cancel = Cancel
+prompt-editor-save-changes = Save changes
+
+# Welcome tips (app/src/tips/tip_view.rs)
+welcome-tips-command-palette-title = Command Palette
+welcome-tips-command-palette-description = Easily discover everything you can do in Warp without your hands leaving the keyboard.
+welcome-tips-split-pane-title = Split Pane
+welcome-tips-split-pane-description = Split tabs into multiple panes to make your ideal layout.
+welcome-tips-history-search-title = History Search
+welcome-tips-history-search-description = Find, edit and re-run previously executed commands.
+welcome-tips-ai-command-search-title = AI Command Search
+welcome-tips-ai-command-search-description = Generate shell commands with natural language.
+welcome-tips-theme-picker-title = Theme Picker
+welcome-tips-theme-picker-description = Make Warp your own by choosing a built-in theme. Or create your own.
+welcome-tips-shortcut-label = Shortcut
+welcome-tips-skip = Skip Welcome Tips
+welcome-tips-complete-title = Complete!
+welcome-tips-complete-description = Nice work on finishing the welcome tips!
+welcome-tips-close = Close Welcome Tips
+
+# --- ANCHOR-SUB-SMALL-DIALOGS ---
+# Rewind confirmation dialog (app/src/workspace/rewind_confirmation_dialog.rs)
+rewind-dialog-title = Rewind
+rewind-dialog-body = Are you sure you want to rewind? This will restore your code and conversation to before this point, and cancel any commands the agent is currently running. A copy of the original conversation will be saved in your conversation history.
+rewind-dialog-info = Rewinding does not affect files edited manually or via shell commands.
+rewind-dialog-cancel = Cancel
+rewind-dialog-confirm = Rewind
+
+# Transfer ownership confirmation modal (app/src/settings_view/transfer_ownership_confirmation_modal.rs)
+transfer-ownership-dialog-body = Are you sure you want to transfer team ownership to { $name }? You will no longer be the owner and will not be able to take any administrative actions for this team.
+transfer-ownership-dialog-cancel = Cancel
+transfer-ownership-dialog-confirm = Transfer
+
+# --- ANCHOR-SUB-SEARCH-PALETTES ---
+# Search palettes (app/src/search/command_palette/view.rs, app/src/search/welcome_palette/view.rs)
+command-palette-search-placeholder = Search for a command
+command-palette-no-results = No results found
+command-palette-toast-cannot-switch-conversations = Cannot switch conversations while agent is monitoring a command.
+command-palette-toast-cannot-start-new-conversation = Cannot start a new conversation while agent is monitoring a command.
+command-palette-zero-state-recent = Recent
+command-palette-zero-state-suggested = Suggested
+welcome-palette-search-placeholder = Code, build, or search for anything...
+welcome-palette-no-results = No results found
+search-filter-placeholder-history = Search history
+search-filter-placeholder-workflows = Search workflows
+search-filter-placeholder-agent-mode-workflows = Search prompts
+search-filter-placeholder-notebooks = Search notebooks
+search-filter-placeholder-plans = Search plans
+search-filter-placeholder-natural-language = e.g. replace string in file
+search-filter-placeholder-actions = Search actions
+search-filter-placeholder-sessions = Search sessions
+search-filter-placeholder-conversations = Search conversations
+search-filter-placeholder-historical-conversations = Search historical conversations
+search-filter-placeholder-launch-configurations = Search launch configurations
+search-filter-placeholder-drive = Search objects in drive
+search-filter-placeholder-environment-variables = Search environment variables
+search-filter-placeholder-prompt-history = Search prompt history
+search-filter-placeholder-files = Search files
+search-filter-placeholder-commands = Search commands
+search-filter-placeholder-blocks = Search blocks
+search-filter-placeholder-code = Search code symbols
+search-filter-placeholder-rules = Search AI rules
+search-filter-placeholder-repos = Search code repos
+search-filter-placeholder-diff-sets = Search diff sets
+search-filter-placeholder-static-slash-commands = Search static slash commands
+search-filter-placeholder-skills = Search skills
+search-filter-placeholder-base-models = Search base models
+search-filter-placeholder-full-terminal-use-models = Search full terminal use models
+search-filter-placeholder-current-directory-conversations = Search conversations in current directory
+search-filter-display-history = history
+search-filter-display-workflows = workflows
+search-filter-display-agent-mode-workflows = prompts
+search-filter-display-notebooks = notebooks
+search-filter-display-plans = plans
+search-filter-display-natural-language = AI command suggestions
+search-filter-display-actions = actions
+search-filter-display-sessions = sessions
+search-filter-display-conversations = conversations
+search-filter-display-launch-configurations = launch configurations
+search-filter-display-drive = Warp Drive
+search-filter-display-environment-variables = environment variables
+search-filter-display-prompt-history = prompt history
+search-filter-display-files = files
+search-filter-display-commands = commands
+search-filter-display-blocks = blocks
+search-filter-display-code = code
+search-filter-display-rules = rules
+search-filter-display-repos = repos
+search-filter-display-diff-sets = diff sets
+search-filter-display-static-slash-commands = slash commands
+search-filter-display-historical-conversations = historical conversations
+search-filter-display-skills = skills
+search-filter-display-base-models = base models
+search-filter-display-full-terminal-use-models = full terminal use models
+search-filter-display-current-directory-conversations = current directory conversations
+search-results-menu-no-results = No results found
+search-results-menu-prompts-title = Prompts
+ai-context-diffset-uncommitted-changes = Uncommitted changes
+ai-context-diffset-changes-vs-main-branch = Changes vs. main branch
+ai-context-diffset-changes-vs-branch = Changes vs. { $branch }
+ai-context-diffset-uncommitted-changes-description = All uncommitted changes in the working directory
+ai-context-diffset-changes-vs-main-branch-description = All changes compared to the main branch
+ai-context-diffset-changes-vs-branch-description = All changes compared to { $branch }
+ai-context-code-search-failed = Code search failed
+ai-context-files-directory-accessibility-label = Directory: { $path }
+ai-context-files-file-accessibility-label = File: { $path }
+ai-context-blocks-just-now = Just now
+ai-context-blocks-minutes-ago = { $count ->
+        [one] 1 minute ago
+       *[other] { $count } minutes ago
+    }
+ai-context-blocks-hours-ago = { $count ->
+        [one] 1 hour ago
+       *[other] { $count } hours ago
+    }
+ai-context-blocks-days-ago = { $count ->
+        [one] 1 day ago
+       *[other] { $count } days ago
+    }
+ai-context-blocks-no-output = No output
+ai-context-blocks-accessibility-label = Block: { $command }
+
+# --- ANCHOR-SUB-DRIVE-NAMING-IMPORT ---
+# Drive naming dialog (app/src/drive/cloud_object_naming_dialog.rs)
+drive-naming-notebook-name = Notebook name
+drive-naming-folder-name = Folder name
+drive-naming-collection-name = Collection name
+drive-naming-create = Create
+drive-naming-cancel = Cancel
+drive-naming-rename = Rename
+
+# Drive import modal (app/src/drive/import/modal.rs, app/src/drive/import/modal_body.rs)
+drive-import-title = Import
+drive-import-close = Close
+drive-import-cancel = Cancel
+drive-import-preparing = Preparing...
+drive-import-choose-files = Choose files...
+drive-import-learn-file-support = Learn about file support and formatting
+drive-import-file-upload-error = Failed to upload file to server
+drive-import-folder-upload-error = Failed to upload folder to server
+
+# Drive main panel and workflow editor (app/src/drive/index.rs, app/src/drive/workflows/*)
+drive-title = Warp Drive
+drive-create-team-text = Share commands and knowledge with your teammates.
+drive-join-team-header = Collaborate with { $count } of your { $count ->
+        [one] teammate
+       *[other] teammates
+    } already on Warp.
+drive-environment-variables = Environment variables
+drive-folder = Folder
+drive-notebook = Notebook
+drive-workflow = Workflow
+drive-prompt = Prompt
+drive-import = Import
+drive-remove = Remove
+drive-new-folder = New folder
+drive-new-notebook = New notebook
+drive-new-workflow = New workflow
+drive-new-prompt = New prompt
+drive-new-environment-variables = New environment variables
+drive-offline-banner = You are offline. Some files will be read only.
+drive-sort-by = Sort by
+drive-retry-sync = Retry sync
+drive-empty-trash = Empty trash
+drive-trash-section-title = TRASH
+drive-trash-title = Trash
+drive-trash-deletion-warning = Items in the trash will be deleted forever after 30 days.
+drive-team-space-zero-state = Drag or move a personal workflow or notebook here to share it with your team.
+drive-create-team-button = Create team
+drive-view-teams-to-join = View { $count ->
+        [one] team
+       *[other] teams
+    } to join
+drive-or = Or
+drive-sign-up-storage-limit = Sign up for free to increase your storage limit and unlock more features.
+drive-sign-up = Sign up
+drive-copy-link = Copy link
+drive-collapse-all = Collapse all
+drive-revert-to-server = Revert to server
+drive-attach-to-active-session = Attach to active session
+drive-copy-prompt = Copy prompt
+drive-copy-workflow-text = Copy workflow text
+drive-copy-id = Copy id
+drive-copy-variables = Copy variables
+drive-load-in-subshell = Load in subshell
+drive-delete-forever = Delete forever
+drive-rename = Rename
+drive-share = Share
+drive-retry = Retry
+drive-move-to-space = Move to { $space }
+drive-open-on-desktop = Open on Desktop
+drive-duplicate = Duplicate
+drive-export = Export
+drive-trash-menu = Trash
+drive-open = Open
+drive-edit = Edit
+drive-restore = Restore
+drive-compare-plans = Compare plans
+drive-manage-billing = Manage billing
+drive-object-type-notebook-plural = notebook
+drive-object-type-workflow-plural = workflow
+drive-object-type-folder-plural = folder
+drive-object-type-env-var-collection-plural = environment variable collection
+drive-object-type-object-plural = object
+drive-object-type-notebooks = Notebooks
+drive-object-type-workflows = Workflows
+drive-object-type-environment-variables = Environment Variables
+drive-object-type-folders = Folders
+drive-object-type-agent-workflows = Agent Workflows
+drive-object-type-ai-fact = AI Fact
+drive-object-type-rules = Rules
+drive-object-type-mcp-server = MCP Server
+drive-object-type-mcp-servers = MCP Servers
+drive-shared-object-limit-hit-banner-prefix = You've run out of { $object_type }s on your plan.
+drive-shared-object-limit-hit-banner = You've run out of { $object_type }s on your plan. Upgrade for access to more notebooks, workflows, shared sessions, and AI credits.
+drive-payment-issue-banner-prefix = Shared objects have been restricted due to a subscription payment issue.
+drive-payment-issue-banner-admin = Shared objects have been restricted due to a subscription payment issue. Please update your payment information to restore access.
+drive-payment-issue-banner-admin-enterprise = Shared objects have been restricted due to a subscription payment issue. Please contact support@warp.dev to restore access.
+drive-payment-issue-banner-nonadmin = Shared objects have been restricted due to a subscription payment issue. Please contact a team admin to restore access.
+drive-empty-trash-title = Are you sure you want to empty the trash?
+drive-empty-trash-body = This action cannot be undone.
+drive-empty-trash-confirm = Yes, empty trash
+drive-empty-trash-cancel = Cancel
+workflow-title-placeholder = Untitled workflow
+workflow-description-placeholder = Add a description
+workflow-new-argument = New argument
+workflow-argument-description-placeholder = Description
+workflow-default-value-placeholder = Default value (optional)
+workflow-save = Save workflow
+workflow-unsaved-changes = You have unsaved changes.
+workflow-keep-editing = Keep editing
+workflow-discard-changes = Discard changes
+workflow-ai-assist-autofill = Autofill
+workflow-ai-assist-loading = Loading
+workflow-ai-assist-tooltip = Generate a title, descriptions, or parameters with Warp AI
+workflow-ai-assist-error-byop-required = Autofill requires a BYOP model. Configure a provider and model in Settings → AI.
+workflow-ai-assist-error-bad-command = Failed to generate metadata. Please try again with a different command.
+workflow-ai-assist-error-generic = Something went wrong. Please try again.
+workflow-ai-assist-error-rate-limited = Looks like you're out of AI credits. Please try again later.
+workflow-enum-new = New
+
+# --- ANCHOR-SUB-SETTINGS-PRIVACY-ADD-REGEX ---
+# Privacy settings add regex modal (app/src/settings_view/privacy/add_regex_modal.rs)
+settings-privacy-add-regex-name-placeholder = e.g. "Google API Key"
+settings-privacy-add-regex-name-label = Name (optional)
+settings-privacy-add-regex-pattern-label = Regex pattern
+settings-privacy-add-regex-invalid = Invalid regex
+settings-privacy-add-regex-cancel = Cancel
+
+# Workspace panels (app/src/workspace/view/*)
+workspace-conversation-list-search = Search
+workspace-conversation-list-active = ACTIVE
+workspace-conversation-list-past = PAST
+workspace-conversation-list-view-all = View all
+workspace-conversation-list-show-less = Show less
+workspace-conversation-list-empty-title = No conversations yet
+workspace-conversation-list-empty-description = Your active and past conversations with local and ambient agents will appear here.
+workspace-conversation-list-new-conversation = New conversation
+workspace-conversation-list-no-matching = No matching conversations
+workspace-conversation-list-delete = Delete
+workspace-conversation-list-delete-in-progress-error = Conversations cannot be deleted while in progress.
+workspace-conversation-list-delete-ambient-tooltip = Ambient agent conversations cannot be deleted
+workspace-conversation-list-share-conversation = Share conversation
+workspace-conversation-list-fork-new-pane = Fork in new pane
+workspace-conversation-list-fork-new-tab = Fork in new tab
+workspace-conversation-list-fallback-title = Conversation
+workspace-left-panel-project-explorer = Project explorer
+workspace-left-panel-global-search = Global search
+workspace-left-panel-warp-drive = Warp Drive
+workspace-left-panel-agent-conversations = Agent conversations
+workspace-left-panel-close-panel = Close panel
+workspace-tabs-panel-tooltip = Tabs panel
+workspace-tools-panel-tooltip = Tools panel
+workspace-agent-management-panel-tooltip = Agent management panel
+workspace-code-review-panel-tooltip = Code review panel
+workspace-notifications-tooltip = Notifications
+workspace-new-tab-tooltip = New Tab
+workspace-tab-configs-tooltip = Tab configs
+workspace-offline-tooltip = Some features may be unavailable offline
+workspace-right-panel-open-repository = Open repository
+workspace-right-panel-open-repository-tooltip = Navigate to a repo and initialize it for coding
+workspace-right-panel-close-panel = Close panel
+workspace-right-panel-code-review = Code review
+workspace-right-panel-minimize = Minimize
+workspace-right-panel-maximize = Maximize
+terminal-pane-new-cloud-agent-title = New cloud agent
+terminal-pane-new-agent-conversation-title = New agent conversation
+vertical-tabs-no-tabs-open = No tabs open
+vertical-tabs-untitled-tab = Untitled tab
+vertical-tabs-view-options-tooltip = View options
+vertical-tabs-new-session = New session
+vertical-tabs-terminal-kind-oz = Oz
+vertical-tabs-pane-kind-terminal = Terminal
+vertical-tabs-pane-kind-code = Code
+vertical-tabs-pane-kind-code-diff = Code Diff
+vertical-tabs-pane-kind-file = File
+vertical-tabs-pane-kind-notebook = Notebook
+vertical-tabs-pane-kind-workflow = Workflow
+vertical-tabs-pane-kind-environment-variables = Environment Variables
+vertical-tabs-pane-kind-environments = Environments
+vertical-tabs-pane-kind-rules = Rules
+vertical-tabs-pane-kind-plan = Plan
+vertical-tabs-pane-kind-execution-profile = Execution Profile
+vertical-tabs-pane-kind-other = Other
+vertical-tabs-setting-view-as = View as
+vertical-tabs-setting-panes = Panes
+vertical-tabs-setting-tabs = Tabs
+vertical-tabs-setting-tab-item = Tab item
+vertical-tabs-setting-focused-session = Focused session
+vertical-tabs-setting-summary = Summary
+vertical-tabs-setting-density = Density
+vertical-tabs-setting-pane-title-as = Pane title as
+vertical-tabs-setting-command-conversation = Command / Conversation
+vertical-tabs-setting-working-directory = Working Directory
+vertical-tabs-setting-branch = Branch
+vertical-tabs-setting-additional-metadata = Additional metadata
+vertical-tabs-setting-show = Show
+vertical-tabs-setting-pr-link-requires-gh = Requires the GitHub CLI to be installed and authenticated
+vertical-tabs-setting-pr-link = PR link
+vertical-tabs-setting-diff-stats = Diff stats
+vertical-tabs-setting-show-details-on-hover = Show details on hover
+workspace-right-panel-unknown = Unknown
+global-search-placeholder = Search in files
+global-search-toggle-case-sensitivity = Toggle Case Sensitivity
+global-search-toggle-regex = Toggle Regex
+global-search-label = Search
+global-search-no-results-gitignore = No results found. Review your gitignore files.
+global-search-result-count-one = 1 result in { $files } { $files ->
+        [one] file
+       *[other] files
+    }
+global-search-result-count-many = { $n } results in { $files } { $files ->
+        [one] file
+       *[other] files
+    }
+global-search-subset-warning = The result set only contains a subset of all matches. Be more specific in your search to narrow down results.
+global-search-title = Global search
+global-search-description = Search in files across your current directories.
+global-search-unavailable-title = Global search unavailable
+global-search-unavailable-description = Global search requires access to your local workspace. Open a new session or navigate to an active session to view.
+global-search-remote-description = Global search requires access to your local workspace, which isn't supported in remote sessions
+global-search-unsupported-session-description = Global search doesn't currently work in Git Bash or WSL.
+global-search-failed = Global search failed.
+
+# Reward view (app/src/reward_view.rs)
+reward-title = Congrats!
+reward-subtitle-sent-referral = You earned an exclusive Warp theme for referring someone to Warp.
+reward-subtitle-received-referral = You earned an exclusive Warp theme for being referred to Warp.
+reward-cta = Try it out!
+reward-accessibility-help = Press enter to open the theme chooser or escape to dismiss.
+
+# Wasm NUX dialog (app/src/wasm_nux_dialog.rs)
+wasm-nux-open-desktop-title = Open in Warp Desktop?
+wasm-nux-open-desktop-detail = Future links will automatically open on desktop.
+wasm-nux-open-desktop-confirm = Open in Warp
+wasm-nux-download-title = Download Warp Desktop?
+wasm-nux-download-description = Warp is the intelligent terminal with AI and your dev team's knowledge built-in.
+wasm-nux-learn-more = Learn more
+wasm-nux-download-confirm = Download
+wasm-nux-object-kind-drive-objects = Warp Drive objects
+wasm-nux-object-kind-shared-sessions = shared sessions
+wasm-nux-object-kind-warp-links = Warp links
+wasm-nux-always-open-on-web-title = Always open { $object_kind } on the web?
+wasm-nux-always-open-on-web-detail = You can change this at any time in settings.
+wasm-nux-yes = Yes
+
+# Drive cloud action confirmation dialog (app/src/drive/cloud_action_confirmation_dialog.rs)
+drive-cloud-action-cancel = Cancel
+drive-cloud-action-delete-team-title = Are you sure you want to delete this team?
+drive-cloud-action-leave-team-title = Are you sure you want to leave this team?
+drive-cloud-action-delete-team-body = Deleting this team will permanently delete it and all of its related content, including billing information or credits. You will not be able to restore them.
+drive-cloud-action-leave-team-body = You will need to be reinvited in order to rejoin.
+drive-cloud-action-delete-team-confirm = Yes, delete
+drive-cloud-action-leave-team-confirm = Yes, leave
+
+# Auth override warning (app/src/auth/auth_override_warning_body.rs)
+auth-override-warning-title = New login detected
+auth-override-warning-confirm-title = Delete personal Warp Drive objects and preferences?
+auth-override-warning-description = It looks like you logged into a Warp account through a web browser. If you continue, any personal Warp Drive objects and preferences from this anonymous session will be permanently deleted.
+auth-override-warning-cannot-undo = This cannot be undone.
+auth-override-warning-export = Export your data
+auth-override-warning-export-description =  to import later.
+auth-override-warning-cancel = Cancel
+auth-override-warning-continue = Continue
+auth-override-warning-accessibility-help = Warp has detected a new login from a web browser. Press escape to cancel and continue using Warp without login.
+
+# Auth SSO link/login failures/paste token/logout/offline/privacy
+auth-needs-sso-link-button = Link SSO
+auth-needs-sso-link-title = Your organization has enabled SSO for your account
+auth-needs-sso-link-detail = Click the button below to link your Warp account to your SSO provider.
+auth-login-failure-troubleshooting-prefix =  Not the first time? See our
+auth-login-failure-troubleshooting-link =  troubleshooting docs
+auth-login-failure-troubleshooting-suffix = .
+auth-login-failure-invalid-token = An invalid auth token was entered into the modal.
+auth-login-failure-copy-token-manually = Failed to log in. Try manually copying the auth token from the authentication web page and pasting into the modal.
+auth-login-failure-login-request = Request to log in failed.
+auth-login-failure-signup-request = Request to sign up failed.
+auth-login-failure-wrong-redirect-url = The redirect URL pasted did not originate from this app. Please click the button below to try again.
+auth-paste-token-placeholder = Enter auth token
+auth-paste-token-title = Paste your auth token below
+auth-paste-token-detail = Paste your auth token from the browser to get complete login.
+auth-paste-token-cancel = Cancel
+auth-paste-token-continue = Continue
+auth-offline-first-use-description = You are currently offline. An internet connection is required to use Warp for the first time.
+auth-offline-first-use-learn-more = Learn more
+auth-offline-overlay-title = Using Warp Offline
+auth-offline-overlay-paragraph-1 = All of Warp's non-cloud features work offline.
+auth-offline-overlay-paragraph-2 = However, we require users to be online when using Warp for the first time in order to enable Warp's AI and cloud features.
+auth-offline-overlay-paragraph-3 = We offer cloud features to all users, and so we need an internet connection to meter AI usage, prevent abuse, and associate cloud objects with users. If you opt to use Warp logged-out, a unique ID will be attached to an anonymous user account in order to support these features.
+auth-offline-overlay-dismiss = Dismiss
+auth-privacy-settings-title = Privacy Settings
+auth-privacy-settings-done = Done
+auth-privacy-settings-help-improve = Help improve Warp
+auth-privacy-settings-help-improve-description = High-level feature usage data helps Warp's product team prioritize the roadmap.
+auth-privacy-settings-learn-more = Learn more
+auth-privacy-settings-send-crash-reports = Send crash reports
+auth-privacy-settings-crash-reports-description = Crash reporting helps Warp's engineering team understand stability and improve performance.
+auth-logout-confirm = Yes, log out
+auth-logout-show-running-processes = Show running processes
+auth-logout-cancel = Cancel
+auth-logout-title = Log out?
+auth-logout-running-processes-warning = You have { $count } { $count ->
+        [one] process
+       *[other] processes
+    } running.
+auth-logout-shared-sessions-warning = You have { $count } shared { $count ->
+        [one] session
+       *[other] sessions
+    }.
+auth-logout-unsynced-drive-objects-warning = You have { $count } unsynced Warp Drive { $count ->
+        [one] object
+       *[other] objects
+    }. Logging out will cause you to lose the { $count ->
+        [one] object
+       *[other] objects
+    }.
+auth-logout-unsaved-files-warning = You have { $count } unsaved { $count ->
+        [one] file
+       *[other] files
+    }. Logging out will cause you to lose the { $count ->
+        [one] file
+       *[other] files
+    }.

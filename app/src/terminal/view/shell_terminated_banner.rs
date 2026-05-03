@@ -3,14 +3,14 @@ use std::{borrow::Cow, cell::RefCell};
 use warp_core::ui::{
     appearance::Appearance,
     builder::UiBuilder,
-    theme::{WarpTheme, color::internal_colors},
+    theme::{color::internal_colors, WarpTheme},
 };
 use warpui::{
-    Entity, SingletonEntity as _, TypedActionView, View, ViewContext,
     clipboard::ClipboardContent,
     elements::*,
     text_layout::ClipConfig,
     ui_components::{button::ButtonVariant, components::UiComponent as _},
+    Entity, SingletonEntity as _, TypedActionView, View, ViewContext,
 };
 
 use crate::{terminal::model::terminal_model::ExitReason, ui_components};

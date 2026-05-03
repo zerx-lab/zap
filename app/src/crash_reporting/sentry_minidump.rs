@@ -226,9 +226,7 @@ pub fn run_server(socket_path: &Path) -> anyhow::Result<()> {
 /// 实际上**不会被调用**(`init_sentry` 已不再启动 minidump server),保留实现以避免大 cascade。
 fn send_crash_report(details: Option<String>, dump: Option<minidumper::MinidumpBinary>) {
     let message = details.as_deref().unwrap_or("Fatal exception");
-    let dump_size = dump
-        .and_then(|d| d.contents.map(|c| c.len()))
-        .unwrap_or(0);
+    let dump_size = dump.and_then(|d| d.contents.map(|c| c.len())).unwrap_or(0);
     log::error!(
         "openWarp: minidump crash report (message: {message}, dump bytes: {dump_size}) — 不再上报"
     );

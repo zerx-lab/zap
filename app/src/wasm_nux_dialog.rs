@@ -154,18 +154,18 @@ impl View for WasmNUXDialog {
 
         let dialog = if self.requested_download {
             Dialog::new(
-                "Open in Warp Desktop?".to_string(),
-                Some("Future links will automatically open on desktop.".to_string()),
+                crate::t!("wasm-nux-open-desktop-title"),
+                Some(crate::t!("wasm-nux-open-desktop-detail")),
                 dialog_styles,
             )
             .with_bottom_row_child(Self::render_dialog_button(
-                "Open in Warp",
+                crate::t!("wasm-nux-open-desktop-confirm"),
                 WasmNUXDialogAction::OpenNativeAndClose,
                 &self.confirm_mouse_state,
                 appearance,
             ))
         } else if app_install_detected == &UserAppInstallStatus::NotDetected {
-            Dialog::new("Download Warp Desktop?".to_string(), None, dialog_styles)
+            Dialog::new(crate::t!("wasm-nux-download-title"), None, dialog_styles)
                 .with_child(
                     Flex::column()
                         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -173,7 +173,7 @@ impl View for WasmNUXDialog {
                         .with_child(
                             appearance
                                 .ui_builder()
-                                .span("Warp is the intelligent terminal with AI and your dev team's knowledge built-in.")
+                                .span(crate::t!("wasm-nux-download-description"))
                                 .with_style(UiComponentStyles {
                                     font_weight: Some(Weight::Thin),
                                     font_color: Some(
@@ -193,7 +193,7 @@ impl View for WasmNUXDialog {
                                 appearance
                                     .ui_builder()
                                     .link(
-                                        "Learn more".to_string(),
+                                        crate::t!("wasm-nux-learn-more"),
                                         None,
                                         Some(Box::new(|ctx| {
                                             ctx.dispatch_typed_action(
@@ -211,25 +211,30 @@ impl View for WasmNUXDialog {
                         .finish(),
                 )
                 .with_bottom_row_child(Self::render_dialog_button(
-                    "Download",
+                    crate::t!("wasm-nux-download-confirm"),
                     WasmNUXDialogAction::OpenDownloadDesktopAppLink,
                     &self.download_warp_mouse_state,
                     appearance,
                 ))
         } else {
             let object_kind = match web_intent_parser::current_web_intent() {
-                Some(WebIntent::DriveObject(_)) => "Warp Drive objects",
-                Some(WebIntent::SessionView(_)) => "shared sessions",
-                _ => "Warp links",
+                Some(WebIntent::DriveObject(_)) => crate::t!("wasm-nux-object-kind-drive-objects"),
+                Some(WebIntent::SessionView(_)) => {
+                    crate::t!("wasm-nux-object-kind-shared-sessions")
+                }
+                _ => crate::t!("wasm-nux-object-kind-warp-links"),
             };
 
             Dialog::new(
-                format!("Always open {object_kind} on the web?"),
-                Some("You can change this at any time in settings.".to_string()),
+                crate::t!(
+                    "wasm-nux-always-open-on-web-title",
+                    object_kind = object_kind
+                ),
+                Some(crate::t!("wasm-nux-always-open-on-web-detail")),
                 dialog_styles,
             )
             .with_bottom_row_child(Self::render_dialog_button(
-                "Yes",
+                crate::t!("wasm-nux-yes"),
                 WasmNUXDialogAction::SetWebAndClose,
                 &self.confirm_mouse_state,
                 appearance,

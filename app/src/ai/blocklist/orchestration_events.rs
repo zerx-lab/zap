@@ -9,12 +9,12 @@ use crate::ai::agent::{
     task::TaskId,
     AIAgentExchangeId, AIAgentInput, AIAgentOutputMessageType, ReceivedMessageInput,
 };
-use warp_multi_agent_api::LifecycleEventType;
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 use warp_core::features::FeatureFlag;
 use warp_core::send_telemetry_from_ctx;
 use warp_multi_agent_api as api;
+use warp_multi_agent_api::LifecycleEventType;
 use warpui::{Entity, ModelContext, SingletonEntity};
 
 const MAX_RETRY_ATTEMPTS: i32 = 3;

@@ -2,11 +2,11 @@
 //!
 //! Phase 3 (state + message_view) 落地后再补 e2e 集成测试。
 
-use super::algorithm::{MessageRef, Role, ToolOutputRef, prune_decisions, select, turns};
+use super::algorithm::{prune_decisions, select, turns, MessageRef, Role, ToolOutputRef};
 use super::config::CompactionConfig;
 use super::consts::*;
-use super::overflow::{ModelLimit, TokenCounts, is_overflow, usable};
-use super::prompt::{SUMMARY_TEMPLATE, build_continue_message, build_prompt};
+use super::overflow::{is_overflow, usable, ModelLimit, TokenCounts};
+use super::prompt::{build_continue_message, build_prompt, SUMMARY_TEMPLATE};
 use super::token::estimate;
 
 // -- token ---------------------------------------------------------------
@@ -31,12 +31,18 @@ fn token_estimate_aligned() {
 
 // -- overflow ------------------------------------------------------------
 
-fn cfg_default() -> CompactionConfig { CompactionConfig::default() }
+fn cfg_default() -> CompactionConfig {
+    CompactionConfig::default()
+}
 
 #[test]
 fn usable_with_input_limit() {
     let cfg = cfg_default();
-    let model = ModelLimit { context: 200_000, input: 180_000, max_output: 8_000 };
+    let model = ModelLimit {
+        context: 200_000,
+        input: 180_000,
+        max_output: 8_000,
+    };
     // reserved = min(20_000, 8_000) = 8_000
     // usable = max(0, 180_000 - 8_000) = 172_000
     assert_eq!(usable(&cfg, model), 172_000);
@@ -45,7 +51,11 @@ fn usable_with_input_limit() {
 #[test]
 fn usable_without_input_limit() {
     let cfg = cfg_default();
-    let model = ModelLimit { context: 200_000, input: 0, max_output: 8_000 };
+    let model = ModelLimit {
+        context: 200_000,
+        input: 0,
+        max_output: 8_000,
+    };
     // 走第二分支:context - max_output = 192_000
     assert_eq!(usable(&cfg, model), 192_000);
 }
@@ -53,7 +63,11 @@ fn usable_without_input_limit() {
 #[test]
 fn usable_zero_context() {
     let cfg = cfg_default();
-    let model = ModelLimit { context: 0, input: 0, max_output: 0 };
+    let model = ModelLimit {
+        context: 0,
+        input: 0,
+        max_output: 0,
+    };
     assert_eq!(usable(&cfg, model), 0);
 }
 
@@ -61,7 +75,11 @@ fn usable_zero_context() {
 fn usable_respects_cfg_reserved_override() {
     let mut cfg = cfg_default();
     cfg.reserved = Some(50_000);
-    let model = ModelLimit { context: 200_000, input: 180_000, max_output: 8_000 };
+    let model = ModelLimit {
+        context: 200_000,
+        input: 180_000,
+        max_output: 8_000,
+    };
     // reserved 覆盖为 50_000 → 180_000 - 50_000 = 130_000
     assert_eq!(usable(&cfg, model), 130_000);
 }
@@ -70,31 +88,60 @@ fn usable_respects_cfg_reserved_override() {
 fn is_overflow_auto_off() {
     let mut cfg = cfg_default();
     cfg.auto = false;
-    let model = ModelLimit { context: 200_000, input: 180_000, max_output: 8_000 };
-    let tokens = TokenCounts { total: 999_999, ..Default::default() };
+    let model = ModelLimit {
+        context: 200_000,
+        input: 180_000,
+        max_output: 8_000,
+    };
+    let tokens = TokenCounts {
+        total: 999_999,
+        ..Default::default()
+    };
     assert!(!is_overflow(&cfg, tokens, model));
 }
 
 #[test]
 fn is_overflow_at_threshold() {
     let cfg = cfg_default();
-    let model = ModelLimit { context: 200_000, input: 180_000, max_output: 8_000 };
+    let model = ModelLimit {
+        context: 200_000,
+        input: 180_000,
+        max_output: 8_000,
+    };
     let usable_n = usable(&cfg, model);
-    let tokens = TokenCounts { total: usable_n, ..Default::default() };
+    let tokens = TokenCounts {
+        total: usable_n,
+        ..Default::default()
+    };
     assert!(is_overflow(&cfg, tokens, model));
-    let tokens_below = TokenCounts { total: usable_n - 1, ..Default::default() };
+    let tokens_below = TokenCounts {
+        total: usable_n - 1,
+        ..Default::default()
+    };
     assert!(!is_overflow(&cfg, tokens_below, model));
 }
 
 #[test]
 fn token_counts_count_uses_total_when_present() {
-    let t = TokenCounts { total: 100, input: 50, output: 60, cache_read: 10, cache_write: 5 };
+    let t = TokenCounts {
+        total: 100,
+        input: 50,
+        output: 60,
+        cache_read: 10,
+        cache_write: 5,
+    };
     assert_eq!(t.count(), 100); // total 优先
 }
 
 #[test]
 fn token_counts_count_sums_when_total_zero() {
-    let t = TokenCounts { total: 0, input: 50, output: 60, cache_read: 10, cache_write: 5 };
+    let t = TokenCounts {
+        total: 0,
+        input: 50,
+        output: 60,
+        cache_read: 10,
+        cache_write: 5,
+    };
     assert_eq!(t.count(), 125);
 }
 
@@ -104,9 +151,15 @@ fn token_counts_count_sums_when_total_zero() {
 fn preserve_recent_budget_default_formula() {
     let cfg = cfg_default();
     // usable=80_000 → 80_000/4 = 20_000 → max(2_000, 20_000)=20_000 → min(8_000, 20_000) = 8_000
-    assert_eq!(cfg.preserve_recent_budget(80_000), MAX_PRESERVE_RECENT_TOKENS);
+    assert_eq!(
+        cfg.preserve_recent_budget(80_000),
+        MAX_PRESERVE_RECENT_TOKENS
+    );
     // usable=4_000 → 1_000 → max(2_000, 1_000)=2_000 → min(8_000, 2_000)=2_000
-    assert_eq!(cfg.preserve_recent_budget(4_000), MIN_PRESERVE_RECENT_TOKENS);
+    assert_eq!(
+        cfg.preserve_recent_budget(4_000),
+        MIN_PRESERVE_RECENT_TOKENS
+    );
     // usable=20_000 → 5_000 → max(2_000, 5_000)=5_000 → min(8_000, 5_000)=5_000
     assert_eq!(cfg.preserve_recent_budget(20_000), 5_000);
 }
@@ -196,34 +249,83 @@ struct M {
 
 impl M {
     fn user(id: u32, size: usize) -> Self {
-        Self { id, role: Role::User, is_compaction: false, is_summary: false, size, tools: vec![] }
+        Self {
+            id,
+            role: Role::User,
+            is_compaction: false,
+            is_summary: false,
+            size,
+            tools: vec![],
+        }
     }
     fn user_compaction(id: u32) -> Self {
-        Self { id, role: Role::User, is_compaction: true, is_summary: false, size: 0, tools: vec![] }
+        Self {
+            id,
+            role: Role::User,
+            is_compaction: true,
+            is_summary: false,
+            size: 0,
+            tools: vec![],
+        }
     }
     fn assistant(id: u32, size: usize) -> Self {
-        Self { id, role: Role::Assistant, is_compaction: false, is_summary: false, size, tools: vec![] }
+        Self {
+            id,
+            role: Role::Assistant,
+            is_compaction: false,
+            is_summary: false,
+            size,
+            tools: vec![],
+        }
     }
     fn summary(id: u32) -> Self {
-        Self { id, role: Role::Assistant, is_compaction: false, is_summary: true, size: 100, tools: vec![] }
+        Self {
+            id,
+            role: Role::Assistant,
+            is_compaction: false,
+            is_summary: true,
+            size: 100,
+            tools: vec![],
+        }
     }
     fn assistant_with_tools(id: u32, size: usize, tools: Vec<ToolOutputRef<u32>>) -> Self {
-        Self { id, role: Role::Assistant, is_compaction: false, is_summary: false, size, tools }
+        Self {
+            id,
+            role: Role::Assistant,
+            is_compaction: false,
+            is_summary: false,
+            size,
+            tools,
+        }
     }
 }
 
 impl MessageRef for M {
     type Id = u32;
     type CallId = u32;
-    fn id(&self) -> u32 { self.id }
-    fn role(&self) -> Role { self.role }
-    fn is_compaction_marker(&self) -> bool { self.is_compaction }
-    fn is_summary(&self) -> bool { self.is_summary }
-    fn estimate_size(&self) -> usize { self.size }
-    fn tool_outputs(&self) -> Vec<ToolOutputRef<u32>> { self.tools.clone() }
+    fn id(&self) -> u32 {
+        self.id
+    }
+    fn role(&self) -> Role {
+        self.role
+    }
+    fn is_compaction_marker(&self) -> bool {
+        self.is_compaction
+    }
+    fn is_summary(&self) -> bool {
+        self.is_summary
+    }
+    fn estimate_size(&self) -> usize {
+        self.size
+    }
+    fn tool_outputs(&self) -> Vec<ToolOutputRef<u32>> {
+        self.tools.clone()
+    }
 }
 
-fn sum_size(slice: &[M]) -> usize { slice.iter().map(|m| m.size).sum() }
+fn sum_size(slice: &[M]) -> usize {
+    slice.iter().map(|m| m.size).sum()
+}
 
 #[test]
 fn turns_basic() {
@@ -249,7 +351,7 @@ fn turns_skips_compaction_marker() {
     let msgs = vec![
         M::user(1, 10),
         M::assistant(2, 20),
-        M::user_compaction(99),  // 不算 turn
+        M::user_compaction(99), // 不算 turn
         M::assistant(3, 30),
         M::user(4, 10),
     ];
@@ -268,13 +370,16 @@ fn turns_empty() {
 #[test]
 fn select_keeps_recent_turns_within_budget() {
     let msgs = vec![
-        M::user(1, 100), M::assistant(2, 100),  // turn1 size 200
-        M::user(3, 100), M::assistant(4, 100),  // turn2 size 200
-        M::user(5, 100), M::assistant(6, 100),  // turn3 size 200
+        M::user(1, 100),
+        M::assistant(2, 100), // turn1 size 200
+        M::user(3, 100),
+        M::assistant(4, 100), // turn2 size 200
+        M::user(5, 100),
+        M::assistant(6, 100), // turn3 size 200
     ];
     let mut cfg = CompactionConfig::default();
     cfg.tail_turns = 2;
-    cfg.preserve_recent_tokens = Some(500);  // 足够装下最近 2 个 turn (各 200)
+    cfg.preserve_recent_tokens = Some(500); // 足够装下最近 2 个 turn (各 200)
     let model = ModelLimit::FALLBACK;
     let r = select(&msgs, &cfg, model, sum_size);
     // tail 起点是第 2 个 turn 的 user(idx=2),head_end=2
@@ -286,7 +391,7 @@ fn select_keeps_recent_turns_within_budget() {
 fn select_split_turn_when_over_budget() {
     let msgs = vec![
         M::user(1, 100),
-        M::user(2, 100),  // turn 2 含 5 条消息共 500
+        M::user(2, 100), // turn 2 含 5 条消息共 500
         M::assistant(3, 100),
         M::assistant(4, 100),
         M::assistant(5, 100),
@@ -294,7 +399,7 @@ fn select_split_turn_when_over_budget() {
     ];
     let mut cfg = CompactionConfig::default();
     cfg.tail_turns = 1;
-    cfg.preserve_recent_tokens = Some(250);  // 装不下 turn2 整体(500),触发 splitTurn
+    cfg.preserve_recent_tokens = Some(250); // 装不下 turn2 整体(500),触发 splitTurn
     let model = ModelLimit::FALLBACK;
     let r = select(&msgs, &cfg, model, sum_size);
     // splitTurn 从 turn2.start+1=2 开始找,messages[2..6]=400 > 250, [3..6]=300>250, [4..6]=200<=250 → start=4
@@ -352,10 +457,14 @@ fn prune_skips_protected_skill_tool() {
     // 大 skill tool + 大 bash tool;skill 受保护永不入 prune,bash 在 PRUNE_PROTECT 内也不剪
     let msgs = vec![
         M::user(1, 10),
-        M::assistant_with_tools(2, 0, vec![
-            tool_output(101, "skill", 50_000),  // skip
-            tool_output(102, "bash", 30_000),
-        ]),
+        M::assistant_with_tools(
+            2,
+            0,
+            vec![
+                tool_output(101, "skill", 50_000), // skip
+                tool_output(102, "bash", 30_000),
+            ],
+        ),
         M::user(3, 10),
         M::assistant_with_tools(4, 0, vec![tool_output(103, "bash", 30_000)]),
         M::user(5, 10),
@@ -408,7 +517,7 @@ fn prune_stops_at_summary_boundary() {
     let msgs = vec![
         M::user(1, 10),
         M::assistant_with_tools(2, 0, vec![big_tool(101)]),
-        M::summary(3),  // boundary
+        M::summary(3), // boundary
         M::user(4, 10),
         M::assistant(5, 0),
         M::user(6, 10),

@@ -336,12 +336,9 @@ pub fn read_images_from_clipboard(
             #[cfg(target_os = "windows")]
             {
                 if !matches!(err, arboard::Error::ContentNotAvailable) {
-                    log::debug!(
-                        "arboard image() failed ({err:?}); trying custom Windows formats"
-                    );
+                    log::debug!("arboard image() failed ({err:?}); trying custom Windows formats");
                 }
-                let filename =
-                    extract_filename_from_clipboard_content(html_content, text_content);
+                let filename = extract_filename_from_clipboard_content(html_content, text_content);
                 if let Some(img) = try_read_image_via_custom_windows_formats(filename) {
                     return Some(vec![img]);
                 }
@@ -385,8 +382,8 @@ fn try_read_image_via_custom_windows_formats(
         13, // CF_UNICODETEXT
         15, // CF_HDROP
         16, // CF_LOCALE
-        // We DO probe 8 = CF_DIB and 17 = CF_DIBV5 — those carry raw DIB bytes
-        // that we can decode via try_decode_dib_to_png below.
+            // We DO probe 8 = CF_DIB and 17 = CF_DIBV5 — those carry raw DIB bytes
+            // that we can decode via try_decode_dib_to_png below.
     ];
 
     // CF_DIB = 8, CF_DIBV5 = 17. Treat these (and any registered format whose
@@ -413,10 +410,7 @@ fn try_read_image_via_custom_windows_formats(
 
     let names: Vec<String> = formats
         .iter()
-        .map(|&f| {
-            raw::format_name_big(f)
-                .unwrap_or_else(|| format!("<unknown {:#06x}>", f))
-        })
+        .map(|&f| raw::format_name_big(f).unwrap_or_else(|| format!("<unknown {:#06x}>", f)))
         .collect();
     log::info!(
         "Custom-format fallback: clipboard has {} format(s): {:?}",
@@ -463,9 +457,7 @@ fn try_read_image_via_custom_windows_formats(
             }
             Ok(_) => continue,
             Err(err) => {
-                log::debug!(
-                    "Custom-format fallback: GetClipboardData({fmt:#06x}) failed: {err:?}"
-                );
+                log::debug!("Custom-format fallback: GetClipboardData({fmt:#06x}) failed: {err:?}");
                 continue;
             }
         }

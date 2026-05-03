@@ -2,10 +2,10 @@
 use std::sync::mpsc::SyncSender;
 
 #[cfg(feature = "local_tty")]
+use warpui::geometry::vector::Vector2F;
+#[cfg(feature = "local_tty")]
 use warpui::ModelHandle;
 use warpui::ViewContext;
-#[cfg(feature = "local_tty")]
-use warpui::geometry::vector::Vector2F;
 #[cfg(not(target_family = "wasm"))]
 use warpui::{SingletonEntity, View, ViewHandle};
 
@@ -16,13 +16,13 @@ use crate::persistence::ModelEvent;
 #[cfg(feature = "local_tty")]
 use crate::server::server_api::ServerApiProvider;
 #[cfg(feature = "local_tty")]
-use crate::terminal::TerminalManager;
-#[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
+#[cfg(feature = "local_tty")]
+use crate::terminal::TerminalManager;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_sdk::driver::{
-    WARP_DRIVE_SYNC_TIMEOUT, environment::prepare_environment, terminal::TerminalDriver,
+    environment::prepare_environment, terminal::TerminalDriver, WARP_DRIVE_SYNC_TIMEOUT,
 };
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;

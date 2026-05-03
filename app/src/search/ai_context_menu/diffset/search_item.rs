@@ -20,17 +20,26 @@ pub struct DiffSetSearchItem {
 impl DiffSetSearchItem {
     pub fn name(&self) -> String {
         match &self.diff_mode {
-            DiffMode::Head => "Uncommitted changes".to_string(),
-            DiffMode::MainBranch => "Changes vs. main branch".to_string(),
-            DiffMode::OtherBranch(branch) => format!("Changes vs. {branch}"),
+            DiffMode::Head => crate::t!("ai-context-diffset-uncommitted-changes"),
+            DiffMode::MainBranch => crate::t!("ai-context-diffset-changes-vs-main-branch"),
+            DiffMode::OtherBranch(branch) => {
+                crate::t!("ai-context-diffset-changes-vs-branch", branch = branch)
+            }
         }
     }
 
     pub fn description(&self) -> String {
         match &self.diff_mode {
-            DiffMode::Head => "All uncommitted changes in the working directory".to_string(),
-            DiffMode::MainBranch => "All changes compared to the main branch".to_string(),
-            DiffMode::OtherBranch(branch) => format!("All changes compared to {branch}"),
+            DiffMode::Head => crate::t!("ai-context-diffset-uncommitted-changes-description"),
+            DiffMode::MainBranch => {
+                crate::t!("ai-context-diffset-changes-vs-main-branch-description")
+            }
+            DiffMode::OtherBranch(branch) => {
+                crate::t!(
+                    "ai-context-diffset-changes-vs-branch-description",
+                    branch = branch
+                )
+            }
         }
     }
 }

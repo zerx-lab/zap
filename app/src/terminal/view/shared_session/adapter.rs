@@ -6,7 +6,7 @@ use super::viewer::Viewer;
 use crate::auth::UserUid;
 use crate::banner::{Banner, BannerTextContent};
 use crate::terminal::shared_session::render_util::{
-    ParticipantAvatarParams, participant_avatar_for_selected_block,
+    participant_avatar_for_selected_block, ParticipantAvatarParams,
 };
 use crate::terminal::shared_session::{
     participant_avatar_view::ParticipantAvatarView, presence_manager::PresenceManager,
@@ -22,8 +22,8 @@ use session_sharing_protocol::sharer::SessionSourceType;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use warp_core::features::FeatureFlag;
+use warpui::{elements::MouseStateHandle, ModelHandle, ViewContext, ViewHandle};
 use warpui::{AppContext, Element};
-use warpui::{ModelHandle, ViewContext, ViewHandle, elements::MouseStateHandle};
 
 /// The kind of shared session this is.
 pub enum Kind {

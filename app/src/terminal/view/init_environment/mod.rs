@@ -2,7 +2,7 @@ pub mod mode_selector;
 
 use crate::ai::agent::icons::yellow_stop_icon;
 use crate::ai::blocklist::block::keyboard_navigable_buttons::{
-    KeyboardNavigableButtons, simple_navigation_button,
+    simple_navigation_button, KeyboardNavigableButtons,
 };
 use crate::ai::blocklist::inline_action::inline_action_header::{
     HeaderConfig, INLINE_ACTION_HEADER_VERTICAL_PADDING,

@@ -1873,9 +1873,7 @@ impl AgentInputFooter {
                         .with_main_axis_size(MainAxisSize::Min)
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
                         .with_spacing(4.)
-                        .with_child(
-                            ChildView::new(&self.reasoning_depth_selector).finish(),
-                        )
+                        .with_child(ChildView::new(&self.reasoning_depth_selector).finish())
                         .with_child(ChildView::new(&self.model_selector).finish())
                         .finish()
                 })

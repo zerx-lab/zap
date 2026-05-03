@@ -17,24 +17,14 @@ const TADA: &str = "🎉";
 const TADA_FONT_SIZE: f32 = 60.;
 const TADA_MARGIN_TOP: f32 = 0.;
 const TADA_MARGIN_BOTTOM: f32 = 50.;
-// Constants for the main title
-const TITLE: &str = "Congrats!";
 const TITLE_FONT_SIZE: f32 = 20.;
 const TITLE_MARGIN_BOTTOM: f32 = 25.;
-// Constants for the subtitle
-const SUBTITLE_SENT_REFERRAL: &str =
-    "You earned an exclusive Warp theme for referring someone to Warp.";
-const SUBTITLE_RECEIVED_REFERRAL: &str =
-    "You earned an exclusive Warp theme for being referred to Warp.";
 const SUBTITLE_FONT_SIZE: f32 = 14.;
 const SUBTITLE_MARGIN_BOTTOM: f32 = 40.;
-// Constants for the button
-const BUTTON_CTA: &str = "Try it out!";
 const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_HEIGHT: f32 = 45.;
 const BUTTON_WIDTH: f32 = 240.;
 const BUTTON_MARGIN_BOTTOM: f32 = 14.;
-const ACCESSIBILITY_HELP: &str = "Press enter to open the theme chooser or escape to dismiss.";
 
 pub fn init(app: &mut AppContext) {
     use warpui::keymap::macros::*;
@@ -88,10 +78,14 @@ impl RewardView {
         ctx.notify();
     }
 
-    fn subtitle(&self) -> &'static str {
+    fn title(&self) -> String {
+        crate::t!("reward-title")
+    }
+
+    fn subtitle(&self) -> String {
         match self.kind {
-            RewardKind::SentReferralTheme => SUBTITLE_SENT_REFERRAL,
-            RewardKind::ReceivedReferralTheme => SUBTITLE_RECEIVED_REFERRAL,
+            RewardKind::SentReferralTheme => crate::t!("reward-subtitle-sent-referral"),
+            RewardKind::ReceivedReferralTheme => crate::t!("reward-subtitle-received-referral"),
         }
     }
 
@@ -117,7 +111,7 @@ impl RewardView {
     fn render_title(&self, ui_builder: &UiBuilder) -> Box<dyn Element> {
         Align::new(
             ui_builder
-                .span(TITLE)
+                .span(self.title())
                 .with_style(UiComponentStyles {
                     font_size: Some(TITLE_FONT_SIZE),
                     margin: Some(Coords {
@@ -155,7 +149,7 @@ impl RewardView {
             Container::new(
                 ui_builder
                     .button(ButtonVariant::Accent, self.cta_mouse_state.clone())
-                    .with_centered_text_label(BUTTON_CTA.into())
+                    .with_centered_text_label(crate::t!("reward-cta"))
                     .with_style(UiComponentStyles {
                         height: Some(BUTTON_HEIGHT),
                         width: Some(BUTTON_WIDTH),
@@ -184,8 +178,8 @@ impl View for RewardView {
 
     fn accessibility_contents(&self, _: &AppContext) -> Option<AccessibilityContent> {
         Some(AccessibilityContent::new(
-            format!("{} {}", TITLE, self.subtitle()),
-            ACCESSIBILITY_HELP,
+            format!("{} {}", self.title(), self.subtitle()),
+            crate::t!("reward-accessibility-help"),
             WarpA11yRole::WindowRole,
         ))
     }

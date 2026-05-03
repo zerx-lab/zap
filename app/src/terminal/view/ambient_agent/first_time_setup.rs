@@ -5,8 +5,8 @@
 
 use crate::{
     ai::{
-        AIRequestUsageModel, cloud_environments,
-        request_usage_model::AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD,
+        cloud_environments, request_usage_model::AMBIENT_AGENT_TRIAL_CREDIT_THRESHOLD,
+        AIRequestUsageModel,
     },
     appearance::Appearance,
     server::{cloud_objects::update_manager::UpdateManager, ids::ClientId},
@@ -19,14 +19,13 @@ use crate::{
 use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
 use warpui::{
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
-        Align, Border, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
-        CornerRadius, CrossAxisAlignment, Element, Expanded, Flex, FormattedTextElement,
-        HighlightedHyperlink, NewScrollable, ParentElement, Radius, Text,
-        new_scrollable::SingleAxisConfig,
+        new_scrollable::SingleAxisConfig, Align, Border, ChildView, ClippedScrollStateHandle,
+        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Element, Expanded, Flex,
+        FormattedTextElement, HighlightedHyperlink, NewScrollable, ParentElement, Radius, Text,
     },
     fonts::{Properties, Weight},
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 /// Max width for the content area (matches Figma: 592px)

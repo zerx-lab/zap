@@ -57,10 +57,7 @@ use genai::{Client, ModelIden, ServiceTarget};
 
 use crate::ai::agent::api::{RequestParams, ResponseStream};
 use crate::ai::agent::{AIAgentInput, RunningCommand};
-use crate::ai::byop_compaction::{
-    self,
-    state::CompactionState,
-};
+use crate::ai::byop_compaction::{self, state::CompactionState};
 use crate::server::server_api::AIApiError;
 use crate::settings::AgentProviderApiType;
 use ai::agent::convert::ConvertToAPITypeError;
@@ -405,7 +402,10 @@ fn build_chat_request(
         .iter()
         .any(|i| matches!(i, AIAgentInput::SummarizeConversation { .. }));
     let summarization_overflow = params.input.iter().any(|i| {
-        matches!(i, AIAgentInput::SummarizeConversation { overflow: true, .. })
+        matches!(
+            i,
+            AIAgentInput::SummarizeConversation { overflow: true, .. }
+        )
     });
     let _ = summarization_overflow; // 当前在 input loop 内的 follow-up 文案分支会用,目前先 silence dead
 
@@ -415,7 +415,11 @@ fn build_chat_request(
             state
                 .completed()
                 .iter()
-                .filter_map(|c| c.summary_text.as_ref().map(|s| (c.user_msg_id.clone(), s.clone())))
+                .filter_map(|c| {
+                    c.summary_text
+                        .as_ref()
+                        .map(|s| (c.user_msg_id.clone(), s.clone()))
+                })
                 .collect()
         } else {
             std::collections::HashMap::new()
@@ -434,7 +438,10 @@ fn build_chat_request(
             let mut out = std::collections::HashSet::new();
             for msg in &all_msgs {
                 if let Some(api::message::Message::ToolCallResult(_)) = &msg.message {
-                    if s.marker(&msg.id).and_then(|m| m.tool_output_compacted_at).is_some() {
+                    if s.marker(&msg.id)
+                        .and_then(|m| m.tool_output_compacted_at)
+                        .is_some()
+                    {
                         out.insert(msg.id.clone());
                     }
                 }
@@ -446,28 +453,19 @@ fn build_chat_request(
     // 摘要请求路径:用 byop_compaction::algorithm::select 切 head;tail 不送上游
     let summarize_head_end: Option<usize> = if is_summarization_request {
         // 临时投影成 WarpMessageView 算 select
-        let state_for_select = params
-            .compaction_state
-            .clone()
-            .unwrap_or_default();
-        let tool_names = byop_compaction::message_view::build_tool_name_lookup(
-            all_msgs.iter().copied(),
-        );
-        let views = byop_compaction::message_view::project(
-            &all_msgs,
-            &state_for_select,
-            &tool_names,
-        );
+        let state_for_select = params.compaction_state.clone().unwrap_or_default();
+        let tool_names =
+            byop_compaction::message_view::build_tool_name_lookup(all_msgs.iter().copied());
+        let views =
+            byop_compaction::message_view::project(&all_msgs, &state_for_select, &tool_names);
         let cfg = byop_compaction::CompactionConfig::default();
         let model_limit = byop_compaction::overflow::ModelLimit::FALLBACK;
-        let result = byop_compaction::algorithm::select(
-            &views,
-            &cfg,
-            model_limit,
-            |slice| {
-                slice.iter().map(byop_compaction::algorithm::MessageRef::estimate_size).sum()
-            },
-        );
+        let result = byop_compaction::algorithm::select(&views, &cfg, model_limit, |slice| {
+            slice
+                .iter()
+                .map(byop_compaction::algorithm::MessageRef::estimate_size)
+                .sum()
+        });
         // head_end 是 views 里"head 区间"上界,与 all_msgs 同序
         Some(result.head_end)
     } else {
@@ -574,7 +572,8 @@ fn build_chat_request(
                 // server 端 emit 走 result oneof 结构化 variant — 兼容两路。
                 let content = if compacted_tool_msg_ids.contains(&msg.id) {
                     // 压缩投影:被 prune 的 tool output 替换为占位符,不送实际内容上游
-                    r#"{"status":"compacted","note":"tool output was pruned by local compaction"}"#.to_string()
+                    r#"{"status":"compacted","note":"tool output was pruned by local compaction"}"#
+                        .to_string()
                 } else if tcr.result.is_some() {
                     tools::serialize_result(tcr)
                 } else if !msg.server_message_data.is_empty() {
@@ -698,7 +697,10 @@ fn build_chat_request(
                     ));
                 }
             }
-            AIAgentInput::SummarizeConversation { prompt, overflow: _ } => {
+            AIAgentInput::SummarizeConversation {
+                prompt,
+                overflow: _,
+            } => {
                 // OpenWarp BYOP 本地会话压缩入口 — 1:1 对齐 opencode `compaction.ts processCompaction`。
                 //
                 // 此前 messages loop 已根据 `summarize_head_end` 把序列切到 head(去掉 tail);
@@ -715,12 +717,11 @@ fn build_chat_request(
                 let mut anchor_context: Vec<String> = Vec::new();
                 if let Some(custom) = prompt.as_ref().filter(|p| !p.is_empty()) {
                     // /compact <自定义指令> 走这里 — 把用户指令拼到 plugin_context 段
-                    anchor_context.push(format!("Additional instructions from the user:\n{custom}"));
+                    anchor_context
+                        .push(format!("Additional instructions from the user:\n{custom}"));
                 }
-                let nextp = byop_compaction::prompt::build_prompt(
-                    prev_summary.as_deref(),
-                    &anchor_context,
-                );
+                let nextp =
+                    byop_compaction::prompt::build_prompt(prev_summary.as_deref(), &anchor_context);
                 messages.push(ChatMessage::user(nextp));
             }
             AIAgentInput::AutoCodeDiffQuery { .. }
@@ -1281,8 +1282,7 @@ fn build_tools_array(params: &RequestParams) -> Vec<GenaiTool> {
             // BYOP web 工具按 profile.web_search_enabled gating(用户已关闭隐私
             // 开关时不暴露给上游模型,避免误调外网请求)。
             if !web_enabled
-                && (t.name == tools::webfetch::TOOL_NAME
-                    || t.name == tools::websearch::TOOL_NAME)
+                && (t.name == tools::webfetch::TOOL_NAME || t.name == tools::websearch::TOOL_NAME)
             {
                 return false;
             }
@@ -2169,10 +2169,9 @@ fn sanitize_title(raw: &str) -> Option<String> {
     for tag in &["think", "reasoning", "thought", "scratchpad"] {
         let open = format!("<{}>", tag);
         let close = format!("</{}>", tag);
-        while let (Some(start), Some(end_rel)) = (
-            s.find(&open),
-            s.find(&close).map(|e| e + close.len()),
-        ) {
+        while let (Some(start), Some(end_rel)) =
+            (s.find(&open), s.find(&close).map(|e| e + close.len()))
+        {
             if end_rel <= start {
                 break;
             }
@@ -2191,7 +2190,13 @@ fn sanitize_title(raw: &str) -> Option<String> {
 
     // 3. 剥前缀(循环剥,处理 "Title: 标题: foo" 这类双前缀)。
     let prefixes = [
-        "title:", "subject:", "thread:", "标题:", "标题：", "主题:", "主题：",
+        "title:",
+        "subject:",
+        "thread:",
+        "标题:",
+        "标题：",
+        "主题:",
+        "主题：",
     ];
     loop {
         let lower = s.to_lowercase();

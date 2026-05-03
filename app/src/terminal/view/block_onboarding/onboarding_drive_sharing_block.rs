@@ -1,7 +1,6 @@
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, View, ViewContext,
     elements::{
         Border, Container, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
         Text,
@@ -12,6 +11,7 @@ use warpui::{
         button::{ButtonVariant, TextAndIcon, TextAndIconAlignment},
         components::{UiComponent, UiComponentStyles},
     },
+    AppContext, Element, Entity, SingletonEntity, View, ViewContext,
 };
 
 use crate::{

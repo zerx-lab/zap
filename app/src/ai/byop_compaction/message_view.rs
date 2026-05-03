@@ -67,19 +67,29 @@ pub struct WarpMessageView<'a> {
 fn estimate_message(msg: &api::Message) -> usize {
     use super::token::estimate;
     use api::message::Message as M;
-    let chars = msg.message.as_ref().map(|inner| match inner {
-        M::UserQuery(u) => u.query.chars().count(),
-        M::AgentOutput(a) => a.text.chars().count(),
-        M::AgentReasoning(r) => r.reasoning.chars().count(),
-        M::ToolCall(_) => msg.server_message_data.chars().count().max(64),
-        M::ToolCallResult(tcr) => {
-            // 优先用 result oneof 的 estimate;fallback 用 server_message_data。
-            // 简化:都按字符数算,result.estimate 走 Debug repr。
-            let from_oneof = tcr.result.as_ref().map(|r| format!("{r:?}").chars().count()).unwrap_or(0);
-            from_oneof.max(msg.server_message_data.chars().count()).max(32)
-        }
-        _ => 0,
-    }).unwrap_or(0);
+    let chars = msg
+        .message
+        .as_ref()
+        .map(|inner| match inner {
+            M::UserQuery(u) => u.query.chars().count(),
+            M::AgentOutput(a) => a.text.chars().count(),
+            M::AgentReasoning(r) => r.reasoning.chars().count(),
+            M::ToolCall(_) => msg.server_message_data.chars().count().max(64),
+            M::ToolCallResult(tcr) => {
+                // 优先用 result oneof 的 estimate;fallback 用 server_message_data。
+                // 简化:都按字符数算,result.estimate 走 Debug repr。
+                let from_oneof = tcr
+                    .result
+                    .as_ref()
+                    .map(|r| format!("{r:?}").chars().count())
+                    .unwrap_or(0);
+                from_oneof
+                    .max(msg.server_message_data.chars().count())
+                    .max(32)
+            }
+            _ => 0,
+        })
+        .unwrap_or(0);
     // 与 opencode 同算法:chars / 4 round。
     estimate(&" ".repeat(chars))
 }
@@ -88,7 +98,9 @@ impl<'a> MessageRef for WarpMessageView<'a> {
     type Id = String;
     type CallId = String;
 
-    fn id(&self) -> String { self.msg.id.clone() }
+    fn id(&self) -> String {
+        self.msg.id.clone()
+    }
 
     fn role(&self) -> Role {
         use api::message::Message as M;
@@ -168,6 +180,10 @@ pub fn project<'a>(
     });
     sorted
         .into_iter()
-        .map(|msg| WarpMessageView { msg, state, tool_names })
+        .map(|msg| WarpMessageView {
+            msg,
+            state,
+            tool_names,
+        })
         .collect()
 }

@@ -24,5 +24,7 @@ pub fn estimate(input: &str) -> usize {
 /// JSON 序列化后估算 — 对齐 opencode `compaction.ts:241`:
 /// `Token.estimate(JSON.stringify(msgs))`
 pub fn estimate_json<T: serde::Serialize>(value: &T) -> usize {
-    serde_json::to_string(value).map(|s| estimate(&s)).unwrap_or(0)
+    serde_json::to_string(value)
+        .map(|s| estimate(&s))
+        .unwrap_or(0)
 }

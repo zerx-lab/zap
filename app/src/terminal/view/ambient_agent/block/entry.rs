@@ -1,11 +1,9 @@
 use settings::Setting;
 use warp_core::send_telemetry_from_ctx;
-use warp_core::ui::{Icon, appearance::Appearance};
-use warpui::AppContext;
+use warp_core::ui::{appearance::Appearance, Icon};
 use warpui::prelude::Empty;
+use warpui::AppContext;
 use warpui::{
-    Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-    WeakModelHandle,
     elements::{
         ConstrainedBox, Container, CrossAxisAlignment, Flex, Hoverable, MainAxisSize,
         MouseStateHandle, ParentElement, Shrinkable, Text,
@@ -14,9 +12,11 @@ use warpui::{
     platform::Cursor,
     prelude::{CornerRadius, Radius},
     text_layout::ClipConfig,
+    Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+    WeakModelHandle,
 };
 
-use crate::ai::blocklist::agent_view::{AgentViewEntryOrigin, render_block_container};
+use crate::ai::blocklist::agent_view::{render_block_container, AgentViewEntryOrigin};
 use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::{
     pane_group::pane::{PaneConfiguration, PaneConfigurationEvent, PaneStack},

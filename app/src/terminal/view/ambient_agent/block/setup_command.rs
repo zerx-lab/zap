@@ -4,9 +4,9 @@ use parking_lot::FairMutex;
 use warp_core::ui::appearance::Appearance;
 use warp_terminal::model::BlockId;
 use warpui::{
-    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     prelude::{Container, Empty, MouseStateHandle},
     scene::{CornerRadius, Radius},
+    AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use crate::{
@@ -19,10 +19,10 @@ use crate::{
         },
     },
     terminal::{
-        TerminalModel,
         event::BlockCompletedEvent,
         model_events::{ModelEvent, ModelEventDispatcher},
         view::ambient_agent::{AmbientAgentViewModel, AmbientAgentViewModelEvent},
+        TerminalModel,
     },
 };
 

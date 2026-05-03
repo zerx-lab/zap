@@ -68,13 +68,19 @@ fn build_env() -> Environment<'static> {
             "system/default.j2",
             include_str!("prompts/system/default.j2") as &str,
         ),
-        ("system/anthropic.j2", include_str!("prompts/system/anthropic.j2")),
+        (
+            "system/anthropic.j2",
+            include_str!("prompts/system/anthropic.j2"),
+        ),
         ("system/gpt.j2", include_str!("prompts/system/gpt.j2")),
         ("system/beast.j2", include_str!("prompts/system/beast.j2")),
         ("system/codex.j2", include_str!("prompts/system/codex.j2")),
         ("system/gemini.j2", include_str!("prompts/system/gemini.j2")),
         ("system/kimi.j2", include_str!("prompts/system/kimi.j2")),
-        ("system/trinity.j2", include_str!("prompts/system/trinity.j2")),
+        (
+            "system/trinity.j2",
+            include_str!("prompts/system/trinity.j2"),
+        ),
     ] {
         env.add_template(name, src)
             .unwrap_or_else(|e| panic!("template {name} parses: {e}"));
@@ -121,10 +127,7 @@ pub fn pick_template(model_id: &str) -> &'static str {
     if id.contains("gemini-") {
         return "system/gemini.j2";
     }
-    if id.contains("claude")
-        || id.contains("sonnet")
-        || id.contains("opus")
-        || id.contains("haiku")
+    if id.contains("claude") || id.contains("sonnet") || id.contains("opus") || id.contains("haiku")
     {
         return "system/anthropic.j2";
     }

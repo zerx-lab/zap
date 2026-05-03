@@ -35,14 +35,12 @@ pub(crate) enum ApiKeyType {
 }
 
 impl ApiKeyType {
-    fn description(&self) -> &'static str {
+    fn description(&self) -> String {
         match self {
             ApiKeyType::Personal => {
-                "This API key is tied to your user and can make requests against your Warp account."
+                crate::t!("settings-platform-create-api-key-description-personal")
             }
-            ApiKeyType::Team => {
-                "This API key is tied to your team and can make requests on behalf of your team."
-            }
+            ApiKeyType::Team => crate::t!("settings-platform-create-api-key-description-team"),
         }
     }
 }
@@ -69,12 +67,18 @@ pub(crate) enum ExpirationOption {
 }
 
 impl ExpirationOption {
-    fn display_text(&self) -> &'static str {
+    fn display_text(&self) -> String {
         match self {
-            ExpirationOption::OneDay => "1 day",
-            ExpirationOption::ThirtyDays => "30 days",
-            ExpirationOption::NinetyDays => "90 days",
-            ExpirationOption::Never => "Never",
+            ExpirationOption::OneDay => {
+                crate::t!("settings-platform-create-api-key-expiration-one-day")
+            }
+            ExpirationOption::ThirtyDays => {
+                crate::t!("settings-platform-create-api-key-expiration-thirty-days")
+            }
+            ExpirationOption::NinetyDays => {
+                crate::t!("settings-platform-create-api-key-expiration-ninety-days")
+            }
+            ExpirationOption::Never => crate::t!("settings-platform-value-never"),
         }
     }
 
@@ -140,7 +144,10 @@ impl CreateApiKeyModal {
                 ..Default::default()
             };
             let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Warp API Key", ctx);
+            editor.set_placeholder_text(
+                crate::t!("settings-platform-create-api-key-name-placeholder"),
+                ctx,
+            );
             editor
         });
 
@@ -166,8 +173,12 @@ impl CreateApiKeyModal {
                         icon_color: theme.active_ui_text_color().into(),
                         label: Some(LabelConfig {
                             label: match key_type {
-                                ApiKeyType::Personal => "Personal".into(),
-                                ApiKeyType::Team => "Team".into(),
+                                ApiKeyType::Personal => {
+                                    crate::t!("settings-platform-scope-personal").into()
+                                }
+                                ApiKeyType::Team => {
+                                    crate::t!("settings-platform-scope-team").into()
+                                }
                             },
                             width_override: Some(55.0),
                             color: if is_selected {
@@ -248,7 +259,7 @@ impl CreateApiKeyModal {
 
         // Always allow creation, even with empty name (we'll use a default)
         let final_name = if name.trim().is_empty() {
-            "Warp API Key".to_string()
+            crate::t!("settings-platform-create-api-key-name-placeholder")
         } else {
             name.trim().to_string()
         };
@@ -276,9 +287,9 @@ impl CreateApiKeyModal {
                     // This can happen if the team state changed between render and click.
                     self.request_state = RequestState::Idle;
                     ctx.emit(CreateApiKeyModalEvent::Error {
-                        message:
-                            "Unable to create a team API key because there is no current team."
-                                .to_string(),
+                        message: crate::t!(
+                            "settings-platform-create-api-key-error-no-current-team"
+                        ),
                     });
                     ctx.notify();
                     return;
@@ -311,7 +322,11 @@ impl CreateApiKeyModal {
                     }
                     Ok(warp_graphql::mutations::generate_api_key::GenerateApiKeyResult::Unknown) | Err(_) => {
                         me.request_state = RequestState::Idle;
-                        ctx.emit(CreateApiKeyModalEvent::Error { message: "Failed to create API key. Please try again.".to_string() });
+                        ctx.emit(CreateApiKeyModalEvent::Error {
+                            message: crate::t!(
+                                "settings-platform-create-api-key-error-create-failed"
+                            ),
+                        });
                         ctx.notify();
                     }
                 }
@@ -380,7 +395,7 @@ impl CreateApiKeyModal {
         };
 
         let info = Text::new(
-            "This secret key is shown only once. Copy and store it securely.",
+            crate::t!("settings-platform-create-api-key-secret-once"),
             appearance.ui_font_family(),
             LABEL_FONT_SIZE,
         )
@@ -402,9 +417,9 @@ impl CreateApiKeyModal {
         .finish();
 
         let copy_label = if self.raw_key_copied {
-            "Copied"
+            crate::t!("settings-platform-create-api-key-copied")
         } else {
-            "Copy"
+            crate::t!("common-copy")
         };
         let copy_icon = if self.raw_key_copied {
             warp_core::ui::icons::Icon::Check.to_warpui_icon(appearance.theme().background())
@@ -453,7 +468,7 @@ impl CreateApiKeyModal {
                 ButtonVariant::Accent,
                 self.cancel_button_mouse_state.clone(),
             )
-            .with_text_label("Done".to_string())
+            .with_text_label(crate::t!("settings-platform-create-api-key-done"))
             .with_style(button_style)
             .build()
             .on_click(|ctx, _, _| ctx.dispatch_typed_action(CreateApiKeyModalAction::Cancel))
@@ -518,9 +533,13 @@ impl View for CreateApiKeyModal {
                 .with_color(theme.nonactive_ui_text_color().into())
                 .finish();
 
-                let name_label = Text::new("Name", appearance.ui_font_family(), LABEL_FONT_SIZE)
-                    .with_color(theme.active_ui_text_color().into())
-                    .finish();
+                let name_label = Text::new(
+                    crate::t!("settings-platform-column-name"),
+                    appearance.ui_font_family(),
+                    LABEL_FONT_SIZE,
+                )
+                .with_color(theme.active_ui_text_color().into())
+                .finish();
 
                 let is_pending = self.request_state == RequestState::Pending;
 
@@ -530,7 +549,7 @@ impl View for CreateApiKeyModal {
                         ButtonVariant::Secondary,
                         self.cancel_button_mouse_state.clone(),
                     )
-                    .with_text_label("Cancel".to_string())
+                    .with_text_label(crate::t!("common-cancel"))
                     .with_style(button_style)
                     .build()
                     .on_click(move |ctx, _, _| {
@@ -548,9 +567,9 @@ impl View for CreateApiKeyModal {
                         self.create_button_mouse_state.clone(),
                     )
                     .with_text_label(if is_pending {
-                        "Creating…".to_string()
+                        crate::t!("settings-platform-create-api-key-creating")
                     } else {
-                        "Create key".to_string()
+                        crate::t!("settings-platform-create-api-key-create")
                     })
                     .with_style(button_style)
                     .build()
@@ -578,10 +597,13 @@ impl View for CreateApiKeyModal {
 
                 // Show segmented control only if user has a team
                 if self.has_team {
-                    let type_label =
-                        Text::new("Type", appearance.ui_font_family(), LABEL_FONT_SIZE)
-                            .with_color(theme.active_ui_text_color().into())
-                            .finish();
+                    let type_label = Text::new(
+                        crate::t!("settings-platform-create-api-key-label-type"),
+                        appearance.ui_font_family(),
+                        LABEL_FONT_SIZE,
+                    )
+                    .with_color(theme.active_ui_text_color().into())
+                    .finish();
                     col.add_child(Container::new(type_label).with_margin_bottom(4.).finish());
                     col.add_child(
                         Container::new(ChildView::new(&self.api_key_type_control).finish())
@@ -609,10 +631,13 @@ impl View for CreateApiKeyModal {
                     .finish(),
                 );
 
-                let expiration_label =
-                    Text::new("Expiration", appearance.ui_font_family(), LABEL_FONT_SIZE)
-                        .with_color(theme.active_ui_text_color().into())
-                        .finish();
+                let expiration_label = Text::new(
+                    crate::t!("settings-platform-create-api-key-label-expiration"),
+                    appearance.ui_font_family(),
+                    LABEL_FONT_SIZE,
+                )
+                .with_color(theme.active_ui_text_color().into())
+                .finish();
 
                 col.add_child(
                     Container::new(expiration_label)
@@ -652,9 +677,9 @@ impl TypedActionView for CreateApiKeyModal {
                 // Success toast
                 let window_id = ctx.window_id();
                 crate::ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    let toast = crate::view_components::DismissibleToast::success(
-                        "Secret key copied.".to_string(),
-                    );
+                    let toast = crate::view_components::DismissibleToast::success(crate::t!(
+                        "settings-platform-create-api-key-toast-secret-copied"
+                    ));
                     toast_stack.add_ephemeral_toast(toast, window_id, ctx);
                 });
                 ctx.notify();

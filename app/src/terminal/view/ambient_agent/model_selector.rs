@@ -2,17 +2,17 @@ use std::sync::Arc;
 
 use pathfinder_geometry::vector::vec2f;
 use warpui::{
-    AppContext, Element, Entity, EntityId, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
     elements::{
         Border, ChildAnchor, ChildView, Container, OffsetPositioning, ParentAnchor,
         ParentElement as _, ParentOffsetBounds, Stack,
     },
+    AppContext, Element, Entity, EntityId, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
 };
 
 use warp_core::ui::appearance::Appearance;
-use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
+use warp_core::ui::theme::Fill;
 
 use crate::ai::blocklist::agent_view::agent_input_footer::AgentInputButtonTheme;
 use crate::ai::llms::{LLMPreferences, LLMPreferencesEvent};

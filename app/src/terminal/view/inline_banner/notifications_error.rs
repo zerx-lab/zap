@@ -1,5 +1,5 @@
 use serde::Serialize;
-use warpui::{Element, elements::MouseStateHandle};
+use warpui::{elements::MouseStateHandle, Element};
 
 use crate::{
     appearance::Appearance,
@@ -7,8 +7,8 @@ use crate::{
 };
 
 use super::{
-    InlineBannerButtonState, InlineBannerCloseButton, InlineBannerContent, InlineBannerStyle,
-    InlineBannerTextButton, InlineBannerTextButtonVariant, render_inline_block_list_banner,
+    render_inline_block_list_banner, InlineBannerButtonState, InlineBannerCloseButton,
+    InlineBannerContent, InlineBannerStyle, InlineBannerTextButton, InlineBannerTextButtonVariant,
 };
 
 use warpui::notification::NotificationSendError;

@@ -4,13 +4,13 @@ use itertools::Itertools;
 use warpui::{AppContext, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::{
+    ai::agent::{conversation::AIConversationId, CancellationReason},
     BlocklistAIHistoryModel,
-    ai::agent::{CancellationReason, conversation::AIConversationId},
 };
 
 use super::{
-    BlocklistAIController,
     response_stream::{ResponseStream, ResponseStreamId},
+    BlocklistAIController,
 };
 
 pub(super) struct PendingResponseStreams {

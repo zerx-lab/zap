@@ -12,7 +12,7 @@ use warpui::prelude::Container;
 use warpui::{AppContext, Element, ModelHandle};
 
 use crate::ai::blocklist::block::view_impl::{
-    CONTENT_ITEM_VERTICAL_MARGIN, WithContentItemSpacing,
+    WithContentItemSpacing, CONTENT_ITEM_VERTICAL_MARGIN,
 };
 use crate::terminal::view::PADDING_LEFT;
 

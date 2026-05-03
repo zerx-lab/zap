@@ -1,9 +1,9 @@
-use warpui::{Element, elements::Text};
+use warpui::{elements::Text, Element};
 
 use crate::appearance::Appearance;
 
 use super::{
-    InlineBannerContent, InlineBannerIcon, InlineBannerStyle, render_inline_block_list_banner,
+    render_inline_block_list_banner, InlineBannerContent, InlineBannerIcon, InlineBannerStyle,
 };
 
 pub fn render_shell_process_terminated_banner(

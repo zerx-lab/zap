@@ -3,7 +3,7 @@ use std::path::Path;
 use warp_completer::completer::TopLevelCommandCaseSensitivity;
 use warp_util::path::EscapeChar;
 
-use super::{OpenablePath, check_openable_in_warp};
+use super::{check_openable_in_warp, OpenablePath};
 use crate::util::openable_file_type::OpenableFileType;
 
 const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");

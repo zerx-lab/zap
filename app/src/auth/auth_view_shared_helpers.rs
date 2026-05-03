@@ -61,8 +61,6 @@ where
         ..Default::default()
     };
 
-    let text = "You are currently offline. An internet connection is required to use Warp for the first time.";
-
     let (button_color, button_variant) = action_button_color_and_variant(appearance);
     let button_styles = UiComponentStyles {
         font_size: Some(14.),
@@ -101,7 +99,7 @@ where
             Some(click_button_style),
             None,
         )
-        .with_centered_text_label("Learn more".into())
+        .with_centered_text_label(crate::t!("auth-offline-first-use-learn-more"))
         .build()
         .on_click(move |ctx, _, _| {
             ctx.dispatch_typed_action(action.clone());
@@ -112,7 +110,7 @@ where
         .with_child(
             Container::new(
                 ui_builder
-                    .paragraph(text)
+                    .paragraph(crate::t!("auth-offline-first-use-description"))
                     .with_style(disclaimer_styles)
                     .build()
                     .finish(),
@@ -175,10 +173,6 @@ where
         ..Default::default()
     };
 
-    let paragraph_1 = "All of Warp’s non-cloud features work offline.";
-    let paragraph_2 = "However, we require users to be online when using Warp for the first time in order to enable Warp's AI and cloud features.";
-    let paragraph_3 = "We offer cloud features to all users, and so we need an internet connection to meter AI usage, prevent abuse, and associate cloud objects with users. If you opt to use Warp logged-out, a unique ID will be attached to an anonymous user account in order to support these features.";
-
     Container::new(
         Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -191,7 +185,7 @@ where
                 Container::new(
                     appearance
                         .ui_builder()
-                        .span("Using Warp Offline")
+                        .span(crate::t!("auth-offline-overlay-title"))
                         .with_style(header_styles)
                         .build()
                         .finish(),
@@ -203,7 +197,7 @@ where
                 Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph(paragraph_1)
+                        .paragraph(crate::t!("auth-offline-overlay-paragraph-1"))
                         .with_style(body_text_styles)
                         .build()
                         .finish(),
@@ -215,7 +209,7 @@ where
                 Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph(paragraph_2)
+                        .paragraph(crate::t!("auth-offline-overlay-paragraph-2"))
                         .with_style(body_text_styles)
                         .build()
                         .finish(),
@@ -227,7 +221,7 @@ where
                 Container::new(
                     appearance
                         .ui_builder()
-                        .paragraph(paragraph_3)
+                        .paragraph(crate::t!("auth-offline-overlay-paragraph-3"))
                         .with_style(body_text_styles)
                         .build()
                         .finish(),
@@ -238,7 +232,7 @@ where
             .with_child(render_close_overlay_button(
                 appearance,
                 appearance.ui_builder(),
-                "Dismiss".into(),
+                crate::t!("auth-offline-overlay-dismiss"),
                 mouse_state_handle,
                 action,
             ))
@@ -361,7 +355,7 @@ pub fn render_privacy_settings_overlay_body<A: Action + Clone + 'static>(
             .with_child(
                 Container::new(
                     ui_builder
-                        .span("Privacy Settings")
+                        .span(crate::t!("auth-privacy-settings-title"))
                         .with_style(header_styles)
                         .build()
                         .finish(),
@@ -370,15 +364,12 @@ pub fn render_privacy_settings_overlay_body<A: Action + Clone + 'static>(
                 .finish(),
             )
             .with_child(render_privacy_settings_toggles(
-                appearance,
-                app,
-                handles,
-                actions,
+                appearance, app, handles, actions,
             ))
             .with_child(render_close_overlay_button(
                 appearance,
                 ui_builder,
-                "Done".into(),
+                crate::t!("auth-privacy-settings-done"),
                 handles.close_button_mouse.clone(),
                 actions.hide_overlay.clone(),
             ))
@@ -443,7 +434,11 @@ pub fn render_privacy_settings_toggles<A: Action + Clone + 'static>(
         .with_child(
             Shrinkable::new(
                 1.,
-                render_privacy_settings_section_header("Help improve Warp", appearance).finish(),
+                render_privacy_settings_section_header(
+                    crate::t!("auth-privacy-settings-help-improve"),
+                    appearance,
+                )
+                .finish(),
             )
             .finish(),
         )
@@ -462,7 +457,7 @@ pub fn render_privacy_settings_toggles<A: Action + Clone + 'static>(
 
     let telemetry_description = render_description(
         appearance,
-        "High-level feature usage data helps Warp's product team prioritize the roadmap.".into(),
+        crate::t!("auth-privacy-settings-help-improve-description"),
     );
 
     let telemetry_link = Flex::row()
@@ -470,7 +465,7 @@ pub fn render_privacy_settings_toggles<A: Action + Clone + 'static>(
             appearance
                 .ui_builder()
                 .link(
-                    "Learn more".into(),
+                    crate::t!("auth-privacy-settings-learn-more"),
                     Some(PRIVACY_URL.into()),
                     None,
                     handles.telemetry_docs_mouse.clone(),
@@ -488,7 +483,11 @@ pub fn render_privacy_settings_toggles<A: Action + Clone + 'static>(
         .with_child(
             Shrinkable::new(
                 1.,
-                render_privacy_settings_section_header("Send crash reports", appearance).finish(),
+                render_privacy_settings_section_header(
+                    crate::t!("auth-privacy-settings-send-crash-reports"),
+                    appearance,
+                )
+                .finish(),
             )
             .finish(),
         )
@@ -507,7 +506,7 @@ pub fn render_privacy_settings_toggles<A: Action + Clone + 'static>(
 
     let crash_reporting_description = render_description(
         appearance,
-        "Crash reporting helps Warp's engineering team understand stability and improve performance.".into(),
+        crate::t!("auth-privacy-settings-crash-reports-description"),
     );
 
     let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);

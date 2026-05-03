@@ -2634,59 +2634,54 @@ impl WorkflowView {
 
         ctx.spawn(
             async move { workflow_metadata::run(rendered).await },
-            move |pane, response, ctx| {
-                match response {
-                    Some(metadata) => {
-                        pane.ai_metadata_assist_state = AiAssistState::Generated;
-                        pane.enable_editors(ctx);
+            move |pane, response, ctx| match response {
+                Some(metadata) => {
+                    pane.ai_metadata_assist_state = AiAssistState::Generated;
+                    pane.enable_editors(ctx);
 
-                        let arguments = metadata
-                            .arguments
-                            .into_iter()
-                            .map(|parameter| Argument {
-                                name: parameter.name,
-                                description: Some(parameter.description),
-                                default_value: Some(parameter.default_value),
-                                arg_type: Default::default(),
-                            })
-                            .collect_vec();
+                    let arguments = metadata
+                        .arguments
+                        .into_iter()
+                        .map(|parameter| Argument {
+                            name: parameter.name,
+                            description: Some(parameter.description),
+                            default_value: Some(parameter.default_value),
+                            arg_type: Default::default(),
+                        })
+                        .collect_vec();
 
-                        let workflow = Workflow::Command {
-                            name: metadata.title,
-                            description: Some(metadata.description),
-                            command: metadata.command,
-                            arguments,
-                            tags: vec![],
-                            source_url: None,
-                            author: None,
-                            author_url: None,
-                            shells: vec![],
-                            environment_variables: None,
-                        };
+                    let workflow = Workflow::Command {
+                        name: metadata.title,
+                        description: Some(metadata.description),
+                        command: metadata.command,
+                        arguments,
+                        tags: vec![],
+                        source_url: None,
+                        author: None,
+                        author_url: None,
+                        shells: vec![],
+                        environment_variables: None,
+                    };
 
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::AutoGenerateMetadataSuccess,
-                            ctx
-                        );
+                    send_telemetry_from_ctx!(TelemetryEvent::AutoGenerateMetadataSuccess, ctx);
 
-                        pane.populate_missing_field_with_suggestion(workflow, ctx);
-                        ctx.notify();
-                    }
-                    None => {
-                        let err = GeneratedCommandMetadataError::BadCommand;
-                        pane.display_error_toast(err.user_facing_message(), ctx);
+                    pane.populate_missing_field_with_suggestion(workflow, ctx);
+                    ctx.notify();
+                }
+                None => {
+                    let err = GeneratedCommandMetadataError::BadCommand;
+                    pane.display_error_toast(err.user_facing_message(), ctx);
 
-                        send_telemetry_from_ctx!(
-                            TelemetryEvent::AutoGenerateMetadataError {
-                                error_payload: serde_json::json!(err)
-                            },
-                            ctx
-                        );
+                    send_telemetry_from_ctx!(
+                        TelemetryEvent::AutoGenerateMetadataError {
+                            error_payload: serde_json::json!(err)
+                        },
+                        ctx
+                    );
 
-                        pane.ai_metadata_assist_state = AiAssistState::PreRequest;
-                        pane.enable_editors(ctx);
-                        ctx.notify();
-                    }
+                    pane.ai_metadata_assist_state = AiAssistState::PreRequest;
+                    pane.enable_editors(ctx);
+                    ctx.notify();
                 }
             },
         );

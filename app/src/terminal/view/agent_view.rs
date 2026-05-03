@@ -1,31 +1,31 @@
 use warp_core::{features::FeatureFlag, send_telemetry_from_ctx, ui::appearance::Appearance};
-use warpui::{EntityId, SingletonEntity, ViewContext, keymap::Keystroke};
+use warpui::{keymap::Keystroke, EntityId, SingletonEntity, ViewContext};
 
 use crate::{
-    TelemetryEvent,
     ai::{
         agent::conversation::AIConversationId,
         blocklist::{
-            BlocklistAIHistoryModel,
             agent_view::{
                 AgentViewEntryBlock, AgentViewEntryBlockEvent, AgentViewEntryBlockParams,
-                AgentViewEntryOrigin, AutoTriggerBehavior, DismissalStrategy,
-                ENTER_OR_EXIT_CONFIRMATION_WINDOW, EnterAgentViewError, EphemeralMessage,
+                AgentViewEntryOrigin, AutoTriggerBehavior, DismissalStrategy, EnterAgentViewError,
+                EphemeralMessage, ENTER_OR_EXIT_CONFIRMATION_WINDOW,
             },
             history_model::CloudConversationData,
+            BlocklistAIHistoryModel,
         },
     },
     global_resource_handles::GlobalResourceHandlesProvider,
     persistence::ModelEvent,
     server::telemetry::TelemetryAgentViewEntryOrigin,
     terminal::{
-        TerminalView,
         input::message_bar::{Message, MessageItem},
         model::rich_content::RichContentType,
         view::{AgentViewEntryMetadata, RichContentInsertionPosition, RichContentMetadata},
+        TerminalView,
     },
     view_components::DismissibleToast,
     workspace::ToastStack,
+    TelemetryEvent,
 };
 
 pub const ENTER_AGAIN_TO_SEND_MESSAGE_ID: &str = "enter_again_to_send";

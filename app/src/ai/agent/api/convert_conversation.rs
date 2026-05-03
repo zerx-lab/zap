@@ -32,9 +32,7 @@ use crate::ai::llms::LLMId;
 use crate::ai_assistant::execution_context::{WarpAiExecutionContext, WarpAiOsContext};
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::terminal_model::BlockIndex;
-use ai::agent::action_result::{
-    AskUserQuestionAnswerItem, AskUserQuestionResult, ReadSkillResult,
-};
+use ai::agent::action_result::{AskUserQuestionAnswerItem, AskUserQuestionResult, ReadSkillResult};
 use ai::skills::ParsedSkill;
 use chrono::{DateTime, Local, TimeZone};
 use persistence::model::AgentConversationData;

@@ -504,8 +504,7 @@ pub struct LLMPreferences {
     /// Per-terminal reasoning effort 选择(由输入框 picker 驱动)。
     /// session-only,不写 settings.toml。键缺失时用 `last_used_reasoning` 兜底,
     /// 再缺失则用 `default_reasoning_for(api_type, model_id)`。
-    reasoning_effort_per_terminal:
-        HashMap<EntityId, crate::settings::ReasoningEffortSetting>,
+    reasoning_effort_per_terminal: HashMap<EntityId, crate::settings::ReasoningEffortSetting>,
     /// 记忆"上次某 (api_type, model) 用过的档位",做 UX 软记忆。
     /// session-only。
     last_used_reasoning: HashMap<

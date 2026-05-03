@@ -1,6 +1,5 @@
 use pathfinder_color::ColorU;
 use warpui::{
-    AppContext, Element,
     elements::{
         Align, ConstrainedBox, Container, CrossAxisAlignment, Flex, HighlightedHyperlink,
         MouseStateHandle, ParentElement, Shrinkable,
@@ -11,6 +10,7 @@ use warpui::{
         button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
     },
+    AppContext, Element,
 };
 
 use crate::{
@@ -23,7 +23,7 @@ use crate::{
     ui_components::blended_colors,
 };
 
-use super::{BLOCK_BANNER_DESCRIPTION_MAX_HEIGHT, render_block_banner};
+use super::{render_block_banner, BLOCK_BANNER_DESCRIPTION_MAX_HEIGHT};
 
 const CLOSE_BUTTON_DIAMETER: f32 = 20.0;
 const STANDARD_PADDING: f32 = 8.0;

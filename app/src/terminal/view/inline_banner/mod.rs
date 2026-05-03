@@ -36,7 +36,6 @@ pub use vim_mode::*;
 use pathfinder_color::ColorU;
 use warpui::elements::Clipped;
 use warpui::{
-    Element,
     elements::{
         Align, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Icon,
         MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, SavePosition,
@@ -47,6 +46,7 @@ use warpui::{
         button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
     },
+    Element,
 };
 
 use crate::ui_components::buttons::icon_button;
@@ -57,7 +57,7 @@ use crate::{
     appearance::Appearance,
     terminal::view::TerminalAction,
     themes::theme::Blend,
-    util::color::{ContrastingColor, coloru_with_opacity},
+    util::color::{coloru_with_opacity, ContrastingColor},
 };
 
 pub const INLINE_BANNER_BUTTON_PADDING: f32 = 4.0;

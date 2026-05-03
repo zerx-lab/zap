@@ -21,8 +21,8 @@
 //!   return count >= usable(input)
 //! }
 //! ```
-use super::CompactionConfig;
 use super::consts::COMPACTION_BUFFER;
+use super::CompactionConfig;
 
 /// 模型 token 限制 — 来源:models.dev metadata 或 BYOP provider 配置。
 #[derive(Debug, Clone, Copy)]
@@ -37,7 +37,11 @@ pub struct ModelLimit {
 
 impl ModelLimit {
     /// 拿不到 metadata 时的保守回退(对齐当下 mainstream Anthropic/OpenAI 主力模型)。
-    pub const FALLBACK: ModelLimit = ModelLimit { context: 200_000, input: 180_000, max_output: 8_000 };
+    pub const FALLBACK: ModelLimit = ModelLimit {
+        context: 200_000,
+        input: 180_000,
+        max_output: 8_000,
+    };
 }
 
 /// 当前对话累计 token 用量 — 字段对齐 opencode `MessageV2.Assistant.tokens`。

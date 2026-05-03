@@ -7,7 +7,7 @@ use warp_multi_agent_api as api;
 
 use crate::ai::agent::conversation::AIConversation;
 
-use super::algorithm::{MessageRef, prune_decisions};
+use super::algorithm::{prune_decisions, MessageRef};
 use super::config::CompactionConfig;
 use super::message_view::{build_tool_name_lookup, project};
 use super::state::CompletedCompaction;
@@ -42,13 +42,18 @@ pub fn commit_summarization(conversation: &mut AIConversation, overflow: bool) -
     };
 
     let assistant_id_str: &str = &assistant_id;
-    let assistant_pos = all_msgs.iter().position(|m| m.id.as_str() == assistant_id_str);
+    let assistant_pos = all_msgs
+        .iter()
+        .position(|m| m.id.as_str() == assistant_id_str);
     let user_msg_id: String = assistant_pos
         .and_then(|pos| {
-            all_msgs[..pos].iter().rev().find_map(|m| match m.message.as_ref() {
-                Some(api::message::Message::UserQuery(_)) => Some(m.id.clone()),
-                _ => None,
-            })
+            all_msgs[..pos]
+                .iter()
+                .rev()
+                .find_map(|m| match m.message.as_ref() {
+                    Some(api::message::Message::UserQuery(_)) => Some(m.id.clone()),
+                    _ => None,
+                })
         })
         .unwrap_or_else(|| format!("compaction-trigger-{}", uuid::Uuid::new_v4()));
 
@@ -105,7 +110,9 @@ pub fn prune_now(conversation: &mut AIConversation, cfg: &CompactionConfig) -> u
     let count = decisions.len();
     for (msg_id, _call_id) in decisions {
         // msg_id 是 ToolCallResult 的 message id;mark_tool_compacted 会在 marker 上写时间戳
-        conversation.compaction_state.mark_tool_compacted(msg_id, now_ms);
+        conversation
+            .compaction_state
+            .mark_tool_compacted(msg_id, now_ms);
     }
     log::info!("[byop-compaction] pruned {count} tool output(s)");
     count
@@ -113,9 +120,9 @@ pub fn prune_now(conversation: &mut AIConversation, cfg: &CompactionConfig) -> u
 
 // Reference traits for type inference
 #[allow(unused_imports)]
-use super::algorithm::ToolOutputRef as _ToolOutputRef;
-#[allow(unused_imports)]
 use super::algorithm::Role as _Role;
+#[allow(unused_imports)]
+use super::algorithm::ToolOutputRef as _ToolOutputRef;
 // Mention MessageRef so that the import isn't dropped
 #[allow(dead_code)]
 fn _ensure_message_ref_imported<M: MessageRef>(_m: &M) {}

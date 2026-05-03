@@ -3,14 +3,14 @@ use std::sync::Arc;
 use parking_lot::FairMutex;
 use warpui::prelude::Empty;
 use warpui::{
-    AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         ChildView, Container, CrossAxisAlignment, Expanded, Flex, MainAxisSize, ParentElement,
     },
+    AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
-    terminal::view::{PADDING_LEFT, TerminalModel},
+    terminal::view::{TerminalModel, PADDING_LEFT},
     ui_components::icons::Icon,
     view_components::action_button::{ActionButton, ButtonSize, KeystrokeSource, TooltipAlignment},
 };

@@ -8,7 +8,6 @@ use lsp::supported_servers::LSPServerType;
 use std::path::PathBuf;
 
 use warpui::{
-    AppContext, Element, SingletonEntity, TypedActionView, ViewContext, ViewHandle,
     elements::{
         Border, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Expanded,
         Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable,
@@ -20,6 +19,7 @@ use warpui::{
         keyboard_shortcut::KeyboardShortcut,
         text::Span,
     },
+    AppContext, Element, SingletonEntity, TypedActionView, ViewContext, ViewHandle,
 };
 
 use super::{InitProjectBlockAction, InitStepBlock};

@@ -7,7 +7,6 @@ use warpui::elements::{Flex, ParentElement};
 use warpui::ui_components::components::Coords;
 use warpui::ui_components::text_input::TextInput;
 use warpui::{
-    Action, AppContext, Element,
     elements::{
         ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, MouseStateHandle, Radius,
         Shrinkable,
@@ -18,6 +17,7 @@ use warpui::{
         button::ButtonVariant,
         components::{UiComponent, UiComponentStyles},
     },
+    Action, AppContext, Element,
 };
 use warpui::{SingletonEntity, ViewHandle};
 

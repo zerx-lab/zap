@@ -107,9 +107,13 @@ impl View for RewindConfirmationDialog {
         let rewind_button_label = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_child(
-                Text::new_inline("Rewind", appearance.ui_font_family(), 14.)
-                    .with_color(text_color)
-                    .finish(),
+                Text::new_inline(
+                    crate::t!("rewind-dialog-confirm"),
+                    appearance.ui_font_family(),
+                    14.,
+                )
+                .with_color(text_color)
+                .finish(),
             )
             .with_child(
                 Container::new(
@@ -161,9 +165,13 @@ impl View for RewindConfirmationDialog {
                 } else {
                     cancel_text_color
                 };
-                Text::new_inline("Cancel", appearance.ui_font_family(), 14.)
-                    .with_color(color.into_solid())
-                    .finish()
+                Text::new_inline(
+                    crate::t!("rewind-dialog-cancel"),
+                    appearance.ui_font_family(),
+                    14.,
+                )
+                .with_color(color.into_solid())
+                .finish()
             })
             .with_cursor(Cursor::PointingHand)
             .on_click(move |ctx, _, _| ctx.dispatch_typed_action(RewindConfirmationAction::Cancel))
@@ -188,7 +196,7 @@ impl View for RewindConfirmationDialog {
             )
             .with_child(
                 Text::new_inline(
-                    "Rewinding does not affect files edited manually or via shell commands.",
+                    crate::t!("rewind-dialog-info"),
                     appearance.ui_font_family(),
                     12.,
                 )
@@ -199,11 +207,8 @@ impl View for RewindConfirmationDialog {
 
         let dialog = Container::new(
             Dialog::new(
-                "Rewind".into(),
-                Some(
-                    "Are you sure you want to rewind? This will restore your code and conversation to before this point, and cancel any commands the agent is currently running. A copy of the original conversation will be saved in your conversation history."
-                        .into(),
-                ),
+                crate::t!("rewind-dialog-title"),
+                Some(crate::t!("rewind-dialog-body")),
                 UiComponentStyles {
                     width: Some(DIALOG_WIDTH),
                     padding: Some(Coords::uniform(24.)),

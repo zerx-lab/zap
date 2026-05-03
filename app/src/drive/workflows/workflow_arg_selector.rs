@@ -45,7 +45,6 @@ use strum_macros::{EnumIter, IntoStaticStr};
 
 use super::enum_creation_dialog::WorkflowEnumData;
 
-const ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_TEXT: &str = "Default value (optional)";
 const ARGUMENT_EDITOR_FONT_SIZE: f32 = 14.;
 const DROPDOWN_PADDING: f32 = 8.;
 const DROPDOWN_BORDER_RADIUS: f32 = 6.;
@@ -505,7 +504,7 @@ impl WorkflowArgSelector {
         let should_show_placeholder = self.text_editor.as_ref(app).is_empty(app);
 
         let text_label = match should_show_placeholder {
-            true => ARGUMENT_DEFAULT_VALUE_PLACEHOLDER_TEXT.to_string(),
+            true => crate::t!("workflow-default-value-placeholder"),
             false => self.text_editor.as_ref(app).buffer_text(app),
         };
 
@@ -807,7 +806,7 @@ impl WorkflowArgSelector {
 
         let mut menu = Hoverable::new(self.enum_menu_mouse_state.clone(), |state| {
             let button = Text::new_inline(
-                "New".to_string(),
+                crate::t!("workflow-enum-new"),
                 appearance.ui_font_family(),
                 ARGUMENT_EDITOR_FONT_SIZE,
             )

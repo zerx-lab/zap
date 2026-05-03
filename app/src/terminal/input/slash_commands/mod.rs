@@ -744,8 +744,7 @@ impl Input {
 
                 // menu 路径无参数时 argument 是 Some(""),规范化为 None,避免摘要后
                 // 触发一次空 user query 浪费 token。
-                let initial_prompt =
-                    argument.cloned().filter(|p: &String| !p.is_empty());
+                let initial_prompt = argument.cloned().filter(|p: &String| !p.is_empty());
                 ctx.dispatch_typed_action(&WorkspaceAction::SummarizeAIConversation {
                     prompt: None,
                     initial_prompt,
@@ -802,10 +801,7 @@ impl Input {
                     .selected_conversation_id(ctx)
                     .is_none()
                 {
-                    show_error_toast(
-                        "/compact requires an active conversation".to_owned(),
-                        ctx,
-                    );
+                    show_error_toast("/compact requires an active conversation".to_owned(), ctx);
                     return true;
                 };
                 // menu 路径无参数时 argument 是 Some(""),规范化为 None,
