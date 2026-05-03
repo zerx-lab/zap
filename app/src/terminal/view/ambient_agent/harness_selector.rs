@@ -252,6 +252,7 @@ fn build_menu_items(
         item_for(Harness::Claude),
         item_for(Harness::Gemini),
         item_for(Harness::Codex),
+        item_for(Harness::WarpAi),
     ]
 }
 

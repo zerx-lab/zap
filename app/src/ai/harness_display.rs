@@ -20,6 +20,7 @@ pub fn display_name(harness: Harness) -> &'static str {
         Harness::OpenCode => "OpenCode",
         Harness::Gemini => "Gemini CLI",
         Harness::Codex => "Codex",
+        Harness::WarpAi => "Warp AI",
         Harness::Unknown => "Unknown",
     }
 }
@@ -32,6 +33,7 @@ pub fn icon_for(harness: Harness) -> Icon {
         Harness::OpenCode => Icon::OpenCodeLogo,
         Harness::Gemini => Icon::GeminiLogo,
         Harness::Codex => Icon::OpenAILogo,
+        Harness::WarpAi => Icon::Warp,
         Harness::Unknown => Icon::HelpCircle,
     }
 }
@@ -45,6 +47,7 @@ pub fn brand_color(harness: Harness) -> Option<ColorU> {
         Harness::OpenCode => None,
         Harness::Gemini => Some(GEMINI_BLUE),
         Harness::Codex => Some(OPENAI_COLOR),
+        Harness::WarpAi => None,
         Harness::Unknown => None,
     }
 }
@@ -58,6 +61,7 @@ impl From<AIAgentHarness> for Harness {
             AIAgentHarness::ClaudeCode => Harness::Claude,
             AIAgentHarness::Gemini => Harness::Gemini,
             AIAgentHarness::Codex => Harness::Codex,
+            AIAgentHarness::WarpAi => Harness::WarpAi,
             AIAgentHarness::Unknown => Harness::Unknown,
         }
     }

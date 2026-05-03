@@ -59,7 +59,7 @@ pub(super) fn build_local_opencode_child_command(prompt: &str) -> String {
 
 fn local_child_task_config(harness: Harness) -> Option<AgentConfigSnapshot> {
     match harness {
-        Harness::Oz | Harness::OpenCode | Harness::Gemini | Harness::Codex | Harness::Unknown => {
+        Harness::Oz | Harness::OpenCode | Harness::Gemini | Harness::Codex | Harness::WarpAi | Harness::Unknown => {
             None
         }
         Harness::Claude => Some(AgentConfigSnapshot {
@@ -127,6 +127,7 @@ pub(super) async fn prepare_local_harness_child_launch(
             build_local_opencode_child_command(&prompt)
         }
         Harness::Gemini => unreachable!("normalize_local_child_harness filters out Gemini"),
+        Harness::WarpAi => unreachable!("normalize_local_child_harness filters out WarpAi"),
     };
 
     let task_id = ai_client

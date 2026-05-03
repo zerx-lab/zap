@@ -35,7 +35,7 @@ use crate::quit_warning::UnsavedStateSummary;
 #[cfg(target_family = "wasm")]
 use crate::server::cloud_objects::update_manager::UpdateManager;
 use crate::server::server_api::ServerApiProvider;
-use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
+use crate::settings::{AISettings, DefaultHarness, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
@@ -3764,6 +3764,7 @@ impl PaneGroup {
                     AIAgentHarness::ClaudeCode => Some(Harness::Claude),
                     AIAgentHarness::Gemini => Some(Harness::Gemini),
                     AIAgentHarness::Codex => Some(Harness::Codex),
+                    AIAgentHarness::WarpAi => Some(Harness::WarpAi),
                     AIAgentHarness::Oz => None,
                     AIAgentHarness::Unknown => Some(Harness::Unknown),
                 };
@@ -5902,6 +5903,27 @@ impl PaneGroup {
                     ctx,
                 );
             });
+        }
+
+        // Auto-launch default harness CLI agent if configured
+        let default_harness = AISettings::as_ref(ctx).default_harness(ctx);
+        if let Some(cli_agent) = default_harness.to_cli_agent() {
+            if conversation_restoration.is_none()
+                && matches!(
+                    default_session_mode_behavior,
+                    DefaultSessionModeBehavior::Apply
+                )
+            {
+                let prefix = cli_agent.command_prefix().to_owned();
+                view.update(ctx, |terminal_view, ctx| {
+                    terminal_view.set_pending_command(&prefix, ctx);
+                    terminal_view.enter_agent_view_for_new_conversation(
+                        None,
+                        AgentViewEntryOrigin::DefaultSessionMode,
+                        ctx,
+                    );
+                });
+            }
         }
 
         new_pane_id

@@ -47,7 +47,7 @@ use crate::settings::{
     AliasExpansionEnabled, AliasExpansionSettings, AppEditorSettings, AtContextMenuInTerminalMode,
     AutocompleteSymbols, AutosuggestionKeybindingHint, ChangelogSettings, CloudPreferencesSettings,
     CodeSettings, CommandCorrections, CompletionsOpenWhileTyping, CopyOnSelect, CtrlTabBehavior,
-    DefaultSessionMode, EnableSlashCommandsInTerminal, EnableSshWrapper, ErrorUnderliningEnabled,
+    DefaultHarness, DefaultSessionMode, EnableSlashCommandsInTerminal, EnableSshWrapper, ErrorUnderliningEnabled,
     ExtraMetaKeys, GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
     LinuxSelectionClipboard, MiddleClickPasteEnabled, MouseScrollMultiplier,
     OutlineCodebaseSymbolsForAtContextMenu, PreferLowPowerGPU, PreferredGraphicsBackend,
@@ -629,6 +629,7 @@ pub enum FeaturesPageAction {
     SetPreferredGraphicsBackend(Option<GraphicsBackend>),
     SetNewTabPlacement(NewTabPlacement),
     SetDefaultSessionMode(DefaultSessionMode),
+    SetDefaultHarness(DefaultHarness),
     SetDefaultTabConfig(String),
     SearchForKeybinding(String),
     ToggleAutosuggestions,
@@ -1038,6 +1039,10 @@ impl FeaturesPageAction {
                 action: "SetDefaultSessionMode".to_string(),
                 value: format!("{mode:?}"),
             },
+            Self::SetDefaultHarness(harness) => TelemetryEvent::FeaturesPageAction {
+                action: "SetDefaultHarness".to_string(),
+                value: format!("{harness:?}"),
+            },
             Self::SetDefaultTabConfig(path) => TelemetryEvent::FeaturesPageAction {
                 action: "SetDefaultTabConfig".to_string(),
                 value: path.clone(),
@@ -1234,6 +1239,7 @@ pub struct FeaturesPageView {
     graphics_backend_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
     new_tab_placement_dropdown: ViewHandle<Dropdown<FeaturesPageAction>>,
     default_session_mode_dropdown: ViewHandle<FilterableDropdown<FeaturesPageAction>>,
+    default_harness_dropdown: ViewHandle<FilterableDropdown<FeaturesPageAction>>,
     tab_behavior: Tracked<TabBehavior>,
     completions_keystroke: Tracked<String>,
     autosuggestions_keystroke: Tracked<String>,
@@ -1741,6 +1747,7 @@ impl TypedActionView for FeaturesPageView {
                 self.set_new_tab_placement(new_tab_placement, ctx)
             }
             SetDefaultSessionMode(mode) => self.set_default_session_mode(mode, ctx),
+            SetDefaultHarness(harness) => self.set_default_harness(harness, ctx),
             SetDefaultTabConfig(path) => {
                 AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
                     report_if_error!(ai_settings
@@ -2075,6 +2082,17 @@ impl FeaturesPageView {
                 );
                 ctx.notify();
             }
+            if matches!(
+                event,
+                AISettingsChangedEvent::IsAnyAIEnabled { .. }
+                    | AISettingsChangedEvent::DefaultHarnessInternal { .. }
+            ) {
+                Self::update_default_harness_dropdown(
+                    me.default_harness_dropdown.clone(),
+                    ctx,
+                );
+                ctx.notify();
+            }
         });
 
         let pin_position_dropdown = ctx.add_typed_action_view(|ctx| {
@@ -2143,6 +2161,9 @@ impl FeaturesPageView {
 
         let default_session_mode_dropdown = ctx.add_typed_action_view(FilterableDropdown::new);
         Self::update_default_session_mode_dropdown(default_session_mode_dropdown.clone(), ctx);
+
+        let default_harness_dropdown = ctx.add_typed_action_view(FilterableDropdown::new);
+        Self::update_default_harness_dropdown(default_harness_dropdown.clone(), ctx);
 
         ctx.subscribe_to_model(&WarpConfig::handle(ctx), |me, _, event, ctx| {
             if matches!(event, WarpConfigUpdateEvent::TabConfigs) {
@@ -2411,6 +2432,7 @@ impl FeaturesPageView {
             graphics_backend_dropdown,
             new_tab_placement_dropdown,
             default_session_mode_dropdown,
+            default_harness_dropdown,
             tab_behavior: Default::default(),
 
             window_id: ctx.window_id(),
@@ -2432,7 +2454,10 @@ impl FeaturesPageView {
 
     fn build_page(ctx: &mut ViewContext<Self>) -> PageType<Self> {
         let mut general_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> =
-            vec![Box::new(DefaultSessionModeWidget::default())];
+            vec![
+                Box::new(DefaultSessionModeWidget::default()),
+                Box::new(DefaultHarnessWidget::default()),
+            ];
 
         let native_preference_settings = NativePreferenceSettings::as_ref(ctx);
         if native_preference_settings
@@ -3374,6 +3399,38 @@ impl FeaturesPageView {
         );
     }
 
+    fn update_default_harness_dropdown(
+        dropdown: ViewHandle<FilterableDropdown<FeaturesPageAction>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        dropdown.update(
+            ctx,
+            |dropdown: &mut FilterableDropdown<FeaturesPageAction>, ctx| {
+                let is_ai_enabled = AISettings::as_ref(ctx).is_any_ai_enabled(ctx);
+
+                if is_ai_enabled {
+                    dropdown.set_enabled(ctx);
+                } else {
+                    dropdown.set_disabled(ctx);
+                }
+
+                let current = AISettings::as_ref(ctx).default_harness(ctx);
+
+                let items: Vec<DropdownItem<FeaturesPageAction>> = DefaultHarness::iter()
+                    .map(|val| {
+                        DropdownItem::new(
+                            val.display_name(),
+                            FeaturesPageAction::SetDefaultHarness(val),
+                        )
+                    })
+                    .collect();
+
+                dropdown.set_items(items, ctx);
+                dropdown.set_selected_by_name(current.display_name(), ctx);
+            },
+        );
+    }
+
     fn set_default_session_mode(
         &mut self,
         value: &DefaultSessionMode,
@@ -3382,6 +3439,18 @@ impl FeaturesPageView {
         AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
             report_if_error!(ai_settings
                 .default_session_mode_internal
+                .set_value(*value, ctx));
+        });
+    }
+
+    fn set_default_harness(
+        &mut self,
+        value: &DefaultHarness,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
+            report_if_error!(ai_settings
+                .default_harness_internal
                 .set_value(*value, ctx));
         });
     }
@@ -6929,6 +6998,55 @@ impl SettingsWidget for DefaultSessionModeWidget {
                 .finish(),
             )
             .with_child(ChildView::new(&view.default_session_mode_dropdown).finish())
+            .finish()
+    }
+}
+
+#[derive(Default)]
+struct DefaultHarnessWidget {}
+
+impl SettingsWidget for DefaultHarnessWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "default harness agent warp ai custom provider"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let label = render_dropdown_item_label(
+            "Default AI harness".to_string(),
+            None,
+            LocalOnlyIconState::for_setting(
+                DefaultHarness::storage_key(),
+                DefaultHarness::sync_to_cloud(),
+                &mut view
+                    .button_mouse_states
+                    .local_only_icon_tooltip_states
+                    .borrow_mut(),
+                app,
+            ),
+            None,
+            appearance,
+        );
+
+        Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(
+                Shrinkable::new(
+                    1.0,
+                    Container::new(Align::new(label).left().finish())
+                        .with_margin_bottom(4.)
+                        .with_padding_right(16.)
+                        .finish(),
+                )
+                .finish(),
+            )
+            .with_child(ChildView::new(&view.default_harness_dropdown).finish())
             .finish()
     }
 }

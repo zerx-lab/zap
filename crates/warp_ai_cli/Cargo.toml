@@ -1,0 +1,20 @@
+[package]
+name = "warp_ai_cli"
+version = "0.1.0"
+edition = "2021"
+description = "A thin CLI that calls any OpenAI-compatible API for use as a Warp agent harness"
+
+[[bin]]
+name = "warp-ai"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+dirs = { workspace = true }
+futures-util = { workspace = true }
+log = { workspace = true }
+reqwest = { workspace = true, features = ["stream"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["full"] }

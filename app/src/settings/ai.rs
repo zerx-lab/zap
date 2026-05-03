@@ -14,6 +14,7 @@ use crate::report_if_error;
 use crate::terminal::CLIAgent;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use cfg_if::cfg_if;
+use warp_cli::agent::Harness;
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -327,6 +328,65 @@ impl DefaultSessionMode {
             DefaultSessionMode::TabConfig => "Tab Config",
             DefaultSessionMode::DockerSandbox => "Local Docker Sandbox",
         }
+    }
+}
+
+/// The default AI harness to use for agent sessions.
+/// When set to something other than `None`, new sessions auto-launch that harness.
+#[derive(
+    Default,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    PartialEq,
+    Copy,
+    Clone,
+    EnumIter,
+    schemars::JsonSchema,
+    settings_value::SettingsValue,
+)]
+#[schemars(
+    description = "Default AI harness for agent sessions.",
+    rename_all = "snake_case"
+)]
+pub enum DefaultHarness {
+    /// No default harness — use Warp's built-in agent.
+    #[default]
+    None,
+    /// Use the self-contained Warp AI harness.
+    WarpAi,
+}
+
+settings::macros::implement_setting_for_enum!(
+    DefaultHarness,
+    AISettings,
+    SupportedPlatforms::ALL,
+    SyncToCloud::Globally(RespectUserSyncSetting::Yes),
+    private: false,
+    toml_path: "general.default_harness",
+    description: "The default harness to use for agent sessions.",
+);
+
+impl DefaultHarness {
+    /// Display name for the settings dropdown.
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            DefaultHarness::None => "None",
+            DefaultHarness::WarpAi => "Warp AI",
+        }
+    }
+
+    /// Convert to a `Harness` variant, if one is selected.
+    pub fn to_harness(&self) -> Option<Harness> {
+        match self {
+            DefaultHarness::None => None,
+            DefaultHarness::WarpAi => Some(Harness::WarpAi),
+        }
+    }
+
+    /// Convert to a `CLIAgent`, if a harness is selected.
+    pub fn to_cli_agent(&self) -> Option<CLIAgent> {
+        self.to_harness().and_then(CLIAgent::from_harness)
     }
 }
 
@@ -1333,6 +1393,9 @@ define_settings_group!(AISettings, settings: [
     // effective value, which is gated on AI availability.
     default_session_mode_internal: DefaultSessionMode,
 
+    // The default AI harness to use for agent sessions.
+    default_harness_internal: DefaultHarness,
+
     // The file path of the tab config used when default_session_mode_internal is TabConfig.
     // Only read when mode is TabConfig; ignored for all other modes.
     // Machine-local (tab config paths vary per machine), so never synced to cloud.
@@ -1529,6 +1592,16 @@ impl AISettings {
                     DefaultSessionMode::Terminal
                 }
             }
+        }
+    }
+
+    /// Returns the effective default harness, gated on AI being enabled.
+    pub fn default_harness(&self, app: &AppContext) -> DefaultHarness {
+        let harness = *self.default_harness_internal.value();
+        if self.is_any_ai_enabled(app) {
+            harness
+        } else {
+            DefaultHarness::None
         }
     }
 

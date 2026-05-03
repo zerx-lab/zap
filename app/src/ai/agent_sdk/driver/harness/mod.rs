@@ -40,12 +40,14 @@ mod codex;
 pub(crate) mod codex_transcript;
 mod gemini;
 mod json_utils;
+mod warp_ai;
 
 pub(crate) use claude_code::ClaudeHarness;
 use claude_transcript::ClaudeResumeInfo;
 use codex::CodexHarness;
 use codex_transcript::CodexResumeInfo;
 use gemini::GeminiHarness;
+use warp_ai::WarpAiHarness;
 
 /// Harness-agnostic payload describing how to resume an existing conversation.
 ///
@@ -136,6 +138,13 @@ pub(crate) trait ThirdPartyHarness: Send + Sync {
     /// CLI is installed on `PATH`; override for additional checks.
     fn validate(&self) -> Result<(), AgentDriverError> {
         validate_cli_installed(self.cli_agent().command_prefix(), self.install_docs_url())
+    }
+
+    /// Whether this harness requires server-side prompt resolution.
+    /// Self-contained harnesses that operate independently of Warp's backend
+    /// should return `false` to skip the `resolve_prompt()` server call.
+    fn requires_server_prompt_resolution(&self) -> bool {
+        true
     }
 
     /// Prepare CLI-specific config files before launching the harness command.
@@ -229,6 +238,7 @@ pub(crate) fn harness_kind(harness: Harness) -> Result<HarnessKind, AgentDriverE
         Harness::OpenCode => Ok(HarnessKind::Unsupported(Harness::OpenCode)),
         Harness::Gemini => Ok(HarnessKind::ThirdParty(Box::new(GeminiHarness))),
         Harness::Codex => Ok(HarnessKind::ThirdParty(Box::new(CodexHarness))),
+        Harness::WarpAi => Ok(HarnessKind::ThirdParty(Box::new(WarpAiHarness))),
         Harness::Unknown => Err(AgentDriverError::InvalidRuntimeState),
     }
 }

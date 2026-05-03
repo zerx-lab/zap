@@ -173,7 +173,7 @@ use crate::server::server_api::ai::AIClient;
 use crate::server::server_api::auth::AuthClient;
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, CtrlTabBehavior,
-    DefaultSessionMode, InputModeSettings,
+    DefaultHarness, DefaultSessionMode, InputModeSettings,
 };
 use crate::settings_view::environments_page::EnvironmentsPage;
 use crate::settings_view::pane_manager::SettingsPaneManager;
@@ -10775,6 +10775,25 @@ impl Workspace {
     ///
     /// Used after adding a new tab when the session mode should default to agent view.
     fn enter_agent_view_on_active_tab(&self, ctx: &mut ViewContext<Self>) {
+        // Check if a default harness CLI agent should be auto-launched
+        let default_harness = AISettings::as_ref(ctx).default_harness(ctx);
+        if let Some(cli_agent) = default_harness.to_cli_agent() {
+            let prefix = cli_agent.command_prefix().to_owned();
+            self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                if let Some(terminal_view) = pane_group.active_session_view(ctx) {
+                    terminal_view.update(ctx, |view, ctx| {
+                        view.set_pending_command(&prefix, ctx);
+                        view.enter_agent_view_for_new_conversation(
+                            None,
+                            AgentViewEntryOrigin::DefaultSessionMode,
+                            ctx,
+                        );
+                    });
+                }
+            });
+            return;
+        }
+
         self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
             if let Some(terminal_view) = pane_group.active_session_view(ctx) {
                 terminal_view.update(ctx, |view, ctx| {

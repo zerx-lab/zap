@@ -126,6 +126,7 @@ pub enum CLIAgent {
     Auggie,
     CursorCli,
     Goose,
+    WarpAi,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,
 }
@@ -145,6 +146,7 @@ impl CLIAgent {
             CLIAgent::Auggie => "auggie",
             CLIAgent::CursorCli => "agent",
             CLIAgent::Goose => "goose",
+            CLIAgent::WarpAi => "warp-ai",
             CLIAgent::Unknown => "",
         }
     }
@@ -173,6 +175,7 @@ impl CLIAgent {
             Harness::Gemini => Some(CLIAgent::Gemini),
             Harness::OpenCode => Some(CLIAgent::OpenCode),
             Harness::Codex => Some(CLIAgent::Codex),
+            Harness::WarpAi => Some(CLIAgent::WarpAi),
             Harness::Unknown => Some(CLIAgent::Unknown),
         }
     }
@@ -190,6 +193,7 @@ impl CLIAgent {
             CLIAgent::Auggie => "Auggie",
             CLIAgent::CursorCli => "Cursor",
             CLIAgent::Goose => "Goose",
+            CLIAgent::WarpAi => "Warp AI",
             CLIAgent::Unknown => "CLI Agent",
         }
     }
@@ -208,6 +212,7 @@ impl CLIAgent {
             CLIAgent::Auggie => Some(Icon::AuggieLogo),
             CLIAgent::CursorCli => Some(Icon::CursorLogo),
             CLIAgent::Goose => Some(Icon::GooseLogo),
+            CLIAgent::WarpAi => None,
             CLIAgent::Unknown => None,
         }
     }
@@ -236,6 +241,7 @@ impl CLIAgent {
             CLIAgent::Auggie => &[SkillProvider::Agents],
             CLIAgent::CursorCli => &[SkillProvider::Agents],
             CLIAgent::Goose => &[SkillProvider::Agents],
+            CLIAgent::WarpAi => &[],
             CLIAgent::Unknown => &[],
         }
     }
@@ -276,6 +282,7 @@ impl CLIAgent {
             CLIAgent::Auggie => Some(AUGGIE_COLOR),
             CLIAgent::CursorCli => Some(CURSOR_COLOR),
             CLIAgent::Goose => Some(GOOSE_COLOR),
+            CLIAgent::WarpAi => None,
             CLIAgent::Unknown => None,
         }
     }
@@ -537,6 +544,7 @@ impl From<CLIAgent> for CLIAgentType {
             CLIAgent::Auggie => CLIAgentType::Auggie,
             CLIAgent::CursorCli => CLIAgentType::Cursor,
             CLIAgent::Goose => CLIAgentType::Goose,
+            CLIAgent::WarpAi => CLIAgentType::WarpAi,
             CLIAgent::Unknown => CLIAgentType::Unknown,
         }
     }

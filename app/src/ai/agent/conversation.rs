@@ -3525,6 +3525,7 @@ pub enum AIAgentHarness {
     ClaudeCode,
     Gemini,
     Codex,
+    WarpAi,
     Unknown,
 }
 

@@ -1560,26 +1560,34 @@ impl AgentDriver {
                 skill,
                 attachments_dir,
             } => {
-                let skill = skill
-                    .as_ref()
-                    .map(|parsed_skill| ResolvePromptAttachedSkill {
-                        name: parsed_skill.name.clone(),
-                        content: parsed_skill.content.clone(),
-                        path: Some(parsed_skill.path.to_string_lossy().to_string()),
-                    });
-                let request = ResolvePromptRequest {
-                    skill,
-                    attachments_dir: attachments_dir.clone(),
-                };
-                let resolved = server_api
-                    .resolve_prompt(request)
-                    .await
-                    .map_err(AgentDriverError::PromptResolutionFailed)?;
-                (
-                    Cow::Owned(resolved.prompt),
-                    resolved.system_prompt,
-                    resolved.resumption_prompt,
-                )
+                if !harness.requires_server_prompt_resolution() {
+                    let prompt_text = skill
+                        .as_ref()
+                        .map(|s| s.content.clone())
+                        .unwrap_or_default();
+                    (Cow::Owned(prompt_text), None, None)
+                } else {
+                    let skill = skill
+                        .as_ref()
+                        .map(|parsed_skill| ResolvePromptAttachedSkill {
+                            name: parsed_skill.name.clone(),
+                            content: parsed_skill.content.clone(),
+                            path: Some(parsed_skill.path.to_string_lossy().to_string()),
+                        });
+                    let request = ResolvePromptRequest {
+                        skill,
+                        attachments_dir: attachments_dir.clone(),
+                    };
+                    let resolved = server_api
+                        .resolve_prompt(request)
+                        .await
+                        .map_err(AgentDriverError::PromptResolutionFailed)?;
+                    (
+                        Cow::Owned(resolved.prompt),
+                        resolved.system_prompt,
+                        resolved.resumption_prompt,
+                    )
+                }
             }
         };
 
