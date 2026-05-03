@@ -1,3 +1,10 @@
 *.pdb filter=lfs diff=lfs merge=lfs -text
 input_classifier/models/* filter=lfs diff=lfs merge=lfs -text
 input_classifier/models/**/*tokenizer.json linguist-generated=true
+
+# openWarp 特化路径:合并上游时永远保留 openWarp 版本
+# 用法:本地需先注册驱动 `git config merge.openwarp-ours.driver true`
+# CI / 新克隆者执行 `script/setup-merge-drivers.sh` 自动配置
+.github/workflows/openwarp_release.yml merge=openwarp-ours
+app/channels/oss/dev.warp.OpenWarp.desktop merge=openwarp-ours
+lib/rust-genai/** merge=openwarp-ours
