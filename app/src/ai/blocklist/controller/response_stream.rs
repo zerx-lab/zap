@@ -37,6 +37,7 @@ struct ByopDispatch {
     /// Provider 级 reasoning effort 偏好。`Auto` 时不向 genai 传 effort,
     /// 由 adapter 自己按模型名后缀推断;非 Auto 经 client capability gate 后注入。
     reasoning_effort: crate::settings::ReasoningEffortSetting,
+    extra_headers: Vec<(String, String)>,
     /// conversation 的 root task id — 必须用本地已注册的 id,
     /// 否则下游 `Action::AddMessagesToTask` 在 task_store 找不到会 `TaskNotFound`。
     root_task_id: String,
@@ -73,6 +74,7 @@ fn byop_dispatch_info(
 ) -> Option<ByopDispatch> {
     let (provider, api_key, model_id) =
         crate::ai::agent_providers::lookup_byop(ctx, &params.model)?;
+    let extra_headers = provider.extra_headers.clone();
     // 从 provider.models 里找当前模型条目,取其 context_window(tokens)。
     // 0 视为未填,后续走 None 分支 ⇒ chat_stream 不算占用率。
     let context_window = provider
@@ -124,6 +126,7 @@ fn byop_dispatch_info(
         model_id,
         api_type: provider.api_type,
         reasoning_effort,
+        extra_headers,
         root_task_id,
         target_task_id,
         needs_create_task,
@@ -252,6 +255,7 @@ impl ResponseStream {
                         byop.model_id,
                         byop.api_type,
                         byop.reasoning_effort,
+                        byop.extra_headers,
                         byop.root_task_id,
                         byop.target_task_id,
                         byop.needs_create_task,
@@ -357,6 +361,7 @@ impl ResponseStream {
                         byop.model_id,
                         byop.api_type,
                         byop.reasoning_effort,
+                        byop.extra_headers,
                         byop.root_task_id,
                         byop.target_task_id,
                         byop.needs_create_task,
