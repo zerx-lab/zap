@@ -379,12 +379,14 @@ impl AgentProvidersWidget {
             if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
                 let key = editor.as_ref(ctx).buffer_text(ctx);
                 let value = val_editor_for_key.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(AISettingsPageAction::UpdateAgentProviderHeader {
-                    provider_id: provider_id_for_key.clone(),
-                    header_index,
-                    key,
-                    value,
-                });
+                ctx.dispatch_typed_action_deferred(
+                    AISettingsPageAction::UpdateAgentProviderHeader {
+                        provider_id: provider_id_for_key.clone(),
+                        header_index,
+                        key,
+                        value,
+                    },
+                );
                 collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
@@ -395,12 +397,14 @@ impl AgentProvidersWidget {
             if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
                 let key = key_editor_for_value.as_ref(ctx).buffer_text(ctx);
                 let value = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(AISettingsPageAction::UpdateAgentProviderHeader {
-                    provider_id: provider_id_for_value.clone(),
-                    header_index,
-                    key,
-                    value,
-                });
+                ctx.dispatch_typed_action_deferred(
+                    AISettingsPageAction::UpdateAgentProviderHeader {
+                        provider_id: provider_id_for_value.clone(),
+                        header_index,
+                        key,
+                        value,
+                    },
+                );
                 collapse_selection_if_blurred(&editor, event, ctx);
             }
         });
