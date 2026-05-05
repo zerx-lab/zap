@@ -216,7 +216,12 @@ if ! git merge --no-edit "$UPSTREAM_REMOTE/$BRANCH"; then
   exit 1
 fi
 
-cargo fmt --check
+cargo fmt
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  git add -u
+  git commit -m "chore: 自动格式化上游同步结果"
+fi
 
 git push "$PUBLISH_REMOTE" "HEAD:$BRANCH"
 new_sha="$(gh api "repos/$PUBLISH_REPO/commits/$BRANCH" --jq .sha)"
