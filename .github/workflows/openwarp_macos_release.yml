@@ -115,10 +115,10 @@ jobs:
       - name: Install create-dmg
         run: brew install create-dmg
 
-      - name: Build aarch64 bundle (unsigned)
+      - name: Build aarch64 bundle (ad-hoc signed)
         id: bundle_app
         run: |
-          script/bundle --channel "$CHANNEL" --arch aarch64 --dmg-name-suffix arm64 --nosign
+          script/bundle --channel "$CHANNEL" --arch aarch64 --dmg-name-suffix arm64 --selfsign
         shell: bash
         env:
           GIT_RELEASE_TAG: ${{ needs.prepare_metadata.outputs.release_tag }}
