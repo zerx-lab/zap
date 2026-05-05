@@ -746,3 +746,41 @@ fn test_mark_quota_banner_as_dismissed() {
         });
     });
 }
+
+#[test]
+fn extra_headers_backward_compat() {
+    let toml_str = r#"
+        id = "test-id"
+        name = "Test Provider"
+        base_url = "https://api.example.com/v1"
+    "#;
+    let provider: AgentProvider = toml::from_str(toml_str).expect("should deserialize");
+    assert!(provider.extra_headers.is_empty(), "extra_headers should default to empty vec");
+}
+
+#[test]
+fn extra_headers_skip_when_empty() {
+    let provider = AgentProvider {
+        id: "test-id".to_string(),
+        name: "Test".to_string(),
+        kind: AgentProviderKind::default(),
+        api_type: AgentProviderApiType::default(),
+        base_url: "https://api.example.com/v1".to_string(),
+        models: Vec::new(),
+        extra_headers: Vec::new(),
+    };
+    let serialized = toml::to_string(&provider).expect("should serialize");
+    assert!(!serialized.contains("extra_headers"), "empty extra_headers should not appear in TOML");
+}
+
+#[test]
+fn extra_headers_round_trip() {
+    let mut provider = AgentProvider::new_empty();
+    provider.extra_headers = vec![
+        ("x-portkey-provider".to_string(), "openai".to_string()),
+        ("x-custom".to_string(), "value".to_string()),
+    ];
+    let serialized = toml::to_string(&provider).expect("should serialize");
+    let deserialized: AgentProvider = toml::from_str(&serialized).expect("should deserialize");
+    assert_eq!(provider.extra_headers, deserialized.extra_headers);
+}
