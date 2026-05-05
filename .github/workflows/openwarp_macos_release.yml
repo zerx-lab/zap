@@ -257,14 +257,17 @@ jobs:
       - name: Audit cask
         shell: bash
         working-directory: homebrew-openwarp
-        run: brew audit --cask --strict Casks/openwarp.rb
+        run: |
+          set -euo pipefail
+          brew tap LeoYoung-code/openwarp "$PWD"
+          brew audit --cask --strict openwarp
 
       - name: Install cask from local file
         shell: bash
         working-directory: homebrew-openwarp
         run: |
           set -euo pipefail
-          brew install --cask --no-quarantine ./Casks/openwarp.rb
+          brew install --cask --no-quarantine openwarp
           brew list --cask openwarp
 
       - name: Commit and push cask update
