@@ -97,6 +97,12 @@ fn test_state_dir_path() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn test_oss_secure_state_dir_is_disabled() {
+    assert_eq!(secure_state_dir(), None);
+}
+
+#[test]
 fn test_project_path_for_warp_app_id() {
     let project_dirs = project_dirs_for_app_id(AppId::new("dev", "warp", "Warp"), None)
         .expect("should be able to compute project dirs");
