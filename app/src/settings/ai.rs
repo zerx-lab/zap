@@ -832,6 +832,12 @@ pub struct AgentProvider {
     /// 每条同时含 `name`(显示名) 与 `id`(发送给上游 API 的 model 字段值)。
     #[serde(default)]
     pub models: Vec<AgentProviderModel>,
+
+    /// 附加 HTTP 请求头,发给上游 provider 时逐条 merge 进请求。
+    /// 用于需要额外路由头的 gateway(如 Portkey 的 `x-portkey-provider`)。
+    /// `api_key` 仍走 `Authorization: Bearer` 标准路径。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_headers: Vec<(String, String)>,
 }
 
 impl AgentProvider {
@@ -848,6 +854,7 @@ impl AgentProvider {
             api_type: AgentProviderApiType::default(),
             base_url: String::new(),
             models: Vec::new(),
+            extra_headers: Vec::new(),
         }
     }
 }
