@@ -33,6 +33,8 @@ if [[ "$(source /etc/os-release; echo $ID $ID_LIKE)" = *"debian"* ]]; then
     brotli
     # Needed for voice input
     libasound2-dev
+    # Needed by libdbus-sys (pulled in by managed_secrets / keyring crates)
+    libdbus-1-dev
     # Needed by bindgen (used by minimp4-sys, pulled in by warpui_core's
     # integration_tests feature) — pulls in libclang-common-*-dev which
     # provides clang's resource-dir builtin headers.
