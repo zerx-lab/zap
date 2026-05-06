@@ -722,6 +722,24 @@ impl TextLayoutSystem {
         text[glyph_start..].chars().next()
     }
 
+    #[cfg(target_os = "windows")]
+    fn preload_fallback_fonts_for_text(
+        &self,
+        text: &str,
+        style_runs: &[(Range<usize>, StyleAndFont)],
+        str_index_map: &StrIndexMap,
+    ) {
+        for (range, style_and_font) in style_runs {
+            let selected_font = self.select_font(style_and_font.font_family, style_and_font.properties);
+            let start_byte_index = str_index_map.byte_index(range.start).unwrap_or(text.len());
+            let end_byte_index = str_index_map.byte_index(range.end).unwrap_or(text.len());
+
+            for ch in text[start_byte_index..end_byte_index].chars() {
+                let _ = self.fallback_fonts(ch, selected_font);
+            }
+        }
+    }
+
     /// Produces an [`AttrsList`] to layout text given a list of `style_runs` and the `text` the
     /// runs correspond to.
     fn build_attrs_list(
@@ -965,6 +983,8 @@ impl platform::TextLayoutSystem for TextLayoutSystem {
 
         let mut text_styles_map = TextStylesMap::new();
         let str_index_map = StrIndexMap::new(&text);
+        #[cfg(target_os = "windows")]
+        self.preload_fallback_fonts_for_text(text.as_str(), style_runs, &str_index_map);
         let attrs_list = self.build_attrs_list(
             text.as_str(),
             style_runs,
@@ -1028,6 +1048,8 @@ impl platform::TextLayoutSystem for TextLayoutSystem {
     ) -> TextFrame {
         let mut text_styles_map = TextStylesMap::new();
         let str_index_map = StrIndexMap::new(text);
+        #[cfg(target_os = "windows")]
+        self.preload_fallback_fonts_for_text(text, style_runs, &str_index_map);
         let mut attrs_list =
             self.build_attrs_list(text, style_runs, &mut text_styles_map, &str_index_map);
         let mut font_store = self.font_store.write();
