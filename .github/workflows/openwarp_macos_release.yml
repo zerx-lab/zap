@@ -237,8 +237,7 @@ jobs:
               version "#{version}"
               sha256 "#{sha256}"
 
-              url "https://github.com/LeoYoung-code/warp/releases/download/openwarp-v\#{version}/OpenWarp-arm64.dmg",
-                  verified: "github.com/LeoYoung-code/warp/"
+              url "https://github.com/LeoYoung-code/warp/releases/download/openwarp-v\#{version}/OpenWarp-arm64.dmg"
               name "OpenWarp"
               desc "Open-source build of Warp terminal"
               homepage "https://github.com/LeoYoung-code/warp"
