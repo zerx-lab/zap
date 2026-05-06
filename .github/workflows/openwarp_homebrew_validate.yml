@@ -1,0 +1,134 @@
+name: OpenWarp Homebrew Validate
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "已发布的 OpenWarp release tag，例如 openwarp-v2026.05.06.2"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  HOMEBREW_TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO || 'LeoYoung-code/homebrew-openwarp' }}
+  RELEASE_ASSET_NAME: OpenWarp-arm64.dmg
+
+jobs:
+  validate_homebrew:
+    name: Validate Homebrew cask
+    runs-on: macos-latest
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+    steps:
+      - name: Validate release tag format
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_TAG" != openwarp-v* ]]; then
+            echo "::error::release_tag 必须以 openwarp-v 开头: $RELEASE_TAG"
+            exit 1
+          fi
+
+      - name: Download release asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$RELEASE_ASSET_NAME" \
+            --dir dist
+          test -f "dist/$RELEASE_ASSET_NAME"
+
+      - name: Compute cask metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          cask_version="${RELEASE_TAG#openwarp-v}"
+          sha256="$(shasum -a 256 "dist/$RELEASE_ASSET_NAME" | awk '{print $1}')"
+          echo "cask_version=$cask_version" >> "$GITHUB_OUTPUT"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $RELEASE_TAG"
+          echo "Cask version: $cask_version"
+          echo "DMG sha256: $sha256"
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: ${{ env.HOMEBREW_TAP_REPO }}
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-openwarp
+
+      - name: Generate cask
+        shell: bash
+        working-directory: homebrew-openwarp
+        env:
+          CASK_VERSION: ${{ steps.meta.outputs.cask_version }}
+          CASK_SHA256: ${{ steps.meta.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          mkdir -p Casks
+          ruby - <<'RUBY'
+          version = ENV.fetch("CASK_VERSION")
+          sha256 = ENV.fetch("CASK_SHA256")
+          cask = <<~CASK
+            cask "openwarp" do
+              version "#{version}"
+              sha256 "#{sha256}"
+
+              url "https://github.com/LeoYoung-code/warp/releases/download/openwarp-v\#{version}/OpenWarp-arm64.dmg"
+              name "OpenWarp"
+              desc "Open-source build of Warp terminal"
+              homepage "https://github.com/LeoYoung-code/warp"
+
+              app "OpenWarp.app"
+
+              zap trash: [
+                "~/Library/Application Support/dev.openwarp.OpenWarp",
+                "~/Library/Preferences/dev.openwarp.OpenWarp.plist",
+              ]
+            end
+          CASK
+          File.write("Casks/openwarp.rb", cask)
+          RUBY
+
+      - name: Audit generated cask
+        shell: bash
+        working-directory: homebrew-openwarp
+        run: |
+          set -euo pipefail
+          brew tap LeoYoung-code/openwarp "$PWD"
+          tap_repo="$(brew --repository leoyoung-code/openwarp)"
+          cp Casks/openwarp.rb "$tap_repo/Casks/openwarp.rb"
+          HOMEBREW_NO_AUTO_UPDATE=1 brew audit --cask --strict openwarp
+
+      - name: Install generated cask
+        shell: bash
+        working-directory: homebrew-openwarp
+        run: |
+          set -euo pipefail
+          tap_repo="$(brew --repository leoyoung-code/openwarp)"
+          cp Casks/openwarp.rb "$tap_repo/Casks/openwarp.rb"
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install --cask openwarp
+          brew list --cask openwarp
+
+      - name: Summary
+        shell: bash
+        env:
+          CASK_VERSION: ${{ steps.meta.outputs.cask_version }}
+          CASK_SHA256: ${{ steps.meta.outputs.sha256 }}
+        run: |
+          {
+            echo "## OpenWarp Homebrew validation"
+            echo
+            echo "- Tag: $RELEASE_TAG"
+            echo "- Version: $CASK_VERSION"
+            echo "- sha256: $CASK_SHA256"
+            echo "- Tap repo: $HOMEBREW_TAP_REPO"
+            echo "- 说明: 本 workflow 只验证 Homebrew cask 链路，不会提交 tap 仓库。"
+          } >> "$GITHUB_STEP_SUMMARY"
