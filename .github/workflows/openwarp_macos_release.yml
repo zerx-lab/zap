@@ -259,6 +259,8 @@ jobs:
         run: |
           set -euo pipefail
           brew tap LeoYoung-code/openwarp "$PWD"
+          tap_repo="$(brew --repository leoyoung-code/openwarp)"
+          cp Casks/openwarp.rb "$tap_repo/Casks/openwarp.rb"
           brew audit --cask --strict openwarp
 
       - name: Install cask from local file
@@ -266,6 +268,8 @@ jobs:
         working-directory: homebrew-openwarp
         run: |
           set -euo pipefail
+          tap_repo="$(brew --repository leoyoung-code/openwarp)"
+          cp Casks/openwarp.rb "$tap_repo/Casks/openwarp.rb"
           brew install --cask openwarp
           brew list --cask openwarp
 
