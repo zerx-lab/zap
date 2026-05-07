@@ -97,7 +97,7 @@ use crate::terminal::general_settings::UserDefaultShellUnsupportedBannerState;
 use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::view::inline_banner::ByoLlmAuthBannerSessionState;
 use crate::terminal::writeable_pty::command_history::update_command_history;
-use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider, ReferralThemeStatus};
+use crate::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 
 pub fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
@@ -164,14 +164,12 @@ pub fn initialize_app(app: &mut App) {
 
     // Add GlobalResourceHandlesProvider for persistence
     let tips_handle = app.add_model(|_| TipsCompleted::default());
-    let referral_theme_status = app.add_model(ReferralThemeStatus::new);
     let user_default_shell_unsupported_banner_model_handle =
         app.add_model(|_| UserDefaultShellUnsupportedBannerState::default_value());
     app.add_singleton_model(move |_ctx| {
         GlobalResourceHandlesProvider::new(GlobalResourceHandles {
             model_event_sender: None, // No persistence in tests
             tips_completed: tips_handle,
-            referral_theme_status,
             user_default_shell_unsupported_banner_model_handle,
             settings_file_error: None,
         })

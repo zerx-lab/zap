@@ -2886,13 +2886,6 @@ global-search-remote-description = Global search requires access to your local w
 global-search-unsupported-session-description = Global search doesn't currently work in Git Bash or WSL.
 global-search-failed = Global search failed.
 
-# Reward view (app/src/reward_view.rs)
-reward-title = Congrats!
-reward-subtitle-sent-referral = You earned an exclusive Warp theme for referring someone to Warp.
-reward-subtitle-received-referral = You earned an exclusive Warp theme for being referred to Warp.
-reward-cta = Try it out!
-reward-accessibility-help = Press enter to open the theme chooser or escape to dismiss.
-
 # Wasm NUX dialog (app/src/wasm_nux_dialog.rs)
 wasm-nux-open-desktop-title = Open in Warp Desktop?
 wasm-nux-open-desktop-detail = Future links will automatically open on desktop.

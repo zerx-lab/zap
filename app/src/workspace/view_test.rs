@@ -694,44 +694,6 @@ fn reopen_closed_session_menu_item(
 }
 
 #[test]
-fn test_reward_modal_no_overlap() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let workspace = mock_workspace(&mut app);
-
-        // Trigger the referral reward response
-        workspace.update(&mut app, |view, ctx| {
-            view.handle_referral_theme_status_event(
-                &ReferralThemeEvent::SentReferralThemeActivated,
-                ctx,
-            );
-
-            // This _should_ show the reward modal, since the changelog modal is _not_ active
-            assert!(view.current_workspace_state.is_reward_modal_open);
-        });
-    });
-}
-
-#[test]
-fn test_reward_modal_shows_for_received_referral() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-
-        let workspace = mock_workspace(&mut app);
-
-        workspace.update(&mut app, |view, ctx| {
-            view.handle_referral_theme_status_event(
-                &ReferralThemeEvent::ReceivedReferralThemeActivated,
-                ctx,
-            );
-
-            assert!(view.current_workspace_state.is_reward_modal_open);
-        });
-    });
-}
-
-#[test]
 fn test_tab_renaming_editor_selections() {
     App::test((), |mut app| async move {
         initialize_app(&mut app);
