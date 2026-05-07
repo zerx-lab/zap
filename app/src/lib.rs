@@ -569,6 +569,13 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 
 /// Runs the app. If a subcommand was requested, it'll be run instead of the main application.
 pub fn run() -> Result<()> {
+    if std::env::var_os("LANG").is_none()
+        && std::env::var_os("LC_ALL").is_none()
+        && std::env::var_os("LC_CTYPE").is_none()
+    {
+        std::env::set_var("LANG", "en_US.UTF-8");
+    }
+
     // Perform any necessary platform-specific initialization.
     platform::init();
 
