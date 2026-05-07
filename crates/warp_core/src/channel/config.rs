@@ -176,3 +176,58 @@ pub struct McpOAuthProviderConfig {
     /// The OAuth client secret registered for this channel.
     pub client_secret: Cow<'static, str>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn warp_server_config_disabled_is_disabled() {
+        assert!(WarpServerConfig::disabled().is_disabled());
+    }
+
+    #[test]
+    fn warp_server_config_production_is_not_disabled() {
+        assert!(!WarpServerConfig::production().is_disabled());
+    }
+
+    #[test]
+    fn warp_server_config_real_url_is_not_disabled() {
+        let cfg = WarpServerConfig {
+            server_root_url: "https://app.warp.dev".into(),
+            rtc_server_url: "wss://rtc.app.warp.dev/graphql/v2".into(),
+            session_sharing_server_url: None,
+            firebase_auth_api_key: "".into(),
+        };
+        assert!(!cfg.is_disabled());
+    }
+
+    #[test]
+    fn oz_config_disabled_is_disabled() {
+        assert!(OzConfig::disabled().is_disabled());
+    }
+
+    #[test]
+    fn oz_config_production_is_not_disabled() {
+        assert!(!OzConfig::production().is_disabled());
+    }
+
+    #[test]
+    fn disabled_sentinels_match_legacy_literals() {
+        // Lock the sentinel strings: any future change here is a breaking
+        // change for the cloud-removal short-circuit and must be intentional.
+        assert_eq!(DISABLED_HTTP_SENTINEL, "http://192.0.2.0:9");
+        assert_eq!(DISABLED_WS_SENTINEL, "ws://192.0.2.0:9/graphql/v2");
+
+        let server = WarpServerConfig::disabled();
+        assert_eq!(server.server_root_url, "http://192.0.2.0:9");
+        assert_eq!(server.rtc_server_url, "ws://192.0.2.0:9/graphql/v2");
+
+        let oz = OzConfig::disabled();
+        assert_eq!(oz.oz_root_url, "http://192.0.2.0:9");
+        assert_eq!(
+            oz.workload_audience_url.as_deref(),
+            Some("http://192.0.2.0:9")
+        );
+    }
+}

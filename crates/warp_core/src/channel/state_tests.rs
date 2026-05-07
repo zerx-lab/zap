@@ -1,4 +1,4 @@
-use super::derive_http_origin_from_ws_url;
+use super::{ChannelState, derive_http_origin_from_ws_url};
 
 #[test]
 fn wss_becomes_https_and_strips_path() {
@@ -16,4 +16,12 @@ fn ws_becomes_http_and_preserves_port() {
 fn unparseable_input_returns_none() {
     assert!(derive_http_origin_from_ws_url("not a url").is_none());
     assert!(derive_http_origin_from_ws_url("https://app.warp.dev").is_none());
+}
+
+/// `ChannelState::init()` (the static default for OSS builds) must satisfy
+/// the cloud-disabled predicate; the cloud-removal plan's Phase 5 short-circuit
+/// depends on this invariant.
+#[test]
+fn default_oss_state_is_cloud_disabled() {
+    assert!(ChannelState::is_cloud_disabled());
 }
