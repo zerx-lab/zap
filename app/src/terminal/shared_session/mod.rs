@@ -281,8 +281,6 @@ pub enum SharedSessionActionSource {
     InactivityModal,
     /// The user did not initiate this action themselves.
     NonUser,
-    /// The object-specific sharing dialog.
-    SharingDialog,
     /// From the session sharing context menu items.
     RightClickMenu,
     /// From the agent/CLI footer chip.

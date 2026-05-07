@@ -18,7 +18,6 @@ use crate::{
     server::{
         cloud_objects::update_manager::{InitiatedBy, UpdateManager},
         ids::{ClientId, ServerId, SyncId},
-        telemetry::SharingDialogSource,
     },
     workflows::{manager::WorkflowOpenSource, CloudWorkflow, WorkflowViewMode},
     workspaces::user_workspaces::UserWorkspaces,
@@ -622,20 +621,6 @@ impl DrivePanel {
             ctx.focus(&self.index_view);
             index.set_focused_item(item_id, true, ctx);
         })
-    }
-
-    pub fn open_object_sharing_settings(
-        &mut self,
-        object_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let warp_drive_item_id = WarpDriveItemId::Object(object_id);
-        self.index_view.update(ctx, |index, ctx| {
-            index.set_focused_item(warp_drive_item_id, true, ctx);
-            index.toggle_share_dialog(&warp_drive_item_id, invitee_email, source, ctx);
-        });
     }
 
     pub fn has_warp_drive_initialized_sections(

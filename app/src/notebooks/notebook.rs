@@ -51,8 +51,8 @@ use crate::{
     cmd_or_ctrl_shift,
     drive::{
         drive_helpers::has_feature_gated_anonymous_user_reached_notebook_limit,
-        export::ExportManager, items::WarpDriveItemId, sharing::ShareableObject,
-        CloudObjectTypeAndId, OpenWarpDriveObjectSettings,
+        export::ExportManager, items::WarpDriveItemId, CloudObjectTypeAndId,
+        OpenWarpDriveObjectSettings,
     },
     editor::{
         EditOrigin, EditorView, Event as EditorEvent, InteractionState,
@@ -76,7 +76,7 @@ use crate::{
         ids::{ClientId, ServerId, SyncId},
         telemetry::{
             CloudObjectTelemetryMetadata, NotebookActionEvent, NotebookTelemetryMetadata,
-            SharingDialogSource, TelemetryCloudObjectType, TelemetryEvent,
+            TelemetryCloudObjectType, TelemetryEvent,
         },
     },
     settings::{
@@ -271,11 +271,6 @@ pub enum NotebookEvent {
     MoveToSpace {
         cloud_object_type_and_id: CloudObjectTypeAndId,
         new_space: Space,
-    },
-    OpenDriveObjectShareDialog {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
     },
     AttachPlanAsContext(AIDocumentId),
 }
@@ -605,10 +600,9 @@ impl NotebookView {
                     .id()
                     .and_then(SyncId::into_server)
                 {
-                    self.pane_configuration.update(ctx, |pane_config, ctx| {
-                        pane_config
-                            .set_shareable_object(Some(ShareableObject::WarpDriveObject(id)), ctx);
-                    })
+                    // TODO(openwarp-cloud-removal Phase 5): 同上,sharing UI 已退役,
+                    // notebook 的 ShareableObject 注入移除;cloud_object 退役时清理 id 流程。
+                    let _ = id;
                 }
             }
             ActiveNotebookDataEvent::TrashStatusChanged | ActiveNotebookDataEvent::MovedToSpace => {
@@ -1608,15 +1602,9 @@ impl NotebookView {
         self.set_title(&notebook.model().title, ctx);
         self.set_content(&notebook, ctx);
 
-        if let Some(server_id) = notebook.id.into_server() {
-            self.pane_configuration
-                .update(ctx, |pane_configuration, ctx| {
-                    pane_configuration.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(server_id)),
-                        ctx,
-                    );
-                });
-        }
+        // TODO(openwarp-cloud-removal Phase 5): sharing UI 已退役,notebook
+        // ShareableObject 注入移除;cloud_object server_id 路径保留待 Phase 5。
+        let _ = notebook.id;
 
         self.active_notebook_data.update(ctx, |data, ctx| {
             data.open_existing(notebook.id, ctx);
@@ -1680,17 +1668,8 @@ impl NotebookView {
             }
         });
         self.update_breadcrumbs(ctx);
-        if let Some(invitee_email) = settings.invitee_email.clone() {
-            let object_id_to_share = settings
-                .focused_folder_id
-                .map(|id| CloudObjectTypeAndId::Folder(SyncId::ServerId(id)))
-                .unwrap_or(CloudObjectTypeAndId::Notebook(notebook.id));
-            ctx.emit(NotebookEvent::OpenDriveObjectShareDialog {
-                cloud_object_type_and_id: object_id_to_share,
-                invitee_email: Some(invitee_email),
-                source: SharingDialogSource::InviteeRequest,
-            });
-        } else if let Some(focused_folder_id) = settings.focused_folder_id.map(SyncId::ServerId) {
+        // OpenWarp Phase 2a: invitee-driven sharing dialog removed.
+        if let Some(focused_folder_id) = settings.focused_folder_id.map(SyncId::ServerId) {
             self.view_in_warp_drive(
                 WarpDriveItemId::Object(CloudObjectTypeAndId::Folder(focused_folder_id)),
                 ctx,

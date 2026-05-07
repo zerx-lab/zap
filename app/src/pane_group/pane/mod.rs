@@ -44,12 +44,10 @@ use crate::{
         facts::AIFactView,
     },
     code::view::CodeView,
-    drive::sharing::ShareableObject,
     env_vars::view::env_var_collection::EnvVarCollectionView,
     menu::MenuItem,
     notebooks::{file::FileNotebookView, notebook::NotebookView},
     server::network_log_view::NetworkLogView,
-    server::telemetry::SharingDialogSource,
     settings::PaneSettings,
     settings_view::{environments_page::EnvironmentsPageView, SettingsView},
     terminal::{available_shells::AvailableShell, TerminalView},
@@ -840,24 +838,8 @@ impl PaneConfiguration {
         ctx.emit(PaneConfigurationEvent::HeaderContentChanged);
     }
 
-    /// Sets the shareable object in the current pane. If `None`, the share button is removed.
-    pub fn set_shareable_object(
-        &mut self,
-        shareable_object: Option<ShareableObject>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.emit(PaneConfigurationEvent::ShareableObjectChanged(
-            shareable_object,
-        ));
-    }
-
-    pub fn toggle_sharing_dialog(
-        &mut self,
-        source: SharingDialogSource,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.emit(PaneConfigurationEvent::ToggleSharingDialog(source));
-    }
+    // OpenWarp Phase 2a: `set_shareable_object` / `toggle_sharing_dialog` removed
+    // along with the pane-header sharing UI.
 
     /// Notifies that the header content has changed and the pane header should re-render.
     /// Use this when the backing view's state has changed in a way that affects the header
@@ -882,8 +864,6 @@ pub enum PaneConfigurationEvent {
     ShowAccentBorderUpdated,
     OpenModalUpdated,
     RefreshPaneHeaderOverflowMenuItems,
-    ShareableObjectChanged(Option<ShareableObject>),
-    ToggleSharingDialog(SharingDialogSource),
     DimEvenIfFocusedUpdated,
     /// The header content has changed and should be re-rendered.
     /// This is used when the backing view's state changes in a way that

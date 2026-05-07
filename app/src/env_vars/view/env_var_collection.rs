@@ -26,10 +26,7 @@ use crate::{
         model::persistence::{CloudModel, CloudModelEvent},
         CloudObjectEventEntrypoint, Owner,
     },
-    drive::{
-        items::WarpDriveItemId,
-        sharing::{ContentEditability, ShareableObject},
-    },
+    drive::{items::WarpDriveItemId, sharing::ContentEditability},
     editor::EditorView,
     env_vars::{
         active_env_var_collection_data::{
@@ -676,12 +673,10 @@ impl EnvVarCollectionView {
             title
         };
         self.set_pane_title(&title, ctx);
-        if let Some(server_id) = env_var_collection.id.into_server() {
-            self.pane_configuration.update(ctx, |pane_config, ctx| {
-                pane_config
-                    .set_shareable_object(Some(ShareableObject::WarpDriveObject(server_id)), ctx);
-            });
-        }
+        // TODO(openwarp-cloud-removal Phase 5): sharing UI 已退役,
+        // env_var_collection 的 ShareableObject 注入移除;ServerId 路径保留待
+        // cloud_object 整体退役。
+        let _ = env_var_collection.id;
 
         let description = collection.description.clone().unwrap_or_default();
 
@@ -973,12 +968,10 @@ impl EnvVarCollectionView {
             }
             ActiveEnvVarCollectionDataEvent::CreatedOnServer(server_id) => {
                 self.update_breadcrumbs(ctx);
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(*server_id)),
-                        ctx,
-                    );
-                });
+                // TODO(openwarp-cloud-removal Phase 5): 同上,sharing UI 已退役,
+                // 不再回灌 ShareableObject;server_id 仅由 cloud_object 创建路径
+                // 触发,Phase 5 一并退役。
+                let _ = server_id;
             }
             ActiveEnvVarCollectionDataEvent::TrashStatusChanged => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {

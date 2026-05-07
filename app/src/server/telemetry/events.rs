@@ -382,40 +382,9 @@ impl From<rmcp::RmcpError> for MCPServerTelemetryError {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OpenedSharingDialogEvent {
-    pub source: SharingDialogSource,
-
-    /// Metadata for the object being shared, if it's a Warp Drive object.
-    #[serde(flatten)]
-    pub object_metadata: Option<CloudObjectTelemetryMetadata>,
-
-    /// Metadata for the session being shared, if there is one.
-    pub session_id: Option<SharedSessionId>,
-}
-
-/// How the user opened the Warp Drive sharing dialog.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
-pub enum SharingDialogSource {
-    /// The sharing button in the pane header.
-    PaneHeader,
-    /// The per-pane command palette entry (includes keybindings).
-    CommandPalette,
-    /// The Warp Drive index context menu.
-    DriveIndex,
-    /// The sharing dialog was auto-opened from shared session creation.
-    StartedSessionShare,
-    /// The user intented into Warp with an email address to invite.
-    InviteeRequest,
-    /// The user jumped from an inherited ACL to its definition on a parent object.
-    InheritedPermission,
-    /// The onboarding block shown after users create new personal objects.
-    OnboardingBlock,
-    /// The conversation list overflow menu.
-    ConversationList,
-    /// The AI block context menu.
-    AIBlockContextMenu,
-}
+// OpenWarp Phase 2a: `OpenedSharingDialogEvent` + `SharingDialogSource` and
+// the corresponding `OpenedSharingDialog` `TelemetryEvent` variant removed
+// along with the sharing dialog UI.
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum TabRenameEvent {
@@ -2236,7 +2205,6 @@ pub enum TelemetryEvent {
         conversation_id: AIConversationId,
         server_output_id: Option<ServerOutputId>,
     },
-    OpenedSharingDialog(OpenedSharingDialogEvent),
     ToggleLigatureRendering {
         enabled: bool,
     },
@@ -3753,7 +3721,6 @@ impl TelemetryEvent {
             } => Some(
                 json!({ "citation": citation, "block_id": block_id, "conversation_id": conversation_id, "server_output_id": server_output_id }),
             ),
-            TelemetryEvent::OpenedSharingDialog(event) => Some(json!(event)),
             TelemetryEvent::ToggleGlobalAI { is_ai_enabled } => {
                 Some(json!({"is_ai_enabled": is_ai_enabled}))
             }
@@ -4878,7 +4845,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AddTabWithShell { .. }
             | TelemetryEvent::AgentModeSurfacedCitations { .. }
             | TelemetryEvent::AgentModeOpenedCitation { .. }
-            | TelemetryEvent::OpenedSharingDialog(_)
             | TelemetryEvent::ToggleLigatureRendering { .. }
             | TelemetryEvent::WorkflowAliasAdded { .. }
             | TelemetryEvent::WorkflowAliasRemoved { .. }
@@ -5450,7 +5416,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentModeSurfacedCitations | Self::AgentModeOpenedCitation => {
                 EnablementState::Always
             }
-            Self::OpenedSharingDialog => EnablementState::Always,
             Self::ToggleLigatureRendering => EnablementState::Flag(FeatureFlag::Ligatures),
             Self::WorkflowAliasAdded
             | Self::WorkflowAliasRemoved
@@ -5958,7 +5923,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AddTabWithShell => "Add Tab With Shell",
             Self::AgentModeSurfacedCitations => "AgentMode.SurfacedCitations",
             Self::AgentModeOpenedCitation => "AgentMode.OpenedCitation",
-            Self::OpenedSharingDialog => "Opened Sharing Dialog",
             Self::ToggleGlobalAI => "Toggle Global AI Enablement",
             Self::ToggleActiveAI => "Toggle Active AI Enablement",
             Self::ToggleLigatureRendering => "Toggle Ligature Rendering",
@@ -6768,9 +6732,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
                 "Agent mode used and cited external sources that were used in its response"
             }
             Self::AgentModeOpenedCitation => "Opened a citation that was surfaced in agent mode",
-            Self::OpenedSharingDialog => {
-                "Opened the sharing settings dialog for a session or Warp Drive object"
-            }
             Self::ToggleGlobalAI => "Toggled global AI enablement.",
             Self::ToggleActiveAI => "Toggled active AI enablement.",
             Self::ToggleLigatureRendering => "Toggled ligature rendering",

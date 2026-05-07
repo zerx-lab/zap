@@ -167,9 +167,11 @@ impl TerminalView {
         // any conversation started, to view cloud mode sessions that failed during setup.
         let is_ambient_agent = self.ambient_agent_view_model.as_ref(ctx).is_ambient_agent();
         if !is_ambient_agent {
-            let shareable_object = self.agent_view_shareable_object(ctx);
+            // TODO(openwarp-cloud-removal Phase 5): sharing UI 已退役,不再
+            // 把 ShareableObject 灌进 pane header;`agent_view_shareable_object`
+            // 路径保留以便 Phase 5 整体退役。
+            let _ = self.agent_view_shareable_object(ctx);
             self.pane_configuration.update(ctx, |pane_config, ctx| {
-                pane_config.set_shareable_object(shareable_object, ctx);
                 pane_config.notify_header_content_changed(ctx);
                 pane_config.refresh_pane_header_overflow_menu_items(ctx);
             });

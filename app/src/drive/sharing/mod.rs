@@ -20,10 +20,12 @@ use crate::{
     workspaces::{user_profiles::UserProfiles, user_workspaces::UserWorkspaces},
 };
 
-pub mod dialog;
+// OpenWarp Phase 2a: `dialog/` (cloud sharing modal UI) deleted along with
+// all consumer triggers. `style.rs` is retained because the Subject /
+// UserKind avatar helpers in this module still depend on it. Phase 6 deletes
+// the rest along with `warp_server_client::drive::sharing` re-exports.
 mod style;
 
-// Re-export types from warp_server_client.
 pub use warp_server_client::drive::sharing::{
     LinkSharingSubjectType, SharingAccessLevel, Subject, TeamKind, UserKind,
 };
