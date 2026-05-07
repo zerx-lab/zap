@@ -2138,7 +2138,6 @@ keybinding-desc-nbeditor-toggle-case-sensitive-find = Toggle case-sensitive sear
 # Pane group / undo close binding desc
 keybinding-desc-get-started-terminal-session = Terminal session
 keybinding-desc-undo-close-reopen-session = Reopen closed session
-keybinding-desc-pane-share-pane = Share pane
 keybinding-desc-right-panel-toggle-maximize-code-review = Toggle Maximize Code Review Panel
 
 # Workspace sync inputs binding desc
@@ -2391,7 +2390,6 @@ menu-ai-block-copy-path = Copy path
 menu-ai-block-copy-command = Copy command
 menu-ai-block-copy-git-branch = Copy git branch
 menu-ai-block-save-as-prompt = Save as prompt
-menu-ai-block-share-conversation = Share conversation
 menu-ai-block-copy-conversation-text = Copy conversation text
 menu-ai-block-fork-from-here = Fork from here
 menu-ai-block-rewind-to-before-here = Rewind to before here
@@ -2691,7 +2689,6 @@ drive-copy-variables = Copy variables
 drive-load-in-subshell = Load in subshell
 drive-delete-forever = Delete forever
 drive-rename = Rename
-drive-share = Share
 drive-retry = Retry
 drive-move-to-space = Move to { $space }
 drive-open-on-desktop = Open on Desktop
@@ -2774,7 +2771,6 @@ workspace-conversation-list-no-matching = No matching conversations
 workspace-conversation-list-delete = Delete
 workspace-conversation-list-delete-in-progress-error = Conversations cannot be deleted while in progress.
 workspace-conversation-list-delete-ambient-tooltip = Ambient agent conversations cannot be deleted
-workspace-conversation-list-share-conversation = Share conversation
 workspace-conversation-list-fork-new-pane = Fork in new pane
 workspace-conversation-list-fork-new-tab = Fork in new tab
 workspace-conversation-list-fallback-title = Conversation

@@ -6756,8 +6756,9 @@ impl Workspace {
                 );
             }
             // TODO(openwarp-cloud-removal Phase 5): invitee_email/source 这条
-            // notebook 邀请链路已无 UI 出口,但 NotebookSettings.invitee_email 仍由
-            // 上层传入。彻底退役 invitee 概念时把字段从 settings 里也删掉。
+            // notebook 邀请链路已无 UI 出口,但 `OpenWarpDriveObjectSettings.invitee_email`
+            // 仍由 URL handler / drag-drop 链路传入。Phase 5 退役 invitee 概念时
+            // 把字段从 settings 结构里也删掉。
             let _ = settings;
             let _ = source;
         } else if default_to_new_pane {

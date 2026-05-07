@@ -2060,7 +2060,6 @@ keybinding-desc-nbeditor-toggle-case-sensitive-find = 切换大小写敏感搜�
 # 面板组 / 撤销关闭 binding desc
 keybinding-desc-get-started-terminal-session = 终端会话
 keybinding-desc-undo-close-reopen-session = 重新打开已关闭的会话
-keybinding-desc-pane-share-pane = 分享面板
 keybinding-desc-right-panel-toggle-maximize-code-review = 切换最大化代码审阅面板
 
 # 工作区输入同步 binding desc
@@ -2314,7 +2313,6 @@ menu-ai-block-copy-path = 复制路径
 menu-ai-block-copy-command = 复制命令
 menu-ai-block-copy-git-branch = 复制 git 分支
 menu-ai-block-save-as-prompt = 另存为提示词
-menu-ai-block-share-conversation = 分享对话
 menu-ai-block-copy-conversation-text = 复制对话文本
 menu-ai-block-fork-from-here = 从此处分叉
 menu-ai-block-rewind-to-before-here = 回退到此处之前
@@ -2599,7 +2597,6 @@ drive-copy-variables = 复制变量
 drive-load-in-subshell = 在子 shell 中加载
 drive-delete-forever = 永久删除
 drive-rename = 重命名
-drive-share = 分享
 drive-retry = 重试
 drive-move-to-space = 移动到 { $space }
 drive-open-on-desktop = 在桌面端打开
@@ -2682,7 +2679,6 @@ workspace-conversation-list-no-matching = 没有匹配的对话
 workspace-conversation-list-delete = 删除
 workspace-conversation-list-delete-in-progress-error = 对话进行中时无法删除。
 workspace-conversation-list-delete-ambient-tooltip = 无法删除环境智能体对话
-workspace-conversation-list-share-conversation = 分享对话
 workspace-conversation-list-fork-new-pane = 在新窗格中派生
 workspace-conversation-list-fork-new-tab = 在新标签页中派生
 workspace-conversation-list-fallback-title = 对话
