@@ -4,11 +4,12 @@ use warpui::{Entity, ModelContext, SingletonEntity};
 /// A global model for pricing information from the server.
 ///
 /// In OpenWarp this is effectively a no-op stub: the OSS channel has no
-/// cloud server feeding it, so `pricing_info` stays `None` for the lifetime
-/// of the process and every getter returns `None`. The model is preserved
-/// only because consumer call sites (request_usage, billing-aware modals,
-/// teams settings page) still reference it; downstream cloud-removal phases
-/// will eventually retire those call sites and let us delete this entirely.
+/// cloud server pushing pricing data, so `pricing_info` is normally `None`
+/// for the lifetime of the process and every getter returns `None`. The
+/// model is preserved only because consumer call sites (request_usage,
+/// billing-aware modals, teams settings page) still reference it;
+/// downstream cloud-removal phases will eventually retire those call sites
+/// and let us delete this entirely.
 #[derive(Debug)]
 pub struct PricingInfoModel {
     pricing_info: Option<PricingInfo>,
