@@ -1,19 +1,33 @@
 name: Feature Request
-description: "Have a great new idea? Please search through our existing feature requests, and upvote it if it's already exists."
+description: "Have an idea for OpenWarp? Search existing requests first and upvote if it already exists."
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **OpenWarp's direction.** OpenWarp is a community fork of Warp focused on:
+
+        - **BYOP (Bring Your Own Provider)** — any OpenAI / Anthropic / Gemini / Ollama / DeepSeek-compatible endpoint, configured locally.
+        - **Local-first & privacy-first** — credentials stay on disk; cloud agent / Computer Use / telemetry are off by default.
+        - **Editable system prompts** — minijinja templates, no opaque server-side assembly.
+        - **Preserved Warp UX** — Blocks, Workflows, Keymaps, themes; continuously merged from upstream.
+        - **Localized UI** — English + Simplified Chinese, community-extensible.
+
+        **Out of scope:** features that require Warp's cloud account, Warp AI gateway, Warp Drive cloud sync, Warpify SSO, billing, team/enterprise admin, or Warp's first-party telemetry. Those belong to upstream Warp.
   - type: checkboxes
     attributes:
       label: "Pre-submit Checks"
       options:
-        - label: "I have [searched Warp feature requests](https://github.com/warpdotdev/warp/issues?q=is%3Aissue+label%3AFEATURE) and there are no duplicates"
+        - label: "I have [searched OpenWarp feature requests](https://github.com/zerx-lab/warp/issues?q=is%3Aissue+label%3Aenhancement) and there are no duplicates."
           required: true
-        - label: "I have [searched Warp docs](https://docs.warp.dev) and my feature is not there"
+        - label: "I have read the [OpenWarp README](https://github.com/zerx-lab/warp#readme) and this feature is not already supported."
+          required: true
+        - label: "This request fits OpenWarp's BYOP / local-first / privacy-first direction (it does NOT require Warp cloud account, Warp AI gateway, Warp Drive cloud sync, Warpify SSO, billing, or telemetry)."
           required: true
   - type: textarea
     id: "describe-solution"
     attributes:
-      label: "Describe the solution you'd like?"
+      label: "Describe the solution you'd like"
       description: "A clear and concise description of what you want to happen."
     validations:
       required: true
@@ -21,15 +35,22 @@ body:
     id: "related-to-problem"
     attributes:
       label: "Is your feature request related to a problem? Please describe."
-      description: "A clear and concise description of what the problem is."
+      description: "A clear and concise description of the underlying problem."
       placeholder: "I'm always frustrated when [...]"
+    validations:
+      required: false
+  - type: textarea
+    id: "alignment"
+    attributes:
+      label: "How does this align with OpenWarp's direction?"
+      description: "Briefly explain which axis it improves: BYOP coverage, local-first/privacy, prompt-template authoring, preserved Warp UX, localization, or maintainability of the upstream-sync workflow."
     validations:
       required: false
   - type: textarea
     id: "additional-context"
     attributes:
       label: "Additional context"
-      description: "Add any other context or screenshots about the feature request here. If you want to upload a picture you can drag one in from Finder."
+      description: "Mockups, screenshots, links, references to similar tools (opencode, Zed, etc.), or upstream Warp behavior worth contrasting."
     validations:
       required: false
   - type: dropdown
@@ -42,6 +63,7 @@ body:
         - macOS
         - Linux
         - Windows
+        - All / not OS-specific
     validations:
       required: true
   - type: dropdown
@@ -50,19 +72,10 @@ body:
       label: "How important is this feature to you?"
       multiple: false
       options:
-        - "1 (Not too important)"
+        - "1 (Nice to have)"
         - "2"
         - "3"
         - "4"
-        - "5 (Can't work without it!)"
+        - "5 (Can't work without it)"
     validations:
       required: true
-  - type: dropdown
-    id: "linear-label-feature"
-    attributes:
-      label: "Warp Internal (ignore) - linear-label:39cc6478-1249-4ee7-950b-c428edfeecd1"
-      multiple: false
-      options:
-        - Ignore
-    validations:
-      required: false

@@ -1353,12 +1353,11 @@ pub(crate) fn convert_tool_call_result_to_input(
             // 云端工具已物理切除
             None
         }
-        // Deprecated/unused result types or absent result.
+        // Deprecated/unused result types.
         Some(ToolCallResultType::SuggestCreatePlan(..))
-        | Some(ToolCallResultType::SuggestPlan(..))
-        | None => {
-            log::warn!("No result present for tool call ID: {tool_call_id}");
-            None
+        | Some(ToolCallResultType::SuggestPlan(..)) => None,
+        None => {
+            create_cancelled_result_for_tool_call(task_id, &tool_call_id, tool_call_map, context)
         }
     }
 }
@@ -1373,31 +1372,13 @@ fn create_cancelled_result_for_tool_call(
     use api::message::tool_call::Tool as ToolType;
 
     let Some(original_tool_call) = tool_call_map.get(tool_call_id) else {
-        log::warn!("No original tool call found for cancelled tool call ID: {tool_call_id}");
-        // Default to RequestCommandOutput if we can't find the original tool call
-        let cancelled_result = RequestCommandOutputResult::CancelledBeforeExecution;
-        return Some(AIAgentInput::ActionResult {
-            result: AIAgentActionResult {
-                id: tool_call_id.to_string().into(),
-                task_id: task_id.clone(),
-                result: AIAgentActionResultType::RequestCommandOutput(cancelled_result),
-            },
-            context,
-        });
+        log::debug!("No original tool call found for cancelled tool call ID: {tool_call_id}");
+        return None;
     };
 
     let Some(tool) = &original_tool_call.tool else {
-        log::warn!("No tool found in original tool call for ID: {tool_call_id}");
-        // Default to RequestCommandOutput if we can't find the tool type
-        let cancelled_result = RequestCommandOutputResult::CancelledBeforeExecution;
-        return Some(AIAgentInput::ActionResult {
-            result: AIAgentActionResult {
-                id: tool_call_id.to_string().into(),
-                task_id: task_id.clone(),
-                result: AIAgentActionResultType::RequestCommandOutput(cancelled_result),
-            },
-            context,
-        });
+        log::debug!("No tool found in original tool call for ID: {tool_call_id}");
+        return None;
     };
 
     let result_type = match tool {

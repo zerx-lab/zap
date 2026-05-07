@@ -1,26 +1,14 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Warp GitHub Search
-    url: https://github.com/warpdotdev/warp/issues?q=is%3Aissue+is%3Aopen+a+sort%3Areactions-%2B1-desc
-    about: Search Warp's open bugs and enhancements.
-  - name: Warp Documentation
-    url: https://docs.warp.dev/support-and-billing/known-issues?q=
-    about: Documentation for features, known issues, troubleshooting, keyboard shortcuts, telemetry table, and more!
-  - name: Warp Changelog
-    url: https://docs.warp.dev/changelog
-    about: See our changelog to learn about new features, improvements, bug fixes, and Oz updates.
-  - name: Contact Us
-    url: https://docs.warp.dev/support-and-community/troubleshooting-and-support/sending-us-feedback
-    about: Submit feedback and contact the Warp support team for things like Billing, Enterprise, and other issues.
-  - name: Warp Preview Slack Community
-    url: https://go.warp.dev/join-preview
-    about: Discuss give feedback on the new features with other Warp Preview users.
-  - name: Warp Discord Community
-    url: https://discord.com/invite/warpdotdev
-    about: Discuss what you want to see in a Modern ADE with a community of other Warp users.
-  - name: Warp Homepage
-    url: https://www.warp.dev/
-    about: Homepage for all things Warp.
-  - name: Warp Licenses
-    url: https://docs.warp.dev/support-and-community/privacy-security-and-licensing/open-source-licenses
-    about: See the open source projects Warp depends on and their licenses.
+  - name: OpenWarp Issue Search
+    url: https://github.com/zerx-lab/warp/issues?q=is%3Aissue+sort%3Areactions-%2B1-desc
+    about: Search existing OpenWarp bugs and feature requests before opening a new one.
+  - name: OpenWarp README
+    url: https://github.com/zerx-lab/warp#readme
+    about: BYOP setup, supported providers, and core features of OpenWarp.
+  - name: OpenWarp Docs
+    url: https://github.com/zerx-lab/warp/tree/main/docs
+    about: Architecture notes, upstream-sync plan, and design docs in the repo.
+  - name: Upstream Warp (reference only)
+    url: https://github.com/warpdotdev/warp
+    about: OpenWarp is an unaffiliated community fork — upstream Warp is shown for reference only. Cloud / billing / account / Warpify SSO issues belong upstream, not here.

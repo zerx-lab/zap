@@ -1,9 +1,9 @@
 use super::{
-    SettingsSection,
     settings_page::{
-        HEADER_FONT_SIZE, MatchData, PAGE_PADDING, PageType, SettingsPageMeta,
-        SettingsPageViewHandle, SettingsWidget, render_page_title,
+        render_page_title, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
+        SettingsWidget, HEADER_FONT_SIZE, PAGE_PADDING,
     },
+    SettingsSection,
 };
 use crate::auth::AuthStateProvider;
 use crate::{
@@ -21,9 +21,6 @@ use warp_core::ui::theme::color::internal_colors;
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
-};
-use warpui::{
     clipboard::ClipboardContent,
     elements::{
         Align, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment,
@@ -35,6 +32,9 @@ use warpui::{
 };
 use warpui::{color::ColorU, elements::Radius};
 use warpui::{elements::ScrollbarWidth, fonts::Weight};
+use warpui::{
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
+};
 
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
 

@@ -1,4 +1,3 @@
-use crate::TemplatableMCPServerManager;
 use crate::ai::blocklist::BlocklistAIPermissions;
 use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent, ClientProfileId,
@@ -12,18 +11,19 @@ use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::settings::AISettings;
 use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme};
+use crate::TemplatableMCPServerManager;
 use std::path::PathBuf;
 use uuid::Uuid;
 use warp_core::features::FeatureFlag;
-use warpui::SingletonEntity;
 use warpui::elements::ParentElement;
+use warpui::SingletonEntity;
 use warpui::{
-    AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         ConstrainedBox, Container, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize,
         Shrinkable, Text, Wrap,
     },
     fonts::{Properties, Weight},
+    AppContext, Element, Entity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 #[derive(Debug, Clone)]

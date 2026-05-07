@@ -13,6 +13,7 @@ pub(super) struct RunBuilder<'a> {
     glyphs_in_current_run: Vec<Glyph>,
     styles_map: &'a TextStylesMap,
     str_index_map: &'a StrIndexMap,
+    byte_offset: usize,
 }
 
 impl<'a> RunBuilder<'a> {
@@ -20,6 +21,7 @@ impl<'a> RunBuilder<'a> {
         styles_map: &'a TextStylesMap,
         initial_font_id: FontId,
         str_index_map: &'a StrIndexMap,
+        byte_offset: usize,
     ) -> Self {
         Self {
             runs: vec![],
@@ -29,6 +31,7 @@ impl<'a> RunBuilder<'a> {
             glyphs_in_current_run: vec![],
             styles_map,
             str_index_map,
+            byte_offset,
         }
     }
 
@@ -78,7 +81,7 @@ impl<'a> RunBuilder<'a> {
 
         let glyph_char_index = self
             .str_index_map
-            .char_index(glyph.start)
+            .char_index(self.byte_offset + glyph.start)
             .unwrap_or_else(|| self.str_index_map.num_chars());
 
         self.glyphs_in_current_run.push(Glyph {

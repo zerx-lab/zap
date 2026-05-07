@@ -552,7 +552,7 @@ impl TextLayoutSystem {
     #[allow(clippy::too_many_arguments)]
     fn create_text_frame(
         &self,
-        layout_lines: impl Iterator<Item = (LayoutLine, bool)>,
+        layout_lines: impl Iterator<Item = (LayoutLine, bool, usize)>,
         line_style: LineStyle,
         text_styles_map: &TextStylesMap,
         max_height: f32,
@@ -571,7 +571,7 @@ impl TextLayoutSystem {
         let mut line_glyph_start_index: usize = 0;
 
         let mut layout_lines = layout_lines.peekable();
-        while let Some((line, has_trailing_newline)) = layout_lines.next() {
+        while let Some((line, has_trailing_newline, paragraph_byte_offset)) = layout_lines.next() {
             max_line_width = max_line_width.max(line.w);
             let is_last_line = layout_lines.peek().is_none();
             let line = self.create_line(
@@ -581,6 +581,7 @@ impl TextLayoutSystem {
                 is_last_line.then_some(ClipConfig::default()),
                 str_index_map,
                 text,
+                paragraph_byte_offset,
                 line_glyph_start_index,
                 has_trailing_newline,
             );
@@ -621,6 +622,7 @@ impl TextLayoutSystem {
         clip_config: Option<ClipConfig>,
         str_index_map: &StrIndexMap,
         text: &str,
+        paragraph_byte_offset: usize,
         line_glyph_start_index: usize,
         has_trailing_newline: bool,
     ) -> Line {
@@ -639,7 +641,12 @@ impl TextLayoutSystem {
             .get_by_right(&first_glyph.font_id)
             .expect("Font must exist in map");
 
-        let mut run_builder = RunBuilder::new(text_styles_map, initial_font_id, str_index_map);
+        let mut run_builder = RunBuilder::new(
+            text_styles_map,
+            initial_font_id,
+            str_index_map,
+            paragraph_byte_offset,
+        );
         let mut caret_positions = vec![];
         let mut chars_with_missing_glyphs = vec![];
         let mut last_glyph_offset: usize = 0;
@@ -651,12 +658,12 @@ impl TextLayoutSystem {
             // not work for certain ligatures
             if glyph.w > 0.0 {
                 let start_offset = str_index_map
-                    .char_index(line_glyph_start_index + glyph.start)
-                    .unwrap_or(0);
+                    .char_index(paragraph_byte_offset + glyph.start)
+                    .unwrap_or_else(|| str_index_map.num_chars());
                 let last_offset = str_index_map
-                    .char_index(line_glyph_start_index + glyph.end)
+                    .char_index(paragraph_byte_offset + glyph.end)
                     .unwrap_or_else(|| str_index_map.num_chars())
-                    - 1;
+                    .saturating_sub(1);
                 caret_positions.push(CaretPosition {
                     position_in_line: glyph.x,
                     start_offset,
@@ -667,7 +674,7 @@ impl TextLayoutSystem {
 
             // A glyph_id of 0 implies that no glyph was found for this character.
             if glyph.glyph_id == 0 {
-                if let Some(ch) = Self::char_for_glyph(&glyph, text) {
+                if let Some(ch) = Self::char_for_glyph(&glyph, text, paragraph_byte_offset) {
                     chars_with_missing_glyphs.push(ch);
                 }
             }
@@ -705,13 +712,14 @@ impl TextLayoutSystem {
         }
     }
 
-    fn char_for_glyph(glyph: &LayoutGlyph, text: &str) -> Option<char> {
-        if !text.is_char_boundary(glyph.start) {
+    fn char_for_glyph(glyph: &LayoutGlyph, text: &str, byte_offset: usize) -> Option<char> {
+        let glyph_start = byte_offset + glyph.start;
+        if !text.is_char_boundary(glyph_start) {
             log::warn!("Expected glyph start to be a char boundary");
             return None;
         }
 
-        text[glyph.start..].chars().next()
+        text[glyph_start..].chars().next()
     }
 
     /// Produces an [`AttrsList`] to layout text given a list of `style_runs` and the `text` the
@@ -1004,6 +1012,7 @@ impl platform::TextLayoutSystem for TextLayoutSystem {
             &str_index_map,
             &text,
             0,
+            0,
             false,
         )
     }
@@ -1026,7 +1035,8 @@ impl platform::TextLayoutSystem for TextLayoutSystem {
         let tab_width = line_style.fixed_width_tab_size.unwrap_or(4).into();
         let mut num_bytes_seen = 0;
         let layouts = BidiParagraphs::new(text).flat_map(|paragraph| {
-            let following_paragraph_text = &text[num_bytes_seen + paragraph.len()..];
+            let paragraph_byte_offset = num_bytes_seen;
+            let following_paragraph_text = &text[paragraph_byte_offset + paragraph.len()..];
             let mut char_indices = following_paragraph_text.char_indices();
 
             // Determine the byte length of the separator. The `BidiParagraphs` iterator does not
@@ -1080,7 +1090,7 @@ impl platform::TextLayoutSystem for TextLayoutSystem {
                     // We should only add the trailing separator to the last LayoutLine.
                     let is_last = line_idx == layout_line_count.saturating_sub(1);
                     let include_trailing_separator = is_last && has_trailing_separator;
-                    (line, include_trailing_separator)
+                    (line, include_trailing_separator, paragraph_byte_offset)
                 })
                 .collect_vec()
         });

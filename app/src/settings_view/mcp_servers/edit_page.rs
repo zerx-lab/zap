@@ -16,7 +16,6 @@ use warp_editor::{
     content::buffer::InitialBufferState, render::element::VerticalExpansionBehavior,
 };
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Border, ChildAnchor, ChildView, Container, CornerRadius, CrossAxisAlignment, Flex,
         MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
@@ -24,17 +23,17 @@ use warpui::{
     },
     platform::Cursor,
     ui_components::components::UiComponent,
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
-    GlobalResourceHandlesProvider,
     ai::{
         blocklist::secret_redaction::find_secrets_in_text,
         mcp::{
+            parsing::{prettify_json, resolve_json, ParsedTemplatableMCPServerResult},
+            templatable::CloudTemplatableMCPServer,
             MCPServer, TemplatableMCPServer, TemplatableMCPServerInstallation,
             TemplatableMCPServerManager, TransportType,
-            parsing::{ParsedTemplatableMCPServerResult, prettify_json, resolve_json},
-            templatable::CloudTemplatableMCPServer,
         },
     },
     banner::{Banner, BannerTextContent},
@@ -46,19 +45,19 @@ use crate::{
         telemetry::{MCPTemplateCreationSource, TelemetryEvent},
     },
     settings_view::mcp_servers::{
-        ServerCardItemId,
         destructive_mcp_confirmation_dialog::{
             DestructiveMCPConfirmationDialog, DestructiveMCPConfirmationDialogEvent,
             DestructiveMCPConfirmationDialogVariant,
         },
-        style,
+        style, ServerCardItemId,
     },
     ui_components::{buttons::icon_button, icons::Icon},
     view_components::{
-        DismissibleToast,
         action_button::{ActionButton, DangerNakedTheme, DangerSecondaryTheme, PrimaryTheme},
+        DismissibleToast,
     },
     workspace::ToastStack,
+    GlobalResourceHandlesProvider,
 };
 
 const DEFAULT_JSON_TEXT: &str = r#"{

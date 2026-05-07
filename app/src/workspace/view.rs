@@ -9001,7 +9001,7 @@ impl Workspace {
             .iter()
             .position(|tab| tab.pane_group.id() == pane_group_id)
         {
-            self.remove_tab(index, false, true, ctx);
+            self.remove_tab_and_sync_agent_conversations(index, false, true, ctx);
         }
     }
 
@@ -9567,7 +9567,7 @@ impl Workspace {
                 }
                 match *open_confirmation_source {
                     OpenDialogSource::CloseTab { tab_index } => {
-                        self.remove_tab(tab_index, true, true, ctx);
+                        self.remove_tab_and_sync_agent_conversations(tab_index, true, true, ctx);
                     }
                     OpenDialogSource::ClosePane {
                         pane_group_id,
@@ -10067,11 +10067,12 @@ impl Workspace {
         add_to_undo_stack: bool,
         detach_panes_for_close: bool,
         ctx: &mut ViewContext<Self>,
-    ) {
+    ) -> bool {
         let Some(tab_data) = self.tabs.get(index) else {
             debug_assert!(false, "Tried to remove a tab with an invalid index");
-            return;
+            return false;
         };
+        let removed_tab_had_terminal_panes = tab_data.pane_group.as_ref(ctx).has_terminal_panes();
 
         // If the vertical-tabs detail sidecar is anchored to this tab's pane group, clear it.
         // Otherwise it will try to position itself against a pane row that is about to disappear
@@ -10086,7 +10087,7 @@ impl Workspace {
             if ContextFlag::CloseWindow.is_enabled() {
                 ctx.close_window();
             }
-            return;
+            return false;
         }
 
         if detach_panes_for_close {
@@ -10137,6 +10138,25 @@ impl Workspace {
 
         ctx.dispatch_global_action("workspace:save_app", ());
         ctx.notify();
+        removed_tab_had_terminal_panes
+    }
+
+    fn remove_tab_and_sync_agent_conversations(
+        &mut self,
+        index: usize,
+        add_to_undo_stack: bool,
+        detach_panes_for_close: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if self.remove_tab(index, add_to_undo_stack, detach_panes_for_close, ctx) {
+            self.sync_agent_conversations(ctx);
+        }
+    }
+
+    fn sync_agent_conversations(&mut self, ctx: &mut ViewContext<Self>) {
+        AgentConversationsModel::handle(ctx).update(ctx, |model, ctx| {
+            model.sync_conversations(ctx);
+        });
     }
 
     fn should_confirm_close_session(&self, ctx: &mut ViewContext<Self>) -> bool {
@@ -10249,8 +10269,12 @@ impl Workspace {
         self.cancel_tab_rename(ctx);
 
         // Remove the tabs in reverse order to avoid indexing OOB.
+        let mut should_sync_agent_conversations = false;
         for i in tab_indices_vec.into_iter().sorted().rev() {
-            self.remove_tab(i, add_to_undo_stack, true, ctx);
+            should_sync_agent_conversations |= self.remove_tab(i, add_to_undo_stack, true, ctx);
+        }
+        if should_sync_agent_conversations {
+            self.sync_agent_conversations(ctx);
         }
         true
     }
@@ -22911,7 +22935,7 @@ impl Workspace {
     }
 
     pub fn remove_tab_without_undo(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        self.remove_tab(index, false, false, ctx);
+        self.remove_tab_and_sync_agent_conversations(index, false, false, ctx);
     }
 
     /// Replaces the placeholder pane group (created by

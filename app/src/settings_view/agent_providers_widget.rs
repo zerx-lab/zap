@@ -39,7 +39,7 @@ use crate::settings::{AISettings, AgentProvider, AgentProviderApiType, AgentProv
 use strum::IntoEnumIterator;
 
 use super::ai_page::{AISettingsPageAction, AISettingsPageView, ModelCapabilityKind};
-use super::settings_page::{HEADER_PADDING, SettingsWidget, build_sub_header};
+use super::settings_page::{build_sub_header, SettingsWidget, HEADER_PADDING};
 
 const CARD_BUTTON_FONT_SIZE: f32 = 12.0;
 const CARD_BUTTON_PADDING: f32 = 6.0;

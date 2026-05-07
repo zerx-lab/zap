@@ -6,7 +6,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 use super::{
-    SettingsSection,
     about_page::AboutPageView,
     ai_page::{AISettingsPageAction, AISettingsPageView},
     appearance_page::AppearanceSettingsPageView,
@@ -22,6 +21,7 @@ use super::{
     teams_page::TeamsPageView,
     warp_drive_page::WarpDriveSettingsPageView,
     warpify_page::WarpifyPageView,
+    SettingsSection,
 };
 use crate::{
     appearance::Appearance,
@@ -36,14 +36,13 @@ use warp_core::{
     ui::{color::blend::Blend, theme::color::internal_colors},
 };
 use warpui::{
-    Action, AppContext, SingletonEntity, ViewContext, ViewHandle,
     elements::{
+        new_scrollable::{ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig},
         Align, Border, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
         CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Flex, Hoverable,
         MainAxisAlignment, MainAxisSize, MouseStateHandle, NewScrollable, ParentElement, Radius,
         SavePosition, ScrollTarget, ScrollToPositionMode, Shrinkable, SizeConstraintCondition,
         SizeConstraintSwitch, Text,
-        new_scrollable::{ClippedAxisConfiguration, DualAxisConfig, SingleAxisConfig},
     },
     fonts::{Properties, Weight},
     platform::Cursor,
@@ -52,6 +51,7 @@ use warpui::{
         components::{Coords, UiComponent, UiComponentStyles},
     },
     units::Pixels,
+    Action, AppContext, SingletonEntity, ViewContext, ViewHandle,
 };
 
 pub const TOGGLE_BUTTON_RIGHT_PADDING: f32 = 5.;
@@ -323,7 +323,7 @@ pub fn render_sub_sub_header(
         Container::new(
             Align::new(
                 Text::new_inline(text_name, appearance.ui_font_family(), CONTENT_FONT_SIZE)
-                    .with_style(Properties::default().weight(Weight::Bold))
+                    .with_style(Properties::default().weight(Weight::Semibold))
                     .with_color(appearance.theme().active_ui_text_color().into())
                     .finish(),
             )
@@ -479,7 +479,11 @@ pub enum ToggleState {
 
 impl From<bool> for ToggleState {
     fn from(value: bool) -> Self {
-        if value { Self::Enabled } else { Self::Disabled }
+        if value {
+            Self::Enabled
+        } else {
+            Self::Disabled
+        }
     }
 }
 
@@ -946,18 +950,16 @@ pub(crate) fn render_settings_info_banner(
     .finish();
 
     let text = {
-        let mut children = vec![
-            Container::new(
-                Text::new(
-                    text.to_string(),
-                    appearance.ui_font_family(),
-                    appearance.ui_font_size(),
-                )
-                .with_color(appearance.theme().active_ui_text_color().into())
-                .finish(),
+        let mut children = vec![Container::new(
+            Text::new(
+                text.to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_size(),
             )
+            .with_color(appearance.theme().active_ui_text_color().into())
             .finish(),
-        ];
+        )
+        .finish()];
 
         if let Some(subtext) = subtext {
             children.push(

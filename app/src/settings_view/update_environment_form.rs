@@ -1,10 +1,9 @@
 use super::{
     editor_text_colors,
-    settings_page::{InputListItem, render_input_list},
+    settings_page::{render_input_list, InputListItem},
 };
 use crate::server::server_api::ServerApiProvider;
 use crate::{
-    ChannelState,
     ai::ambient_agents::telemetry::CloudAgentTelemetryEvent,
     ai::{
         ambient_agents::github_auth_notifier::{GitHubAuthEvent, GitHubAuthNotifier},
@@ -19,11 +18,12 @@ use crate::{
     server::ids::SyncId,
     ui_components::{buttons::icon_button, icons::Icon},
     view_components::{
-        SubmittableTextInput, SubmittableTextInputEvent, WarningBoxButtonConfig, WarningBoxConfig,
         action_button::{ActionButton, DangerSecondaryTheme, PrimaryTheme},
-        render_warning_box,
+        render_warning_box, SubmittableTextInput, SubmittableTextInputEvent,
+        WarningBoxButtonConfig, WarningBoxConfig,
     },
     workspaces::user_workspaces::UserWorkspaces,
+    ChannelState,
 };
 use instant::{Duration, Instant};
 use log::debug;
@@ -34,8 +34,6 @@ use warp_core::send_telemetry_from_ctx;
 use warp_editor::editor::NavigationKey;
 use warp_graphql::queries::user_github_info::UserGithubInfoResult;
 use warpui::{
-    AppContext, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
     elements::{
         Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle, ClippedScrollable,
         ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Dismiss, Element, Empty,
@@ -51,6 +49,8 @@ use warpui::{
     platform::Cursor,
     prelude::Coords,
     ui_components::components::{UiComponent, UiComponentStyles},
+    AppContext, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
 };
 
 const SUBMIT_BUTTON_FOCUSED: &str = "SubmitButtonFocused";

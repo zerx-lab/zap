@@ -4,12 +4,11 @@ use warp_core::{
     features::FeatureFlag,
     ui::{
         external_product_icon::ExternalProductIcon,
-        icons::{ICON_DIMENSIONS, Icon},
-        theme::{AnsiColorIdentifier, color::internal_colors},
+        icons::{Icon, ICON_DIMENSIONS},
+        theme::{color::internal_colors, AnsiColorIdentifier},
     },
 };
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
     accessibility::ActionAccessibilityContent,
     elements::{
         Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Expanded, Fill, Flex,
@@ -24,15 +23,16 @@ use warpui::{
         components::{Coords, UiComponent, UiComponentStyles},
         switch::SwitchStateHandle,
     },
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext,
 };
 
 use crate::{
     ai::mcp::{
-        MCPServerState, TemplatableMCPServerManager, templatable::CloudTemplatableMCPServer,
+        templatable::CloudTemplatableMCPServer, MCPServerState, TemplatableMCPServerManager,
     },
     appearance::Appearance,
     cloud_object::CloudObject,
-    settings_view::mcp_servers::{ServerCardItemId, style},
+    settings_view::mcp_servers::{style, ServerCardItemId},
     ui_components::{
         avatar::{Avatar, AvatarContent, StatusElementTypes},
         blended_colors,

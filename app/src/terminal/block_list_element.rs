@@ -4576,7 +4576,7 @@ impl Element for BlockListElement {
                 is_first_mouse,
                 modifiers,
                 ..
-            } => self.mouse_down(
+            } if !handled => self.mouse_down(
                 *position,
                 *click_count,
                 *is_first_mouse,
@@ -4590,12 +4590,14 @@ impl Element for BlockListElement {
             Event::LeftMouseUp {
                 position,
                 modifiers,
-            } => self.mouse_up(*position, modifiers, ctx, app),
+            } if !handled || self.is_terminal_selecting => {
+                self.mouse_up(*position, modifiers, ctx, app)
+            }
             Event::LeftMouseDragged {
                 position,
                 modifiers,
                 ..
-            } => {
+            } if !handled || self.is_terminal_selecting => {
                 let is_selecting_blocks = if FeatureFlag::RectSelection.is_enabled() {
                     // If cmd and alt are both active, this should be treated as a rect selection.
                     !(modifiers.cmd && modifiers.alt) && (modifiers.cmd || modifiers.shift)

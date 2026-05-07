@@ -40,6 +40,37 @@ use crate::{send_telemetry_from_ctx, TelemetryEvent};
 
 use super::{ActionExecution, AnyActionExecution, ExecuteActionInput, PreprocessActionInput};
 
+/// Text returned to the agent for `run_shell_command` / related tools.
+///
+/// Prefer unobfuscated grid text; some shells / timing paths leave the primary serialization empty
+/// while `output_to_string()` (displayed-output path) or the force-full path still has bytes.
+///
+/// Fallback: when output grids are empty (e.g. missing preexec / early-complete timing), extract
+/// the stdout portion from the command grid (everything after the first line).
+fn agent_shell_command_block_output(block: &Block) -> String {
+    let primary = block.output_with_secrets_unobfuscated();
+    if !primary.trim().is_empty() {
+        return primary;
+    }
+
+    let displayed = block.output_to_string();
+    if !displayed.trim().is_empty() {
+        return displayed;
+    }
+
+    let forced = block.output_to_string_force_full_grid_contents();
+    if !forced.trim().is_empty() {
+        return forced;
+    }
+
+    let command_grid = block.command_with_secrets_unobfuscated(false);
+    command_grid
+        .split_once('\n')
+        .map(|(_, output)| output.to_owned())
+        .filter(|output| !output.trim().is_empty())
+        .unwrap_or_default()
+}
+
 pub struct ShellCommandExecutor {
     active_session: ModelHandle<ActiveSession>,
     block_finished_senders: HashMap<BlockSelector, oneshot::Sender<()>>,
@@ -309,7 +340,7 @@ impl ShellCommandExecutor {
                     );
                 };
                 if block.finished() {
-                    let output: String = block.output_with_secrets_unobfuscated();
+                    let output: String = agent_shell_command_block_output(block);
                     let exit_code = block.exit_code();
                     return ActionExecution::Sync(
                         AIAgentActionResultType::WriteToLongRunningShellCommand(
@@ -453,7 +484,7 @@ impl ShellCommandExecutor {
                                         if block.finished() {
                                             ActionResult::CommandFinished {
                                                 block_id: block.id().clone(),
-                                                output: block.output_with_secrets_unobfuscated(),
+                                                output: agent_shell_command_block_output(block),
                                                 exit_code: block.exit_code(),
                                             }
                                         } else {
@@ -595,7 +626,7 @@ impl ShellCommandExecutor {
                     if block.finished() {
                         ActionResult::CommandFinished {
                             block_id: block.id().clone(),
-                            output: block.output_with_secrets_unobfuscated(),
+                            output: agent_shell_command_block_output(block),
                             exit_code: block.exit_code(),
                         }
                     } else {

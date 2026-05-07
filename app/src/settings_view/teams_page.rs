@@ -1,12 +1,12 @@
-use super::SettingsSection;
 use super::admin_actions::AdminActions;
-use super::settings_page::{MatchData, PageType, SettingsWidget, render_customer_type_badge};
+use super::settings_page::{render_customer_type_badge, MatchData, PageType, SettingsWidget};
 use super::transfer_ownership_confirmation_modal::{
     TransferOwnershipConfirmationEvent, TransferOwnershipConfirmationModal,
 };
+use super::SettingsSection;
 use super::{
     settings_page::{
-        SettingsPageMeta, SettingsPageViewHandle, render_separator, render_sub_header,
+        render_separator, render_sub_header, SettingsPageMeta, SettingsPageViewHandle,
     },
     tab_menu::Tabs,
 };
@@ -24,7 +24,7 @@ use crate::workspaces::team::{MembershipRole, TeamDeleteDisabledReason};
 use crate::{
     appearance::Appearance,
     channel::ChannelState,
-    cloud_object::{CloudObjectEventEntrypoint, Space, model::persistence::CloudModel},
+    cloud_object::{model::persistence::CloudModel, CloudObjectEventEntrypoint, Space},
     drive::cloud_action_confirmation_dialog::{
         CloudActionConfirmationDialog, CloudActionConfirmationDialogEvent,
         CloudActionConfirmationDialogVariant,
@@ -62,8 +62,6 @@ use warp_core::ui::theme::color::internal_colors;
 use warpui::FocusContext;
 
 use warpui::{
-    AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
     clipboard::ClipboardContent,
     elements::{
         Align, Border, ChildAnchor, ClippedScrollStateHandle, ConstrainedBox, Container,
@@ -81,6 +79,8 @@ use warpui::{
         switch::SwitchStateHandle,
         text_input::TextInput,
     },
+    AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
 };
 
 const TEAM_MEMBERS_HEADER_POSITION_ID: &str = "team_settings:team_members_header";

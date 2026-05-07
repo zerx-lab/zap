@@ -1,14 +1,13 @@
 #[cfg(feature = "local_fs")]
 use super::features::external_editor::ExternalEditorView;
 use super::{
-    LocalOnlyIconState, SettingsAction, SettingsSection, ToggleState,
     settings_page::{
-        Category, HEADER_PADDING, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
-        SettingsWidget, build_sub_header, render_body_item, render_separator,
+        build_sub_header, render_body_item, render_separator, Category, MatchData, PageType,
+        SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, HEADER_PADDING,
     },
+    LocalOnlyIconState, SettingsAction, SettingsSection, ToggleState,
 };
 use crate::{
-    TelemetryEvent,
     ai::persisted_workspace::{
         EnablementState, LspRepoStatus, PersistedWorkspace, PersistedWorkspaceEvent,
     },
@@ -24,6 +23,7 @@ use crate::{
     },
     workspace::tab_settings::TabSettings,
     workspaces::update_manager::TeamUpdateManager,
+    TelemetryEvent,
 };
 
 use ai::project_context::model::{ProjectContextModel, ProjectContextModelEvent};
@@ -40,8 +40,6 @@ use warp_core::{
 };
 use warp_util::path::user_friendly_path;
 use warpui::{
-    Action, AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
     elements::{
         ChildView, Container, CornerRadius, CrossAxisAlignment, Element, Empty, Expanded, Fill,
         Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, Shrinkable,
@@ -54,6 +52,8 @@ use warpui::{
         components::{Coords, UiComponent, UiComponentStyles},
         switch::SwitchStateHandle,
     },
+    Action, AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
+    ViewHandle,
 };
 
 const MAIN_SECTION_MARGIN: f32 = 12.;
@@ -555,11 +555,9 @@ impl TypedActionView for CodeSettingsPageView {
             }
             CodeSettingsPageAction::ToggleShowCodeReviewDiffStats => {
                 TabSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .show_code_review_diff_stats
-                            .toggle_and_save_value(ctx)
-                    );
+                    report_if_error!(settings
+                        .show_code_review_diff_stats
+                        .toggle_and_save_value(ctx));
                 });
                 ctx.notify();
             }
@@ -577,11 +575,9 @@ impl TypedActionView for CodeSettingsPageView {
             }
             CodeSettingsPageAction::ToggleAutoOpenCodeReviewPane => {
                 GeneralSettings::handle(ctx).update(ctx, |settings, ctx| {
-                    report_if_error!(
-                        settings
-                            .auto_open_code_review_pane_on_first_agent_change
-                            .toggle_and_save_value(ctx)
-                    );
+                    report_if_error!(settings
+                        .auto_open_code_review_pane_on_first_agent_change
+                        .toggle_and_save_value(ctx));
                 });
                 send_telemetry_from_ctx!(
                     TelemetryEvent::FeaturesPageAction {

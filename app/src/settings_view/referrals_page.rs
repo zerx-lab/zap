@@ -6,10 +6,10 @@ use thiserror::Error;
 use validator::ValidateEmail;
 
 use super::{
-    SettingsSection,
     settings_page::{
-        MatchData, PAGE_PADDING, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+        MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, PAGE_PADDING,
     },
+    SettingsSection,
 };
 use crate::{
     appearance::Appearance,
@@ -24,8 +24,6 @@ use crate::{
     view_components::ToastFlavor,
 };
 use warpui::{
-    AppContext, Entity, EventContext, FocusContext, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
     clipboard::ClipboardContent,
     elements::{
         Align, Border, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Element, Fill,
@@ -37,6 +35,8 @@ use warpui::{
         button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
     },
+    AppContext, Entity, EventContext, FocusContext, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 const HEADER_FONT_SIZE: f32 = 18.;

@@ -10,8 +10,8 @@ use warpui::{
 };
 
 use super::{
-    SettingsSection,
     settings_page::{MatchData, NAV_ITEM_LEFT_MARGIN},
+    SettingsSection,
 };
 
 /// The font size for subpage items inside an umbrella.

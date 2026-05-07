@@ -1,13 +1,13 @@
 use warp_core::ui::appearance::Appearance;
 use warpui::{
-    AppContext, BlurContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WeakViewHandle,
     elements::{
         Border, Container, CornerRadius, DispatchEventResult, EventHandler, Flex,
         MainAxisAlignment, MouseStateHandle, ParentElement as _, Radius, Text,
     },
     fonts::{Properties, Weight},
     platform::Cursor,
+    AppContext, BlurContext, Element, Entity, FocusContext, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle, WeakViewHandle,
 };
 
 use crate::editor::EditorView;

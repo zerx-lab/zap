@@ -44,8 +44,8 @@ impl ChannelState {
             config: ChannelConfig {
                 app_id,
                 logfile_name: "".into(),
-                server_config: WarpServerConfig::production(),
-                oz_config: OzConfig::production(),
+                server_config: WarpServerConfig::disabled(),
+                oz_config: OzConfig::disabled(),
                 telemetry_config: None,
                 autoupdate_config: None,
                 crash_reporting_config: None,
@@ -164,7 +164,17 @@ impl ChannelState {
     }
 
     pub fn debug_str() -> String {
-        format!("{:?}", *CHANNEL_STATE.lock())
+        let state = CHANNEL_STATE.lock();
+        format!(
+            "ChannelState {{ channel: {:?}, additional_features: {:?}, app_id: {:?}, telemetry_configured: {}, autoupdate_configured: {}, crash_reporting_configured: {}, mcp_static_configured: {} }}",
+            state.channel,
+            state.additional_features,
+            state.config.app_id,
+            state.config.telemetry_config.is_some(),
+            state.config.autoupdate_config.is_some(),
+            state.config.crash_reporting_config.is_some(),
+            state.config.mcp_static_config.is_some()
+        )
     }
 
     pub fn logfile_name() -> Cow<'static, str> {

@@ -1,22 +1,29 @@
-name: SSH Warpify Issues? Use this template
-description: "Issue template specialized for the circumstances where SSH Warpification with tmux fails"
-labels: ["bug","area:ssh"]
+name: SSH Warpify (tmux) Issue
+description: "SSH Warpification with tmux fails in OpenWarp. Use this template for that specific scenario."
+labels: ["bug", "area:ssh"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template only when SSH **Warpification** (subshell bootstrap over SSH with tmux) fails in **OpenWarp**.
+
+        - Cloud-account or Warpify-SSO issues belong to upstream Warp, not OpenWarp.
+        - For non-tmux SSH bootstrap failures, use the *Legacy SSH* template instead.
   - type: checkboxes
     attributes:
       label: "Pre-submit Checks"
       options:
-        - label: "I have [searched Warp SSH issues](https://github.com/warpdotdev/Warp/issues?q=is%3Aissue+is%3Aopen+label%3ASSH-TMUX) and there are no duplicates"
+        - label: "I have [searched OpenWarp SSH issues](https://github.com/zerx-lab/warp/issues?q=is%3Aissue+label%3Aarea%3Assh) and there are no duplicates."
           required: true
-        - label: "I have [searched Warp known issues page](https://docs.warp.dev/help/known-issues) and my issue is not there"
+        - label: "This is reproducible in **OpenWarp** (not only in upstream Warp)."
           required: true
-        - label: "I have technical issue and have included the logs (helps expedite the bug fix). [Log instructions](https://docs.warp.dev/support-and-community/troubleshooting-and-support/sending-us-feedback#gathering-warp-logs)"
-          required: false    
+        - label: "I have included relevant logs (`RUST_LOG=info` output, SSH/tmux session output). Optional, but greatly speeds up triage."
+          required: false
   - type: textarea
     id: "shell-output"
     attributes:
       label: "Include shell output"
-      description: "Click on the top right icon of your terminal block, select `Copy`, and paste the contents here. Please redact any personal details."
+      description: "Click the top-right icon of your terminal block, select `Copy`, and paste the contents here. Redact hostnames, IPs, usernames, and any secrets."
       render: shell
     validations:
       required: true
@@ -24,13 +31,13 @@ body:
     id: "screenshots-logs"
     attributes:
       label: "Screenshots, videos, and logs"
-      description: "If applicable, add screenshots/videos/logs to help us understand your problem. While optional, these help expedite the time in which your bug is addressed."
+      description: "Attach anything that helps reproduce or understand the failure. Redact secrets first."
     validations:
-      required: false      
+      required: false
   - type: dropdown
     id: "os"
     attributes:
-      label: "Operating system (OS)"
+      label: "Local operating system (OS)"
       multiple: false
       options:
         - "Select an OS"
@@ -42,32 +49,28 @@ body:
   - type: input
     id: "os-version"
     attributes:
-      label: "Operating system and version"
-      description: "For example: Debian 11.2"
+      label: "Local OS and version"
+      description: "For example: Windows 10 22H2, macOS 14.5, Debian 12."
     validations:
       required: true
   - type: input
-    id: "warp-version"
+    id: "remote-os"
     attributes:
-      label: "Warp Version"
-      description: "Warp Version"
+      label: "Remote OS and version (the SSH target)"
+      description: "For example: Ubuntu 22.04, Alpine 3.19, FreeBSD 14."
     validations:
       required: false
-  - type: dropdown
-    id: "linear-label-ssh-tmux"
+  - type: input
+    id: "tmux-version"
     attributes:
-      label: "Warp Internal (ignore) - linear-label:7a739baa-09c3-499e-a0c9-a1a16c090597"
-      multiple: false
-      options:
-        - Ignore
+      label: "tmux version on the remote"
+      description: "Output of `tmux -V` on the SSH target."
     validations:
       required: false
-  - type: dropdown
-    id: "linear-label-bug"
+  - type: input
+    id: "openwarp-version"
     attributes:
-      label: "Warp Internal (ignore): linear-label:b8107fdf-ba31-488d-b103-d271c89cac3e"
-      multiple: false
-      options:
-        - Ignore
+      label: "OpenWarp version / commit"
+      description: "Open Settings → About to copy the version, or run `git rev-parse --short HEAD` if built from source."
     validations:
-      required: false
+      required: true

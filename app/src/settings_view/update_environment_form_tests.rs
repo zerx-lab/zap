@@ -84,11 +84,9 @@ fn test_build_auth_url_with_next_overrides_existing() {
         next_values.pop(),
         Some("warpdev://settings/environments".to_string())
     );
-    assert!(
-        parsed
-            .query_pairs()
-            .any(|(key, value)| key == "foo" && value == "bar")
-    );
+    assert!(parsed
+        .query_pairs()
+        .any(|(key, value)| key == "foo" && value == "bar"));
 }
 
 #[test]
@@ -880,8 +878,8 @@ fn test_render_docker_image_field_shows_github_auth_required_message() {
 }
 
 #[test]
-fn test_create_environment_form_with_team_can_toggle_share_with_team_and_renders_warning_when_disabled()
- {
+fn test_create_environment_form_with_team_can_toggle_share_with_team_and_renders_warning_when_disabled(
+) {
     App::test((), |mut app| async move {
         init_update_environment_form_test_models(&mut app);
         let window_id = create_test_window(&mut app);

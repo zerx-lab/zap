@@ -1,31 +1,29 @@
 use std::collections::HashMap;
 use uuid::Uuid;
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{ChildView, Container},
     ui_components::components::{Coords, UiComponentStyles},
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
     ai::mcp::{
-        FileBasedMCPManager, TemplatableMCPServer, TemplatableMCPServerInstallation,
-        TemplatableMCPServerManager, gallery::MCPGalleryManager,
-        templatable_installation::VariableValue,
+        gallery::MCPGalleryManager, templatable_installation::VariableValue, FileBasedMCPManager,
+        TemplatableMCPServer, TemplatableMCPServerInstallation, TemplatableMCPServerManager,
     },
     appearance::Appearance,
     cloud_object::Space,
     modal::{Modal, ModalViewState},
     server::cloud_objects::update_manager::InitiatedBy,
     settings_view::{
-        SettingsSection,
         mcp_servers::{
-            ServerCardItemId,
             edit_page::{MCPServersEditPageView, MCPServersEditPageViewEvent},
             installation_modal::{InstallationModalBody, InstallationModalBodyEvent},
             list_page::{MCPServersListPageView, MCPServersListPageViewEvent},
-            style,
+            style, ServerCardItemId,
         },
         settings_page::{MatchData, PageType, SettingsPageMeta, SettingsWidget},
+        SettingsSection,
     },
     view_components::DismissibleToast,
     workspace::ToastStack,

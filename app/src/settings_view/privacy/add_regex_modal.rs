@@ -8,12 +8,12 @@ use regex::Regex;
 use warp_editor::editor::NavigationKey;
 use warpui::elements::{CrossAxisAlignment, Expanded, MainAxisSize};
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{ChildView, Container, Empty, Flex, MouseStateHandle, ParentElement, Text},
     ui_components::{
         button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
     },
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 const LABEL_FONT_SIZE: f32 = 12.;

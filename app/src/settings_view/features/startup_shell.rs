@@ -1,8 +1,8 @@
 use warpui::{
-    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{CrossAxisAlignment, Fill, Flex, ParentElement, Shrinkable},
     presenter::ChildView,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
+    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -15,7 +15,7 @@ use crate::{
         local_tty::shell::is_valid_path_or_command_for_supported_shell,
         session_settings::{SessionSettings, SessionSettingsChangedEvent},
     },
-    view_components::{Dropdown, DropdownItem, dropdown::TOP_MENU_BAR_HEIGHT},
+    view_components::{dropdown::TOP_MENU_BAR_HEIGHT, Dropdown, DropdownItem},
 };
 
 /// A view for configuring the initial shell for new sessions. This can be the

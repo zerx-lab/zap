@@ -1,19 +1,13 @@
 use std::collections::HashMap;
 
 use super::{
-    SettingsSection,
     settings_page::{
-        LocalOnlyIconState, MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle,
-        SettingsWidget, render_sub_header,
+        render_sub_header, LocalOnlyIconState, MatchData, PageType, SettingsPageMeta,
+        SettingsPageViewHandle, SettingsWidget,
     },
+    SettingsSection,
 };
 use crate::send_telemetry_from_ctx;
-use crate::{
-    TelemetryEvent,
-    util::bindings::{
-        filter_bindings_including_keystroke, reset_keybinding_to_default, set_custom_keybinding,
-    },
-};
 use crate::{appearance::Appearance, themes};
 use crate::{
     editor::EditorView, keyboard::write_custom_keybinding, util::bindings::CommandBinding,
@@ -25,12 +19,18 @@ use crate::{
     keyboard::UserDefinedKeybinding,
 };
 use crate::{search_bar::SearchBar, settings::CloudPreferencesSettings};
+use crate::{
+    util::bindings::{
+        filter_bindings_including_keystroke, reset_keybinding_to_default, set_custom_keybinding,
+    },
+    TelemetryEvent,
+};
 use itertools::Itertools;
 
 use warp_core::ui::color::blend::Blend;
 use warp_core::ui::theme::color::internal_colors;
+use warpui::{elements::Wrap, units::Pixels};
 use warpui::{
-    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Align, Border, ClippedScrollStateHandle, ClippedScrollable, Container, CornerRadius, Empty,
         EventHandler, Fill, Flex, Hoverable, MouseState, MouseStateHandle, ParentElement, Radius,
@@ -39,8 +39,8 @@ use warpui::{
     fonts::Weight,
     keymap::{Keystroke, Trigger},
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
+    AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
-use warpui::{elements::Wrap, units::Pixels};
 use warpui::{
     elements::{ConstrainedBox, DispatchEventResult},
     presenter::ChildView,

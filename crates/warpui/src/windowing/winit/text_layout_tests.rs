@@ -586,6 +586,56 @@ fn first_line_bounded(frame: &TextFrame, first_line_indent: f32, frame_width: f3
     first_line_width + first_line_indent.min(frame_width) <= frame_width
 }
 
+#[test]
+fn test_layout_text_chinese_soft_wrap_caret_indices() -> Result<()> {
+    let (font_db, roboto) = init_fonts();
+
+    let text = "人生是一场无法回头的旅行走过的路遇见过的人经历过的风雨都成了生命里最珍贵的风景";
+    let line_style = LineStyle {
+        font_size: FONT_SIZE,
+        line_height_ratio: DEFAULT_UI_LINE_HEIGHT_RATIO,
+        baseline_ratio: DEFAULT_TOP_BOTTOM_RATIO,
+        fixed_width_tab_size: None,
+    };
+    let style_runs = [(
+        0..text.chars().count(),
+        StyleAndFont::new(roboto, Properties::default(), TextStyle::new()),
+    )];
+
+    let frame = font_db.text_layout_system().layout_text(
+        text,
+        line_style,
+        &style_runs,
+        FRAME_WIDTH,
+        FRAME_HEIGHT,
+        Default::default(),
+        None,
+    );
+
+    let glyph_indices = collect_glyph_indices(&frame);
+    assert!(
+        glyph_indices.len() > 1,
+        "expected soft wrap: {glyph_indices:?}"
+    );
+
+    let flattened = glyph_indices.iter().flatten().copied().collect::<Vec<_>>();
+    assert_eq!(flattened, (0..text.chars().count()).collect::<Vec<_>>());
+
+    for (line, glyphs) in frame.lines().iter().zip(glyph_indices.iter()) {
+        let Some(first_glyph) = glyphs.first() else {
+            continue;
+        };
+        let Some(last_glyph) = glyphs.last() else {
+            continue;
+        };
+        assert_eq!(line.first_index(), *first_glyph);
+        assert_eq!(line.last_index(), *last_glyph);
+        assert_eq!(line.end_index(), *last_glyph + 1);
+    }
+
+    Ok(())
+}
+
 fn all_lines_bounded(frame: &TextFrame, frame_width: f32) -> bool {
     frame.lines().iter().fold(true, |all_bounded, line| {
         let current_bounded = line.width <= frame_width;

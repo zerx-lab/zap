@@ -1144,6 +1144,7 @@ impl AgentConversationsModel {
             .entry(window_id)
             .or_default()
             .insert(view_id);
+        self.sync_conversations(ctx);
         self.update_polling_state(ctx);
     }
 

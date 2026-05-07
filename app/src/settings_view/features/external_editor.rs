@@ -3,9 +3,9 @@ use std::{cell::RefCell, collections::HashMap};
 use settings::{Setting, ToggleableSetting};
 use warp_core::features::FeatureFlag;
 use warpui::{
-    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{Flex, MouseStateHandle, ParentElement},
     ui_components::{components::UiComponent, switch::SwitchStateHandle},
+    Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -13,14 +13,14 @@ use crate::{
     report_if_error, send_telemetry_from_ctx,
     server::telemetry::TelemetryEvent,
     settings_view::settings_page::{
-        AdditionalInfo, LocalOnlyIconState, ToggleState, render_body_item, render_dropdown_item,
+        render_body_item, render_dropdown_item, AdditionalInfo, LocalOnlyIconState, ToggleState,
     },
     util::file::external_editor::{
-        EditorSettings, SUPPORTED_EDITORS,
         settings::{
             EditorChoice, EditorLayout, OpenCodePanelsFileEditor, OpenFileEditor, OpenFileLayout,
             PreferMarkdownViewer, PreferTabbedEditorView,
         },
+        EditorSettings, SUPPORTED_EDITORS,
     },
     view_components::{Dropdown, DropdownItem},
 };
@@ -200,11 +200,9 @@ impl ExternalEditorView {
 
     fn set_code_panels_editor(&mut self, editor: &EditorChoice, ctx: &mut ViewContext<Self>) {
         EditorSettings::handle(ctx).update(ctx, |settings, ctx| {
-            report_if_error!(
-                settings
-                    .open_code_panels_file_editor
-                    .set_value(*editor, ctx)
-            );
+            report_if_error!(settings
+                .open_code_panels_file_editor
+                .set_value(*editor, ctx));
         });
 
         send_telemetry_from_ctx!(

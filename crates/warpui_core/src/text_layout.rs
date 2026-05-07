@@ -818,6 +818,15 @@ impl TextFrame {
             .fold(0., |prev, line| prev + line.height())
     }
 
+    fn line_y_offsets(&self) -> impl Iterator<Item = (usize, &Line, f32)> {
+        let mut y_offset = 0.;
+        self.lines.iter().enumerate().map(move |(index, line)| {
+            let line_y_offset = y_offset;
+            y_offset += line.height();
+            (index, line, line_y_offset)
+        })
+    }
+
     /// Given an index, returns the row the corresponding glyph is in the text frame.
     /// If the index is beyond the bounds of the text frame, we return the last row
     /// in the text frame.
@@ -849,9 +858,8 @@ impl TextFrame {
         scene: &mut Scene,
         font_cache: &FontCache,
     ) {
-        for (index, line) in self.lines.iter().enumerate() {
-            let origin =
-                bounds.origin() + vec2f(self.line_x_offset(line), index as f32 * line.height());
+        for (_, line, y_offset) in self.line_y_offsets() {
+            let origin = bounds.origin() + vec2f(self.line_x_offset(line), y_offset);
             let bounds = RectF::from_points(origin, bounds.lower_right());
             line.paint(bounds, style_overrides, default_color, font_cache, scene);
         }

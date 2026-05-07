@@ -1,5 +1,4 @@
 use super::{
-    SettingsSection,
     agent_assisted_environment_modal::{
         AgentAssistedEnvironmentModal, AgentAssistedEnvironmentModalEvent,
     },
@@ -8,20 +7,21 @@ use super::{
     },
     editor_text_colors,
     settings_page::{
-        CONTENT_FONT_SIZE, MatchData, PageType, SettingsPageEvent, SettingsPageMeta,
-        SettingsPageViewHandle, SettingsWidget,
+        MatchData, PageType, SettingsPageEvent, SettingsPageMeta, SettingsPageViewHandle,
+        SettingsWidget, CONTENT_FONT_SIZE,
     },
     update_environment_form::{
         EnvironmentFormInitArgs, EnvironmentFormValues, GithubAuthRedirectTarget,
         UpdateEnvironmentForm, UpdateEnvironmentFormEvent,
     },
+    SettingsSection,
 };
 use crate::{
     ai::cloud_environments::{self, CloudAmbientAgentEnvironment},
     appearance::Appearance,
     cloud_object::{
-        CloudObjectLocation, GenericStringObjectFormat, JsonObjectType, Owner, Space,
         model::persistence::{CloudModel, CloudModelEvent},
+        CloudObjectLocation, GenericStringObjectFormat, JsonObjectType, Owner, Space,
     },
     drive::CloudObjectTypeAndId,
     editor::{EditorView, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions},
@@ -39,8 +39,8 @@ use crate::{
     ui_components::{blended_colors, buttons::icon_button_with_color, icons::Icon},
     util::time_format::format_approx_duration_from_now_utc,
     view_components::{
-        COPY_FEEDBACK_DURATION, CopyButtonPlacement, CopyableTextFieldConfig, DismissibleToast,
-        render_copyable_text_field,
+        render_copyable_text_field, CopyButtonPlacement, CopyableTextFieldConfig, DismissibleToast,
+        COPY_FEEDBACK_DURATION,
     },
     workspace::{ToastStack, WorkspaceAction},
     workspaces::user_workspaces::UserWorkspaces,
@@ -53,8 +53,6 @@ use warp_core::ui::theme::color::internal_colors;
 use warp_editor::editor::NavigationKey;
 use warp_graphql::scalars::time::ServerTimestamp;
 use warpui::{
-    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
     elements::{
         Align, Border, ChildAnchor, Clipped, ConstrainedBox, Container, CornerRadius,
         CrossAxisAlignment, Element, Empty, Expanded, Flex, Hoverable, MainAxisAlignment,
@@ -68,7 +66,9 @@ use warpui::{
         button::ButtonVariant,
         components::{UiComponent, UiComponentStyles},
     },
-    windowing::{self, WindowManager, state::ApplicationStage},
+    windowing::{self, state::ApplicationStage, WindowManager},
+    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 mod new_environment_button;
@@ -77,7 +77,7 @@ use new_environment_button::NewEnvironmentButtonView;
 #[cfg(not(target_family = "wasm"))]
 #[allow(unused_imports)] // IntegrationsClient trait is used in fetch_github_repos
 use {
-    crate::server::server_api::{ServerApiProvider, integrations::IntegrationsClient},
+    crate::server::server_api::{integrations::IntegrationsClient, ServerApiProvider},
     warp_graphql::queries::user_github_info::UserGithubInfoResult,
 };
 
@@ -2073,8 +2073,8 @@ impl SettingsPageMeta for EnvironmentsPageView {
 use crate::pane_group::{
     focus_state::PaneFocusHandle,
     pane::{
-        BackingView,
         view::{HeaderContent, HeaderRenderContext},
+        BackingView,
     },
 };
 

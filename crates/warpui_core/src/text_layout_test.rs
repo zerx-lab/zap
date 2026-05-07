@@ -86,6 +86,34 @@ fn test_empty_text_frame() {
 }
 
 #[test]
+fn test_text_frame_line_y_offsets_accumulate_previous_line_heights() {
+    let mut first_line = Line::mock_from_str("foo");
+    first_line.font_size = 10.;
+    first_line.line_height_ratio = 2.;
+
+    let mut second_line = Line::mock_from_str("bar");
+    second_line.font_size = 10.;
+    second_line.line_height_ratio = 1.;
+
+    let mut third_line = Line::mock_from_str("baz");
+    third_line.font_size = 10.;
+    third_line.line_height_ratio = 1.5;
+
+    let frame = TextFrame::new(
+        vec1::vec1![first_line, second_line, third_line],
+        100.,
+        TextAlignment::Left,
+    );
+
+    let offsets = frame
+        .line_y_offsets()
+        .map(|(index, _, y_offset)| (index, y_offset))
+        .collect::<Vec<_>>();
+
+    assert_eq!(offsets, vec![(0, 0.), (1, 20.), (2, 30.)]);
+}
+
+#[test]
 fn test_cache_key_includes_fixed_width_tab_size() {
     let text = "abc";
     let style_runs: &[(Range<usize>, StyleAndFont)] = &[];

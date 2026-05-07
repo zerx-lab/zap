@@ -1,13 +1,13 @@
 use super::{
-    SettingsSection,
     platform::{
         CreateApiKeyModal, CreateApiKeyModalEvent, CreateApiKeyModalViewState, ExpireApiKeyButton,
         ExpireApiKeyButtonEvent,
     },
     settings_page::{
-        CONTENT_FONT_SIZE, MatchData, PageType, SUBHEADER_FONT_SIZE, SettingsPageMeta,
-        SettingsPageViewHandle, SettingsWidget,
+        MatchData, PageType, SettingsPageMeta, SettingsPageViewHandle, SettingsWidget,
+        CONTENT_FONT_SIZE, SUBHEADER_FONT_SIZE,
     },
+    SettingsSection,
 };
 use crate::auth::AuthStateProvider;
 use crate::server::{ids::ApiKeyUid, server_api::auth::AuthClient};
@@ -23,7 +23,6 @@ use markdown_parser::{FormattedText, FormattedTextFragment, FormattedTextLine};
 use std::collections::HashMap;
 use warp_core::features::FeatureFlag;
 use warpui::{
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Align, Border, ChildView, ConstrainedBox, Container, CrossAxisAlignment, Element, Empty,
         Expanded, Flex, FormattedTextElement, HighlightedHyperlink, MainAxisSize, MouseStateHandle,
@@ -34,6 +33,7 @@ use warpui::{
         button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
     },
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 const MODAL_WIDTH: f32 = 460.;
