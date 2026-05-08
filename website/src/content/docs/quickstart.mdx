@@ -2,7 +2,7 @@
 title: Quick Start
 title_zh: 快速开始
 lede: OpenWarp is in preview — there are no prebuilt installers yet. This page walks through installing build dependencies and producing your own binary on macOS, Linux, and Windows.
-lede_zh: OpenWarp 目前处于 preview 阶段,尚未提供预编译安装包。本页讲清楚在 macOS、Linux、Windows 上如何安装构建依赖并自行打包。
+lede_zh: OpenWarp 目前处于 preview 阶段,尚未提供预编译安装包。本文档介绍如何在 macOS、Linux 与 Windows 上安装构建依赖并自行编译。
 order: 1
 section: Get Started
 section_zh: 快速开始
@@ -13,7 +13,7 @@ import TabsCard from '../../components/docs/TabsCard.astro';
 ## Prerequisites
 
 <p data-lang="en">All builds need: a working <code>git</code>, a Rust toolchain (<code>rustup</code>), and the platform's native build tools listed below. The repo ships a <code>script/bootstrap</code> entrypoint that installs the right set for your OS.</p>
-<p data-lang="zh">所有平台都需要:可用的 <code>git</code>、Rust 工具链(<code>rustup</code>),以及下文列出的本机构建工具。仓库提供 <code>script/bootstrap</code> 入口脚本,会按当前操作系统装好对应依赖。</p>
+<p data-lang="zh">所有平台均需准备:可用的 <code>git</code>、Rust 工具链(<code>rustup</code>),以及下文列出的本机构建工具。仓库提供 <code>script/bootstrap</code> 入口脚本,会根据当前操作系统自动安装对应依赖。</p>
 
 ## 1. Clone
 
@@ -27,7 +27,7 @@ import TabsCard from '../../components/docs/TabsCard.astro';
 ## 2. Install build dependencies
 
 <p data-lang="en">Pick your platform. The bootstrap script delegates to <code>script/macos/bootstrap</code>, <code>script/linux/bootstrap</code>, or <code>script/windows/bootstrap.ps1</code> automatically.</p>
-<p data-lang="zh">选择对应平台。<code>script/bootstrap</code> 会根据当前系统自动调用 <code>script/macos/bootstrap</code>、<code>script/linux/bootstrap</code> 或 <code>script/windows/bootstrap.ps1</code>。</p>
+<p data-lang="zh">请根据当前平台选择对应步骤。<code>script/bootstrap</code> 会根据操作系统自动调用 <code>script/macos/bootstrap</code>、<code>script/linux/bootstrap</code> 或 <code>script/windows/bootstrap.ps1</code>。</p>
 
 <TabsCard tabs={[
   {
@@ -68,14 +68,14 @@ import TabsCard from '../../components/docs/TabsCard.astro';
   <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5h.01"/></svg>
   <div>
     <span data-lang="en">The original Warp bootstrap also runs <code>gcloud auth login</code> for upstream's internal SSH integration tests. OpenWarp's OSS build doesn't need it — you can ignore that prompt or skip the <code>gcloud</code> sections.</span>
-    <span data-lang="zh">上游 Warp 的 bootstrap 还会跑 <code>gcloud auth login</code>,用于 Warp 内部的 SSH 集成测试。OpenWarp 的 OSS 构建不需要它,可以忽略提示或跳过 <code>gcloud</code> 相关步骤。</span>
+    <span data-lang="zh">上游 Warp 的 bootstrap 脚本还会执行 <code>gcloud auth login</code>,用于其内部的 SSH 集成测试。OpenWarp 的 OSS 构建不依赖此步骤,可忽略相关提示或直接跳过 <code>gcloud</code> 相关流程。</span>
   </div>
 </div>
 
 ## 3. Build & run
 
 <p data-lang="en">OpenWarp ships two binaries: <code>warp-oss</code> (no cloud-bound features compiled in — the right target for community builds) and <code>warp</code> (Warp Inc.'s internal channel, requires their private channel config). Use <code>warp-oss</code>.</p>
-<p data-lang="zh">OpenWarp 提供两个 binary:<code>warp-oss</code>(完全去掉云端能力,社区构建用这个)和 <code>warp</code>(Warp Inc. 内部 channel,需要他们的私有 channel 配置)。请使用 <code>warp-oss</code>。</p>
+<p data-lang="zh">OpenWarp 提供两个二进制文件:<code>warp-oss</code>(已移除全部云端能力,社区构建请使用此版本)与 <code>warp</code>(Warp Inc. 内部 channel,依赖其私有 channel 配置)。请使用 <code>warp-oss</code>。</p>
 
 <TabsCard tabs={[
   {
@@ -111,14 +111,14 @@ cargo run <span class="acc">--bin warp-oss</span> --features gui`
   <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2l6 11H2z"/><path d="M8 6v3M8 11h.01"/></svg>
   <div>
     <span data-lang="en">First build pulls hundreds of crates and can take 10–30 minutes depending on hardware. Incremental rebuilds are seconds. If linking fails on Windows, re-open your shell so the freshly installed MSVC tools land on <code>PATH</code>.</span>
-    <span data-lang="zh">首次编译会下载并构建数百个 crate,根据硬件不同需要 10–30 分钟。增量编译是秒级。Windows 链接失败时,重开一个新 shell 让新装的 MSVC 工具进入 <code>PATH</code> 即可。</span>
+    <span data-lang="zh">首次编译需下载并构建数百个 crate,耗时约 10–30 分钟,具体取决于硬件性能;增量编译为秒级。Windows 上若出现链接失败,请重新打开一个 shell,使新安装的 MSVC 工具加入 <code>PATH</code>。</span>
   </div>
 </div>
 
 ## 4. Configure a provider
 
 <p data-lang="en">After launch, open <code>Settings → Agents → Providers</code> and add at least one OpenAI-compatible endpoint. Credentials are written to <code>settings.toml</code> on disk and never sent anywhere except the endpoint you configure.</p>
-<p data-lang="zh">启动后,打开 <code>设置 → Agents → 提供商</code>,至少添加一个 OpenAI 兼容端点。凭证只写入本地 <code>settings.toml</code>,除你配置的端点之外不会发送到任何地方。</p>
+<p data-lang="zh">启动后,打开 <code>设置 → Agents → 服务商</code>,至少添加一个 OpenAI 兼容端点。凭证仅写入本地 <code>settings.toml</code> 文件,除用户配置的端点外不会发送至任何位置。</p>
 
 <CodeCard
   file="~/.config/openwarp/settings.toml"
@@ -136,4 +136,4 @@ output  = <span class="num">384000</span>`}
 />
 
 <p class="muted" data-lang="en">Hit <code>⌘P</code> to switch model, <code>/</code> to open the slash menu. Cloud Agent, Computer Use, and telemetry ship disabled — see the GitHub repo for the full settings reference.</p>
-<p class="muted" data-lang="zh">按 <code>⌘P</code> 切换模型,<code>/</code> 打开 slash 菜单。Cloud Agent、Computer Use、遥测均默认关闭,完整设置参考详见 GitHub 仓库。</p>
+<p class="muted" data-lang="zh">按 <code>⌘P</code> 切换模型,<code>/</code> 打开 slash 菜单。Cloud Agent、Computer Use 与遥测均默认关闭,完整配置说明请参见 GitHub 仓库。</p>
