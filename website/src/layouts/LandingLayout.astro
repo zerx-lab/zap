@@ -41,14 +41,19 @@ const {
     <script>
       // Locale switching, lang pill, in-page nav, tab + copy widgets, scroll fade-in
       (function () {
-        function setLocale(l: string) {
+        function applyLocale(l: string) {
           document.body.dataset.locale = l;
           document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
-          localStorage.setItem('openwarp:locale', l);
           document.querySelectorAll('.lang button').forEach((b) => {
             b.classList.toggle('active', (b as HTMLElement).getAttribute('data-set-lang') === l);
           });
           positionPill();
+        }
+        function setLocale(l: string) {
+          // Only persist when the user explicitly chose a language; auto-detection
+          // should keep following the OS / browser on subsequent visits.
+          localStorage.setItem('openwarp:locale', l);
+          applyLocale(l);
         }
         function positionPill() {
           document.querySelectorAll<HTMLElement>('.lang').forEach((lang) => {
@@ -59,7 +64,7 @@ const {
           });
         }
         const initialLocale = (document.body.dataset.locale as string) || 'en';
-        setLocale(initialLocale);
+        applyLocale(initialLocale);
         window.addEventListener('load', positionPill);
         window.addEventListener('resize', positionPill);
         document.querySelectorAll<HTMLButtonElement>('.lang button').forEach((b) => {
