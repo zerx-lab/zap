@@ -179,6 +179,69 @@ impl CLISubagentController {
                     .get_action_result(action_id)
                     .and_then(|result| snapshot_block_id_for_action_result(&result.result))
                     .cloned();
+
+                // OpenWarp BYOP fallback: agent 自起 LRC 后,上游 server 路径会推
+                // `BlocklistAIHistoryEvent::CreatedSubtask` 触发
+                // `handle_history_model_event` 把 block 升级为 monitored 态;BYOP 没有
+                // 这条 server 事件源,如果不补,active_block 永远停在
+                // `Agent { long_running_control_state: None }` —— `is_agent_in_control()`
+                // / `is_agent_monitoring()` / `is_agent_tagged_in()` 全 false,命中
+                // `view.rs:6841-6853` `is_input_box_visible` 长命令分支的兜底 false 路径,
+                // 输入框消失;同时 controller.rs::send_user_query_in_conversation
+                // 1112-1119 分支会读 `subagent_task_id`,fallback 没真实创建 conversation
+                // task 时下一轮 query 路由失败,触发"Could not find conversation for
+                // response stream"。
+                //
+                // 在此 hook 检测 LRC snapshot,若对应 block 处于 "agent 驱动 + 无 control
+                // state" 状态,调 `create_cli_subagent_task_for_conversation` 在 conversation
+                // 里**真实创建** subtask + emit `BlocklistAIHistoryEvent::CreatedSubtask`,
+                // 让本 controller 的 `handle_history_model_event` 自动接管整套升级流程
+                // (set_agent_interaction_mode_for_agent_monitored_command + emit
+                // UpdatedControl + emit SpawnedSubagent + 创建 CLISubagentView)。
+                if let Some(block_id) = snapshot_block_id.as_ref() {
+                    let needs_upgrade = {
+                        let terminal_model = me.terminal_model.lock();
+                        terminal_model
+                            .block_list()
+                            .block_with_id(block_id)
+                            .and_then(|block| {
+                                if !block.is_agent_driving_command()
+                                    || block.long_running_control_state().is_some()
+                                {
+                                    return None;
+                                }
+                                block.ai_conversation_id()
+                            })
+                    };
+                    if let Some(conversation_id) = needs_upgrade {
+                        let history_model = BlocklistAIHistoryModel::handle(ctx);
+                        let terminal_view_id = me.terminal_view_id;
+                        let block_id = block_id.clone();
+                        match history_model.update(ctx, |history_model, ctx| {
+                            history_model.create_cli_subagent_task_for_conversation(
+                                block_id.clone(),
+                                conversation_id,
+                                terminal_view_id,
+                                ctx,
+                            )
+                        }) {
+                            Ok(task_id) => {
+                                log::info!(
+                                    "[byop] BYOP LRC monitor fallback: optimistic subtask \
+                                     created block={block_id:?} task={task_id:?} \
+                                     conversation={conversation_id:?}"
+                                );
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "[byop] BYOP LRC monitor fallback create_subagent_task \
+                                     failed: {e:?}"
+                                );
+                            }
+                        }
+                    }
+                }
+
                 let mut terminal_model = me.terminal_model.lock();
                 let active_block = terminal_model.block_list_mut().active_block_mut();
                 active_block.update_is_agent_blocked(false);
