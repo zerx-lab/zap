@@ -39,6 +39,8 @@ pub enum Language {
     English,
     #[schemars(description = "Simplified Chinese")]
     SimplifiedChinese,
+    #[schemars(description = "Japanese")]
+    Japanese,
 }
 
 impl std::fmt::Display for Language {
@@ -47,6 +49,7 @@ impl std::fmt::Display for Language {
             Language::System => "System default",
             Language::English => "English",
             Language::SimplifiedChinese => "简体中文",
+            Language::Japanese => "日本語",
         };
         write!(f, "{value}")
     }
@@ -59,6 +62,7 @@ impl Language {
             Language::System => None,
             Language::English => Some("en"),
             Language::SimplifiedChinese => Some("zh-CN"),
+            Language::Japanese => Some("ja"),
         }
     }
 }
