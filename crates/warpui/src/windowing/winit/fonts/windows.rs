@@ -14,8 +14,8 @@ use owned_ttf_parser::OwnedFace;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-/// Returns the BCP-47 locale string used to bias DirectWrite Han-glyph fallback.
-/// Mirrors the current UI locale (set via `crate::set_ui_locale` from `app::i18n`).
+/// 返回用于偏置 DirectWrite Han 字形回退的 BCP-47 locale 字符串。
+/// 与当前 UI locale 同步(由 `app::i18n` 通过 `crate::set_ui_locale` 设置)。
 fn current_fallback_locale() -> String {
     crate::current_ui_locale()
 }
@@ -171,10 +171,10 @@ impl TextLayoutSystem {
 
         let locale = current_fallback_locale();
 
-        // Locale-preferred CJK system fonts. DirectWrite's IDWriteFontFallback ignores locale
-        // for Han disambiguation on Windows English/dev environments and returns Microsoft YaHei
-        // first, which renders Japanese UI text with Simplified Chinese glyph shapes. For shared
-        // CJK Han we prepend the locale's native system fonts (e.g. Yu Gothic UI for ja-*).
+        // 按 locale 优先的 CJK 系统字体:DirectWrite 的 IDWriteFontFallback 在 Windows 英文 / 开发环境
+        // 下不参考 locale 解决 Han 字形歧义,默认返回 Microsoft YaHei,导致日文 UI 反倒拿到简体字字形。
+        // 因此对共享 CJK Han 字符,我们在 DirectWrite 回退之前先 prepend 当前 locale 对应的系统字体
+        // (例如 ja-* → Yu Gothic UI)。
         let mut fallback_font_vec: Vec<FontId> = Vec::new();
         if is_shared_cjk_han(character) {
             for family in preferred_cjk_families_for_locale(&locale) {
@@ -269,8 +269,9 @@ fn load_font_from_handle(
     }
 }
 
-/// True for CJK Han code points whose glyph shape varies between ja / zh-Hans / zh-Hant / ko.
-/// Used to bias DirectWrite fallback toward locale-native system fonts (e.g. Yu Gothic UI on ja-*).
+/// 共享 CJK Han 码点判定:这些字符在 ja / zh-Hans / zh-Hant / ko 之间字形不同,
+/// 用于把 DirectWrite 回退偏向当前 locale 的本地字体(例如 ja-* → Yu Gothic UI)。
+/// 覆盖到 Extension G(0x3134F),后续若 Unicode 再扩展可在此追加。
 fn is_shared_cjk_han(ch: char) -> bool {
     matches!(
         ch as u32,
@@ -281,43 +282,53 @@ fn is_shared_cjk_han(ch: char) -> bool {
             | 0x2A700..=0x2B73F // Extension C
             | 0x2B740..=0x2B81F // Extension D
             | 0x2B820..=0x2CEAF // Extension E
+            | 0x2CEB0..=0x2EBEF // Extension F
+            | 0x30000..=0x3134F // Extension G
     )
 }
 
-/// Locale-preferred Windows system CJK font families, in priority order.
-/// Used to override DirectWrite's locale-insensitive Han fallback (which favors
-/// Microsoft YaHei / Simplified Chinese on Windows English/dev environments).
+/// 提取 BCP-47 标签的主语言子标签(primary subtag),已统一 ASCII 小写。
+/// 例如 `ja-jp` → `ja`、`zh-hant-tw` → `zh`、`kok-in` → `kok`。
+/// 用于精确判断主语言,避免 `starts_with("ko")` 这类前缀匹配把
+/// `kok-IN`(孔卡尼语)误判为韩文,或 `zha-CN`(壮语)误判为中文。
+fn primary_subtag(lower: &str) -> &str {
+    lower
+        .split(|c: char| c == '-' || c == '_')
+        .next()
+        .unwrap_or("")
+}
+
+/// 按 locale 优先返回 Windows 系统 CJK 字体族(按优先级)。
+/// 用于覆盖 DirectWrite 不参考 locale 的 Han 回退(默认偏向 Microsoft YaHei /
+/// 简体中文,这在 Windows 英文 / 开发环境下尤其明显)。
 ///
-/// Routing handles BCP-47 region subtags (zh-TW / zh-HK / zh-MO) and script
-/// subtags (zh-Hant / zh-Hans, optionally with region: zh-Hant-TW etc.) so
-/// callers don't need to normalize their locale tag first.
+/// 路由同时识别 BCP-47 region 子标签(zh-TW / zh-HK / zh-MO)和 script 子标签
+/// (zh-Hant / zh-Hans,可带 region:zh-Hant-TW 等),调用方无需事先规范化 tag。
 fn preferred_cjk_families_for_locale(locale: &str) -> &'static [&'static str] {
     let lower = locale.to_ascii_lowercase();
-    if lower.starts_with("ja") {
-        &["Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic"]
-    } else if lower.starts_with("ko") {
-        &["Malgun Gothic", "Gulim", "Dotum"]
-    } else if is_zh_traditional(&lower) {
-        &["Microsoft JhengHei UI", "Microsoft JhengHei", "PMingLiU", "MingLiU"]
-    } else if lower.starts_with("zh") {
-        &["Microsoft YaHei UI", "Microsoft YaHei", "SimSun"]
-    } else {
-        &[]
+    match primary_subtag(&lower) {
+        "ja" => &["Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic"],
+        "ko" => &["Malgun Gothic", "Gulim", "Dotum"],
+        "zh" if is_zh_traditional(&lower) => {
+            &["Microsoft JhengHei UI", "Microsoft JhengHei", "PMingLiU", "MingLiU"]
+        }
+        "zh" => &["Microsoft YaHei UI", "Microsoft YaHei", "SimSun"],
+        _ => &[],
     }
 }
 
-/// True if `lower` (already ASCII-lowercased BCP-47 tag) refers to Traditional Chinese.
-/// Matches both region forms (zh-tw / zh-hk / zh-mo) and script-subtag forms
-/// (zh-hant, zh-hant-tw, zh-foo-hant, etc.). Hyphenated boundaries are required so
-/// `zh-hansolo` style accidents don't match.
+/// `lower`(已 ASCII 小写化的 BCP-47 标签)是否指向繁体中文。
+/// 同时匹配 region 形式(zh-tw / zh-hk / zh-mo)和 script 子标签形式
+/// (zh-hant、zh-hant-tw、zh-foo-hant 等)。要求连字符边界,
+/// 避免 `zh-hansolo` 之类意外匹配。
 fn is_zh_traditional(lower: &str) -> bool {
-    if !lower.starts_with("zh") {
+    if primary_subtag(lower) != "zh" {
         return false;
     }
     if lower.starts_with("zh-tw") || lower.starts_with("zh-hk") || lower.starts_with("zh-mo") {
         return true;
     }
-    // Walk the hyphen-separated subtags after the primary "zh".
+    // 遍历主标签后的连字符子标签。
     lower.split('-').skip(1).any(|sub| sub == "hant")
 }
 
