@@ -1011,7 +1011,8 @@ fn sanitize_text_for_json(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
         match c {
-            c if (c as u32) < 0x20 => out.push(' '),
+            // 移除控制字符但保留 \n (0x0A), \r (0x0D), \t (0x09)
+            c if (c as u32) < 0x20 && !matches!(c, '\n' | '\r' | '\t') => out.push(' '),
             '\u{7f}' => out.push(' '),
             '\\' => out.push('/'),
             '"' => out.push('\''),
