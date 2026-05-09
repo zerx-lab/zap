@@ -16,6 +16,12 @@ use std::sync::Arc;
 
 const EN_US_LOCALE: &str = "en-US";
 
+/// Returns the BCP-47 locale string used to bias DirectWrite Han-glyph fallback.
+/// Mirrors the current UI locale (set via `crate::set_ui_locale` from `app::i18n`).
+fn current_fallback_locale() -> String {
+    crate::current_ui_locale()
+}
+
 /// Windows symbol fonts that are used to render window control icons. We specifically do not do any
 /// validation of these fonts (i.e. to check if the font contains english characters).
 const SYMBOL_ICON_FONTS: &[&str] = &["Segoe Fluent Icons", "Segoe MDL2 Assets"];
@@ -165,8 +171,34 @@ impl TextLayoutSystem {
             anyhow::anyhow!("Unable to load typeface from font_kit Handle: {err:?}")
         })?;
 
+        let locale = current_fallback_locale();
+
+        // Locale-preferred CJK system fonts. DirectWrite's IDWriteFontFallback ignores locale
+        // for Han disambiguation on Windows English/dev environments and returns Microsoft YaHei
+        // first, which renders Japanese UI text with Simplified Chinese glyph shapes. For shared
+        // CJK Han we prepend the locale's native system fonts (e.g. Yu Gothic UI for ja-*).
+        let mut fallback_font_vec: Vec<FontId> = Vec::new();
+        if is_shared_cjk_han(character) {
+            for family in preferred_cjk_families_for_locale(&locale) {
+                if let Ok(fam) = source.select_family_by_name(family) {
+                    for fk_handle in fam.fonts() {
+                        if let Ok(handle) =
+                            load_font_from_handle(fk_handle, ValidateFontSupportsEn::No)
+                        {
+                            if let Ok(id) = self.insert_font(handle) {
+                                fallback_font_vec.push(id);
+                            }
+                        }
+                    }
+                    if !fallback_font_vec.is_empty() {
+                        break;
+                    }
+                }
+            }
+        }
+
         let fallback_result =
-            loaded_font.get_fallbacks(character.to_string().as_str(), EN_US_LOCALE);
+            loaded_font.get_fallbacks(character.to_string().as_str(), &locale);
 
         // Convert each font-kit fallback `Font` into a UI framework `FontHandle` and load it into
         // fontdb. We deliberately avoid `font_kit::Font::handle()` here: its default impl reads
@@ -178,22 +210,17 @@ impl TextLayoutSystem {
         // `DirectWriteSource::create_handle_from_dwrite_font` does for enumerated system fonts.
         // This lets fontdb mmap the file lazily and lets `insert_font` dedup by `(path, index)`,
         // so the same fallback family is loaded at most once per process.
-        let fallback_font_vec = fallback_result
-            .fonts
-            .into_iter()
-            .flat_map(|fallback_font| {
-                let loaded_handle =
-                    fallback_font_path_handle(&fallback_font.font).or_else(|| {
-                        // Last-resort fallback for fonts that aren't backed by a local file (e.g.
-                        // custom collection loaders). These don't appear in practice for DirectWrite
-                        // system fallbacks, but preserve the original byte-copy behavior so we
-                        // degrade gracefully instead of dropping the glyph.
-                        let handle = fallback_font.font.handle()?;
-                        load_font_from_handle(&handle, ValidateFontSupportsEn::No).ok()
-                    })?;
-                self.insert_font(loaded_handle).ok()
-            })
-            .collect_vec();
+        fallback_font_vec.extend(fallback_result.fonts.into_iter().flat_map(|fallback_font| {
+            let loaded_handle = fallback_font_path_handle(&fallback_font.font).or_else(|| {
+                // Last-resort fallback for fonts that aren't backed by a local file (e.g.
+                // custom collection loaders). These don't appear in practice for DirectWrite
+                // system fallbacks, but preserve the original byte-copy behavior so we
+                // degrade gracefully instead of dropping the glyph.
+                let handle = fallback_font.font.handle()?;
+                load_font_from_handle(&handle, ValidateFontSupportsEn::No).ok()
+            })?;
+            self.insert_font(loaded_handle).ok()
+        }));
 
         Ok(fallback_font_vec)
     }
@@ -241,6 +268,40 @@ fn load_font_from_handle(
             let typeface = OwnedFace::from_vec(bytes.to_vec(), *font_index)?;
             Ok(FontHandle::from(typeface))
         }
+    }
+}
+
+/// True for CJK Han code points whose glyph shape varies between ja / zh-Hans / zh-Hant / ko.
+/// Used to bias DirectWrite fallback toward locale-native system fonts (e.g. Yu Gothic UI on ja-*).
+fn is_shared_cjk_han(ch: char) -> bool {
+    matches!(
+        ch as u32,
+        0x3400..=0x4DBF       // CJK Unified Ideographs Extension A
+            | 0x4E00..=0x9FFF // CJK Unified Ideographs
+            | 0xF900..=0xFAFF // CJK Compatibility Ideographs
+            | 0x20000..=0x2A6DF // Extension B
+            | 0x2A700..=0x2B73F // Extension C
+            | 0x2B740..=0x2B81F // Extension D
+            | 0x2B820..=0x2CEAF // Extension E
+    )
+}
+
+/// Locale-preferred Windows system CJK font families, in priority order.
+/// Used to override DirectWrite's locale-insensitive Han fallback (which favors
+/// Microsoft YaHei / Simplified Chinese on Windows English/dev environments).
+fn preferred_cjk_families_for_locale(locale: &str) -> &'static [&'static str] {
+    let lower = locale.to_ascii_lowercase();
+    if lower.starts_with("ja") {
+        &["Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic"]
+    } else if lower.starts_with("ko") {
+        &["Malgun Gothic", "Gulim", "Dotum"]
+    } else if lower.starts_with("zh-tw") || lower.starts_with("zh-hk") || lower.starts_with("zh-mo")
+    {
+        &["Microsoft JhengHei UI", "Microsoft JhengHei", "PMingLiU", "MingLiU"]
+    } else if lower.starts_with("zh") {
+        &["Microsoft YaHei UI", "Microsoft YaHei", "SimSun"]
+    } else {
+        &[]
     }
 }
 

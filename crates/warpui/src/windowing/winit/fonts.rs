@@ -199,7 +199,7 @@ pub struct TextLayoutSystem {
     /// However, the `FontDB` trait for text layout is _immutable_ and cannot be easily changed to
     /// mutable. Therefore, we use an [`RwLock`] for internal mutability. `FontDB` is Sync and Send,
     /// so we can't use a `RefCell`.
-    font_store: RwLock<cosmic_text::FontSystem>,
+    font_store: std::sync::Arc<RwLock<cosmic_text::FontSystem>>,
     font_id_map: RwLock<BiMap<FontId, fontdb::ID>>,
     font_selections: DashMap<(FamilyId, Properties), FontId>,
     loaded_fonts: DashMap<FontKey, FontId>,
@@ -300,14 +300,38 @@ impl Default for TextLayoutSystem {
 
 impl TextLayoutSystem {
     pub fn new() -> Self {
+        let initial_locale = crate::current_ui_locale();
+        let font_store = std::sync::Arc::new(RwLock::new(
+            cosmic_text::FontSystem::new_with_locale_and_db(
+                initial_locale,
+                Default::default(),
+            ),
+        ));
+        // Subscribe to UI-locale changes so cosmic-text's `FontSystem` is rebuilt with the new
+        // locale (it has no public `set_locale` and locale biases CJK Han glyph fallback). We
+        // capture a `Weak` to allow this `TextLayoutSystem` to be dropped without leaking the
+        // listener.
+        let weak: std::sync::Weak<RwLock<cosmic_text::FontSystem>> =
+            std::sync::Arc::downgrade(&font_store);
+        crate::on_ui_locale_changed(std::sync::Arc::new(move |locale: &str| {
+            let Some(store) = weak.upgrade() else {
+                return;
+            };
+            let mut guard = store.write();
+            // `cosmic_text::FontSystem` has no public `set_locale`; replace + reuse the database.
+            let old = std::mem::replace(
+                &mut *guard,
+                cosmic_text::FontSystem::new_with_locale_and_db(
+                    "en".into(),
+                    Default::default(),
+                ),
+            );
+            let (_, db) = old.into_locale_and_db();
+            *guard = cosmic_text::FontSystem::new_with_locale_and_db(locale.to_string(), db);
+        }));
         Self {
             families: Default::default(),
-            font_store: RwLock::new(cosmic_text::FontSystem::new_with_locale_and_db(
-                // Locale is needed for font fallback. For now, we hardcode this to "en" to match
-                // our mac implementation https://github.com/warpdotdev/warp-internal/blob/bf33d651a9fcece70df8eac35f89b0393ca5189a/ui/src/platform/mac/fonts.rs#L383.
-                "en".into(),
-                Default::default(),
-            )),
+            font_store,
             font_id_map: Default::default(),
             font_selections: Default::default(),
             loaded_fonts: Default::default(),

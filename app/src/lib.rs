@@ -563,6 +563,14 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 
 /// Runs the app. If a subcommand was requested, it'll be run instead of the main application.
 pub fn run() -> Result<()> {
+    // POSIX locale fallback: ensure C/Rust libs that consult LANG/LC_* (e.g. chrono number
+    // formatting, libc strftime) have a sane UTF-8 default when nothing is set. On Windows
+    // we deliberately skip this — Windows APIs (`GetUserPreferredUILanguages`) are the source
+    // of truth for UI locale, and forcing `LANG=en_US.UTF-8` here causes
+    // `DesktopLanguageRequester` to prefer en regardless of the user's selected UI language,
+    // which in turn breaks the CJK Han glyph fallback (Japanese UI ends up with Simplified
+    // Chinese glyph shapes).
+    #[cfg(not(windows))]
     if std::env::var_os("LANG").is_none()
         && std::env::var_os("LC_ALL").is_none()
         && std::env::var_os("LC_CTYPE").is_none()

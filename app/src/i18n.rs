@@ -63,7 +63,21 @@ pub fn init(override_locale: Option<&str>) {
         loader.fallback_language()
     );
 
+    propagate_ui_locale(&loader);
+
     let _ = LANGUAGE_LOADER.set(loader);
+}
+
+/// Forward the resolved UI locale to `warpui::set_ui_locale` so DirectWrite / CoreText
+/// glyph fallback biases CJK Han characters toward the user's UI language. Japanese,
+/// Simplified Chinese, and Traditional Chinese share Han code points; without a locale
+/// hint, DirectWrite tends to pick Microsoft YaHei (Simplified Chinese) on Windows even
+/// when the UI is rendered in Japanese.
+fn propagate_ui_locale(loader: &FluentLanguageLoader) {
+    let langs = loader.current_languages();
+    if let Some(li) = langs.first() {
+        warpui::set_ui_locale(li.to_string());
+    }
 }
 
 /// 取全局 loader。`init()` 没调过时返回 `None`(早期/测试代码可用 [`t_or`] 兜底)。
@@ -99,6 +113,7 @@ pub fn set_locale(locale: &str) {
         "[i18n] locale switched to {locale:?}; current_languages={:?}",
         loader.current_languages()
     );
+    propagate_ui_locale(loader);
 }
 
 /// 重置回系统语言(撤销显式 override)。
@@ -110,6 +125,7 @@ pub fn reset_to_system_locale() {
     if let Err(e) = i18n_embed::select(loader, &Localizations, &requested) {
         log::warn!("[i18n] reset_to_system_locale failed: {e}");
     }
+    propagate_ui_locale(loader);
 }
 
 /// 获取已激活的语言列表(主选 + fallback)。仅供调试 / settings UI 显示用。
