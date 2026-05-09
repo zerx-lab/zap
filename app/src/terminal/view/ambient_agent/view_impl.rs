@@ -13,7 +13,6 @@ use warpui::prelude::{Empty, Vector2F};
 
 use crate::ai::ambient_agents::telemetry::{CloudAgentTelemetryEvent, CloudModeEntryPoint};
 use crate::ai::blocklist::{agent_view::AgentViewEntryOrigin, BlocklistAIHistoryModel};
-use crate::ai::conversation_details_panel::ConversationDetailsData;
 use crate::pane_group::TerminalViewResources;
 use crate::server::server_api::ai::SpawnAgentRequest;
 use crate::terminal::view::ambient_agent::CloudModeInitialUserQuery;
@@ -212,10 +211,6 @@ impl TerminalView {
                     Some(error_message.clone()),
                     ctx,
                 );
-                // Refresh the details panel to show failed status
-                if self.is_cloud_mode_details_panel_open {
-                    self.fetch_and_update_cloud_mode_details_panel(ctx);
-                }
                 // Re-render to show the error state in the footer.
                 ctx.notify();
             }
@@ -249,10 +244,6 @@ impl TerminalView {
                     None,
                     ctx,
                 );
-                // Refresh the details panel to show cancelled status
-                if self.is_cloud_mode_details_panel_open {
-                    self.fetch_and_update_cloud_mode_details_panel(ctx);
-                }
                 // Re-render to show the cancelled state in the footer.
                 ctx.notify();
             }
@@ -778,42 +769,10 @@ impl TerminalView {
         }
     }
 
-    /// Fetches task data and updates the cloud mode details panel.
-    pub(in crate::terminal::view) fn fetch_and_update_cloud_mode_details_panel(
-        &mut self,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(task_id) = self.ambient_agent_task_id_for_details_panel(ctx) else {
-            log::warn!("fetch_and_update_cloud_mode_details_panel called without task_id");
-            return;
-        };
-
-        let task = crate::ai::agent_conversations_model::AgentConversationsModel::handle(ctx)
-            .update(ctx, |model, ctx| {
-                model.get_or_async_fetch_task_data(&task_id, ctx)
-            });
-
-        let data = task
-            .as_ref()
-            .map(|task| ConversationDetailsData::from_task(task, None, None, ctx))
-            .unwrap_or_else(|| ConversationDetailsData::from_task_id(task_id));
-        self.cloud_mode_details_panel.update(ctx, |panel, ctx| {
-            panel.set_conversation_details(data, ctx);
-        });
-    }
-
-    /// Auto-opens the cloud mode details panel once.
-    /// This is used for local cloud mode sessions (after SessionReady) and shared ambient sessions (after join).
+    /// Auto-opens the cloud mode details panel once. No-op (cloud removed).
     pub(in crate::terminal::view) fn maybe_auto_open_cloud_mode_details_panel(
         &mut self,
-        ctx: &mut ViewContext<Self>,
+        _ctx: &mut ViewContext<Self>,
     ) {
-        if self.has_auto_opened_cloud_mode_details_panel {
-            return;
-        }
-        self.is_cloud_mode_details_panel_open = true;
-        self.has_auto_opened_cloud_mode_details_panel = true;
-        self.fetch_and_update_cloud_mode_details_panel(ctx);
-        ctx.notify();
     }
 }

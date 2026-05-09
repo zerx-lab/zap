@@ -58,7 +58,7 @@ pub(crate) fn conversation_navigation_action(
     AgentConversationsModel::as_ref(app)
         .get_conversation(&conversation_id)
         .and_then(|conversation| {
-            conversation.get_open_action(Some(RestoreConversationLayout::SplitPane), app)
+            conversation.get_open_action(Some(RestoreConversationLayout::SplitPane))
         })
         .unwrap_or(WorkspaceAction::RestoreOrNavigateToConversation {
             pane_view_locator: None,

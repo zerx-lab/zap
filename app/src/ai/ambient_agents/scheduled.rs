@@ -111,12 +111,12 @@ impl StringModel for ScheduledAmbientAgent {
         &self,
         revision_ts: Option<Revision>,
         object: &CloudScheduledAmbientAgent,
-    ) -> QueueItem {
-        QueueItem::UpdateScheduledAmbientAgent {
+    ) -> Option<QueueItem> {
+        Some(QueueItem::UpdateScheduledAmbientAgent {
             model: object.model().clone().into(),
             id: object.id,
             revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
+        })
     }
 
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {

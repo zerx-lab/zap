@@ -4,7 +4,6 @@ use crate::auth::UserUid;
 use crate::context_chips::ContextChipKind;
 use crate::drive::sharing::ShareableObject;
 use crate::editor::{InteractionState, ReplicaId};
-use crate::server::telemetry::SharingDialogSource;
 use crate::settings::InputModeSettings;
 use crate::terminal::block_list_viewport::ScrollPositionUpdate;
 use crate::terminal::model::blocks::BlockListPoint;
@@ -303,22 +302,10 @@ impl TerminalView {
         ctx.notify();
     }
 
-    fn update_shared_session_pane_header(&mut self, ctx: &mut ViewContext<Self>) {
-        let self_handle = ctx.handle();
-        let Some(shared_session) = &self.shared_session else {
-            return;
-        };
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.set_shareable_object(
-                Some(ShareableObject::Session {
-                    handle: self_handle,
-                    session_id: *shared_session.session_id(),
-                    started_at: *shared_session.started_at(),
-                }),
-                ctx,
-            );
-            ctx.notify();
-        });
+    fn update_shared_session_pane_header(&mut self, _ctx: &mut ViewContext<Self>) {
+        // OpenWarp Phase 2a: pane-header sharing UI is gone, so the pane no
+        // longer tracks `ShareableObject::Session`. The shared-session itself
+        // still runs; it just doesn't surface a "share" button in the header.
     }
 
     pub fn on_role_requested(
@@ -433,7 +420,10 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let started_at = Local::now();
-        let self_handle = ctx.handle();
+        // TODO(openwarp-cloud-removal Phase 5): `self_handle` 原本喂给 ShareableObject::Session
+        // 用于 sharing UI 反查 pane;sharing UI 已删但 shared_session 整条链路仍在,
+        // 完整退役 shared_session 时再删这个 ctx.handle() 调用。
+        let _self_handle = ctx.handle();
         let adapter = Adapter::new_for_sharer(
             sharer_id,
             firebase_uid,
@@ -457,22 +447,12 @@ impl TerminalView {
             started_at,
             ctx,
         );
-        let skip_sharing_dialog =
-            matches!(share_source, Some(SharedSessionActionSource::FooterChip));
 
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            pane_config.set_shareable_object(
-                Some(ShareableObject::Session {
-                    handle: self_handle,
-                    session_id,
-                    started_at,
-                }),
-                ctx,
-            );
-            if !skip_sharing_dialog {
-                pane_config.toggle_sharing_dialog(SharingDialogSource::StartedSessionShare, ctx);
-            }
+            // OpenWarp Phase 2a: sharing dialog + pane-header `ShareableObject`
+            // bookkeeping removed; the shared session continues without a UI
+            // entry point.
             pane_config.notify_header_content_changed(ctx);
         });
 
@@ -517,7 +497,10 @@ impl TerminalView {
         ctx: &mut ViewContext<Self>,
     ) {
         let started_at = Local::now();
-        let self_handle = ctx.handle();
+        // TODO(openwarp-cloud-removal Phase 5): `self_handle` 原本喂给 ShareableObject::Session
+        // 用于 sharing UI 反查 pane;sharing UI 已删但 shared_session 整条链路仍在,
+        // 完整退役 shared_session 时再删这个 ctx.handle() 调用。
+        let _self_handle = ctx.handle();
         let adapter = Adapter::new_for_viewer(
             viewer_id.clone(),
             firebase_uid,
@@ -569,14 +552,7 @@ impl TerminalView {
 
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            pane_config.set_shareable_object(
-                Some(ShareableObject::Session {
-                    handle: self_handle,
-                    session_id,
-                    started_at,
-                }),
-                ctx,
-            );
+            // OpenWarp Phase 2a: removed `set_shareable_object` (cloud sharing UI gone).
             pane_config.notify_header_content_changed(ctx);
         });
 
@@ -675,7 +651,10 @@ impl TerminalView {
 
         self.pane_configuration.update(ctx, |pane_config, ctx| {
             pane_config.refresh_pane_header_overflow_menu_items(ctx);
-            pane_config.set_shareable_object(shareable_object_to_keep, ctx);
+            // TODO(openwarp-cloud-removal Phase 5): `shareable_object_to_keep`
+            // 是为 sharing UI 准备的 ShareableObject 状态;sharing UI 删后无
+            // 消费者,但保留计算路径以便 Phase 5 一并退役 shared_session。
+            let _ = shareable_object_to_keep;
             pane_config.notify_header_content_changed(ctx);
             ctx.notify();
         });

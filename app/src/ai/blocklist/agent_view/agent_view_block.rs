@@ -15,14 +15,11 @@ use warpui::{
 
 use crate::{
     ai::{
-        active_agent_views_model::ActiveAgentViewsModel,
         agent::conversation::{AIConversationId, ConversationStatus},
         blocklist::BlocklistAIHistoryEvent,
     },
     terminal::BlockListSettings,
     ui_components::blended_colors,
-    view_components::DismissibleToast,
-    workspace::{ToastStack, WorkspaceAction},
     BlocklistAIHistoryModel,
 };
 
@@ -84,9 +81,6 @@ impl AgentViewEntryBlock {
             _ => (),
         });
         ctx.subscribe_to_model(&agent_view_controller, |_, _, _, ctx| ctx.notify());
-
-        let active_agent_views_model = ActiveAgentViewsModel::handle(ctx);
-        ctx.subscribe_to_model(&active_agent_views_model, |_, _, _, ctx| ctx.notify());
 
         Self {
             conversation_id,
@@ -283,19 +277,7 @@ impl View for AgentViewEntryBlock {
                 .finish(),
             );
 
-        let is_active =
-            ActiveAgentViewsModel::as_ref(app).is_conversation_open(self.conversation_id, app);
-        let is_active_in_this_pane = self
-            .agent_view_controller
-            .as_ref(app)
-            .agent_view_state()
-            .active_conversation_id()
-            == Some(self.conversation_id);
-        let is_open_elsewhere = is_active && !is_active_in_this_pane;
-
-        let subtext = if is_open_elsewhere {
-            Some(crate::t!("ai-agent-view-open-in-different-pane"))
-        } else if self.is_restored {
+        let subtext = if self.is_restored {
             Some(crate::t!("common-restored"))
         } else if !self.is_new
             && !matches!(
@@ -379,42 +361,9 @@ impl TypedActionView for AgentViewEntryBlock {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
             EnterAgentBlockAction::EnterAgentMode { conversation_id } => {
-                let is_active =
-                    ActiveAgentViewsModel::as_ref(ctx).is_conversation_open(*conversation_id, ctx);
-                let is_active_in_this_pane = self
-                    .agent_view_controller
-                    .as_ref(ctx)
-                    .agent_view_state()
-                    .active_conversation_id()
-                    == Some(*conversation_id);
-
-                if is_active && !is_active_in_this_pane {
-                    let Some(target_terminal_view_id) = ActiveAgentViewsModel::as_ref(ctx)
-                        .terminal_view_id_for_conversation(*conversation_id, ctx)
-                    else {
-                        let window_id = ctx.window_id();
-                        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                            toast_stack.add_ephemeral_toast(
-                                DismissibleToast::error(
-                                    "Couldn't navigate to conversation.".to_string(),
-                                ),
-                                window_id,
-                                ctx,
-                            );
-                        });
-                        return;
-                    };
-
-                    ctx.dispatch_typed_action_deferred(
-                        WorkspaceAction::FocusTerminalViewInWorkspace {
-                            terminal_view_id: target_terminal_view_id,
-                        },
-                    );
-                } else {
-                    ctx.emit(AgentViewEntryBlockEvent::EnterAgentView {
-                        conversation_id: *conversation_id,
-                    });
-                }
+                ctx.emit(AgentViewEntryBlockEvent::EnterAgentView {
+                    conversation_id: *conversation_id,
+                });
             }
         }
     }

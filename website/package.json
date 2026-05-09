@@ -3,29 +3,19 @@
   "type": "module",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenWarp 官网 — 为 Warp 解锁自定义 AI 提供商",
   "scripts": {
     "dev": "astro dev",
-    "start": "bunx serve dist -l tcp://0.0.0.0:${PORT:-3000}",
-    "build": "astro build",
+    "start": "astro dev",
+    "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
     "astro": "astro"
   },
-  "engines": {
-    "node": ">=20"
-  },
   "dependencies": {
-    "@astrojs/react": "^4.2.0",
-    "@astrojs/tailwind": "^6.0.0",
-    "astro": "^5.1.0",
-    "framer-motion": "^11.15.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "tailwindcss": "^3.4.17"
+    "astro": "^5.0.0",
+    "@astrojs/mdx": "^4.0.0",
+    "@astrojs/sitemap": "^3.2.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
-    "typescript": "^5.7.2"
+    "pagefind": "^1.1.1"
   }
 }

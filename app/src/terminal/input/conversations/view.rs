@@ -4,9 +4,8 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 use warpui::elements::ChildView;
-use warpui::{Element, Entity, ModelHandle, SingletonEntity, View, ViewContext, ViewHandle};
+use warpui::{Element, Entity, ModelHandle, View, ViewContext, ViewHandle};
 
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::features::FeatureFlag;
@@ -133,17 +132,6 @@ impl InlineConversationMenuView {
             {
                 let InputBufferUpdateEvent { new_content: _, .. } = event;
                 me.rerun_query(ctx);
-            }
-        });
-
-        let active_agent_views_model = ActiveAgentViewsModel::handle(ctx);
-        ctx.subscribe_to_model(&active_agent_views_model, |me, _, _, ctx| {
-            if me
-                .input_suggestions_model
-                .as_ref(ctx)
-                .is_conversation_menu()
-            {
-                me.menu_view.update(ctx, |_, ctx| ctx.notify());
             }
         });
 

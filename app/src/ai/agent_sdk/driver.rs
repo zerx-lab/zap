@@ -14,7 +14,6 @@ use std::{
     time::Duration,
 };
 
-use crate::ai::blocklist::task_status_sync_model::TaskStatusSyncModel;
 use crate::ai::document::ai_document_model::{AIDocumentModel, AIDocumentModelEvent};
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::ai::mcp::MCPServerState;
@@ -2025,14 +2024,6 @@ impl AgentDriver {
         ctx: &mut ModelContext<Self>,
     ) {
         let terminal_view_id = self.terminal_driver.as_ref(ctx).terminal_view().id();
-
-        // Register this session with TaskStatusSyncModel so CLI agent
-        // status changes are reported to the server.
-        if let Some(task_id) = self.task_id {
-            TaskStatusSyncModel::handle(ctx).update(ctx, |model, ctx| {
-                model.register_cli_session(terminal_view_id, task_id, ctx);
-            });
-        }
 
         ctx.subscribe_to_model(
             &CLIAgentSessionsModel::handle(ctx),

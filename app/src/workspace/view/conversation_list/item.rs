@@ -1,25 +1,22 @@
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
-use crate::ai::active_agent_views_model::ConversationOrTaskId;
 use crate::ai::agent_conversations_model::ConversationOrTask;
 use crate::ai::conversation_status_ui::{render_status_element, STATUS_ELEMENT_PADDING};
 use crate::appearance::Appearance;
-use crate::drive::sharing::dialog::SharingDialog;
 use crate::menu::Menu;
 use crate::ui_components::icons::Icon;
 use crate::ui_components::menu_button::{icon_button_with_context_menu, MenuDirection};
 use crate::util::time_format::format_approx_duration_from_now_utc;
 use crate::util::truncation::truncate_from_end;
 use crate::workspace::view::conversation_list::view::ConversationListViewAction;
+use crate::workspace::view::conversation_list::view_model::ConversationOrTaskId;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::color::internal_colors;
 use warp_util::path::user_friendly_path;
 use warpui::elements::{
-    AnchorPair, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment, DispatchEventResult, Element, EventHandler, Flex, Highlight, Hoverable,
-    MainAxisAlignment, MainAxisSize, MouseInBehavior, MouseStateHandle, OffsetPositioning,
-    OffsetType, ParentAnchor, ParentElement, ParentOffsetBounds, PositionedElementOffsetBounds,
-    PositioningAxis, Radius, SavePosition, Shrinkable, Stack, Text, XAxisAnchor, YAxisAnchor,
+    ChildAnchor, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult,
+    Element, EventHandler, Flex, Highlight, Hoverable, MainAxisAlignment, MainAxisSize,
+    MouseInBehavior, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
+    ParentOffsetBounds, Radius, SavePosition, Shrinkable, Stack, Text,
 };
 use warpui::fonts::{Properties, Weight};
 use warpui::platform::Cursor;
@@ -75,8 +72,6 @@ pub struct ItemProps<'a> {
     pub overflow_menu: &'a ViewHandle<Menu<ConversationListViewAction>>,
     pub overflow_menu_display: OverflowMenuDisplay,
     pub conversation_id: ConversationOrTaskId,
-    pub sharing_dialog: &'a ViewHandle<SharingDialog>,
-    pub is_share_dialog_open: bool,
     pub list_position_id: &'a str,
     pub tooltip_opens_right: bool,
 }
@@ -164,8 +159,6 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         overflow_menu,
         overflow_menu_display,
         conversation_id,
-        sharing_dialog,
-        is_share_dialog_open,
         list_position_id,
         tooltip_opens_right,
     } = props;
@@ -227,7 +220,7 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
     .with_color(theme.sub_text_color(theme.background()).into())
     .finish();
 
-    let bottom_row = if let Some(subtext) = format_item_subtext(conversation, app) {
+    let bottom_row = if let Some(subtext) = format_item_subtext(conversation) {
         let subtext_element = Shrinkable::new(
             1.0,
             Text::new_inline(subtext, font_family, title_font_size - 2.)
@@ -267,7 +260,7 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         .finish();
 
     // Use shared logic from ConversationOrTask to determine open action
-    let open_action = conversation.get_open_action(None, app);
+    let open_action = conversation.get_open_action(None);
     let title = conversation.title(app);
     let tooltip_text = truncate_from_end(&title, MAX_TOOLTIP_LENGTH);
     let overflow_button_state = state.overflow_button_state.clone();
@@ -386,31 +379,9 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
         )
         .finish();
 
-    // Wrap in a stack to support the sharing dialog overlay
+    // OpenWarp Phase 2a: sharing dialog overlay removed.
     let position_id = conversation_item_position_id(&conversation_id);
-    let mut item_stack = Stack::new().with_child(event_handler);
-
-    // Add the sharing dialog as a positioned overlay when open for this item
-    if is_share_dialog_open {
-        // Position the dialog to the right of the item row
-        item_stack.add_positioned_overlay_child(
-            ChildView::new(sharing_dialog).finish(),
-            OffsetPositioning::from_axes(
-                PositioningAxis::relative_to_stack_child(
-                    &position_id,
-                    PositionedElementOffsetBounds::WindowBySize,
-                    OffsetType::Pixel(DIALOG_OFFSET_PIXELS),
-                    AnchorPair::new(XAxisAnchor::Right, XAxisAnchor::Left),
-                ),
-                PositioningAxis::relative_to_stack_child(
-                    &position_id,
-                    PositionedElementOffsetBounds::WindowByPosition,
-                    OffsetType::Pixel(DIALOG_OFFSET_PIXELS),
-                    AnchorPair::new(YAxisAnchor::Middle, YAxisAnchor::Middle),
-                ),
-            ),
-        );
-    }
+    let item_stack = Stack::new().with_child(event_handler);
 
     SavePosition::new(item_stack.finish(), &position_id).finish()
 }
@@ -418,19 +389,13 @@ pub fn render_item(props: ItemProps<'_>, app: &AppContext) -> Box<dyn Element> {
 /// Returns the secondary label for a conversation list item:
 /// - For local conversations: the working directory.
 /// - For tasks: the source (Linear, Slack, CLI, etc.)
-fn format_item_subtext(conversation: &ConversationOrTask, app: &AppContext) -> Option<String> {
+fn format_item_subtext(conversation: &ConversationOrTask) -> Option<String> {
     match conversation {
         ConversationOrTask::Task(task) => {
             task.source.as_ref().map(|s| s.display_name().to_string())
         }
         ConversationOrTask::Conversation(metadata) => {
-            // If this conversation is active (with an expanded agent view),
-            // we use the terminal session's live working directory.
-            let live_pwd = ActiveAgentViewsModel::as_ref(app)
-                .get_active_session_for_conversation(metadata.nav_data.id, app)
-                .and_then(|session| session.as_ref(app).current_working_directory().cloned());
-
-            let pwd = live_pwd.or_else(|| metadata.nav_data.initial_working_directory.clone());
+            let pwd = metadata.nav_data.initial_working_directory.clone();
             pwd.map(|pwd| {
                 let home_dir = dirs::home_dir().and_then(|p| p.to_str().map(String::from));
                 user_friendly_path(&pwd, home_dir.as_deref()).into_owned()

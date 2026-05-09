@@ -2281,6 +2281,19 @@ pub enum AISettingsPageAction {
         provider_id: String,
         api_key: String,
     },
+    /// 一次性保存某个 provider 卡片上的全部可编辑字段(name / base_url / api_key /
+    /// extra_headers / models)。取代原来"失焦/Enter 逐字段推入"的 UX —— 用户在
+    /// settings_view 点"保存"按钮后一起下发。
+    SaveAgentProviderEdits {
+        provider_id: String,
+        name: String,
+        base_url: String,
+        api_key: String,
+        headers: Vec<(String, String)>,
+        /// 只携带可编辑部分:`(model_index, name, id, context_window, max_output_tokens)`。
+        /// reasoning / tool_call / image / pdf / audio 由独立的 chip 动作维护,不走这里。
+        models: Vec<(usize, String, String, u32, u32)>,
+    },
     UpdateAgentProviderModels {
         provider_id: String,
         models: Vec<crate::settings::AgentProviderModel>,
@@ -3157,6 +3170,42 @@ impl TypedActionView for AISettingsPageView {
                 provider_id,
                 api_key,
             } => {
+                crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
+                    ctx,
+                    |secrets, ctx| {
+                        secrets.set(provider_id, api_key.clone(), ctx);
+                    },
+                );
+                ctx.notify();
+            }
+            AISettingsPageAction::SaveAgentProviderEdits {
+                provider_id,
+                name,
+                base_url,
+                api_key,
+                headers,
+                models,
+            } => {
+                // 1) settings.toml 一次性写入所有明文字段
+                AISettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let mut providers = settings.agent_providers.value().clone();
+                    if let Some(p) = providers.iter_mut().find(|p| p.id == *provider_id) {
+                        p.name = name.clone();
+                        p.base_url = base_url.clone();
+                        p.extra_headers = headers.clone();
+                        // 按 model_index 更新，跳过越界索引（rebuild 中间表单与 settings 可能短暂不一致）。
+                        for (idx, m_name, m_id, ctx_window, max_out) in models {
+                            if let Some(m) = p.models.get_mut(*idx) {
+                                m.name = m_name.clone();
+                                m.id = m_id.clone();
+                                m.context_window = *ctx_window;
+                                m.max_output_tokens = *max_out;
+                            }
+                        }
+                    }
+                    let _ = settings.agent_providers.set_value(providers, ctx);
+                });
+                // 2) API key 写入 secure storage
                 crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
                     ctx,
                     |secrets, ctx| {

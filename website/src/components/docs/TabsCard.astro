@@ -1,0 +1,23 @@
+---
+interface Tab {
+  key: string;
+  label: string;
+  html: string;
+}
+interface Props {
+  tabs: Tab[];
+}
+const { tabs } = Astro.props;
+---
+<div class="tabs-card">
+  <div class="tabs-bar" role="tablist">
+    {tabs.map((t, i) => (
+      <button class={i === 0 ? 'active' : ''} data-tab={t.key} type="button">{t.label}</button>
+    ))}
+  </div>
+  {tabs.map((t, i) => (
+    <div class="tabs-pane" data-pane={t.key} hidden={i !== 0}>
+      <pre class="code" set:html={t.html}></pre>
+    </div>
+  ))}
+</div>

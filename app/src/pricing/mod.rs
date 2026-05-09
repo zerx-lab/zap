@@ -1,12 +1,17 @@
-use warp_graphql::billing::{
-    AddonCreditsOption, OveragesPricing, PlanPricing, PricingInfo, StripeSubscriptionPlan,
-};
+use warp_graphql::billing::{AddonCreditsOption, PlanPricing, PricingInfo, StripeSubscriptionPlan};
 use warpui::{Entity, ModelContext, SingletonEntity};
 
-/// A global model for maintaining pricing information from the server.
+/// A global model for pricing information from the server.
+///
+/// In OpenWarp this is effectively a no-op stub: the OSS channel has no
+/// cloud server pushing pricing data, so `pricing_info` is normally `None`
+/// for the lifetime of the process and every getter returns `None`. The
+/// model is preserved only because consumer call sites (request_usage,
+/// billing-aware modals, teams settings page) still reference it;
+/// downstream cloud-removal phases will eventually retire those call sites
+/// and let us delete this entirely.
 #[derive(Debug)]
 pub struct PricingInfoModel {
-    /// The latest-known pricing information from the server.
     pricing_info: Option<PricingInfo>,
 }
 
@@ -21,34 +26,13 @@ impl PricingInfoModel {
         ctx.emit(PricingInfoModelEvent::PricingInfoUpdated);
     }
 
-    /// Returns the current overage pricing information.
-    #[allow(dead_code)]
-    fn overage_pricing(&self) -> Option<&OveragesPricing> {
-        self.pricing_info.as_ref().map(|info| &info.overages)
-    }
-
     /// Returns the pricing for a specific plan.
-    #[allow(dead_code)]
     pub fn plan_pricing(&self, plan: &StripeSubscriptionPlan) -> Option<&PlanPricing> {
         self.pricing_info
             .as_ref()?
             .plans
             .iter()
             .find(|p| &p.plan == plan)
-    }
-
-    /// Returns the overage cost in dollars (converted from cents).
-    #[allow(dead_code)]
-    pub fn overage_cost_dollars(&self) -> Option<f64> {
-        self.overage_pricing()
-            .map(|overages| overages.price_per_request_usd_cents as f64 / 100.0)
-    }
-
-    /// Returns the monthly cost for a plan in dollars (converted from cents).
-    #[allow(dead_code)]
-    pub fn monthly_plan_cost_dollars(&self, plan: &StripeSubscriptionPlan) -> Option<f64> {
-        self.plan_pricing(plan)
-            .map(|pricing| pricing.monthly_plan_price_per_month_usd_cents as f64 / 100.0)
     }
 
     pub fn addon_credits_options(&self) -> Option<&[AddonCreditsOption]> {

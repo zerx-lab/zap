@@ -699,7 +699,10 @@ impl CloudObjectStatuses {
             _ => false,
         };
 
-        let should_show_local_only_indicator = has_in_flight_requests && !sync_queue_is_dequeueing;
+        // OpenWarp: 云端同步已下线,所有对象都仅保存在本地,
+        // 因此不再展示 "Saved locally" 指示;只保留正在同步/出错时的反馈。
+        let _ = sync_queue_is_dequeueing;
+        let _ = SYNC_STATUS_TOOLTIP_LOCAL_ONLY;
         let should_show_syncing_indicator = has_in_flight_requests
             || self.has_pending_metadata_change
             || self.has_pending_permissions_change
@@ -709,12 +712,7 @@ impl CloudObjectStatuses {
             CloudObjectSyncStatus::Errored | CloudObjectSyncStatus::InConflict
         );
 
-        let icon_and_tooltip_text = if should_show_local_only_indicator {
-            Some((
-                Icon::Laptop.to_warpui_icon(theme.main_text_color(theme.surface_1())),
-                SYNC_STATUS_TOOLTIP_LOCAL_ONLY,
-            ))
-        } else if should_show_syncing_indicator {
+        let icon_and_tooltip_text = if should_show_syncing_indicator {
             Some((
                 Icon::Refresh.to_warpui_icon(theme.sub_text_color(theme.surface_2())),
                 SYNC_STATUS_TOOLTIP_INFLIGHT,

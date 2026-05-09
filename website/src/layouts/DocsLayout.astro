@@ -1,0 +1,272 @@
+---
+import '../styles/docs.css';
+import I18nScript from '../components/I18nScript.astro';
+import Banner from '../components/Banner.astro';
+import DocsNav from '../components/DocsNav.astro';
+import DocsSidebar from '../components/DocsSidebar.astro';
+
+interface Heading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  title: string;
+  title_zh: string;
+  lede: string;
+  lede_zh: string;
+  section: string;
+  section_zh: string;
+  activeSlug: string;
+  headings: Heading[];
+  prev?: { slug: string; title: string; title_zh: string } | null;
+  next?: { slug: string; title: string; title_zh: string } | null;
+}
+
+const { title, title_zh, lede, lede_zh, section, section_zh, activeSlug, headings, prev, next } = Astro.props;
+const tocItems = headings.filter((h) => h.depth === 2);
+const repo = 'https://github.com/zerx-lab/warp';
+const editUrl = `${repo}/blob/main/website/src/content/docs/${activeSlug}.mdx`;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{`OpenWarp · Docs · ${title}`}</title>
+    <meta name="description" content={lede} />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+  </head>
+  <body data-locale="en">
+    <I18nScript />
+    <Banner
+      en="Early development · Docs are evolving alongside the source · Community fork of Warp"
+      zh="早期开发阶段 · 文档随源码持续更新 · Warp 的社区分支"
+    />
+    <DocsNav />
+
+    <div class="docs-shell">
+      <DocsSidebar activeSlug={activeSlug} />
+
+      <main class="doc">
+        <div class="doc-toolbar">
+          <div class="doc-toolbar-left">
+            <button class="docs-toggle" type="button" id="docs-sidebar-toggle" aria-controls="docs-sidebar" aria-label="Toggle docs menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </button>
+            <div class="crumbs">
+              <span data-lang="en">DOCS</span><span data-lang="zh">文档</span>
+              <span class="sep">/</span>
+              <span data-lang="en">{section}</span><span data-lang="zh">{section_zh}</span>
+              <span class="sep">/</span>
+              <span class="here" data-lang="en">{title}</span><span class="here" data-lang="zh">{title_zh}</span>
+            </div>
+          </div>
+          <div class="doc-actions">
+            <button id="copy-md" type="button">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4.5" y="4.5" width="8" height="9" rx="1"/><path d="M3 11V3h7"/></svg>
+              <span data-lang="en">Copy MD</span><span data-lang="zh">复制 MD</span>
+            </button>
+            <a href={editUrl} target="_blank" rel="noopener">
+              <span data-lang="en">Open in</span><span data-lang="zh">在</span>
+              <span style="margin-left:4px">GitHub</span>
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 8l4-4M4 4h4v4"/></svg>
+            </a>
+          </div>
+        </div>
+
+        <h1 class="doc-title" data-lang="en">{title}</h1>
+        <h1 class="doc-title" data-lang="zh">{title_zh}</h1>
+        <p class="doc-lede" data-lang="en">{lede}</p>
+        <p class="doc-lede" data-lang="zh">{lede_zh}</p>
+
+        <slot />
+
+        {(prev || next) && (
+          <div class="pager">
+            {prev ? (
+              <a href={`/docs/${prev.slug}`}>
+                <div class="lbl" data-lang="en">← Previous</div><div class="lbl" data-lang="zh">← 上一篇</div>
+                <div class="ttl" data-lang="en">{prev.title}</div><div class="ttl" data-lang="zh">{prev.title_zh}</div>
+              </a>
+            ) : <span />}
+            {next ? (
+              <a class="next" href={`/docs/${next.slug}`}>
+                <div class="lbl" data-lang="en">Next →</div><div class="lbl" data-lang="zh">下一篇 →</div>
+                <div class="ttl" data-lang="en">{next.title}</div><div class="ttl" data-lang="zh">{next.title_zh}</div>
+              </a>
+            ) : <span />}
+          </div>
+        )}
+      </main>
+
+      <aside class="toc">
+        <div class="toc-head">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h10M3 8h10M3 12h7"/></svg>
+          <span data-lang="en">On this page</span><span data-lang="zh">本页内容</span>
+        </div>
+        {tocItems.map((h) => (
+          <a href={`#${h.slug}`} data-toc>{h.text}</a>
+        ))}
+      </aside>
+    </div>
+
+    <div class="search-modal" id="docs-search-modal" hidden>
+      <div class="search-modal-backdrop" data-search-close></div>
+      <div class="search-modal-panel">
+        <div id="docs-search-ui"></div>
+      </div>
+    </div>
+
+    <script src="/pagefind/pagefind-ui.js" is:inline></script>
+    <script>
+      (function () {
+        function applyLocale(l: string) {
+          document.body.dataset.locale = l;
+          document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+          document.querySelectorAll('.lang button').forEach((b) => {
+            b.classList.toggle('active', (b as HTMLElement).getAttribute('data-set-lang') === l);
+          });
+        }
+        function setLocale(l: string) {
+          // Only persist when the user explicitly chose a language; auto-detection
+          // should keep following the OS / browser on subsequent visits.
+          localStorage.setItem('openwarp:locale', l);
+          applyLocale(l);
+        }
+        applyLocale((document.body.dataset.locale as string) || 'en');
+        document.querySelectorAll<HTMLButtonElement>('.lang button').forEach((b) => {
+          b.addEventListener('click', () => setLocale(b.getAttribute('data-set-lang') || 'en'));
+        });
+
+        // Mobile sidebar toggle
+        const toggle = document.getElementById('docs-sidebar-toggle');
+        const sidebar = document.getElementById('docs-sidebar');
+        const backdrop = document.getElementById('docs-sidebar-backdrop');
+        function closeSidebar() {
+          sidebar?.classList.remove('open');
+          backdrop?.classList.remove('open');
+          if (backdrop) backdrop.hidden = true;
+          toggle?.setAttribute('aria-expanded', 'false');
+        }
+        function openSidebar() {
+          sidebar?.classList.add('open');
+          backdrop?.classList.add('open');
+          if (backdrop) backdrop.hidden = false;
+          toggle?.setAttribute('aria-expanded', 'true');
+        }
+        toggle?.addEventListener('click', () => {
+          if (sidebar?.classList.contains('open')) closeSidebar(); else openSidebar();
+        });
+        backdrop?.addEventListener('click', closeSidebar);
+        sidebar?.querySelectorAll('a').forEach((a) => a.addEventListener('click', closeSidebar));
+
+        // Tabs in body
+        document.querySelectorAll<HTMLElement>('.tabs-bar').forEach((bar) => {
+          const card = bar.parentElement!;
+          bar.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+            b.addEventListener('click', () => {
+              const name = b.getAttribute('data-tab');
+              bar.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+              card.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => {
+                p.hidden = p.getAttribute('data-pane') !== name;
+              });
+            });
+          });
+        });
+
+        // Copy buttons
+        document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const pre = btn.closest('.code-card')?.querySelector<HTMLElement>('pre.code');
+            if (pre && navigator.clipboard) navigator.clipboard.writeText(pre.innerText);
+            const prev = btn.textContent;
+            btn.textContent = document.body.dataset.locale === 'zh' ? '已复制' : 'Copied';
+            btn.classList.add('copied');
+            setTimeout(() => {
+              btn.textContent = prev;
+              btn.classList.remove('copied');
+            }, 1400);
+          });
+        });
+
+        // Copy MD: download the source MDX as plain text via fetch (best effort)
+        const copyMd = document.getElementById('copy-md') as HTMLButtonElement | null;
+        copyMd?.addEventListener('click', async () => {
+          try {
+            const main = document.querySelector('main.doc');
+            const text = (main as HTMLElement | null)?.innerText || '';
+            if (text && navigator.clipboard) await navigator.clipboard.writeText(text);
+            const span = copyMd.querySelector(`[data-lang="${document.body.dataset.locale}"]`);
+            if (span) {
+              const prev = span.textContent;
+              span.textContent = document.body.dataset.locale === 'zh' ? '已复制' : 'Copied';
+              setTimeout(() => { span.textContent = prev; }, 1400);
+            }
+          } catch (_) {}
+        });
+
+        // Pagefind search modal
+        const searchModal = document.getElementById('docs-search-modal');
+        const searchTrigger = document.getElementById('docs-search-trigger');
+        const searchUi = document.getElementById('docs-search-ui');
+        let searchInited = false;
+        function openSearch() {
+          if (!searchModal) return;
+          searchModal.hidden = false;
+          if (!searchInited && searchUi) {
+            if ((window as any).PagefindUI) {
+              new (window as any).PagefindUI({
+                element: '#docs-search-ui',
+                showSubResults: true,
+                showImages: false,
+                resetStyles: false,
+                translations: document.body.dataset.locale === 'zh'
+                  ? { placeholder: '搜索文档…', clear_search: '清除', load_more: '加载更多', search_label: '搜索文档', filters_label: '筛选', zero_results: '未找到 [SEARCH_TERM] 的结果', many_results: '共 [COUNT] 条结果', one_result: '共 [COUNT] 条结果', alt_search: '未找到 [SEARCH_TERM] — 显示 [DIFFERENT_TERM] 的结果', search_suggestion: '未找到 [SEARCH_TERM] — 试试以下:', searching: '搜索 [SEARCH_TERM]…' }
+                  : undefined,
+              });
+            } else {
+              const zh = document.body.dataset.locale === 'zh';
+              searchUi.innerHTML = `<div class="search-fallback">
+                <div class="t">${zh ? '搜索仅在生产构建中可用' : 'Search is only available in production builds'}</div>
+                <div class="d">${zh ? '运行 <code>bun run build</code> 后,Pagefind 索引会生成在 <code>dist/pagefind/</code>。开发模式 (<code>bun run dev</code>) 不打包索引。' : 'Run <code>bun run build</code> to generate the Pagefind index under <code>dist/pagefind/</code>. Dev mode (<code>bun run dev</code>) does not produce the index.'}</div>
+              </div>`;
+            }
+            searchInited = true;
+          }
+          setTimeout(() => {
+            const input = searchUi?.querySelector<HTMLInputElement>('input');
+            input?.focus();
+          }, 50);
+        }
+        function closeSearch() { if (searchModal) searchModal.hidden = true; }
+        searchTrigger?.addEventListener('click', openSearch);
+        searchModal?.querySelectorAll('[data-search-close]').forEach((el) => el.addEventListener('click', closeSearch));
+        document.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
+          else if (e.key === 'Escape' && searchModal && !searchModal.hidden) { closeSearch(); }
+        });
+
+        // TOC active on scroll
+        const headings = Array.from(document.querySelectorAll<HTMLElement>('main.doc h2[id]'));
+        const tocLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('aside.toc a'));
+        function updateActive() {
+          const y = window.scrollY + 120;
+          let current = headings[0];
+          headings.forEach((h) => { if (h.offsetTop <= y) current = h; });
+          if (!current) return;
+          tocLinks.forEach((a) => {
+            a.classList.toggle('active', a.getAttribute('href') === '#' + current.id);
+          });
+        }
+        document.addEventListener('scroll', updateActive, { passive: true });
+        updateActive();
+      })();
+    </script>
+  </body>
+</html>

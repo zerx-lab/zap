@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OpenWarp · Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --bg-2: #efece5;
+    --ink: #16161a;
+    --ink-2: #2a2a30;
+    --muted: #6c6a64;
+    --muted-2: #98948c;
+    --line: #e3e0d6;
+    --line-2: #d3cfc1;
+
+    --term-bg: #1c1d27;
+    --term-bg-2: #232432;
+    --term-line: #2e2f3d;
+    --term-fg: #d6d6e0;
+    --term-fg-dim: #8c8da3;
+    --term-fg-2: #5a5b73;
+
+    --accent: #1677ff;
+    --accent-strong: #0958d9;
+    --accent-soft: rgba(22, 119, 255, 0.10);
+    --accent-line: rgba(22, 119, 255, 0.32);
+
+    --syn-key: #69b1ff;
+    --syn-str: #a8c685;
+    --syn-num: #e6a86a;
+    --syn-com: #6c6e85;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+  }
+  a { color: inherit; text-decoration: none; }
+  .mono { font-family: "Geist Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace; }
+  ::selection { background: var(--accent-soft); color: var(--ink); }
+
+  /* ---------- Banner ---------- */
+  .banner {
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .banner-inner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 32px;
+    font-family: "Geist Mono", ui-monospace, monospace;
+  }
+  .banner .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent-strong);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* ---------- Top nav ---------- */
+  header.nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(247,246,242,0.86);
+    backdrop-filter: saturate(140%) blur(8px);
+    -webkit-backdrop-filter: saturate(140%) blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner {
+    display: flex; align-items: center;
+    height: 60px;
+    gap: 28px;
+    padding: 0 32px;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-weight: 600; font-size: 14px;
+  }
+  .brand-mark {
+    width: 22px; height: 22px;
+    border-radius: 5px;
+    background: var(--ink);
+    color: #fff;
+    display: grid; place-items: center;
+    font-size: 13px; font-weight: 600;
+    position: relative;
+  }
+  .brand-mark::after {
+    content: "";
+    position: absolute;
+    inset: auto 4px 4px auto;
+    width: 4px; height: 8px;
+    background: var(--accent);
+    border-radius: 1px;
+  }
+  .nav-links {
+    display: flex; gap: 22px;
+    margin-left: 8px;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-links a.active { color: var(--ink); }
+  .nav-spacer { flex: 1; }
+  .nav-right { display: flex; align-items: center; gap: 14px; font-size: 13px; }
+  .lang {
+    display: inline-flex;
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+    padding: 2px;
+    font-family: "Geist Mono", monospace;
+    font-size: 11px; letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  .lang button {
+    border: 0; background: transparent; color: inherit;
+    padding: 4px 10px; border-radius: 999px;
+    cursor: pointer; font: inherit; letter-spacing: inherit;
+  }
+  .lang button.active { background: var(--ink); color: #fff; }
+  .gh-link {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--muted);
+    font-family: "Geist Mono", monospace; font-size: 12px;
+  }
+  .gh-link:hover { color: var(--ink); }
+  .gh-link svg { width: 16px; height: 16px; }
+
+  /* ---------- Three-column docs layout ---------- */
+  .docs-shell {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr) 240px;
+    min-height: calc(100vh - 60px - 32px);
+  }
+  @media (max-width: 1100px) {
+    .docs-shell { grid-template-columns: 240px minmax(0, 1fr); }
+    aside.toc { display: none; }
+  }
+  @media (max-width: 760px) {
+    .docs-shell { grid-template-columns: 1fr; }
+    aside.sidebar { display: none; }
+  }
+
+  aside.sidebar {
+    border-right: 1px solid var(--line);
+    padding: 28px 18px 60px 32px;
+    position: sticky; top: 60px;
+    align-self: start;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+  .sb-version {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    font-family: "Geist Mono", monospace;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .sb-version .v {
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .sb-version .v::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+  }
+  .sb-search {
+    margin-top: 10px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: text;
+  }
+  .sb-search svg { width: 14px; height: 14px; }
+  .sb-search .kbd {
+    margin-left: auto;
+    font-family: "Geist Mono", monospace;
+    font-size: 10.5px;
+    padding: 1px 6px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    color: var(--muted);
+    background: var(--bg-2);
+  }
+
+  .sb-group {
+    margin-top: 22px;
+  }
+  .sb-group > .sb-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: default;
+  }
+  .sb-group > .sb-head svg { width: 14px; height: 14px; color: var(--muted); }
+  .sb-group > .sb-head .chev {
+    margin-left: auto;
+    width: 10px; height: 10px;
+    color: var(--muted-2);
+  }
+  .sb-list {
+    display: flex; flex-direction: column;
+    margin-top: 2px;
+  }
+  .sb-list a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px 6px 34px;
+    font-size: 13px;
+    color: var(--muted);
+    border-radius: 6px;
+    line-height: 1.4;
+  }
+  .sb-list a:hover { color: var(--ink); background: var(--bg-2); }
+  .sb-list a.active {
+    color: var(--ink);
+    background: var(--accent-soft);
+    box-shadow: inset 2px 0 0 var(--accent);
+  }
+  .sb-list a .icn {
+    width: 14px; height: 14px;
+    color: var(--muted-2);
+    flex-shrink: 0;
+  }
+  .sb-list a.active .icn { color: var(--accent); }
+
+  /* ---------- Main article ---------- */
+  main.doc {
+    padding: 40px 56px 80px;
+    max-width: 880px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  @media (max-width: 760px) { main.doc { padding: 28px 24px 60px; } }
+
+  .doc-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 26px;
+  }
+  .crumbs {
+    font-family: "Geist Mono", monospace;
+    font-size: 11.5px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .crumbs .sep { margin: 0 6px; color: var(--line-2); }
+  .crumbs .here { color: var(--ink-2); }
+  .doc-actions { display: flex; gap: 8px; }
+  .doc-actions button, .doc-actions a {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    border: 1px solid var(--line-2);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--muted);
+    font-family: "Geist Mono", monospace;
+    cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .doc-actions button:hover, .doc-actions a:hover { color: var(--ink); border-color: var(--ink-2); }
+  .doc-actions svg { width: 12px; height: 12px; }
+
+  h1.doc-title {
+    font-size: 36px;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    font-weight: 500;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .doc-lede {
+    font-size: 16px;
+    color: var(--muted);
+    margin: 0 0 36px;
+    max-width: 640px;
+    line-height: 1.6;
+  }
+
+  main.doc h2 {
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.012em;
+    margin: 56px 0 14px;
+    scroll-margin-top: 80px;
+    position: relative;
+  }
+  main.doc h2::before {
+    content: "#";
+    position: absolute;
+    left: -20px;
+    color: var(--line-2);
+    font-family: "Geist Mono", monospace;
+    font-weight: 400;
+    font-size: 18px;
+    top: 4px;
+  }
+  main.doc h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin: 28px 0 10px;
+  }
+  main.doc p {
+    font-size: 15px;
+    color: var(--ink-2);
+    margin: 0 0 14px;
+  }
+  main.doc p.muted {
+    color: var(--muted);
+  }
+  main.doc ul, main.doc ol {
+    padding-left: 22px; margin: 0 0 18px;
+  }
+  main.doc li {
+    font-size: 15px;
+    color: var(--ink-2);
+    margin: 4px 0;
+  }
+  main.doc a.link {
+    color: var(--accent-strong);
+    border-bottom: 1px dashed var(--accent-line);
+  }
+  main.doc a.link:hover { border-bottom-style: solid; }
+  main.doc code {
+    font-family: "Geist Mono", monospace;
+    font-size: 12.5px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--ink);
+  }
+
+  /* Feature grid (better-auth style) on intro */
+  .feat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #fff;
+  }
+  @media (max-width: 720px) { .feat-grid { grid-template-columns: repeat(2, 1fr); } }
+  .feat-grid .cell {
+    padding: 16px 18px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.04) 1px, transparent 0);
+    background-size: 12px 12px;
+    background-position: right -2px top -2px;
+    background-repeat: no-repeat;
+    background-clip: content-box;
+  }
+  .feat-grid .cell:nth-child(3n) { border-right: 0; }
+  .feat-grid .cell:nth-last-child(-n+3) { border-bottom: 0; }
+  @media (max-width: 720px) {
+    .feat-grid .cell:nth-child(3n) { border-right: 1px solid var(--line); }
+    .feat-grid .cell:nth-child(2n) { border-right: 0; }
+    .feat-grid .cell:nth-last-child(-n+3) { border-bottom: 1px solid var(--line); }
+    .feat-grid .cell:nth-last-child(-n+2) { border-bottom: 0; }
+  }
+  .feat-grid .ftitle { font-weight: 500; font-size: 14px; margin-bottom: 4px; letter-spacing: -0.005em; }
+  .feat-grid .fdesc { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+  /* Code block */
+  .code-card {
+    border: 1px solid #0f1019;
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0 22px;
+    background: var(--term-bg);
+  }
+  .code-head {
+    display: flex; align-items: center;
+    background: #161722;
+    color: var(--term-fg-dim);
+    border-bottom: 1px solid var(--term-line);
+    padding: 0 4px 0 12px;
+    height: 36px;
+    font-family: "Geist Mono", monospace;
+    font-size: 11.5px;
+  }
+  .code-head .dot {
+    width: 10px; height: 10px; border-radius: 2px;
+    border: 1px solid var(--term-line);
+    margin-right: 10px;
+  }
+  .code-head .file { color: var(--term-fg); }
+  .code-head .lang-tag {
+    margin-left: 10px;
+    color: var(--term-fg-2);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .code-head .copy {
+    margin-left: auto;
+    background: transparent;
+    border: 0;
+    color: var(--term-fg-dim);
+    font: inherit;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+  }
+  .code-head .copy:hover { color: #fff; background: rgba(255,255,255,0.04); }
+  .code-head .copy.copied { color: var(--accent); }
+  pre.code {
+    margin: 0;
+    padding: 18px 20px;
+    font-family: "Geist Mono", monospace;
+    font-size: 12.8px;
+    line-height: 1.65;
+    color: var(--term-fg);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  pre.code .com { color: var(--syn-com); }
+  pre.code .key { color: var(--syn-key); }
+  pre.code .str { color: var(--syn-str); }
+  pre.code .num { color: var(--syn-num); }
+  pre.code .acc { color: var(--accent); }
+
+  /* Callout */
+  .callout {
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 18px 0;
+    display: flex; gap: 12px;
+    font-size: 14px;
+    color: var(--ink-2);
+    line-height: 1.55;
+    position: relative;
+  }
+  .callout .ico {
+    width: 16px; height: 16px;
+    color: var(--accent);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .callout.info { border-left: 3px solid var(--accent); padding-left: 16px; }
+  .callout.warn { border-left: 3px solid #d97706; }
+  .callout.warn .ico { color: #d97706; }
+
+  /* Tabs in body */
+  .tabs-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0 22px;
+    background: #fff;
+  }
+  .tabs-bar {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+  .tabs-bar button {
+    background: transparent; border: 0; padding: 12px 16px;
+    font: inherit; font-family: "Geist Mono", monospace;
+    font-size: 12px; color: var(--muted);
+    cursor: pointer; position: relative;
+  }
+  .tabs-bar button.active { color: var(--ink); background: #fff; }
+  .tabs-bar button.active::after {
+    content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px;
+    height: 2px; background: var(--accent);
+  }
+  .tabs-pane[hidden] { display: none; }
+
+  /* Comparison table */
+  table.props {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0 22px;
+    font-size: 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  table.props thead th {
+    background: var(--bg-2);
+    text-align: left;
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.props td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.props tr:last-child td { border-bottom: 0; }
+  table.props td.k { font-family: "Geist Mono", monospace; font-size: 12.5px; color: var(--ink); white-space: nowrap; }
+  table.props td.t { font-family: "Geist Mono", monospace; font-size: 12px; color: var(--muted); }
+  table.props td.d { color: var(--ink-2); }
+
+  /* prev/next */
+  .pager {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 60px;
+  }
+  .pager a {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+    background: #fff;
+    transition: border-color .15s ease;
+  }
+  .pager a:hover { border-color: var(--ink-2); }
+  .pager .lbl {
+    font-family: "Geist Mono", monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .pager .ttl { font-size: 14.5px; margin-top: 4px; color: var(--ink); font-weight: 500; }
+  .pager .next { text-align: right; }
+
+  /* ---------- TOC ---------- */
+  aside.toc {
+    padding: 40px 28px 60px 16px;
+    position: sticky; top: 60px;
+    align-self: start;
+    height: calc(100vh - 60px);
+    overflow-y: auto;
+    border-left: 1px solid var(--line);
+  }
+  .toc-head {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: "Geist Mono", monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .toc-head svg { width: 14px; height: 14px; }
+  .toc a {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    padding: 5px 0 5px 12px;
+    border-left: 1px solid var(--line);
+    line-height: 1.45;
+  }
+  .toc a:hover { color: var(--ink-2); }
+  .toc a.active {
+    color: var(--ink);
+    border-left-color: var(--accent);
+    box-shadow: inset 1px 0 0 var(--accent);
+  }
+
+  /* lang visibility */
+  body[data-locale="en"] [data-lang="zh"] { display: none; }
+  body[data-locale="zh"] [data-lang="en"] { display: none; }
+
+</style>
+</head>
+<body data-locale="en">
+
+  <div class="banner">
+    <div class="banner-inner">
+      <span class="dot"></span>
+      <span data-lang="en">Early development · Docs are evolving alongside the source · Community fork of Warp</span>
+      <span data-lang="zh">早期开发 · 文档随源码持续演进 · Warp 的社区 fork</span>
+    </div>
+  </div>
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="OpenWarp.html">
+        <span class="brand-mark">O</span>
+        OpenWarp
+      </a>
+      <nav class="nav-links">
+        <a href="OpenWarp.html">README</a>
+        <a href="OpenWarp Docs.html" class="active">Docs</a>
+        <a href="https://github.com/zerx-lab/warp" target="_blank" rel="noopener" data-lang="en">Providers</a><a href="https://github.com/zerx-lab/warp" target="_blank" rel="noopener" data-lang="zh">提供方</a>
+        <a href="https://github.com/zerx-lab/warp/blob/main/CHANGELOG.md" target="_blank" rel="noopener" data-lang="en">Changelog</a><a href="https://github.com/zerx-lab/warp/blob/main/CHANGELOG.md" target="_blank" rel="noopener" data-lang="zh">更新日志</a>
+      </nav>
+      <div class="nav-spacer"></div>
+      <div class="nav-right">
+        <div class="lang">
+          <button class="active" data-set-lang="en">EN</button>
+          <button data-set-lang="zh">中</button>
+        </div>
+        <a class="gh-link" href="https://github.com/zerx-lab/warp" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.42 7.42 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="docs-shell">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sb-version">
+        <span class="v">v0.x · main</span>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg>
+      </div>
+      <div class="sb-search">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M14 14l-3.5-3.5"/></svg>
+        <span data-lang="en">Search docs</span><span data-lang="zh">搜索文档</span>
+        <span class="kbd">⌘K</span>
+      </div>
+
+      <div class="sb-group">
+        <div class="sb-head">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4l5 3 5-3M3 4v8l5 3 5-3V4M3 4l5-3 5 3"/></svg>
+          <span data-lang="en">Get Started</span><span data-lang="zh">快速开始</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg>
+        </div>
+        <div class="sb-list">
+          <a class="active" href="#introduction">
+            <svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="2.5" width="11" height="11" rx="1.5"/><path d="M5 6h6M5 9h4"/></svg>
+            <span data-lang="en">Introduction</span><span data-lang="zh">介绍</span>
+          </a>
+          <a href="#why-fork">
+            <svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3v3a3 3 0 0 0 6 0V3M9 13v-4"/></svg>
+            <span data-lang="en">Why a fork?</span><span data-lang="zh">为什么 fork</span>
+          </a>
+          <a href="#install">
+            <svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"/></svg>
+            <span data-lang="en">Install</span><span data-lang="zh">安装</span>
+          </a>
+          <a href="#first-run">
+            <svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 4l5 4-5 4z"/></svg>
+            <span data-lang="en">First run</span><span data-lang="zh">首次运行</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="sb-group">
+        <div class="sb-head">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>
+          <span data-lang="en">Concepts</span><span data-lang="zh">核心概念</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg>
+        </div>
+        <div class="sb-list">
+          <a href="#blocks"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="2.5" width="5" height="5"/><rect x="8.5" y="2.5" width="5" height="5"/><rect x="2.5" y="8.5" width="5" height="5"/><rect x="8.5" y="8.5" width="5" height="5"/></svg><span>Blocks</span></a>
+          <a href="#workflows"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h10M3 8h10M3 12h6"/></svg><span data-lang="en">Workflows</span><span data-lang="zh">工作流</span></a>
+          <a href="#agent-loop"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 6a5 5 0 1 0-1 5"/><path d="M11 3v3h3"/></svg><span data-lang="en">Agent loop</span><span data-lang="zh">Agent 循环</span></a>
+        </div>
+      </div>
+
+      <div class="sb-group">
+        <div class="sb-head">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h7"/></svg>
+          <span data-lang="en">Providers</span><span data-lang="zh">Provider 配置</span>
+          <svg class="chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 5l3 3 3-3"/></svg>
+        </div>
+        <div class="sb-list">
+          <a href="#providers-overview"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/></svg><span data-lang="en">Overview</span><span data-lang="zh">总览</span></a>
+          <a href="#providers-protocols"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8h10M9 4l4 4-4 4"/></svg><span data-lang="en">Native protocols</span><span data-lang="zh">原生协议</span></a>
+          <a href="#providers-openai"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4l5-2 5 2v8l-5 2-5-2z"/></svg><span data-lang="en">OpenAI-compatible</span><span data-lang="zh">OpenAI 兼容</span></a>
+          <a href="#providers-deepseek"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11l5-6 5 6"/></svg><span>DeepSeek</span></a>
+          <a href="#providers-ollama"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="3"/><circle cx="8" cy="8" r="5.5"/></svg><span data-lang="en">Ollama (local)</span><span data-lang="zh">Ollama(本地)</span></a>
+        </div>
+      </div>
+
+      <div class="sb-group">
+        <div class="sb-head">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6l3 3 7-7"/><path d="M13 8v5H3V3h7"/></svg>
+          <span data-lang="en">SSH Manager</span><span data-lang="zh">SSH 管理</span>
+        </div>
+        <div class="sb-list">
+          <a href="#ssh-overview"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3.5" width="11" height="9" rx="1"/></svg><span data-lang="en">Overview</span><span data-lang="zh">总览</span></a>
+          <a href="#ssh-config"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 4l4 4-4 4M11 12h2"/></svg><span data-lang="en">Configuration</span><span data-lang="zh">配置</span></a>
+          <a href="#ssh-jump"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8h10M9 4l4 4-4 4"/></svg><span data-lang="en">Jump hosts</span><span data-lang="zh">跳板机</span></a>
+        </div>
+      </div>
+
+      <div class="sb-group">
+        <div class="sb-head">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h10v8H3z"/><path d="M3 5l5-3 5 3"/></svg>
+          <span data-lang="en">Privacy</span><span data-lang="zh">隐私</span>
+        </div>
+        <div class="sb-list">
+          <a href="#privacy-defaults"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M5 8l2 2 4-4"/></svg><span data-lang="en">Defaults</span><span data-lang="zh">默认设置</span></a>
+          <a href="#privacy-keys"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="10" r="2.5"/><path d="M8 8l5-5M11 5l1 1"/></svg><span data-lang="en">Keys on disk</span><span data-lang="zh">本地密钥</span></a>
+        </div>
+      </div>
+
+      <div class="sb-group">
+        <div class="sb-head">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="5.5"/><path d="M3 8c2-3 8-3 10 0M3 8c2 3 8 3 10 0"/></svg>
+          <span data-lang="en">Localization</span><span data-lang="zh">本地化</span>
+        </div>
+        <div class="sb-list">
+          <a href="#i18n"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 8h12M8 2v12"/></svg><span data-lang="en">EN / 简体中文</span><span data-lang="zh">英文 / 简体中文</span></a>
+          <a href="#i18n-contrib"><svg class="icn" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8l3 3 7-7"/></svg><span data-lang="en">Contribute a locale</span><span data-lang="zh">贡献语言包</span></a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main article -->
+    <main class="doc">
+      <div class="doc-toolbar">
+        <div class="crumbs">
+          <span data-lang="en">DOCS</span><span data-lang="zh">文档</span>
+          <span class="sep">/</span>
+          <span data-lang="en">Get Started</span><span data-lang="zh">快速开始</span>
+          <span class="sep">/</span>
+          <span class="here" data-lang="en">Introduction</span><span class="here" data-lang="zh">介绍</span>
+        </div>
+        <div class="doc-actions">
+          <button id="copy-md">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4.5" y="4.5" width="8" height="9" rx="1"/><path d="M3 11V3h7"/></svg>
+            <span data-lang="en">Copy MD</span><span data-lang="zh">复制 MD</span>
+          </button>
+          <a href="https://github.com/zerx-lab/warp" target="_blank" rel="noopener">
+            <span data-lang="en">Open in</span><span data-lang="zh">在</span>
+            <span style="margin-left:4px">GitHub</span>
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 8l4-4M4 4h4v4"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <h1 class="doc-title" data-lang="en">Introduction</h1>
+      <h1 class="doc-title" data-lang="zh">介绍</h1>
+      <p class="doc-lede" data-lang="en">OpenWarp is a community fork of Warp that keeps the full terminal experience and opens up the AI layer. This page covers what it is, what's different from upstream, and where to go next.</p>
+      <p class="doc-lede" data-lang="zh">OpenWarp 是 Warp 的社区 fork,完整保留终端体验,把 AI 层完全打开。这一页讲清楚:它是什么、与上游的差异、接下来该读什么。</p>
+
+      <h2 id="introduction" data-lang="en">What is OpenWarp?</h2>
+      <h2 id="introduction" data-lang="zh">OpenWarp 是什么</h2>
+      <p data-lang="en">OpenWarp is a Rust-based terminal that reuses the upstream Warp UI &mdash; <code>Blocks</code>, <code>Workflows</code>, command suggestions, the keymap layer &mdash; and replaces the closed AI gateway with explicit, local, editable plumbing. It is <strong>not</strong> the official Warp product, and it is not affiliated with Warp Inc.</p>
+      <p data-lang="zh">OpenWarp 是基于 Rust 的终端,复用上游 Warp 的 UI ── <code>Blocks</code>、<code>Workflows</code>、命令建议、keymap 层 ── 把封闭的 AI gateway 替换成显式、本地、可编辑的管线。它<strong>不是</strong>官方 Warp,也与 Warp Inc. 无任何关联。</p>
+
+      <div class="feat-grid">
+        <div class="cell">
+          <div class="ftitle" data-lang="en">Any provider</div>
+          <div class="ftitle" data-lang="zh">任意 Provider</div>
+          <div class="fdesc" data-lang="en">Any OpenAI Chat Completions compatible endpoint.</div>
+          <div class="fdesc" data-lang="zh">任意 OpenAI Chat Completions 兼容端点。</div>
+        </div>
+        <div class="cell">
+          <div class="ftitle" data-lang="en">Local credentials</div>
+          <div class="ftitle" data-lang="zh">本地凭证</div>
+          <div class="fdesc" data-lang="en">Stored only in <code>settings.toml</code>. Never leaves the device.</div>
+          <div class="fdesc" data-lang="zh">仅存于 <code>settings.toml</code>,永不离开本机。</div>
+        </div>
+        <div class="cell">
+          <div class="ftitle" data-lang="en">Editable prompts</div>
+          <div class="ftitle" data-lang="zh">可编辑 Prompt</div>
+          <div class="fdesc" data-lang="en">Templates render at request time &mdash; you own them.</div>
+          <div class="fdesc" data-lang="zh">请求时即时渲染 ── 模板归你所有。</div>
+        </div>
+        <div class="cell">
+          <div class="ftitle" data-lang="en">SSH manager</div>
+          <div class="ftitle" data-lang="zh">SSH 管理</div>
+          <div class="fdesc" data-lang="en">Built-in. Saved hosts, jump chains, Block-aware remote sessions.</div>
+          <div class="fdesc" data-lang="zh">内置。保存主机、跳板链、Block 感知的远端会话。</div>
+        </div>
+        <div class="cell">
+          <div class="ftitle" data-lang="en">Privacy first</div>
+          <div class="ftitle" data-lang="zh">Privacy first</div>
+          <div class="fdesc" data-lang="en">Cloud Agent, Computer Use, telemetry &mdash; off by default.</div>
+          <div class="fdesc" data-lang="zh">Cloud Agent、Computer Use、遥测 ── 默认关闭。</div>
+        </div>
+        <div class="cell">
+          <div class="ftitle" data-lang="en">i18n</div>
+          <div class="ftitle" data-lang="zh">本地化</div>
+          <div class="fdesc" data-lang="en">English + 简体中文 today, extension hooks for more.</div>
+          <div class="fdesc" data-lang="zh">现已内置英文与简体中文,可扩展。</div>
+        </div>
+      </div>
+
+      <h2 id="why-fork" data-lang="en">Why a fork?</h2>
+      <h2 id="why-fork" data-lang="zh">为什么 fork</h2>
+      <p data-lang="en">Upstream Warp routes AI traffic through its own gateway. That works for most people, but it doesn't work for users who want to bring their own keys, point at a self-hosted model, or audit the system prompt that's getting sent on their behalf. OpenWarp changes <em>five</em> things; everything else stays.</p>
+      <p data-lang="zh">上游 Warp 把 AI 流量经过自己的 gateway。对大部分人没问题,但对要自带 key、指向自托管模型、审计系统提示词的用户来说不够。OpenWarp 只改 <em>五件事</em>,其他全留。</p>
+
+      <table class="props">
+        <thead>
+          <tr>
+            <th data-lang="en">Dimension</th><th data-lang="zh">维度</th>
+            <th data-lang="en">Upstream Warp</th><th data-lang="zh">上游 Warp</th>
+            <th data-lang="en">OpenWarp</th><th data-lang="zh">OpenWarp</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="t" data-lang="en">AI provider</td><td class="t" data-lang="zh">AI 提供方</td>
+            <td class="d" data-lang="en">Cloud gateway</td><td class="d" data-lang="zh">云端 gateway</td>
+            <td class="d" data-lang="en">Any OpenAI-compatible endpoint</td><td class="d" data-lang="zh">任意 OpenAI 兼容端点</td>
+          </tr>
+          <tr>
+            <td class="t" data-lang="en">Credentials</td><td class="t" data-lang="zh">凭证</td>
+            <td class="d" data-lang="en">Cloud account</td><td class="d" data-lang="zh">云端账号</td>
+            <td class="d" data-lang="en">Local file only</td><td class="d" data-lang="zh">仅本地文件</td>
+          </tr>
+          <tr>
+            <td class="t" data-lang="en">System prompt</td><td class="t" data-lang="zh">系统提示词</td>
+            <td class="d" data-lang="en">Server-assembled</td><td class="d" data-lang="zh">服务端组装</td>
+            <td class="d" data-lang="en">Editable templates</td><td class="d" data-lang="zh">可编辑模板</td>
+          </tr>
+          <tr>
+            <td class="t" data-lang="en">SSH</td><td class="t" data-lang="zh">SSH</td>
+            <td class="d" data-lang="en">No first-class manager</td><td class="d" data-lang="zh">无内置管理器</td>
+            <td class="d" data-lang="en">Built-in SSH manager</td><td class="d" data-lang="zh">内置 SSH 管理器</td>
+          </tr>
+          <tr>
+            <td class="t" data-lang="en">Cloud features</td><td class="t" data-lang="zh">云端能力</td>
+            <td class="d" data-lang="en">On by default</td><td class="d" data-lang="zh">默认开启</td>
+            <td class="d" data-lang="en">Off by default</td><td class="d" data-lang="zh">默认关闭</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2 id="install" data-lang="en">Install</h2>
+      <h2 id="install" data-lang="zh">安装</h2>
+      <p data-lang="en">There are no binary installers yet &mdash; OpenWarp is in early development. Build from source via either the bootstrap script or cargo directly.</p>
+      <p data-lang="zh">目前没有发布安装包 ── OpenWarp 处于早期开发阶段。请从源码构建,推荐使用 bootstrap 脚本,也可以直接用 cargo。</p>
+
+      <div class="tabs-card">
+        <div class="tabs-bar" role="tablist">
+          <button class="active" data-tab="run">script/run</button>
+          <button data-tab="cargo">cargo</button>
+        </div>
+        <div class="tabs-pane" data-pane="run">
+          <pre class="code"><span class="com"># Clone &amp; bootstrap (recommended)</span>
+git clone https://github.com/zerx-lab/warp.git openwarp
+<span class="key">cd</span> openwarp
+
+<span class="com"># installs deps, builds dev profile, launches</span>
+./script/run</pre>
+        </div>
+        <div class="tabs-pane" data-pane="cargo" hidden>
+          <pre class="code"><span class="com"># OSS users only need this binary</span>
+git clone https://github.com/zerx-lab/warp.git openwarp
+<span class="key">cd</span> openwarp
+
+cargo run --release <span class="acc">--bin warp-oss</span></pre>
+        </div>
+      </div>
+
+      <div class="callout info">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="8" r="6"/><path d="M8 7v4M8 5h.01"/></svg>
+        <div>
+          <span data-lang="en"><strong>OSS users:</strong> <code>--bin warp-oss</code> is the binary without any cloud-bound features compiled in. It's the right target for self-hosters and most contributors.</span>
+          <span data-lang="zh"><strong>OSS 用户:</strong><code>--bin warp-oss</code> 是不带任何云端能力的 binary,自托管和大多数贡献者都用这个。</span>
+        </div>
+      </div>
+
+      <h2 id="first-run" data-lang="en">First run</h2>
+      <h2 id="first-run" data-lang="zh">首次运行</h2>
+      <p data-lang="en">After launch, open <code>Settings → Agents → Providers</code> and add at least one provider. The minimal config looks like this:</p>
+      <p data-lang="zh">启动后,打开 <code>设置 → Agents → 提供商</code>,至少添加一个 provider。最小配置如下:</p>
+
+      <div class="code-card">
+        <div class="code-head">
+          <span class="dot"></span>
+          <span class="file mono">~/.config/openwarp/settings.toml</span>
+          <span class="lang-tag">TOML</span>
+          <button class="copy" data-copy>Copy</button>
+        </div>
+        <pre class="code"><span class="com"># Pick any OpenAI-compatible endpoint</span>
+<span class="key">[providers.deepseek]</span>
+base_url = <span class="str">"https://api.deepseek.com/v1"</span>
+protocol = <span class="str">"deepseek"</span>     <span class="com"># or: openai, anthropic, gemini, ollama</span>
+api_key  = <span class="str">"sk-•••"</span>          <span class="com"># stored locally, never sent home</span>
+
+<span class="key">[[providers.deepseek.models]]</span>
+display = <span class="str">"DeepSeek V4 Pro"</span>
+id      = <span class="str">"deepseek-v4-pro"</span>
+context = <span class="num">1000000</span>
+output  = <span class="num">384000</span></pre>
+      </div>
+
+      <p class="muted" data-lang="en">Hit <code>⌘P</code> to switch model, <code>/</code> to open the slash menu, <code>⌃⇧+</code> to enter code review.</p>
+      <p class="muted" data-lang="zh">按 <code>⌘P</code> 切换模型,<code>/</code> 打开 slash 菜单,<code>⌃⇧+</code> 进入代码评审。</p>
+
+      <h2 id="ssh-config" data-lang="en">SSH manager</h2>
+      <h2 id="ssh-config" data-lang="zh">SSH 管理器</h2>
+      <p data-lang="en">OpenWarp adds a first-class SSH manager &mdash; net-new on top of upstream. Hosts live in their own file, jump-host chains are supported, and the remote session renders as Blocks just like a local shell.</p>
+      <p data-lang="zh">OpenWarp 在上游基础上新增了一等公民的 SSH 管理器。主机定义放在独立文件,支持跳板机链路,远端会话同样以 Blocks 形式呈现,体验与本地 shell 一致。</p>
+
+      <div class="code-card">
+        <div class="code-head">
+          <span class="dot"></span>
+          <span class="file mono">~/.config/openwarp/ssh.toml</span>
+          <span class="lang-tag">TOML</span>
+          <button class="copy" data-copy>Copy</button>
+        </div>
+        <pre class="code"><span class="key">[host.bastion]</span>
+user = <span class="str">"ops"</span>
+host = <span class="str">"bastion.example.com"</span>
+port = <span class="num">22</span>
+
+<span class="key">[host.prod-edge]</span>
+user = <span class="str">"deploy"</span>
+host = <span class="str">"edge-01.lan"</span>
+jump = <span class="str">"bastion"</span>           <span class="com"># chain through bastion</span>
+forward_agent = <span class="acc">true</span></pre>
+      </div>
+
+      <div class="callout warn">
+        <svg class="ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 2l6 11H2z"/><path d="M8 6v3M8 11h.01"/></svg>
+        <div>
+          <span data-lang="en">SSH credentials are read from your existing <code>~/.ssh</code> &mdash; OpenWarp does not duplicate them or upload them anywhere. The <code>ssh.toml</code> file holds <em>connection metadata only</em>.</span>
+          <span data-lang="zh">SSH 凭证沿用你现有的 <code>~/.ssh</code> ── OpenWarp 不复制、不上传。<code>ssh.toml</code> 只保存<em>连接元数据</em>。</span>
+        </div>
+      </div>
+
+      <h2 id="privacy-defaults" data-lang="en">Privacy defaults</h2>
+      <h2 id="privacy-defaults" data-lang="zh">隐私默认</h2>
+      <p data-lang="en">Anything that touches Warp's servers ships disabled. To verify, the matrix below is checked against a fresh install:</p>
+      <p data-lang="zh">任何牵涉 Warp 云端的能力默认关闭。下表是全新安装后的实际状态:</p>
+
+      <table class="props">
+        <thead><tr><th data-lang="en">Setting</th><th data-lang="zh">设置项</th><th data-lang="en">Default</th><th data-lang="zh">默认</th></tr></thead>
+        <tbody>
+          <tr><td class="k">cloud_agent</td><td class="d" data-lang="en">Off</td><td class="d" data-lang="zh">关闭</td></tr>
+          <tr><td class="k">computer_use</td><td class="d" data-lang="en">Off</td><td class="d" data-lang="zh">关闭</td></tr>
+          <tr><td class="k">telemetry</td><td class="d" data-lang="en">Off</td><td class="d" data-lang="zh">关闭</td></tr>
+          <tr><td class="k">referral</td><td class="d" data-lang="en">Off</td><td class="d" data-lang="zh">关闭</td></tr>
+          <tr><td class="k">api_keys.location</td><td class="d mono" style="font-family:'Geist Mono',monospace">~/.config/openwarp/settings.toml</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="i18n" data-lang="en">Localization</h2>
+      <h2 id="i18n" data-lang="zh">本地化</h2>
+      <p data-lang="en">English and Simplified Chinese ship in-tree. The locale switcher is in <code>Settings → Appearance → Language</code>; restart OpenWarp for the change to take full effect.</p>
+      <p data-lang="zh">英文与简体中文随发行包一起提供。语言切换位于 <code>设置 → 外观 → 语言</code>;切换后需要重启 OpenWarp 完全生效。</p>
+
+      <div class="pager">
+        <a href="#why-fork">
+          <div class="lbl" data-lang="en">← Previous</div><div class="lbl" data-lang="zh">← 上一篇</div>
+          <div class="ttl" data-lang="en">Why a fork?</div><div class="ttl" data-lang="zh">为什么 fork</div>
+        </a>
+        <a class="next" href="#install">
+          <div class="lbl" data-lang="en">Next →</div><div class="lbl" data-lang="zh">下一篇 →</div>
+          <div class="ttl" data-lang="en">Install</div><div class="ttl" data-lang="zh">安装</div>
+        </a>
+      </div>
+    </main>
+
+    <!-- TOC -->
+    <aside class="toc">
+      <div class="toc-head">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h10M3 8h10M3 12h7"/></svg>
+        <span data-lang="en">On this page</span><span data-lang="zh">本页内容</span>
+      </div>
+      <a href="#introduction" class="active" data-lang="en">What is OpenWarp?</a><a href="#introduction" class="active" data-lang="zh">OpenWarp 是什么</a>
+      <a href="#why-fork" data-lang="en">Why a fork?</a><a href="#why-fork" data-lang="zh">为什么 fork</a>
+      <a href="#install" data-lang="en">Install</a><a href="#install" data-lang="zh">安装</a>
+      <a href="#first-run" data-lang="en">First run</a><a href="#first-run" data-lang="zh">首次运行</a>
+      <a href="#ssh-config" data-lang="en">SSH manager</a><a href="#ssh-config" data-lang="zh">SSH 管理器</a>
+      <a href="#privacy-defaults" data-lang="en">Privacy defaults</a><a href="#privacy-defaults" data-lang="zh">隐私默认</a>
+      <a href="#i18n" data-lang="en">Localization</a><a href="#i18n" data-lang="zh">本地化</a>
+    </aside>
+  </div>
+
+<script>
+(function () {
+  function detectLocale() {
+    var saved = localStorage.getItem('openwarp:locale');
+    if (saved === 'en' || saved === 'zh') return saved;
+    var n = (navigator.language || 'en').toLowerCase();
+    return n.startsWith('zh') ? 'zh' : 'en';
+  }
+  function setLocale(l) {
+    document.body.dataset.locale = l;
+    document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+    localStorage.setItem('openwarp:locale', l);
+    document.querySelectorAll('.lang button').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-set-lang') === l);
+    });
+  }
+  setLocale(detectLocale());
+  document.querySelectorAll('.lang button').forEach(function (b) {
+    b.addEventListener('click', function () { setLocale(b.getAttribute('data-set-lang')); });
+  });
+
+  // Tabs
+  document.querySelectorAll('.tabs-bar').forEach(function (bar) {
+    var card = bar.parentElement;
+    bar.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var name = b.getAttribute('data-tab');
+        bar.querySelectorAll('button').forEach(function (x) { x.classList.toggle('active', x === b); });
+        card.querySelectorAll('[data-pane]').forEach(function (p) {
+          p.hidden = p.getAttribute('data-pane') !== name;
+        });
+      });
+    });
+  });
+
+  // Copy buttons
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.closest('.code-card').querySelector('pre.code');
+      navigator.clipboard && navigator.clipboard.writeText(pre.innerText);
+      btn.textContent = document.body.dataset.locale === 'zh' ? '已复制' : 'Copied';
+      btn.classList.add('copied');
+      setTimeout(function () {
+        btn.textContent = document.body.dataset.locale === 'zh' ? '复制' : 'Copy';
+        btn.classList.remove('copied');
+      }, 1400);
+    });
+  });
+
+  // TOC active on scroll
+  var headings = Array.from(document.querySelectorAll('main.doc h2[id]'));
+  var tocLinks = Array.from(document.querySelectorAll('aside.toc a'));
+  function updateActive() {
+    var y = window.scrollY + 120;
+    var current = headings[0];
+    headings.forEach(function (h) { if (h.offsetTop <= y) current = h; });
+    if (!current) return;
+    tocLinks.forEach(function (a) {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current.id);
+    });
+  }
+  document.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+})();
+</script>
+</body>
+</html>

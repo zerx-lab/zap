@@ -94,12 +94,12 @@ impl StringModel for AgentConfig {
         &self,
         revision_ts: Option<Revision>,
         object: &CloudAgentConfig,
-    ) -> QueueItem {
-        QueueItem::UpdateCloudAgentConfig {
+    ) -> Option<QueueItem> {
+        Some(QueueItem::UpdateCloudAgentConfig {
             model: object.model().clone().into(),
             id: object.id,
             revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
+        })
     }
 
     fn uniqueness_key(&self) -> Option<GenericStringObjectUniqueKey> {

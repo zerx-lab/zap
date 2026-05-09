@@ -5,9 +5,7 @@ use crate::pane_group::pane::ActionOrigin;
 use crate::{
     appearance::Appearance,
     pane_group::{Direction, SplitPaneState, TabBarHoverIndex},
-    server::telemetry::SharingDialogSource,
     settings::{PaneSettings, PaneSettingsChangedEvent},
-    util::bindings::CustomAction,
 };
 
 use super::{
@@ -20,7 +18,6 @@ use warpui::{
         Border, Container, DropTarget, DropTargetData, Flex, MainAxisSize, ParentElement,
         SavePosition, Shrinkable,
     },
-    keymap::EditableBinding,
     presenter::ChildView,
     AppContext, Element, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
     ViewHandle,
@@ -34,18 +31,8 @@ pub use header_content::{
     HeaderContent, HeaderRenderContext, StandardHeader, StandardHeaderOptions,
 };
 
-const HAS_SHARED_OBJECT_CONTEXT_KEY: &str = "PaneView_HasSharedObject";
-
-pub fn init(app: &mut AppContext) {
-    use warpui::keymap::macros::*;
-
-    app.register_editable_bindings([EditableBinding::new(
-        "pane:share_pane_contents",
-        crate::t!("keybinding-desc-pane-share-pane"),
-        PaneAction::ShareContents,
-    )
-    .with_custom_action(CustomAction::SharePaneContents)
-    .with_context_predicate(id!("PaneView") & id!(HAS_SHARED_OBJECT_CONTEXT_KEY))]);
+pub fn init(_app: &mut AppContext) {
+    // OpenWarp Phase 2a: pane:share_pane_contents keybinding removed (sharing UI gone).
 }
 
 pub enum PaneViewEvent {
@@ -67,9 +54,7 @@ pub enum PaneViewEvent {
 }
 
 #[derive(Debug, Clone)]
-pub enum PaneAction {
-    ShareContents,
-}
+pub enum PaneAction {}
 
 impl<P: BackingView> Entity for PaneView<P> {
     type Event = PaneViewEvent;
@@ -241,16 +226,6 @@ impl<P: BackingView> PaneView<P> {
                     header.set_toolbelt_buttons(buttons, ctx);
                 });
                 ctx.notify();
-            }
-            PaneConfigurationEvent::ShareableObjectChanged(object) => {
-                self.header.update(ctx, |header, ctx| {
-                    header.set_shareable_object(object.clone(), ctx);
-                });
-            }
-            PaneConfigurationEvent::ToggleSharingDialog(source) => {
-                self.header.update(ctx, |header, ctx| {
-                    header.share_pane_contents(*source, ctx);
-                });
             }
             _ => {}
         }
@@ -425,24 +400,16 @@ impl<P: BackingView> View for PaneView<P> {
         .finish()
     }
 
-    fn keymap_context(&self, ctx: &AppContext) -> warpui::keymap::Context {
-        let mut keymap_context = Self::default_keymap_context();
-        if self.header.as_ref(ctx).is_sharing_dialog_enabled(ctx) {
-            keymap_context.set.insert(HAS_SHARED_OBJECT_CONTEXT_KEY);
-        }
-        keymap_context
+    fn keymap_context(&self, _ctx: &AppContext) -> warpui::keymap::Context {
+        Self::default_keymap_context()
     }
 }
 
 impl<P: BackingView> TypedActionView for PaneView<P> {
     type Action = PaneAction;
 
-    fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        match action {
-            PaneAction::ShareContents => self.header.update(ctx, |header, ctx| {
-                header.share_pane_contents(SharingDialogSource::CommandPalette, ctx);
-            }),
-        }
+    fn handle_action(&mut self, action: &Self::Action, _ctx: &mut ViewContext<Self>) {
+        match *action {}
     }
 }
 

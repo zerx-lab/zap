@@ -606,10 +606,9 @@ fn make_new_drive_menu(ctx: &AppContext) -> Menu {
         updateable_custom_item_without_checkmark(CustomAction::OpenMCPServerCollection, ctx),
     ]);
 
-    items.push(updateable_custom_item_without_checkmark(
-        CustomAction::SharePaneContents,
-        ctx,
-    ));
+    // OpenWarp Phase 2a: removed `Share pane contents` menu item (cloud
+    // sharing UI gone) — keeping the entry would render a clickable menu
+    // item that does nothing.
 
     Menu::new("Drive", items)
 }

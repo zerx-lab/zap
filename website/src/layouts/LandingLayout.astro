@@ -1,0 +1,183 @@
+---
+import '../styles/landing.css';
+import I18nScript from '../components/I18nScript.astro';
+import Banner from '../components/Banner.astro';
+import LandingNav from '../components/LandingNav.astro';
+import LandingFooter from '../components/LandingFooter.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+const {
+  title = 'OpenWarp — Bring any AI model into your terminal',
+  description = 'A community fork of Warp that keeps the full terminal experience and opens the AI layer.',
+} = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body data-locale="en">
+    <I18nScript />
+    <Banner
+      en="Early development · Unofficial fork of Warp · Not affiliated with Warp Inc."
+      zh="早期开发阶段 · Warp 的非官方社区分支 · 与 Warp Inc. 无隶属关系"
+    />
+    <LandingNav />
+
+    <slot />
+
+    <LandingFooter />
+
+    <script>
+      // Locale switching, lang pill, in-page nav, tab + copy widgets, scroll fade-in
+      (function () {
+        function applyLocale(l: string) {
+          document.body.dataset.locale = l;
+          document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+          document.querySelectorAll('.lang button').forEach((b) => {
+            b.classList.toggle('active', (b as HTMLElement).getAttribute('data-set-lang') === l);
+          });
+          positionPill();
+        }
+        function setLocale(l: string) {
+          // Only persist when the user explicitly chose a language; auto-detection
+          // should keep following the OS / browser on subsequent visits.
+          localStorage.setItem('openwarp:locale', l);
+          applyLocale(l);
+        }
+        function positionPill() {
+          document.querySelectorAll<HTMLElement>('.lang').forEach((lang) => {
+            const a = lang.querySelector<HTMLElement>('button.active');
+            if (!a) return;
+            lang.style.setProperty('--lp-x', a.offsetLeft + 'px');
+            lang.style.setProperty('--lp-w', a.offsetWidth + 'px');
+          });
+        }
+        const initialLocale = (document.body.dataset.locale as string) || 'en';
+        applyLocale(initialLocale);
+        window.addEventListener('load', positionPill);
+        window.addEventListener('resize', positionPill);
+        document.querySelectorAll<HTMLButtonElement>('.lang button').forEach((b) => {
+          b.addEventListener('click', () => setLocale(b.getAttribute('data-set-lang') || 'en'));
+        });
+
+        // Header scroll shadow
+        const navEl = document.querySelector('header.nav');
+        function onScroll() {
+          if (navEl) navEl.classList.toggle('scrolled', window.scrollY > 8);
+        }
+        document.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+
+        // Mobile nav toggle
+        const toggle = document.querySelector<HTMLButtonElement>('.nav-toggle');
+        const links = document.getElementById('primary-nav');
+        if (toggle && links) {
+          toggle.addEventListener('click', () => {
+            const open = links.classList.toggle('open');
+            toggle.setAttribute('aria-expanded', String(open));
+          });
+          links.querySelectorAll('a').forEach((a) =>
+            a.addEventListener('click', () => {
+              links.classList.remove('open');
+              toggle.setAttribute('aria-expanded', 'false');
+            }),
+          );
+        }
+
+        // Smooth in-page nav
+        document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((a) => {
+          a.addEventListener('click', (e) => {
+            const id = a.getAttribute('href')?.slice(1);
+            const t = id ? document.getElementById(id) : null;
+            if (!t) return;
+            e.preventDefault();
+            window.scrollTo({ top: t.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+          });
+        });
+
+        // Provider tabs (animated rail)
+        document.querySelectorAll<HTMLElement>('.prov-tabs').forEach((tabs) => {
+          const rail = tabs.querySelector<HTMLElement>('[data-prov-rail]');
+          const moveRail = (b: HTMLButtonElement) => {
+            if (!rail) return;
+            const r = b.getBoundingClientRect();
+            const t = tabs.getBoundingClientRect();
+            rail.style.width = `${r.width}px`;
+            rail.style.transform = `translateX(${r.left - t.left - 4}px)`;
+          };
+          const buttons = tabs.querySelectorAll<HTMLButtonElement>('button');
+          const initial = tabs.querySelector<HTMLButtonElement>('button.active') ?? buttons[0];
+          if (initial) requestAnimationFrame(() => moveRail(initial));
+          window.addEventListener('resize', () => {
+            const a = tabs.querySelector<HTMLButtonElement>('button.active');
+            if (a) moveRail(a);
+          });
+          buttons.forEach((b) => {
+            b.addEventListener('click', () => {
+              const name = b.getAttribute('data-pf');
+              buttons.forEach((x) => x.classList.toggle('active', x === b));
+              moveRail(b);
+              document.querySelectorAll<HTMLElement>('[data-pf-pane]').forEach((p) => {
+                p.hidden = p.getAttribute('data-pf-pane') !== name;
+              });
+            });
+          });
+        });
+
+        // Install tabs
+        document.querySelectorAll<HTMLElement>('.install-tabs').forEach((tabs) => {
+          tabs.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+            b.addEventListener('click', () => {
+              const name = b.getAttribute('data-tab');
+              tabs.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+              const card = tabs.parentElement;
+              card?.querySelectorAll<HTMLElement>('[data-pane]').forEach((p) => {
+                p.hidden = p.getAttribute('data-pane') !== name;
+              });
+            });
+          });
+        });
+
+        // Copy buttons
+        document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const pre = btn.closest('.pre-wrap, .code-card')?.querySelector<HTMLElement>('pre.code');
+            if (pre && navigator.clipboard) navigator.clipboard.writeText(pre.innerText);
+            const prev = btn.textContent;
+            btn.textContent = document.body.dataset.locale === 'zh' ? '已复制' : 'Copied';
+            btn.classList.add('copied');
+            setTimeout(() => {
+              btn.textContent = prev;
+              btn.classList.remove('copied');
+            }, 1400);
+          });
+        });
+
+        // Scroll fade-in
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                e.target.classList.add('in');
+                io.unobserve(e.target);
+              }
+            });
+          },
+          { rootMargin: '0px 0px -10% 0px', threshold: 0.05 },
+        );
+        document.querySelectorAll('.fade-in').forEach((el) => io.observe(el));
+      })();
+    </script>
+  </body>
+</html>

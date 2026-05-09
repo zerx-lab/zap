@@ -1,11 +1,34 @@
-use crate::ai::active_agent_views_model::ConversationOrTaskId;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::{
     AgentConversationsModel, AgentConversationsModelEvent, AgentManagementFilters, ArtifactFilter,
     ConversationOrTask, CreatedOnFilter, CreatorFilter, OwnerFilter, SessionStatus, SourceFilter,
     StatusFilter,
 };
+use crate::ai::ambient_agents::AmbientAgentTaskId;
 use fuzzy_match::match_indices_case_insensitive;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConversationOrTaskId {
+    ConversationId(AIConversationId),
+    TaskId(AmbientAgentTaskId),
+}
+
+impl ConversationOrTaskId {
+    pub fn conversation_id(&self) -> Option<AIConversationId> {
+        match self {
+            ConversationOrTaskId::ConversationId(id) => Some(*id),
+            ConversationOrTaskId::TaskId(_) => None,
+        }
+    }
+
+    pub fn task_id(&self) -> Option<AmbientAgentTaskId> {
+        match self {
+            ConversationOrTaskId::TaskId(id) => Some(*id),
+            ConversationOrTaskId::ConversationId(_) => None,
+        }
+    }
+}
 
 pub struct ConversationListViewModelEvent;
 

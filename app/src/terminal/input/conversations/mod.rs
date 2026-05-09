@@ -10,7 +10,6 @@ use pathfinder_color::ColorU;
 use warp_core::ui::appearance::Appearance;
 use warpui::{keymap::Keystroke, SingletonEntity};
 
-use crate::ai::active_agent_views_model::{ActiveAgentViewsModel, ConversationOrTaskId};
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::terminal::input::inline_menu::{
     default_navigation_message_items, InlineMenuAction, InlineMenuMessageArgs, InlineMenuRowAction,
@@ -46,17 +45,7 @@ impl InlineMenuAction for AcceptConversation {
 
         if let Some(item) = inline_menu_model.selected_item() {
             let data = &item.navigation_data;
-
-            let active_ids =
-                ActiveAgentViewsModel::as_ref(app).get_all_active_conversation_ids(app);
-            let is_active = active_ids.contains(&ConversationOrTaskId::ConversationId(data.id));
-
-            let text = if is_active {
-                " go to conversation"
-            } else {
-                " continue in this pane"
-            };
-
+            let text = " continue in this pane";
             let navigation_data = data.clone();
             items.push(MessageItem::clickable(
                 vec![

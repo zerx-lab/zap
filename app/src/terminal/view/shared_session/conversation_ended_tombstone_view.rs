@@ -1,5 +1,4 @@
 use crate::ai::agent::conversation::AIConversationId;
-use crate::ai::agent_management::telemetry::{AgentManagementTelemetryEvent, ArtifactType};
 use crate::ai::ambient_agents::{
     conversation_output_status_from_conversation, AmbientAgentTaskId, AmbientConversationStatus,
 };
@@ -20,7 +19,6 @@ use warp_core::paths::home_relative_path;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::ambient_agents::AmbientAgentTask;
-use warp_core::send_telemetry_from_ctx;
 use warp_core::ui::icons::Icon;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
 use warpui::elements::{
@@ -246,47 +244,23 @@ impl ConversationEndedTombstoneView {
             &view.artifact_buttons_view,
             |_, _, event, ctx| match event {
                 ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
-                    send_telemetry_from_ctx!(
-                        AgentManagementTelemetryEvent::TombstoneArtifactClicked {
-                            artifact_type: ArtifactType::Plan
-                        },
-                        ctx
-                    );
                     ctx.dispatch_typed_action(&WorkspaceAction::OpenNotebook {
                         id: SyncId::ServerId((*notebook_uid).into()),
                     });
                 }
                 ArtifactButtonsRowEvent::CopyBranch { branch } => {
-                    send_telemetry_from_ctx!(
-                        AgentManagementTelemetryEvent::TombstoneArtifactClicked {
-                            artifact_type: ArtifactType::Branch
-                        },
-                        ctx
-                    );
                     ctx.clipboard()
                         .write(warpui::clipboard::ClipboardContent::plain_text(
                             branch.clone(),
                         ));
                 }
                 ArtifactButtonsRowEvent::OpenPullRequest { url } => {
-                    send_telemetry_from_ctx!(
-                        AgentManagementTelemetryEvent::TombstoneArtifactClicked {
-                            artifact_type: ArtifactType::PullRequest
-                        },
-                        ctx
-                    );
                     ctx.open_url(url);
                 }
                 ArtifactButtonsRowEvent::ViewScreenshots { artifact_uids } => {
                     crate::ai::artifacts::open_screenshot_lightbox(artifact_uids, ctx);
                 }
                 ArtifactButtonsRowEvent::DownloadFile { artifact_uid } => {
-                    send_telemetry_from_ctx!(
-                        AgentManagementTelemetryEvent::TombstoneArtifactClicked {
-                            artifact_type: ArtifactType::File
-                        },
-                        ctx
-                    );
                     crate::ai::artifacts::download_file_artifact(artifact_uid, ctx);
                 }
             },
@@ -601,17 +575,12 @@ impl TypedActionView for ConversationEndedTombstoneView {
         match action {
             #[cfg(not(target_family = "wasm"))]
             ConversationEndedTombstoneAction::ContinueLocally(conversation_id) => {
-                send_telemetry_from_ctx!(
-                    AgentManagementTelemetryEvent::TombstoneContinueLocally,
-                    ctx
-                );
                 ctx.dispatch_typed_action(&WorkspaceAction::ContinueConversationLocally {
                     conversation_id: *conversation_id,
                 });
             }
             #[cfg(target_family = "wasm")]
             ConversationEndedTombstoneAction::OpenInWarp(conversation_id) => {
-                send_telemetry_from_ctx!(AgentManagementTelemetryEvent::TombstoneOpenInWarp, ctx);
                 let conversation = BlocklistAIHistoryModel::handle(ctx)
                     .as_ref(ctx)
                     .conversation(conversation_id);

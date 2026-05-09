@@ -32,7 +32,7 @@ use crate::{
         cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager},
         ids::{ClientId, ObjectUid, ServerId, SyncId},
         sync_queue::SyncQueue,
-        telemetry::{SharingDialogSource, TelemetryEvent},
+        telemetry::TelemetryEvent,
     },
     settings::app_installation_detection::{UserAppInstallDetectionSettings, UserAppInstallStatus},
     ui_components::{
@@ -67,10 +67,7 @@ use super::{
         WarpDriveItemId,
     },
     settings::WarpDriveSettings,
-    sharing::{
-        dialog::{SharingDialog, SharingDialogEvent},
-        ContentEditability, ShareableObject,
-    },
+    sharing::ContentEditability,
     CloudObjectTypeAndId, DriveObjectType, DriveSortOrder,
 };
 use crate::drive::panel::DrivePanelAction;
@@ -233,9 +230,6 @@ pub enum DriveIndexAction {
     ToggleSortingMenu,
     ToggleItemOverflowMenu {
         space: Space,
-        warp_drive_item_id: WarpDriveItemId,
-    },
-    ToggleShareDialog {
         warp_drive_item_id: WarpDriveItemId,
     },
     ToggleSpaceOverflowMenu {
@@ -474,13 +468,10 @@ pub struct DriveIndex {
     /// default, should get the menu fields on open, example: + button to add notebook)
     menu: ViewHandle<Menu<DriveIndexAction>>,
 
-    sharing_dialog: ViewHandle<SharingDialog>,
     /// Variant of the index, determines whether base Warp Drive or trash is viewed.
     index_variant: DriveIndexVariant,
     /// If None, the context menu is closed. Otherwise, this contains the ID of the object it's open on.
     menu_object_id_if_open: Option<WarpDriveItemId>,
-    /// If Some, the share dialog is open for the given object.
-    share_dialog_open_for_object: Option<WarpDriveItemId>,
     sections: Vec<DriveIndexSection>,
     /// Selected represents an object that is open in the active pane
     selected: Option<WarpDriveItemId>,
@@ -902,11 +893,6 @@ impl DriveIndex {
             ctx.notify();
         });
 
-        let sharing_dialog = ctx.add_typed_action_view(|ctx| SharingDialog::new(None, ctx));
-        ctx.subscribe_to_view(&sharing_dialog, |me, _, event, ctx| {
-            me.handle_sharing_dialog_event(event, ctx);
-        });
-
         let workspace_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(400.);
@@ -950,7 +936,6 @@ impl DriveIndex {
         Self {
             window_id: ctx.window_id(),
             menu,
-            sharing_dialog,
             index_variant: DriveIndexVariant::MainIndex,
             menu_object_id_if_open: None,
             sections: Default::default(),
@@ -972,7 +957,6 @@ impl DriveIndex {
             ordered_items: Default::default(),
             has_initialized_sections: Default::default(),
             num_errored_objects: Default::default(),
-            share_dialog_open_for_object: None,
             should_show_personal_object_limit_status: true,
             workspace_dropdown,
             ai_fact_collection,
@@ -1125,19 +1109,6 @@ impl DriveIndex {
             if !*via_select_item {
                 ctx.emit(DriveIndexEvent::FocusWarpDrive);
                 self.reset_focused_index_in_warp_drive(false, ctx);
-            }
-        }
-    }
-
-    fn handle_sharing_dialog_event(
-        &mut self,
-        event: &SharingDialogEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            SharingDialogEvent::Close => {
-                self.share_dialog_open_for_object = None;
-                ctx.notify();
             }
         }
     }
@@ -2633,10 +2604,10 @@ impl DriveIndex {
         let warp_drive_item_id = WarpDriveItemId::Object(row_object_id);
         let access_level = CloudViewModel::as_ref(app).access_level(&row_object_id.uid(), app);
 
-        let share_dialog_open = self.share_dialog_open_for_object == Some(warp_drive_item_id);
-        // If the share dialog is open, we don't want to open the menu for the same object.
-        let menu_open =
-            self.menu_object_id_if_open == Some(warp_drive_item_id) && !share_dialog_open;
+        // OpenWarp Phase 2a: sharing dialog removed; pass `false` for the
+        // legacy `share_dialog_open` slot in `WarpDriveRow::new_from_cloud_object`.
+        let share_dialog_open = false;
+        let menu_open = self.menu_object_id_if_open == Some(warp_drive_item_id);
         let can_move = self.online_only_operation_allowed(&row_object_id, app)
             && matches!(self.index_variant, DriveIndexVariant::MainIndex)
             && access_level.can_move_drive();
@@ -2687,13 +2658,6 @@ impl DriveIndex {
                 ConstrainedBox::new(self.cloud_object_naming_dialog.render(appearance, app))
                     .with_max_width(CLOUD_OBJECT_DIALOG_WIDTH)
                     .finish(),
-                row_position_id.as_str(),
-                app,
-            );
-        } else if share_dialog_open {
-            self.add_dialog_to_stack(
-                &mut stack,
-                ChildView::new(&self.sharing_dialog).finish(),
                 row_position_id.as_str(),
                 app,
             );
@@ -3785,14 +3749,17 @@ impl DriveIndex {
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             for object in cloud_model.cloud_objects_mut() {
                 if object.metadata().is_errored() {
-                    let queue_item = object
+                    let Some(queue_item) = object
                         .create_object_queue_item(
                             CloudObjectEventEntrypoint::default(),
                             // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
                             // It can be changed to InitiatedBy::System if this action was automatically kicked off and does not require toasts to notify the user of completion.
                             InitiatedBy::User,
                         )
-                        .unwrap_or(object.update_object_queue_item(None));
+                        .or_else(|| object.update_object_queue_item(None))
+                    else {
+                        continue;
+                    };
                     object.set_pending_content_changes_status(CloudObjectSyncStatus::InFlight(
                         NumInFlightRequests(1),
                     ));
@@ -4384,16 +4351,10 @@ impl DriveIndex {
                                 .with_icon(Icon::Link)
                                 .into_item(),
                         );
-                        if editability.can_edit() {
-                            menu_items.push(
-                                MenuItemFields::new(crate::t!("drive-share"))
-                                    .with_on_select_action(DriveIndexAction::ToggleShareDialog {
-                                        warp_drive_item_id: *warp_drive_item_id,
-                                    })
-                                    .with_icon(Icon::Share)
-                                    .into_item(),
-                            );
-                        }
+                        // TODO(openwarp-cloud-removal Phase 5): `editability` 在此处只剩
+                        // 用于决定 share 菜单可见性。share 菜单已删,但 editability 仍是
+                        // CloudObject 权限模型的一部分,保留以待 cloud_object 整体退役。
+                        let _ = editability;
                     }
                 }
 
@@ -4616,16 +4577,7 @@ impl DriveIndex {
                                     .into_item(),
                             );
                         }
-                        if editability.can_edit() {
-                            menu_items.push(
-                                MenuItemFields::new(crate::t!("drive-share"))
-                                    .with_on_select_action(DriveIndexAction::ToggleShareDialog {
-                                        warp_drive_item_id: *warp_drive_item_id,
-                                    })
-                                    .with_icon(Icon::Share)
-                                    .into_item(),
-                            );
-                        }
+                        // OpenWarp Phase 2a: drive-share menu item removed (sharing dialog gone).
                         if !warpui::platform::is_mobile_device()
                             && !ContextFlag::HideOpenOnDesktopButton.is_enabled()
                             && *UserAppInstallDetectionSettings::as_ref(app)
@@ -4797,43 +4749,6 @@ impl DriveIndex {
 
         self.menu_object_id_if_open = Some(*warp_drive_item_id);
         ctx.focus(&self.menu);
-        ctx.notify();
-    }
-
-    pub fn toggle_share_dialog(
-        &mut self,
-        warp_drive_item_id: &WarpDriveItemId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let WarpDriveItemId::Object(cloud_object_type_and_id) = warp_drive_item_id else {
-            return;
-        };
-
-        if self.auth_state.is_anonymous_or_logged_out() {
-            AuthManager::handle(ctx).update(ctx, |auth_manager, ctx| {
-                auth_manager.attempt_login_gated_feature(
-                    "Share Object",
-                    AuthViewVariant::ShareRequirementCloseable,
-                    ctx,
-                )
-            });
-            return;
-        }
-
-        self.reset_menus(ctx);
-        if let Some(server_id) = cloud_object_type_and_id.server_id() {
-            self.share_dialog_open_for_object = Some(*warp_drive_item_id);
-            self.sharing_dialog.update(ctx, |sharing_dialog, ctx| {
-                sharing_dialog.set_target(Some(ShareableObject::WarpDriveObject(server_id)), ctx);
-                if let Some(invitee_email) = invitee_email {
-                    sharing_dialog.add_invitee_email(invitee_email, ctx);
-                }
-                sharing_dialog.report_open(source, ctx);
-            });
-            ctx.focus(&self.sharing_dialog);
-        }
         ctx.notify();
     }
 
@@ -5012,8 +4927,7 @@ impl View for DriveIndex {
 
         // Disable WD Vim keybindings when a dialog is open
         // because it interferes with the ability to type all letters.
-        if self.cloud_object_naming_dialog.is_open() || self.share_dialog_open_for_object.is_some()
-        {
+        if self.cloud_object_naming_dialog.is_open() {
             context.set.insert("DisableDriveIndexVimKeybindings");
         }
 
@@ -5545,14 +5459,6 @@ impl TypedActionView for DriveIndex {
                 UserWorkspaces::handle(ctx).update(ctx, move |user_workspaces, ctx| {
                     user_workspaces.generate_stripe_billing_portal_link(*team_uid, ctx);
                 });
-            }
-            DriveIndexAction::ToggleShareDialog { warp_drive_item_id } => {
-                self.toggle_share_dialog(
-                    warp_drive_item_id,
-                    None,
-                    SharingDialogSource::DriveIndex,
-                    ctx,
-                );
             }
             // 去中心化分支:`DriveIndexAction::SignupAnonymousUser` 已 noop。
             DriveIndexAction::SignupAnonymousUser => {}

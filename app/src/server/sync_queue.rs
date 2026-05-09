@@ -171,19 +171,10 @@ pub enum QueueItem {
     // because it's the most type safe way to handle the different id types
     // and the different update payloads.  Most of the logic is still shared
     // via a single update_object method.
-    UpdateNotebook {
-        model: Arc<CloudNotebookModel>,
-        id: SyncId,
-        revision: Option<Revision>,
-    },
     UpdateWorkflow {
         model: Arc<CloudWorkflowModel>,
         id: SyncId,
         revision: Option<Revision>,
-    },
-    UpdateFolder {
-        id: SyncId,
-        model: Arc<CloudFolderModel>,
     },
     UpdateCloudPreferences {
         model: Arc<CloudPreferenceModel>,
@@ -248,18 +239,16 @@ impl QueueItem {
         objects: impl Iterator<Item = Box<dyn CloudObject>>,
     ) -> Vec<QueueItem> {
         objects
-            .map(|object| {
-                if let Some(create_object_queue_item) = object.create_object_queue_item(
-                    CloudObjectEventEntrypoint::default(),
-                    // InitiatedBy::User was added as a default value since we do not save the initiated_by values in the Sqlite cache.
-                    // InitiatedBy::User is a safer default option because it will show toasts.
-                    // In the future, if System events are common, we may want to save the initiated_by field in Sqlite.
-                    InitiatedBy::User,
-                ) {
-                    create_object_queue_item
-                } else {
-                    object.update_object_queue_item(None)
-                }
+            .filter_map(|object| {
+                object
+                    .create_object_queue_item(
+                        CloudObjectEventEntrypoint::default(),
+                        // InitiatedBy::User was added as a default value since we do not save the initiated_by values in the Sqlite cache.
+                        // InitiatedBy::User is a safer default option because it will show toasts.
+                        // In the future, if System events are common, we may want to save the initiated_by field in Sqlite.
+                        InitiatedBy::User,
+                    )
+                    .or_else(|| object.update_object_queue_item(None))
             })
             .collect::<Vec<_>>()
     }
@@ -452,8 +441,6 @@ impl SyncQueue {
     ) {
         let mut dependencies = match item {
             // Update requests will depend on any existing create/updates to the same object
-            QueueItem::UpdateNotebook { id, .. } => self.get_update_dependencies(id),
-            QueueItem::UpdateFolder { id, .. } => self.get_update_dependencies(id),
             QueueItem::UpdateCloudPreferences { id, .. } => self.get_update_dependencies(id),
             QueueItem::UpdateEnvVarCollection { id, .. } => self.get_update_dependencies(id),
             QueueItem::UpdateWorkflowEnum { id, .. } => self.get_update_dependencies(id),
@@ -552,9 +539,7 @@ impl SyncQueue {
                     objects.iter().any(|data| data.id.to_string() == item_id)
                 }
                 QueueItem::UpdateCloudPreferences { id, .. } => id.uid() == item_id,
-                QueueItem::UpdateNotebook { id, .. } => id.uid() == item_id,
                 QueueItem::UpdateWorkflow { id, .. } => id.uid() == item_id,
-                QueueItem::UpdateFolder { id, .. } => id.uid() == item_id,
                 QueueItem::UpdateEnvVarCollection { id, .. } => id.uid() == item_id,
                 QueueItem::UpdateWorkflowEnum { id, .. } => id.uid() == item_id,
                 QueueItem::UpdateAIFact { id, .. } => id.uid() == item_id,
@@ -637,15 +622,6 @@ impl SyncQueue {
     fn update_items_with_new_revision(&mut self, server_id: &str, new_revision: Revision) {
         for (_item_id, item) in &mut self.queue {
             match item {
-                QueueItem::UpdateNotebook { revision, id, .. } => {
-                    Self::maybe_update_queue_item_with_new_revision(
-                        &self.client_id_to_server,
-                        id,
-                        server_id,
-                        revision,
-                        &new_revision,
-                    );
-                }
                 QueueItem::UpdateWorkflow { id, revision, .. } => {
                     Self::maybe_update_queue_item_with_new_revision(
                         &self.client_id_to_server,
@@ -696,20 +672,6 @@ impl SyncQueue {
             self.queue_dependencies.remove(&dequeued_item_id);
 
             match dequeued_item {
-                QueueItem::UpdateNotebook {
-                    model,
-                    id,
-                    revision,
-                } => {
-                    self.update_object(
-                        model.clone(),
-                        id,
-                        revision,
-                        object_client,
-                        dequeued_item_id,
-                        ctx,
-                    );
-                }
                 QueueItem::UpdateWorkflow {
                     model,
                     id,
@@ -719,16 +681,6 @@ impl SyncQueue {
                         model.clone(),
                         id,
                         revision,
-                        object_client,
-                        dequeued_item_id,
-                        ctx,
-                    );
-                }
-                QueueItem::UpdateFolder { id, model } => {
-                    self.update_object(
-                        model.clone(),
-                        id,
-                        None,
                         object_client,
                         dequeued_item_id,
                         ctx,
@@ -1820,12 +1772,6 @@ impl SyncQueue {
                     }
                 }
                 QueueItem::UpdateWorkflow { id, .. } => {
-                    self.handle_update_failure_response(id, item_id, ctx);
-                }
-                QueueItem::UpdateNotebook { id, .. } => {
-                    self.handle_update_failure_response(id, item_id, ctx);
-                }
-                QueueItem::UpdateFolder { id, .. } => {
                     self.handle_update_failure_response(id, item_id, ctx);
                 }
                 QueueItem::UpdateCloudPreferences { id, .. } => {

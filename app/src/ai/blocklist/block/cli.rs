@@ -434,6 +434,26 @@ impl CLISubagentView {
             .and_then(|c| {
                 c.get_task(&task_id)
                     .and_then(|t| t.last_exchange().map(|e| e.id))
+                    .or_else(|| {
+                        // OpenWarp BYOP fallback:agent 自起 LRC 时
+                        // `cli_controller::FinishedAction` 通过
+                        // `create_silent_cli_subagent_task_for_conversation` 真实创建
+                        // subtask 但暂未给它 append exchange(没新 query 触发
+                        // `update_for_new_request_input`),用 root task 的 last
+                        // exchange 占位。后续用户 follow-up query 路由到此 task →
+                        // `AppendedExchange` → 上面的订阅(line 365-394)会自动
+                        // replace model 到真实 exchange,所以占位只在窗口创建瞬间
+                        // 短暂存在,UX 上不可见。
+                        let fallback = c.root_task_exchanges().last().map(|e| e.id);
+                        if fallback.is_some() {
+                            log::warn!(
+                                "[byop] CLISubagentView::new task={task_id:?} 暂无 \
+                                 exchange,fallback 到 root_task last_exchange;\
+                                 等待 AppendedExchange 触发 replace。"
+                            );
+                        }
+                        fallback
+                    })
             })
             .expect("Exchange exists.");
         let model = AIBlockModelImpl::<CLISubagentView>::new(

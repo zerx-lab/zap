@@ -1,4 +1,3 @@
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{AIAgentHarness, AIConversation, AIConversationId};
 use crate::ai::agent_conversations_model::{
@@ -120,9 +119,7 @@ use crate::resource_center::{
     mark_feature_used_and_write_to_user_defaults, Tip, TipAction, TipsCompleted,
 };
 use crate::server::ids::{ObjectUid, SyncId};
-use crate::server::telemetry::{
-    AnonymousUserSignupEntrypoint, PaletteSource, SharingDialogSource, TelemetryEvent,
-};
+use crate::server::telemetry::{AnonymousUserSignupEntrypoint, PaletteSource, TelemetryEvent};
 use crate::session_management::SessionNavigationData;
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::terminal::general_settings::{GeneralSettings, GeneralSettingsChangedEvent};
@@ -490,13 +487,6 @@ pub enum Event {
     OpenWorkflowModalWithCommand(String),
     // Tell the workspace to open the workflow for edit.
     OpenCloudWorkflowForEdit(SyncId),
-    // Tell the workspace to open the share dialog for the given drive object. The share dialog will
-    // open in the index. If the invitee email is provided, it will be added to the share dialog.
-    OpenDriveObjectShareDialog {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-    },
     // Tell the workspace to open the workflow modal with an unsaved workflow.
     OpenWorkflowModalWithTemporary(Box<Workflow>),
     OpenPromptEditor,
@@ -1768,7 +1758,7 @@ impl PaneGroup {
                 let restore_kind = match &task_data {
                     Some((_, Some(task))) => {
                         let item = ConversationOrTask::Task(task);
-                        match item.get_open_action(None, ctx) {
+                        match item.get_open_action(None) {
                             Some(WorkspaceAction::OpenAmbientAgentSession {
                                 session_id, ..
                             }) => AmbientRestoreKind::SharedSession { session_id },
@@ -3135,7 +3125,7 @@ impl PaneGroup {
             };
 
             let item = ConversationOrTask::Task(&task);
-            match item.get_open_action(None, ctx) {
+            match item.get_open_action(None) {
                 Some(WorkspaceAction::OpenAmbientAgentSession {
                     session_id,
                     task_id,
@@ -3709,13 +3699,7 @@ impl PaneGroup {
             }
         };
 
-        // Register the transcript viewer as an ambient session so it appears in the Active section
-        // of the conversation list.
-        if let Some(task_id) = ambient_agent_task_id {
-            ActiveAgentViewsModel::handle(ctx).update(ctx, |active_views, ctx| {
-                active_views.register_ambient_session(terminal_view.id(), task_id, ctx);
-            });
-        }
+        let _ = ambient_agent_task_id;
 
         // Insert the conversation ended tombstone (includes Open in Warp button on WASM).
         if terminal_manager.is_some() {
@@ -5439,13 +5423,7 @@ impl PaneGroup {
             history_model.mark_terminal_view_as_conversation_transcript_viewer(terminal_view.id());
         });
 
-        // Register the transcript viewer as an ambient session so it appears in the Active section
-        // of the conversation list.
-        if let Some(task_id) = ambient_agent_task_id {
-            ActiveAgentViewsModel::handle(ctx).update(ctx, |active_views, ctx| {
-                active_views.register_ambient_session(terminal_view.id(), task_id, ctx);
-            });
-        }
+        let _ = ambient_agent_task_id;
 
         (terminal_view, terminal_manager)
     }

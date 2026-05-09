@@ -49,8 +49,8 @@ use warp_multi_agent_api as api;
 
 use genai::adapter::AdapterKind;
 use genai::chat::{
-    Binary, ChatMessage, ChatOptions, ChatRequest, ChatRole, ChatStreamEvent, ContentPart,
-    MessageContent, Tool as GenaiTool, ToolCall, ToolResponse,
+    Binary, CacheControl, ChatMessage, ChatOptions, ChatRequest, ChatRole, ChatStreamEvent,
+    ContentPart, MessageContent, Tool as GenaiTool, ToolCall, ToolResponse,
 };
 use genai::resolver::{AuthData, Endpoint, ServiceTargetResolver};
 use genai::{Client, ModelIden, ServiceTarget, WebConfig};
@@ -855,11 +855,97 @@ fn build_chat_request(
         .map(sanitize_tool_for_request)
         .collect();
 
-    let mut req = ChatRequest::from_messages(messages).with_system(system_text);
+    // Prompt caching(1:1 移植自 opencode `provider/transform.ts::applyCaching`):
+    // - opencode 选 first 2 system message + last 2 non-system message,统一打上
+    //   anthropic.cacheControl / openaiCompatible.cache_control / bedrock.cachePoint
+    //   等多 SDK 兼容标记。AI SDK 各 provider 实现读对应 key,无关 key 自动忽略。
+    // - 我们走 rust-genai,Anthropic adapter 支持 per-message `cache_control`,
+    //   OpenAI / OpenAiResp adapter 仅认 `ChatOptions` 级别的 prompt_cache_key /
+    //   cache_control,DeepSeek / Gemini / Ollama 服务端隐式缓存,无需 client opt-in。
+    // - 故在此只对 Anthropic 路径"per-message"打标:把 system 文本作为
+    //   ChatRole::System message 推到 messages 头部并打 Ephemeral,再把末尾两条
+    //   非 system message 也打 Ephemeral(对应 opencode 的 system+last 2 模式)。
+    //   OpenAI 系的 `prompt_cache_key` / `cache_control` 在 `build_chat_options`
+    //   里设置(请求级别),也来自 opencode 同一组规则的下游 fallback。
+    let messages = if matches!(api_type, AgentProviderApiType::Anthropic) {
+        let mut msgs: Vec<ChatMessage> = std::iter::once(ChatMessage::system(system_text.clone()))
+            .chain(messages.into_iter())
+            .collect();
+        apply_caching_anthropic(&mut msgs);
+        msgs
+    } else {
+        messages
+    };
+
+    let mut req = ChatRequest::from_messages(messages);
+    // Anthropic 路径 system 已经作为 ChatRole::System message 进 messages,
+    // 不再设 `with_system`,避免 genai Anthropic adapter 的"first system 不能挂
+    // cache_control"限制(`adapter_impl.rs::into_anthropic_request_parts` 注释)。
+    if !matches!(api_type, AgentProviderApiType::Anthropic) {
+        req = req.with_system(system_text);
+    }
     if !tools_array.is_empty() {
         req = req.with_tools(tools_array);
     }
     req
+}
+
+/// 1:1 移植自 opencode `provider/transform.ts::applyCaching` 的 Anthropic 分支:
+/// 给 first 2 个 system message + last 2 个 non-system message 打 Ephemeral
+/// cache 标记。
+///
+/// genai Anthropic adapter 在 `into_anthropic_request_parts` 内把
+/// `MessageOptions::cache_control` 落到该 message 最后一个 content part 上,
+/// 行为与 opencode 给 lastContent.providerOptions.anthropic.cacheControl 一致。
+///
+/// **TTL 排序**:全部用 `Ephemeral`(5m),不混 `Ephemeral1h`,避开 genai 的
+/// "1h 必须在 5m 之前"约束(`chat_message.rs::CacheControl` 注释)。
+fn apply_caching_anthropic(messages: &mut Vec<ChatMessage>) {
+    let n = messages.len();
+    if n == 0 {
+        return;
+    }
+    let mut tag = vec![false; n];
+
+    // first 2 system messages
+    let mut sys_seen = 0;
+    for (i, m) in messages.iter().enumerate() {
+        if matches!(m.role, ChatRole::System) {
+            tag[i] = true;
+            sys_seen += 1;
+            if sys_seen >= 2 {
+                break;
+            }
+        }
+    }
+    // last 2 non-system messages
+    let mut tail_seen = 0;
+    for (i, m) in messages.iter().enumerate().rev() {
+        if !matches!(m.role, ChatRole::System) {
+            tag[i] = true;
+            tail_seen += 1;
+            if tail_seen >= 2 {
+                break;
+            }
+        }
+    }
+
+    let original = std::mem::take(messages);
+    *messages = original
+        .into_iter()
+        .enumerate()
+        .map(|(i, m)| {
+            if tag[i] {
+                // ChatMessage 没有直接的 with_cache_control;cache_control 挂在
+                // `MessageOptions` 上,通过 `with_options` 注入。
+                // `MessageOptions: From<CacheControl>` 由 genai 提供
+                // (`chat_message.rs::impl From<CacheControl> for MessageOptions`)。
+                m.with_options(CacheControl::Ephemeral)
+            } else {
+                m
+            }
+        })
+        .collect();
 }
 
 /// 移除字符串中所有可能让 JSON 序列化产生非法转义的字符:
@@ -1608,14 +1694,41 @@ pub(super) fn build_client(
     // 用 native fetch / std HTTP 不主动协商 gzip on SSE,所以同代理无问题。
     //
     // 这里显式构造 `WebConfig` 即使 genai default 已经 `gzip=false`(fork 修改)。
+    //
+    // User-Agent 动态绑定当前应用名(取自 `ChannelState::app_id().application_name()`,
+    // 由入口 bin 注册:`bin/oss.rs` → "OpenWarp";其它 channel 自带各自名称)。
+    // 这样上游服务能识别请求来自哪个分支构建,后续若改名也会自动跟随。
+    let mut headers = reqwest::header::HeaderMap::new();
+    if let Ok(value) = build_user_agent_header() {
+        headers.insert(reqwest::header::USER_AGENT, value);
+    }
     let web_config = WebConfig {
         gzip: false,
+        default_headers: Some(headers),
         ..WebConfig::default()
     };
     Client::builder()
         .with_web_config(web_config)
         .with_service_target_resolver(resolver)
         .build()
+}
+
+/// 构造 BYOP 出站请求的 `User-Agent` 头,值形如:
+/// - `OpenWarp/<git-tag>` —— release 构建有 `GIT_RELEASE_TAG` 注入时
+/// - `OpenWarp` —— Dev / 本地构建无版本时
+///
+/// 应用名一律从 `ChannelState::app_id().application_name()` 取,确保与入口 bin
+/// 注册的 `AppId` 一致(`bin/oss.rs` 注册 "OpenWarp")。
+fn build_user_agent_header(
+) -> Result<reqwest::header::HeaderValue, reqwest::header::InvalidHeaderValue> {
+    let app_name = warp_core::channel::ChannelState::app_id()
+        .application_name()
+        .to_owned();
+    let ua = match warp_core::channel::ChannelState::app_version() {
+        Some(v) if !v.is_empty() => format!("{app_name}/{v}"),
+        _ => app_name,
+    };
+    reqwest::header::HeaderValue::from_str(&ua)
 }
 
 /// 判定是否给 DashScope(阿里云百炼,OpenAI 兼容路径)注入 `enable_thinking: true`。
@@ -1668,6 +1781,7 @@ fn build_chat_options(
     model_id: &str,
     effort_setting: crate::settings::ReasoningEffortSetting,
     extra_headers: Vec<(String, String)>,
+    conversation_id: Option<&str>,
 ) -> ChatOptions {
     let mut opts = ChatOptions::default()
         .with_capture_content(true)
@@ -1678,33 +1792,92 @@ fn build_chat_options(
         // 段抽出来归到 reasoning chunk,UI 显示更干净。仅对支持该格式的 adapter 生效。
         .with_normalize_reasoning_content(true);
 
-    // 仅在用户显式选了非 Auto 档位 **且** 模型支持 reasoning 时才注入。
-    // - Auto:不传,让 genai 走"模型名后缀推断"(OpenAI/Anthropic adapter 内部)。
-    // - 非 Auto + 模型不支持:也不传,避免向 claude-3-5-haiku / gpt-4o / gemini-1.5-pro
-    //   等老模型注入 thinking 参数被上游 400 拒绝。
-    if let Some(effort) = effort_setting.to_genai() {
-        if super::reasoning::model_supports_reasoning(api_type, model_id) {
-            // DeepSeek 关闭思考必须走 `extra_body.thinking.type=disabled`,
-            // 服务端不接受 `reasoning_effort: "none"`(400 unknown variant)。
-            // 其他 provider 的 Off 档维持原 reasoning_effort 路径。
-            let deepseek_off = matches!(api_type, AgentProviderApiType::DeepSeek)
-                && matches!(effort_setting, crate::settings::ReasoningEffortSetting::Off);
-            if deepseek_off {
-                log::info!(
-                    "[byop] DeepSeek Off → extra_body thinking.type=disabled (model={model_id})"
-                );
-                opts = opts.with_extra_body(json!({"thinking": {"type": "disabled"}}));
-            } else {
-                log::info!(
-                    "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
-                );
-                opts = opts.with_reasoning_effort(effort);
+    // Prompt caching(对应 opencode `applyCaching` OpenAI 兼容路径)。
+    // genai 的 OpenAI / OpenAiResp adapter 不读 per-message cache_control,
+    // 只认 `ChatOptions::prompt_cache_key` 与 `ChatOptions::cache_control`:
+    //   - prompt_cache_key:OpenAI 把同 key 的请求路由到同一缓存分片,提升命中
+    //     (`prompt_cache_key` field,见 `adapter_shared.rs:194` /
+    //     `openai_resp/adapter_impl.rs:238`);用 conversation_id 作为稳定 key。
+    //   - cache_control = Ephemeral → 序列化为 `prompt_cache_retention: "in_memory"`
+    //     (genai `adapter_shared.rs:199`),触发服务端短 TTL 缓存。
+    // Anthropic 走 per-message cache_control(在 build_chat_request 里),不在此处。
+    // DeepSeek / Gemini / Ollama 服务端隐式缓存,跳过。
+    if matches!(
+        api_type,
+        AgentProviderApiType::OpenAi | AgentProviderApiType::OpenAiResp
+    ) {
+        if let Some(cid) = conversation_id {
+            if !cid.is_empty() {
+                opts = opts.with_prompt_cache_key(cid.to_owned());
             }
-        } else {
+        }
+        opts = opts.with_cache_control(CacheControl::Ephemeral);
+    }
+
+    // **思考深度档位下发**(对齐 Zed `LanguageModelRequest::thinking_allowed` 各
+    // provider 的处理:`thinking_allowed=false` 时所有 provider 都不发任何 thinking
+    // 字段,Anthropic / Google / Bedrock 服务端默认就是关思考)。
+    //
+    // - **Auto**:不传,让 genai 走"模型名后缀推断"(OpenAI/Anthropic adapter 内部)。
+    // - **Off + Anthropic / Gemini**:**完全跳过 `with_reasoning_effort`**,等同
+    //   Auto + 模型名无 thinking 后缀。genai adapter 走 `(model, None)` 推断分支,
+    //   不调 `insert_anthropic_reasoning` / `thinkingConfig`,不发 thinking 字段。
+    //   ★ 这正好绕开 vendor genai `claude-opus-4-6` / `claude-sonnet-4-6`
+    //   `support_adaptive` 强行注入 `thinking:{type:adaptive}` 的 bug
+    //   (`lib/rust-genai/src/adapter/adapters/anthropic/adapter_impl.rs:121-135`
+    //   不读 effort 是否为 `None`)。
+    // - **Off + DeepSeek**:服务端 `thinking_mode` 默认开启(deepseek-v4-flash 等),
+    //   需要显式 `extra_body.thinking.type=disabled` 才能关闭。OpenWarp 本地 fork
+    //   的 genai 已支持 `ChatOptions::extra_body` 顶层合并。
+    // - **Off + OpenAI / OpenAiResp**:走 `reasoning_effort: "none"` 路径
+    //   (GPT-5 / codex 接受 `none` 档;o-series 由能力表过滤)。
+    // - **非 Off + 模型不支持 reasoning**:跳过,避免给 claude-3-5-haiku / gpt-4o /
+    //   gemini-1.5-pro 等老模型注入 thinking 参数被上游 400 拒绝。
+    use crate::settings::ReasoningEffortSetting as RE;
+    match (api_type, effort_setting) {
+        // Auto:不下发任何参数
+        (_, RE::Auto) => {}
+
+        // Anthropic + Off:不发 thinking 字段
+        (AgentProviderApiType::Anthropic, RE::Off) => {
             log::info!(
-                "[byop] reasoning_effort SKIPPED: model={model_id} not in capability list \
-                 (api_type={api_type:?} setting={effort_setting:?}); request sent without thinking params"
+                "[byop] Anthropic Off → skip reasoning_effort (model={model_id}); \
+                 no thinking field sent"
             );
+        }
+
+        // Gemini + Off:不发 thinkingConfig
+        (AgentProviderApiType::Gemini, RE::Off) => {
+            log::info!(
+                "[byop] Gemini Off → skip reasoning_effort (model={model_id}); \
+                 no thinkingConfig sent"
+            );
+        }
+
+        // DeepSeek + Off:显式 disabled
+        (AgentProviderApiType::DeepSeek, RE::Off) => {
+            log::info!(
+                "[byop] DeepSeek Off → extra_body thinking.type=disabled (model={model_id})"
+            );
+            opts = opts.with_extra_body(json!({"thinking": {"type": "disabled"}}));
+        }
+
+        // 其他(OpenAI / OpenAiResp / Ollama / 各 provider 非 Off 档):
+        // 走能力表过滤后的 reasoning_effort 注入路径
+        _ => {
+            if let Some(effort) = effort_setting.to_genai() {
+                if super::reasoning::model_supports_reasoning(api_type, model_id) {
+                    log::info!(
+                        "[byop] reasoning_effort injected: model={model_id} setting={effort_setting:?}"
+                    );
+                    opts = opts.with_reasoning_effort(effort);
+                } else {
+                    log::info!(
+                        "[byop] reasoning_effort SKIPPED: model={model_id} not in capability list \
+                         (api_type={api_type:?} setting={effort_setting:?}); request sent without thinking params"
+                    );
+                }
+            }
         }
     }
 
@@ -1802,19 +1975,24 @@ pub async fn generate_byop_output(
 ) -> Result<ResponseStream, ConvertToAPITypeError> {
     let force_echo_reasoning = super::reasoning::model_requires_reasoning_echo(api_type, &model_id);
     let chat_req = build_chat_request(&params, force_echo_reasoning, api_type, &model_id);
+    let conversation_id = params
+        .conversation_token
+        .as_ref()
+        .map(|t| t.as_str().to_string())
+        .unwrap_or_default();
     let chat_opts = build_chat_options(
         api_type,
         &base_url,
         &model_id,
         reasoning_effort,
         extra_headers,
+        if conversation_id.is_empty() {
+            None
+        } else {
+            Some(conversation_id.as_str())
+        },
     );
     let client = build_client(api_type, base_url, api_key);
-    let conversation_id = params
-        .conversation_token
-        .as_ref()
-        .map(|t| t.as_str().to_string())
-        .unwrap_or_default();
     let request_id = Uuid::new_v4().to_string();
     let mcp_context = params.mcp_context.clone();
 
@@ -2236,8 +2414,11 @@ pub async fn generate_byop_output(
                     // 增量刷新 args,长 args 工具(create_or_edit_document、长 grep 等)体感连续。
                     // web 工具(webfetch/websearch)走自己的 loading 帧链路(L2102 区域),
                     // 这里跳过避免双卡。
+                    // todowrite 走 BYOP todo 拦截器,合成 Message::UpdateTodos 触发 chip,
+                    // 这里也跳过占位避免出现一张无意义的"调用 todowrite"卡。
                     if call.fn_name != tools::webfetch::TOOL_NAME
                         && call.fn_name != tools::websearch::TOOL_NAME
+                        && call.fn_name != tools::todowrite::TOOL_NAME
                     {
                         if let Some(msg_id) = tool_msg_ids.get(&call.call_id).cloned() {
                             // 已 emit 占位 → 节流增量刷新。
@@ -2378,6 +2559,99 @@ pub async fn generate_byop_output(
                     call.call_id,
                     args_repr,
                 );
+            }
+
+            // OpenWarp BYOP todowrite 拦截:不映射到 protobuf executor,合成
+            // `Message::UpdateTodos` 直接写 conversation.todo_lists 触发 chip + popup
+            // UI(对齐 server-side ClientAction::AddMessagesToTask::UpdateTodos 路径)。
+            // 然后追加 carrier ToolCall + ToolCallResult 给模型 unblock。
+            if call.fn_name == tools::todowrite::TOOL_NAME {
+                let args_str = if call.fn_arguments.is_string() {
+                    call.fn_arguments.as_str().unwrap_or("").to_owned()
+                } else {
+                    call.fn_arguments.to_string()
+                };
+
+                match tools::todowrite::build_update_todos_messages(
+                    &args_str,
+                    &current_task_id,
+                    &request_id,
+                ) {
+                    Ok(todo_msgs) if !todo_msgs.is_empty() => {
+                        // 直接 yield UpdateTodos 让 UI 实时更新 chip。
+                        // 走 AddMessagesToTask:apply_client_action 路径会
+                        // 命中 Message::UpdateTodos 分支 → update_todo_list_from_todo_op
+                        // → emit BlocklistAIHistoryEvent::UpdatedTodoList,UI 自动刷新。
+                        yield Ok(make_add_messages_event(&current_task_id, todo_msgs));
+                        let result_payload = serde_json::json!({
+                            "status": "ok",
+                            "message": "todo list updated",
+                        });
+                        let result_content = serde_json::to_string(&result_payload)
+                            .unwrap_or_else(|_| r#"{"status":"ok"}"#.to_owned());
+                        final_messages.push(make_tool_call_carrier_message(
+                            &current_task_id,
+                            &request_id,
+                            &call.call_id,
+                            &call.fn_name,
+                            &args_str,
+                        ));
+                        final_messages.push(make_tool_call_result_message(
+                            &current_task_id,
+                            &request_id,
+                            call.call_id.clone(),
+                            result_content,
+                        ));
+                    }
+                    Ok(_) => {
+                        // 空 todos 数组:不 emit UpdateTodos,但仍要给模型 result
+                        // 否则下一轮 chat 会卡(模型等 tool_call_id 的 result)。
+                        let result_content = r#"{"status":"ok","message":"no todos"}"#.to_owned();
+                        final_messages.push(make_tool_call_carrier_message(
+                            &current_task_id,
+                            &request_id,
+                            &call.call_id,
+                            &call.fn_name,
+                            &args_str,
+                        ));
+                        final_messages.push(make_tool_call_result_message(
+                            &current_task_id,
+                            &request_id,
+                            call.call_id.clone(),
+                            result_content,
+                        ));
+                    }
+                    Err(e) => {
+                        // args 解析失败:跟 from_args 失败一样,emit error tool_result。
+                        log::warn!(
+                            "[byop] todowrite args parse failed: call_id={} err={e:#}",
+                            call.call_id
+                        );
+                        let error_payload = serde_json::json!({
+                            "error": "invalid_arguments",
+                            "detail": e.to_string(),
+                            "tool": call.fn_name,
+                            "received_args": &args_str,
+                            "hint": "Expected { todos: [{ content: string, status: string }] }.",
+                        });
+                        let error_content = serde_json::to_string(&error_payload)
+                            .unwrap_or_else(|_| r#"{"error":"invalid_arguments"}"#.to_owned());
+                        final_messages.push(make_tool_call_carrier_message(
+                            &current_task_id,
+                            &request_id,
+                            &call.call_id,
+                            &call.fn_name,
+                            &args_str,
+                        ));
+                        final_messages.push(make_tool_call_result_message(
+                            &current_task_id,
+                            &request_id,
+                            call.call_id.clone(),
+                            error_content,
+                        ));
+                    }
+                }
+                continue;
             }
 
             // OpenWarp BYOP web 工具拦截:webfetch / websearch 不映射到 protobuf
@@ -3591,5 +3865,145 @@ mod dashscope_thinking_tests {
             "deepseek-r1",
             R::High
         ));
+    }
+}
+
+/// `build_chat_options` 中"思考深度档位下发"的回归测试。
+///
+/// 对齐 Zed `LanguageModelRequest::thinking_allowed=false` 在各 provider 的处理:
+/// **Off 时所有 provider 都不能让服务端思考**。具体策略按 provider 不同:
+/// - Anthropic / Gemini:不发 thinking 字段(跳过 `with_reasoning_effort`)
+/// - DeepSeek:`extra_body.thinking.type=disabled`(服务端默认开启,需显式关)
+/// - OpenAI / OpenAiResp:`reasoning_effort: "none"`(GPT-5 接受)
+#[cfg(test)]
+mod build_chat_options_off_tests {
+    use super::*;
+    use crate::settings::ReasoningEffortSetting as R;
+    use genai::chat::ReasoningEffort as GE;
+
+    fn opts(api_type: AgentProviderApiType, model: &str, effort: R) -> genai::chat::ChatOptions {
+        build_chat_options(
+            api_type,
+            "https://example.com/v1/",
+            model,
+            effort,
+            vec![],
+            None,
+        )
+    }
+
+    /// claude-sonnet-4-6(`SUPPORT_ADAPTTIVE_THINK_MODELS` 命中)+ Off 必须**完全
+    /// 不传** `reasoning_effort`,否则 vendor genai adapter 会无条件插入
+    /// `thinking:{type:adaptive}`(`adapter_impl.rs:121-135`)。
+    #[test]
+    fn anthropic_sonnet_4_6_off_skips_reasoning_effort() {
+        let o = opts(AgentProviderApiType::Anthropic, "claude-sonnet-4-6", R::Off);
+        assert!(
+            o.reasoning_effort.is_none(),
+            "Anthropic+Off 必须不传 reasoning_effort,避免 4.6 系强插 adaptive thinking"
+        );
+        assert!(
+            o.extra_body.is_none(),
+            "Anthropic+Off 也不应注入 extra_body"
+        );
+    }
+
+    /// claude-opus-4-6 同上(双重命中 SUPPORT_EFFORT + SUPPORT_ADAPTIVE)。
+    #[test]
+    fn anthropic_opus_4_6_off_skips_reasoning_effort() {
+        let o = opts(AgentProviderApiType::Anthropic, "claude-opus-4-6", R::Off);
+        assert!(o.reasoning_effort.is_none());
+        assert!(o.extra_body.is_none());
+    }
+
+    /// claude-opus-4-7+ + Off:虽然不在 adaptive 名单(本来就 OK),仍应一致跳过。
+    #[test]
+    fn anthropic_opus_4_7_off_skips_reasoning_effort() {
+        let o = opts(AgentProviderApiType::Anthropic, "claude-opus-4-7", R::Off);
+        assert!(o.reasoning_effort.is_none());
+        assert!(o.extra_body.is_none());
+    }
+
+    /// Anthropic + High 仍走原 reasoning_effort 路径。
+    #[test]
+    fn anthropic_high_injects_reasoning_effort() {
+        let o = opts(AgentProviderApiType::Anthropic, "claude-opus-4-7", R::High);
+        assert!(matches!(o.reasoning_effort, Some(GE::High)));
+    }
+
+    /// Anthropic + Auto 不传任何参数。
+    #[test]
+    fn anthropic_auto_skips() {
+        let o = opts(AgentProviderApiType::Anthropic, "claude-opus-4-7", R::Auto);
+        assert!(o.reasoning_effort.is_none());
+    }
+
+    /// Gemini + Off:不发 thinkingConfig。
+    #[test]
+    fn gemini_off_skips_reasoning_effort() {
+        let o = opts(AgentProviderApiType::Gemini, "gemini-2.5-pro", R::Off);
+        assert!(o.reasoning_effort.is_none());
+        assert!(o.extra_body.is_none());
+    }
+
+    /// Gemini + Medium 走 thinkingBudget 路径。
+    #[test]
+    fn gemini_medium_injects_reasoning_effort() {
+        let o = opts(AgentProviderApiType::Gemini, "gemini-2.5-pro", R::Medium);
+        assert!(matches!(o.reasoning_effort, Some(GE::Medium)));
+    }
+
+    /// DeepSeek + Off:必须发 `extra_body.thinking.type=disabled`,
+    /// 而**不能**走 reasoning_effort=none(服务端 400 unknown variant)。
+    #[test]
+    fn deepseek_off_uses_extra_body_disabled() {
+        let o = opts(AgentProviderApiType::DeepSeek, "deepseek-v4-flash", R::Off);
+        assert!(
+            o.reasoning_effort.is_none(),
+            "DeepSeek+Off 不能走 reasoning_effort=none"
+        );
+        let body = o.extra_body.as_ref().expect("extra_body must be set");
+        assert_eq!(
+            body.pointer("/thinking/type"),
+            Some(&serde_json::Value::String("disabled".to_string())),
+            "DeepSeek+Off 必须发 thinking.type=disabled"
+        );
+    }
+
+    /// DeepSeek + High 走 reasoning_effort 顶层字段。
+    #[test]
+    fn deepseek_high_injects_reasoning_effort() {
+        let o = opts(AgentProviderApiType::DeepSeek, "deepseek-reasoner", R::High);
+        assert!(matches!(o.reasoning_effort, Some(GE::High)));
+        assert!(o.extra_body.is_none());
+    }
+
+    /// OpenAI(GPT-5)+ Off:走 reasoning_effort=none(GPT-5 接受 `none` 档)。
+    #[test]
+    fn openai_gpt5_off_uses_reasoning_effort_none() {
+        let o = opts(AgentProviderApiType::OpenAi, "gpt-5", R::Off);
+        assert!(
+            matches!(o.reasoning_effort, Some(GE::None)),
+            "OpenAI+GPT-5+Off 应发 reasoning_effort=none"
+        );
+    }
+
+    /// 不支持 reasoning 的模型 + 任意非 Auto 档位:跳过(避免上游 400)。
+    #[test]
+    fn anthropic_haiku_3_5_off_skips() {
+        let o = opts(
+            AgentProviderApiType::Anthropic,
+            "claude-3-5-haiku-20241022",
+            R::Off,
+        );
+        assert!(o.reasoning_effort.is_none());
+        assert!(o.extra_body.is_none());
+    }
+
+    #[test]
+    fn openai_gpt4o_off_skips() {
+        // gpt-4o 不在 reasoning 名单,Off 也跳过
+        let o = opts(AgentProviderApiType::OpenAi, "gpt-4o", R::Off);
+        assert!(o.reasoning_effort.is_none());
     }
 }

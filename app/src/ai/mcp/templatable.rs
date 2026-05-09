@@ -262,12 +262,12 @@ impl StringModel for TemplatableMCPServer {
         &self,
         revision_ts: Option<Revision>,
         object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateTemplatableMCPServer {
+    ) -> Option<QueueItem> {
+        Some(QueueItem::UpdateTemplatableMCPServer {
             model: object.model().clone().into(),
             id: object.id,
             revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
+        })
     }
 
     fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self> {

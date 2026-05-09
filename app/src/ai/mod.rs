@@ -2,11 +2,9 @@
 //! Warp (including Agent Mode).
 //!
 //! The side panel Warp AI implementation lives in `super::ai_assistant`.
-pub(crate) mod active_agent_views_model;
 pub(crate) mod agent;
 pub(crate) mod agent_conversations_model;
 pub(crate) mod agent_events;
-pub(crate) mod agent_management;
 pub(crate) mod agent_providers;
 pub(crate) mod agent_tips;
 pub(crate) mod ai_document_view;
@@ -20,7 +18,6 @@ pub(crate) mod block_context;
 pub(crate) mod blocklist;
 pub(crate) mod byop_compaction;
 pub mod control_code_parser;
-pub(crate) mod conversation_details_panel;
 pub(crate) mod conversation_navigation;
 pub(crate) mod conversation_status_ui;
 pub(crate) mod conversation_utils;
@@ -60,6 +57,4 @@ pub fn init(app: &mut AppContext) {
     blocklist::suggested_agent_mode_workflow_modal::init(app);
     blocklist::suggested_rule_modal::init(app);
     ai_document_view::init(app);
-    conversation_details_panel::init(app);
-    agent_management::init(app);
 }

@@ -28,7 +28,7 @@ use crate::{
         cloud_object_styling::warp_drive_icon_color,
         drive_helpers::has_feature_gated_anonymous_user_reached_workflow_limit,
         items::WarpDriveItemId,
-        sharing::{ContentEditability, ShareableObject, SharingAccessLevel},
+        sharing::{ContentEditability, SharingAccessLevel},
         workflows::{
             ai_assist::GeneratedCommandMetadataError,
             arguments::ArgumentsState,
@@ -56,10 +56,7 @@ use crate::{
         },
         ids::{ClientId, ServerId, SyncId},
         server_api::{ai::AIClient, ServerApiProvider},
-        telemetry::{
-            CloudObjectTelemetryMetadata, SharingDialogSource, TelemetryCloudObjectType,
-            TelemetryEvent,
-        },
+        telemetry::{CloudObjectTelemetryMetadata, TelemetryCloudObjectType, TelemetryEvent},
     },
     settings::{
         app_installation_detection::{UserAppInstallDetectionSettings, UserAppInstallStatus},
@@ -244,11 +241,6 @@ pub enum WorkflowViewEvent {
     CreatedWorkflow(SyncId),
     UpdatedWorkflow(SyncId),
     ViewInWarpDrive(WarpDriveItemId),
-    OpenDriveObjectShareDialog {
-        cloud_object_type_and_id: CloudObjectTypeAndId,
-        invitee_email: Option<String>,
-        source: SharingDialogSource,
-    },
     RunWorkflow {
         workflow: Arc<WorkflowType>,
         source: WorkflowSource,
@@ -759,12 +751,10 @@ impl WorkflowView {
         if let ContainerConfiguration::Pane(pane_config) = &mut self.container_configuration {
             pane_config.update(ctx, |pane_config, ctx| {
                 pane_config.set_title(workflow_name, ctx);
-                if let Some(server_id) = workflow.id.into_server() {
-                    pane_config.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(server_id)),
-                        ctx,
-                    );
-                }
+                // TODO(openwarp-cloud-removal Phase 5): sharing UI 已退役,
+                // workflow ShareableObject 注入移除;workflow.id 仍为 cloud_object id,
+                // Phase 5 退役 cloud_object 时一并清。
+                let _ = workflow.id;
             });
         }
 
@@ -854,17 +844,9 @@ impl WorkflowView {
             );
         }
 
-        if let Some(invitee_email) = settings.invitee_email.clone() {
-            let object_id_to_share = settings
-                .focused_folder_id
-                .map(|id| CloudObjectTypeAndId::Folder(SyncId::ServerId(id)))
-                .unwrap_or(CloudObjectTypeAndId::Workflow(workflow.id));
-            ctx.emit(WorkflowViewEvent::OpenDriveObjectShareDialog {
-                cloud_object_type_and_id: object_id_to_share,
-                invitee_email: Some(invitee_email),
-                source: SharingDialogSource::InviteeRequest,
-            });
-        }
+        // TODO(openwarp-cloud-removal Phase 5): workflow invitee_email 同样无 UI
+        // 出口,但 settings 由上层传入,彻底退役时清字段。
+        let _ = settings;
 
         if matches!(mode, WorkflowViewMode::View) {
             self.focus_first_argument_value(ctx);

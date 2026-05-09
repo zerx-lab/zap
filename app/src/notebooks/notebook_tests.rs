@@ -23,10 +23,10 @@ use crate::{
             persistence::CloudModel,
             view::{CloudViewModel, Editor, EditorState},
         },
-        Owner, Revision, ServerCloudObject, ServerMetadata, ServerNotebook, ServerPermissions,
+        Owner, Revision, ServerMetadata, ServerNotebook, ServerPermissions,
     },
     drive::OpenWarpDriveObjectSettings,
-    editor::{DisplayPoint, EditorAction, InteractionState, SelectAction},
+    editor::{DisplayPoint, EditorAction, SelectAction},
     network::NetworkStatus,
     notebooks::{
         active_notebook_data::Mode,
@@ -42,7 +42,7 @@ use crate::{
         cloud_objects::update_manager::{InitialLoadResponse, UpdateManager},
         ids::{ClientId, SyncId::ServerId},
         server_api::ServerApiProvider,
-        sync_queue::{QueueItem, SyncQueue, SyncQueueEvent},
+        sync_queue::SyncQueue,
         telemetry::context_provider::AppTelemetryContextProvider,
     },
     settings_view::keybindings::KeybindingChangedNotifier,
@@ -680,68 +680,6 @@ fn test_baton_grab_editor_left_offline() {
 }
 
 #[test]
-fn test_close_with_pending_changes() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        initial_load(&mut app, vec![]).await;
-
-        // Stop dequeueing, so that we can verify the queue contents.
-        SyncQueue::handle(&app).update(&mut app, |sync_queue, _ctx| {
-            sync_queue.stop_dequeueing();
-            assert_eq!(sync_queue.queue().len(), 0);
-        });
-
-        // Create a notebook with a server ID, so it can be synced.
-        let cloud_notebook =
-            CloudNotebook::new_from_server(mock_server_notebook("Test", "Some text"));
-        let notebook_id = cloud_notebook.id;
-
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(cloud_notebook.id, cloud_notebook.clone());
-        });
-
-        let (_, notebook_view, _) = create_notebook(&mut app);
-
-        open_notebook(&mut app, &notebook_view, cloud_notebook).await;
-
-        // Edit the notebook. It should not be saved yet.
-        notebook_view.update(&mut app, |notebook: &mut NotebookView, ctx| {
-            notebook.input.update(ctx, |input, ctx| {
-                input.user_typed("Hello ", ctx);
-            })
-        });
-
-        app.read(|ctx| {
-            let object = CloudModel::as_ref(ctx)
-                .get_by_uid(&notebook_id.uid())
-                .expect("Notebook should exist");
-            assert!(!object.metadata().has_pending_content_changes());
-        });
-
-        // Closing the notebook should force a save.
-        notebook_view.update(&mut app, |notebook, ctx| notebook.on_detach(ctx));
-
-        app.read(|ctx| {
-            let object = CloudModel::as_ref(ctx)
-                .get_by_uid(&notebook_id.uid())
-                .expect("Notebook should exist");
-            assert!(object.metadata().has_pending_content_changes());
-
-            let sync_queue = SyncQueue::as_ref(ctx).queue();
-            assert_eq!(sync_queue.len(), 1);
-            match &sync_queue[0].1 {
-                QueueItem::UpdateNotebook { model, id, .. } => {
-                    assert_eq!(model.title, "Test".to_string());
-                    assert_eq!(model.data, "Hello Some text".to_string());
-                    assert_eq!(id, &notebook_id);
-                }
-                other => panic!("Expected UpdateNotebook, got {other:?}"),
-            }
-        })
-    });
-}
-
-#[test]
 fn test_close_unmodified() {
     // If we close a notebook with no pending changes, it should not save.
 
@@ -779,139 +717,6 @@ fn test_close_unmodified() {
 
             let sync_queue = SyncQueue::as_ref(ctx).queue();
             assert!(sync_queue.is_empty());
-        })
-    });
-}
-
-#[test]
-fn test_only_user_title_edits_synced() {
-    // This tests that we only sync user edits, and don't echo back received title changes.
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        initial_load(&mut app, vec![]).await;
-
-        // Stop dequeueing, so that we can verify the queue contents.
-        SyncQueue::handle(&app).update(&mut app, |sync_queue, _ctx| {
-            sync_queue.stop_dequeueing();
-            assert_eq!(sync_queue.queue().len(), 0);
-        });
-
-        let (_, notebook_view, _) = create_notebook(&mut app);
-
-        // Create a notebook with a server ID, so it can be synced.
-        let mut server_notebook = mock_server_notebook("Initial Title", "Notebook contents");
-        let cloud_notebook: CloudNotebook = CloudNotebook::new_from_server(server_notebook.clone());
-
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(cloud_notebook.id, cloud_notebook.clone());
-        });
-        open_notebook(&mut app, &notebook_view, cloud_notebook).await;
-
-        // When a new title comes in, we should update the buffer but not emit a change.
-        server_notebook.model.title = "New Title".to_string();
-        server_notebook.metadata.revision = (Utc::now() + Duration::seconds(2)).into();
-        CloudModel::handle(&app).update(&mut app, |cloud_model, ctx| {
-            cloud_model.upsert_from_server_notebook(server_notebook, ctx);
-        });
-
-        notebook_view.read(&app, |notebook, ctx| {
-            assert_eq!(notebook.title(ctx), "New Title");
-            assert!(!notebook.title_is_dirty);
-        });
-
-        // When the _user_ edits the title, that should be synced.
-        notebook_view.update(&mut app, |notebook, ctx| {
-            notebook.title.update(ctx, |title, ctx| {
-                title.user_insert("!!!", ctx);
-            });
-        });
-        // This is outside the `update` callback so that it runs after the event is dispatched.
-        notebook_view.read(&app, |notebook, _| {
-            assert!(notebook.title_is_dirty);
-        });
-
-        ensure_saved(&mut app, &notebook_view).await;
-
-        SyncQueue::handle(&app).read(&app, |sync_queue, _| match sync_queue.queue().first() {
-            Some((_, QueueItem::UpdateNotebook { model, .. })) => {
-                assert_eq!(model.title.as_str(), "New Title!!!");
-            }
-            other => panic!("Expected notebook title update, got {other:?}"),
-        });
-    });
-}
-
-#[test]
-fn test_conflicting_notebook_read_only() {
-    App::test((), |mut app| async move {
-        initialize_app(&mut app);
-        initial_load(&mut app, vec![]).await;
-
-        let (_, notebook_view, _) = create_notebook(&mut app);
-
-        let mut server_notebook = mock_server_notebook("A Notebook", "Local Data");
-        let server_id = server_notebook.id;
-        let mut cloud_notebook: CloudNotebook =
-            CloudNotebook::new_from_server(server_notebook.clone());
-        server_notebook.model.data = "Remote Data".to_string();
-        cloud_notebook.set_conflicting_object(Arc::new(server_notebook.clone()));
-
-        CloudModel::handle(&app).update(&mut app, |cloud_model, _| {
-            cloud_model.add_object(cloud_notebook.id, cloud_notebook.clone());
-        });
-        open_notebook(&mut app, &notebook_view, cloud_notebook).await;
-
-        // The notebook should load into view mode.
-        app.read(|ctx| {
-            let active_notebook_data = notebook_view.as_ref(ctx).active_notebook_data.as_ref(ctx);
-            assert!(active_notebook_data.has_conflicts(ctx));
-            assert_eq!(active_notebook_data.mode, Mode::View);
-            assert_eq!(
-                notebook_view
-                    .as_ref(ctx)
-                    .input
-                    .as_ref(ctx)
-                    .interaction_state(ctx),
-                InteractionState::Selectable
-            );
-        });
-
-        // While there are conflicts, the user should not be able to start editing.
-        notebook_view.update(&mut app, |notebook_view, ctx| {
-            notebook_view.grab_edit_access_or_display_access_dialog(ctx);
-            assert!(
-                !notebook_view
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .show_grab_edit_access_modal
-            );
-            assert_eq!(notebook_view.mode(ctx), Mode::View);
-        });
-
-        // Resolving the conflict should make the notebook editable again.
-        notebook_view.update(&mut app, |notebook_view, ctx| {
-            notebook_view.conflict_dialog_refresh_button_clicked(ctx);
-            assert_eq!(notebook_view.content(ctx), "Remote Data");
-
-            notebook_view.grab_edit_access_or_display_access_dialog(ctx);
-            assert_eq!(notebook_view.mode(ctx), Mode::Editing);
-        });
-
-        // If there's another conflict, the notebook should switch back to view mode.
-        // Trigger this via the SyncQueue so that the UpdateManager records the conflict in CloudModel.
-        SyncQueue::handle(&app).update(&mut app, |_, ctx| {
-            ctx.emit(SyncQueueEvent::ObjectUpdateRejected {
-                id: server_id.uid(),
-                object: ServerCloudObject::Notebook(server_notebook).into(),
-            });
-        });
-
-        notebook_view.read(&app, |notebook_view, ctx| {
-            assert!(notebook_view
-                .active_notebook_data
-                .as_ref(ctx)
-                .has_conflicts(ctx));
-            assert_eq!(notebook_view.mode(ctx), Mode::View);
         })
     });
 }

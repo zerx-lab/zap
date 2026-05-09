@@ -1,3 +1,17 @@
+# 全局规范:所有文本文件用 LF。Windows 端搭配 git config core.autocrlf=input
+# 检出时不会把 LF 转成 CRLF,jj 也不会因为 CRLF/LF 差异把整个 working tree
+# 误识别为"已修改"。Windows 脚本类例外保留 CRLF。
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+
+# ref test 录制文件 / shell bootstrap 输出固定 CRLF 是测试数据语义的一部分,
+# 被自动 LF normalization 改了会破坏 alacritty 回放/diff 测试。
+*.recording -text
+app/assets/bundled/bootstrap/*_subshell_bootstrap_block_output.txt -text
+
 *.pdb filter=lfs diff=lfs merge=lfs -text
 input_classifier/models/* filter=lfs diff=lfs merge=lfs -text
 input_classifier/models/**/*tokenizer.json linguist-generated=true

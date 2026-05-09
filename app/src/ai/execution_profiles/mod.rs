@@ -474,12 +474,12 @@ impl StringModel for AIExecutionProfile {
         &self,
         revision_ts: Option<Revision>,
         object: &Self::CloudObjectType,
-    ) -> QueueItem {
-        QueueItem::UpdateAIExecutionProfile {
+    ) -> Option<QueueItem> {
+        Some(QueueItem::UpdateAIExecutionProfile {
             model: object.model().clone().into(),
             id: object.id,
             revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
+        })
     }
 
     fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self> {

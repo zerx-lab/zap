@@ -48,12 +48,13 @@ use crate::settings::{AISettings, AgentProvider};
 
 /// 合成给定 provider 的所有合法 (provider, model) 对的 LLMInfo 列表。
 ///
-/// "合法"=  provider 有非空 base_url + 至少 1 个 model + 在 secrets 中能查到 api_key。
-/// 不合法的 provider 会整体被忽略(picker 中干脆不展示其下的模型),
+/// "合法" = provider 有非空 base_url + 至少 1 个 model。
+/// **API key 可选**:本地无认证 provider(ollama / lm-studio / vllm 等)允许留空,
+/// 缺 key 时仍然把模型暴露给 picker;运行时仍会发请求,只是不带 `Authorization`。
+/// 不合法的 provider(没填 base_url 或没模型)会整体被忽略,picker 中不展示其下的模型,
 /// 这样用户能直观地看到"哪些 provider 没填全 → 没出现"。
 fn build_byop_llm_infos(app: &AppContext) -> Vec<LLMInfo> {
     let providers = AISettings::as_ref(app).agent_providers.value().clone();
-    let secrets = AgentProviderSecrets::as_ref(app);
     let mut out = Vec::new();
 
     for provider in providers {
@@ -61,13 +62,6 @@ fn build_byop_llm_infos(app: &AppContext) -> Vec<LLMInfo> {
             continue;
         }
         if provider.models.is_empty() {
-            continue;
-        }
-        let has_key = secrets
-            .get(&provider.id)
-            .map(|k| !k.is_empty())
-            .unwrap_or(false);
-        if !has_key {
             continue;
         }
 
@@ -170,8 +164,11 @@ pub fn lookup_byop(app: &AppContext, id: &ai::LLMId) -> Option<(AgentProvider, S
     let (provider_id, model_id) = llm_id::decode(id)?;
     let providers = AISettings::as_ref(app).agent_providers.value().clone();
     let provider = providers.into_iter().find(|p| p.id == provider_id)?;
+    // API key 可选:无 key 时返回空字符串,下游 build_client 会传给 genai
+    // `AuthData::from_single("")` —— 不附带 `Authorization`,适配 ollama 等本地无认证服务。
     let api_key = AgentProviderSecrets::as_ref(app)
         .get(&provider_id)
-        .map(str::to_owned)?;
+        .map(str::to_owned)
+        .unwrap_or_default();
     Some((provider, api_key, model_id))
 }

@@ -18,7 +18,6 @@ use warpui::{
     AppContext, ModelContext, ModelHandle, SingletonEntity, ViewHandle, WeakViewHandle, WindowId,
 };
 
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewControllerEvent};
 use crate::ai::blocklist::{
@@ -254,18 +253,6 @@ impl TerminalManager {
                 Some(inactive_pty_reads_rx.clone()),
                 ctx,
             )
-        });
-
-        let terminal_view_id = view.id();
-        let agent_view_controller = view.as_ref(ctx).agent_view_controller().clone();
-        let active_session = view.as_ref(ctx).active_session().clone();
-        ActiveAgentViewsModel::handle(ctx).update(ctx, |model, ctx| {
-            model.register_agent_view_controller(
-                &agent_view_controller,
-                &active_session,
-                terminal_view_id,
-                ctx,
-            );
         });
 
         Self {
@@ -722,12 +709,7 @@ impl TerminalManager {
                         history.mark_terminal_view_as_ambient_agent_session_view(terminal_view_id);
                     });
 
-                    // Register this ambient session as active for conversation list tracking.
-                    if let Some(task_id) = ambient_task_id {
-                        ActiveAgentViewsModel::handle(ctx).update(ctx, |model, ctx| {
-                            model.register_ambient_session(terminal_view_id, task_id, ctx);
-                        });
-                    }
+                    let _ = ambient_task_id;
                 }
 
                 let session_id = network.as_ref(ctx).session_id();
@@ -1578,12 +1560,6 @@ impl crate::terminal::TerminalManager for TerminalManager {
         if !matches!(detach_type, DetachType::Closed) {
             return;
         }
-
-        let terminal_view_id = self.view.id();
-        ActiveAgentViewsModel::handle(app).update(app, |model, ctx| {
-            model.unregister_agent_view_controller(terminal_view_id, ctx);
-            model.unregister_ambient_session(terminal_view_id, ctx);
-        });
 
         if let NetworkState::Active(ref network) = self.network_state {
             network.update(app, |network, _| {

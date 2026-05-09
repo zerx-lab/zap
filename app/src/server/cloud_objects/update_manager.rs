@@ -614,14 +614,17 @@ impl UpdateManager {
     ) {
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             if let Some(object) = cloud_model.get_mut_by_uid(&cloud_object_type_and_id.uid()) {
-                let queue_item = object
+                let Some(queue_item) = object
                     .create_object_queue_item(
                         CloudObjectEventEntrypoint::default(),
                         // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
                         // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
                         InitiatedBy::User,
                     )
-                    .unwrap_or(object.update_object_queue_item(None));
+                    .or_else(|| object.update_object_queue_item(None))
+                else {
+                    return;
+                };
                 object.set_pending_content_changes_status(CloudObjectSyncStatus::InFlight(
                     NumInFlightRequests(1),
                 ));
@@ -1652,14 +1655,17 @@ impl UpdateManager {
             // Populate sync queue. Try to re-create the object now that it's in the personal space.
             CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
                 if let Some(object) = cloud_model.get_mut_by_uid(&uid) {
-                    let queue_item = object
+                    let Some(queue_item) = object
                         .create_object_queue_item(
                             CloudObjectEventEntrypoint::default(),
                             // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
                             // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
                             InitiatedBy::User,
                         )
-                        .unwrap_or(object.update_object_queue_item(None));
+                        .or_else(|| object.update_object_queue_item(None))
+                    else {
+                        return;
+                    };
                     SyncQueue::handle(ctx).update(ctx, |sync_queue, ctx| {
                         sync_queue.enqueue(queue_item, ctx);
                     });
@@ -3935,7 +3941,9 @@ impl UpdateManager {
         SyncQueue::handle(ctx).update(ctx, |sync_queue, ctx| {
             let cloud_model = CloudModel::as_ref(ctx);
             if let Some(object) = cloud_model.get_object_of_type::<K, M>(&object_id) {
-                sync_queue.enqueue(object.update_object_queue_item(revision_ts), ctx);
+                if let Some(queue_item) = object.update_object_queue_item(revision_ts) {
+                    sync_queue.enqueue(queue_item, ctx);
+                }
             };
         });
     }

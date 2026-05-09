@@ -3,9 +3,8 @@ use std::sync::Arc;
 
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::Vector2F;
-use warpui::{AppContext, ModelHandle, SingletonEntity, ViewHandle, WindowId};
+use warpui::{AppContext, ModelHandle, ViewHandle, WindowId};
 
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::{
     ai::blocklist::SerializedBlockListItem, context_chips::prompt_type::PromptType,
     pane_group::TerminalViewResources, terminal::view::ConversationRestorationInNewPaneType,
@@ -111,15 +110,8 @@ impl TerminalManager for MockTerminalManager {
     fn on_view_detached(
         &self,
         _detach_type: crate::pane_group::pane::DetachType,
-        app: &mut AppContext,
+        _app: &mut AppContext,
     ) {
-        // If this is a conversation transcript viewer, unregister the ambient session.
-        if self.model.lock().is_conversation_transcript_viewer() {
-            let terminal_view_id = self.view.id();
-            ActiveAgentViewsModel::handle(app).update(app, |model, ctx| {
-                model.unregister_ambient_session(terminal_view_id, ctx);
-            });
-        }
     }
 
     fn as_any(&self) -> &dyn std::any::Any {

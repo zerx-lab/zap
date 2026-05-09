@@ -699,9 +699,13 @@ impl BlocklistAIHistoryModel {
         });
     }
 
-    /// Sets the active conversation ID. The active conversation is the one we're currently or have most recently streamed outputs for.
-    /// If you want to set what conversation the next query should follow up in / what is selected in the input selector,
-    /// use `context_model.set_pending_query_state` instead.
+    /// Sets the active conversation ID, transferring ownership from any other
+    /// terminal view that currently holds it.
+    ///
+    /// Use this when the user **explicitly navigates** to a conversation in a
+    /// different view (e.g. from the conversation history or command palette).
+    /// For automatic follow-ups during tool-call cycles, use [`Self::mark_active_conversation_id`]
+    /// instead — it updates the active pointer without touching other views.
     pub fn set_active_conversation_id(
         &mut self,
         conversation_id: AIConversationId,
@@ -713,7 +717,7 @@ impl BlocklistAIHistoryModel {
             .get(&terminal_view_id)
             .is_some_and(|conversation_ids| conversation_ids.contains(&conversation_id))
         {
-            log::warn!(
+            log::error!(
                 "Attempted to set active conversation ID for terminal view ID that does not own that conversation."
             );
             return;
@@ -743,6 +747,40 @@ impl BlocklistAIHistoryModel {
                     terminal_view_id: *other_terminal_view,
                 });
             }
+        }
+
+        self.active_conversation_for_terminal_view
+            .insert(terminal_view_id, conversation_id);
+
+        ctx.emit(BlocklistAIHistoryEvent::SetActiveConversation {
+            conversation_id,
+            terminal_view_id,
+        });
+    }
+
+    /// Marks a conversation as the active conversation for a terminal view
+    /// **without** removing it from other views.
+    ///
+    /// This is the non-transferring counterpart to [`Self::set_active_conversation_id`].
+    /// Use this during automatic follow-ups and request sending where the
+    /// conversation already belongs to this view and we only need to update
+    /// the "most recently streamed" pointer.
+    pub fn mark_active_conversation_id(
+        &mut self,
+        conversation_id: AIConversationId,
+        terminal_view_id: EntityId,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        if !self
+            .live_conversation_ids_for_terminal_view
+            .get(&terminal_view_id)
+            .is_some_and(|conversation_ids| conversation_ids.contains(&conversation_id))
+        {
+            log::warn!(
+                "mark_active_conversation_id: conversation {conversation_id:?} is not in \
+                 terminal view {terminal_view_id:?} live list, skipping"
+            );
+            return;
         }
 
         self.active_conversation_for_terminal_view
@@ -800,6 +838,21 @@ impl BlocklistAIHistoryModel {
             .get_mut(&conversation_id)
             .ok_or(UpdateHistoryError::ConversationNotFound(conversation_id))?;
         Ok(conversation.create_optimistic_cli_subagent_task(&block_id, terminal_view_id, ctx))
+    }
+
+    /// OpenWarp BYOP 专用:见 `Conversation::create_optimistic_cli_subagent_task_silent` 文档。
+    /// 创建真实 subagent task 但不 emit `CreatedSubtask`,避免触发 `CLISubagentView`
+    /// 在 task 没 exchange 时 panic。
+    pub fn create_silent_cli_subagent_task_for_conversation(
+        &mut self,
+        block_id: BlockId,
+        conversation_id: AIConversationId,
+    ) -> Result<TaskId, UpdateHistoryError> {
+        let conversation = self
+            .conversations_by_id
+            .get_mut(&conversation_id)
+            .ok_or(UpdateHistoryError::ConversationNotFound(conversation_id))?;
+        Ok(conversation.create_optimistic_cli_subagent_task_silent(&block_id))
     }
 
     pub fn update_conversation_status(

@@ -14,8 +14,7 @@ pub mod task;
 pub mod telemetry;
 
 pub use task::{
-    cancel_task_with_toast, AgentConfigSnapshot, AgentSource, AmbientAgentTask,
-    AmbientAgentTaskState, TaskStatusMessage,
+    AgentConfigSnapshot, AgentSource, AmbientAgentTask, AmbientAgentTaskState, TaskStatusMessage,
 };
 pub const OUT_OF_CREDITS_TASK_FAILURE_MESSAGE: &str =
     "Cloud agent usage limit reached. Please try again later.";

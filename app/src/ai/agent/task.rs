@@ -194,6 +194,53 @@ impl Task {
         }
     }
 
+    /// OpenWarp BYOP 专用:agent 自起 LRC 收到 snapshot 时,在 conversation 里直接
+    /// 创建一个 Server-backed subagent task。
+    ///
+    /// 不能复用 `new_optimistic_cli_agent_subtask`:其产生的 `TaskImpl::Optimistic`
+    /// 在 `add_messages`(`task.rs:649-651`)/ `try_get_source`(`task.rs:627-631`)
+    /// 这类要求 source 存在的入口直接返回 `TaskNotInitialized`。上游路径靠 server 返
+    /// 回 `ApplyClientAction::CreateTask` 把 optimistic 升级为 server;BYOP 没有
+    /// server,需要本地直接构造 `api::Task` 作为 source,task 一开始就 Server-backed。
+    ///
+    /// `subagent_params` 用合成的 `Subagent { command_id, ... }`,让
+    /// `is_subagent_task_finished` 等查询不至于全部走 `SubagentTaskNotFound` 分支。
+    /// `tool_call_id` 用新 uuid,实际上 root.messages 里没有对应 ToolCall,所以
+    /// `is_subagent_task_finished` 会一直返回 `Ok(false)`(未完成)—— LRC 在跑期间
+    /// 语义上确实是"未完成",`BlockCompleted` 钩子会在 LRC 真结束时清理。
+    pub(super) fn new_byop_silent_cli_subtask(block_id: BlockId, parent_task_id: String) -> Self {
+        let task_id_str = Uuid::new_v4().to_string();
+        let subagent_call = api::message::tool_call::Subagent {
+            task_id: task_id_str.clone(),
+            payload: String::new(),
+            metadata: Some(api::message::tool_call::subagent::Metadata::Cli(
+                api::message::tool_call::subagent::CliSubagent {
+                    command_id: String::from(block_id.clone()),
+                },
+            )),
+        };
+        let tool_call_id = Uuid::new_v4().to_string();
+        let api_task = api::Task {
+            id: task_id_str.clone(),
+            description: String::new(),
+            dependencies: Some(api::task::Dependencies { parent_task_id }),
+            messages: vec![],
+            summary: String::new(),
+            server_data: String::new(),
+        };
+        Self {
+            id: TaskId(task_id_str),
+            data: TaskImpl::Server(ServerTask {
+                source: api_task,
+                subagent_params: Some(SubagentParams {
+                    call: subagent_call,
+                    tool_call_id,
+                }),
+            }),
+            exchanges: vec![],
+        }
+    }
+
     #[allow(clippy::unwrap_in_result)]
     pub(super) fn into_server_created_task(
         mut self,

@@ -3,9 +3,14 @@
 //! UI 形态:
 //! - Sub-header (标题左 + 右上角 `+ 添加提供商` 小按钮) + 简短说明
 //! - 每条 provider 一张卡片,卡片内含:
-//!     · `Name` / `Base URL` / `API Key` 三个输入框 (失焦/Enter 时保存)
+//!     · `Name` / `Base URL` / `API Key` 三个输入框(仅编辑,不自动保存)
 //!     · 模型列表区: 表头 `显示名 | 模型 ID`,每行两个输入框 + `×` 删除按钮
-//!     · 底部按钮行: `+ 添加模型` `Fetch from API` `Remove` (provider)
+//!     · 底部按钮行: `+ 添加模型` `Fetch from API` `保存` `Remove` (provider)
+//!
+//! **保存行为**: 只有点"保存"按钮才会把表单状态一次性下发到 `AISettings`
+//! 与 `AgentProviderSecrets`。输入框失焦/按 Enter 不会保存 —— 这是为了
+//! 避免用户边改边被“隐式提交”。添加/删除模型行、添加/删除 header 行、
+//! API 协议 chip、模型能力 chip 仍然即时生效(它们不是“表单输入”)。
 //!
 //! 当 provider 列表大小或某条 provider 的 models 数量变化时,
 //! `AISettingsPageView::rebuild_current_page` 会被触发以重建整个 widget,
@@ -114,6 +119,7 @@ struct ProviderRow {
     api_key_editor: ViewHandle<EditorView>,
     fetch_button_state: MouseStateHandle,
     sync_models_dev_button_state: MouseStateHandle,
+    save_button_state: MouseStateHandle,
     remove_button_state: MouseStateHandle,
     add_model_button_state: MouseStateHandle,
     header_rows: Vec<HeaderRow>,
@@ -183,8 +189,6 @@ impl AgentProvidersWidget {
 
     /// 构造单条模型行的 EditorView 与订阅。
     fn build_model_row(
-        provider_id: &str,
-        model_index: usize,
         model: &AgentProviderModel,
         ctx: &mut ViewContext<AISettingsPageView>,
     ) -> ModelRow {
@@ -203,19 +207,9 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        let provider_id_for_name = provider_id.to_owned();
+        // 仅负责失焦时收拢选区；不再隐式保存，保存走底部“保存”按钮。
         ctx.subscribe_to_view(&name_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderModelName {
-                        provider_id: provider_id_for_name.clone(),
-                        model_index,
-                        name: buffer_text,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- id 编辑器 ----
@@ -233,19 +227,8 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        let provider_id_for_id = provider_id.to_owned();
         ctx.subscribe_to_view(&id_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderModelId {
-                        provider_id: provider_id_for_id.clone(),
-                        model_index,
-                        id: buffer_text,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- context_window 编辑器(数字,空 = 0 = 未指定) ----
@@ -267,20 +250,8 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        let provider_id_for_ctx = provider_id.to_owned();
         ctx.subscribe_to_view(&context_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                let value = parse_token_count(&buffer_text);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderModelContextWindow {
-                        provider_id: provider_id_for_ctx.clone(),
-                        model_index,
-                        context_window: value,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- max_output_tokens 编辑器 ----
@@ -302,20 +273,8 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        let provider_id_for_out = provider_id.to_owned();
         ctx.subscribe_to_view(&output_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                let value = parse_token_count(&buffer_text);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderModelMaxOutput {
-                        provider_id: provider_id_for_out.clone(),
-                        model_index,
-                        max_output_tokens: value,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         ModelRow {
@@ -334,8 +293,6 @@ impl AgentProvidersWidget {
     }
 
     fn build_header_row(
-        provider_id: &str,
-        header_index: usize,
         key: &str,
         value: &str,
         ctx: &mut ViewContext<AISettingsPageView>,
@@ -364,40 +321,14 @@ impl AgentProvidersWidget {
             editor
         });
 
-        let provider_id_for_key = provider_id.to_owned();
-        let val_editor_for_key = val_editor.clone();
+        // header 行的保存同样走底部"保存"按钮；这里仅负责失焦选区收拢。
+        // （header_index / provider_id / val_editor 仍会在 build_row 里作为 `HeaderRow` 现场读取。）
         ctx.subscribe_to_view(&key_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let key = editor.as_ref(ctx).buffer_text(ctx);
-                let value = val_editor_for_key.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderHeader {
-                        provider_id: provider_id_for_key.clone(),
-                        header_index,
-                        key,
-                        value,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
-        let provider_id_for_value = provider_id.to_owned();
-        let key_editor_for_value = key_editor.clone();
         ctx.subscribe_to_view(&val_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let key = key_editor_for_value.as_ref(ctx).buffer_text(ctx);
-                let value = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderHeader {
-                        provider_id: provider_id_for_value.clone(),
-                        header_index,
-                        key,
-                        value,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         HeaderRow {
@@ -427,16 +358,9 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        let provider_id_for_name = provider_id.clone();
+        // 仅负责失焦选区收拢；保存走底部“保存”按钮。
         ctx.subscribe_to_view(&name_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(AISettingsPageAction::UpdateAgentProviderName {
-                    provider_id: provider_id_for_name.clone(),
-                    name: buffer_text,
-                });
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- Base URL 编辑器 ----
@@ -454,18 +378,8 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        let provider_id_for_url = provider_id.clone();
         ctx.subscribe_to_view(&base_url_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderBaseUrl {
-                        provider_id: provider_id_for_url.clone(),
-                        base_url: buffer_text,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- API Key 编辑器(密码模式) ----
@@ -486,33 +400,21 @@ impl AgentProvidersWidget {
             }
             editor
         });
-        let provider_id_for_key = provider_id.clone();
         ctx.subscribe_to_view(&api_key_editor, move |_, editor, event, ctx| {
-            if matches!(event, EditorEvent::Blurred | EditorEvent::Enter) {
-                let buffer_text = editor.as_ref(ctx).buffer_text(ctx);
-                ctx.dispatch_typed_action_deferred(
-                    AISettingsPageAction::UpdateAgentProviderApiKey {
-                        provider_id: provider_id_for_key.clone(),
-                        api_key: buffer_text,
-                    },
-                );
-                collapse_selection_if_blurred(&editor, event, ctx);
-            }
+            collapse_selection_if_blurred(&editor, event, ctx);
         });
 
         // ---- 模型行 ----
         let model_rows: Vec<ModelRow> = provider
             .models
             .iter()
-            .enumerate()
-            .map(|(idx, m)| Self::build_model_row(&provider_id, idx, m, ctx))
+            .map(|m| Self::build_model_row(m, ctx))
             .collect();
 
         let header_rows: Vec<HeaderRow> = provider
             .extra_headers
             .iter()
-            .enumerate()
-            .map(|(idx, (k, v))| Self::build_header_row(&provider_id, idx, k, v, ctx))
+            .map(|(k, v)| Self::build_header_row(k, v, ctx))
             .collect();
         let add_header_button_state = MouseStateHandle::default();
 
@@ -522,6 +424,7 @@ impl AgentProvidersWidget {
             api_key_editor,
             fetch_button_state: MouseStateHandle::default(),
             sync_models_dev_button_state: MouseStateHandle::default(),
+            save_button_state: MouseStateHandle::default(),
             remove_button_state: MouseStateHandle::default(),
             add_model_button_state: MouseStateHandle::default(),
             header_rows,
@@ -1108,6 +1011,89 @@ impl AgentProvidersWidget {
             appearance,
         );
 
+        // ---- 保存按钮:在 on_click 闭包里现场读取所有表单 buffer。
+        // 这里不能预先 build action(表单值随输入变化),所以过 clone editor handle
+        // 随闭包走,点击时一起 dispatch SaveAgentProviderEdits。
+        let save_button = {
+            let provider_id = provider.id.clone();
+            let name_editor = row.name_editor.clone();
+            let base_url_editor = row.base_url_editor.clone();
+            let api_key_editor = row.api_key_editor.clone();
+            // header_rows / model_rows 跟随列表 enumerate 顺序，与
+            // settings.agent_providers[provider].extra_headers / .models 对齐。
+            let header_editors: Vec<(ViewHandle<EditorView>, ViewHandle<EditorView>)> = row
+                .header_rows
+                .iter()
+                .map(|h| (h.key_editor.clone(), h.val_editor.clone()))
+                .collect();
+            let model_editors: Vec<(
+                usize,
+                ViewHandle<EditorView>,
+                ViewHandle<EditorView>,
+                ViewHandle<EditorView>,
+                ViewHandle<EditorView>,
+            )> = row
+                .model_rows
+                .iter()
+                .enumerate()
+                .map(|(idx, m)| {
+                    (
+                        idx,
+                        m.name_editor.clone(),
+                        m.id_editor.clone(),
+                        m.context_editor.clone(),
+                        m.output_editor.clone(),
+                    )
+                })
+                .collect();
+
+            appearance
+                .ui_builder()
+                .button(ButtonVariant::Accent, row.save_button_state.clone())
+                .with_style(UiComponentStyles {
+                    font_size: Some(CARD_BUTTON_FONT_SIZE),
+                    padding: Some(Coords::uniform(CARD_BUTTON_PADDING)),
+                    ..Default::default()
+                })
+                .with_centered_text_label(crate::t!("settings-agent-providers-save"))
+                .build()
+                .on_click(move |ctx, app, _| {
+                    let name = name_editor.as_ref(app).buffer_text(app);
+                    let base_url = base_url_editor.as_ref(app).buffer_text(app);
+                    let api_key = api_key_editor.as_ref(app).buffer_text(app);
+                    let headers: Vec<(String, String)> = header_editors
+                        .iter()
+                        .map(|(k, v)| {
+                            (
+                                k.as_ref(app).buffer_text(app),
+                                v.as_ref(app).buffer_text(app),
+                            )
+                        })
+                        .collect();
+                    let models: Vec<(usize, String, String, u32, u32)> = model_editors
+                        .iter()
+                        .map(|(idx, name_e, id_e, ctx_e, out_e)| {
+                            let m_name = name_e.as_ref(app).buffer_text(app);
+                            let m_id = id_e.as_ref(app).buffer_text(app);
+                            let context_window =
+                                parse_token_count(&ctx_e.as_ref(app).buffer_text(app));
+                            let max_output_tokens =
+                                parse_token_count(&out_e.as_ref(app).buffer_text(app));
+                            (*idx, m_name, m_id, context_window, max_output_tokens)
+                        })
+                        .collect();
+                    ctx.dispatch_typed_action(AISettingsPageAction::SaveAgentProviderEdits {
+                        provider_id: provider_id.clone(),
+                        name,
+                        base_url,
+                        api_key,
+                        headers,
+                        models,
+                    });
+                })
+                .finish()
+        };
+
         let bottom_row = Flex::row()
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
@@ -1123,7 +1109,19 @@ impl AgentProvidersWidget {
                     .with_child(sync_models_dev_button)
                     .finish(),
             )
-            .with_child(remove_button)
+            .with_child(
+                Container::new(
+                    Flex::row()
+                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                        .with_child(Container::new(save_button).with_margin_right(8.).finish())
+                        .with_child(remove_button)
+                        .finish(),
+                )
+                // 与左侧主操作组（添加模型 / 抓取 / 同步）拉开明显间隔，
+                // 避免 SpaceBetween 在卡片宽不够时两组贴在一起。
+                .with_margin_left(16.)
+                .finish(),
+            )
             .finish();
 
         // 用透明 detail_color 触发它被读取(避免 unused 警告);仅用于潜在配色。
@@ -1431,7 +1429,7 @@ impl SettingsWidget for AgentProvidersWidget {
     type View = AISettingsPageView;
 
     fn search_terms(&self) -> &str {
-        "agent provider providers custom openai compatible deepseek glm moonshot dashscope qwen ollama base url api key models 提供商 自定义 模型"
+        "agent provider providers custom openai compatible deepseek glm moonshot dashscope qwen ollama base url api key models save 提供商 自定义 模型 保存"
     }
 
     fn render(

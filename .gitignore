@@ -14,6 +14,9 @@ app/frameworks/**/*.xcframework
 app/src/server/graphql/schema/generated
 crates/command-signatures-v2/js/build
 crates/command-signatures-v2/js/node_modules
+.worktree
+/docs
+.worktrees
 /target-check
 # For testing changes to the channel versions file
 channel_versions_test.json
@@ -75,3 +78,4 @@ __pycache__/
 Logfile.CSV
 docs/tmp.md
 official-website/
+docs/openwarp-cloud-removal-plan.md

@@ -8,7 +8,6 @@ use warp_core::send_telemetry_from_ctx;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{Entity, EntityId, ModelContext, SingletonEntity};
 
-use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::spawn::{spawn_task, AmbientAgentEvent};
@@ -613,12 +612,6 @@ impl AmbientAgentViewModel {
                         // even though its server-side source may not be user-initiated.
                         AgentConversationsModel::handle(ctx).update(ctx, |model, ctx| {
                             model.mark_task_as_manually_opened(task_id, ctx);
-                        });
-
-                        // Mark this task as active immediately so it renders under the Active section
-                        // (and doesn't briefly appear under Past before the shared session join completes).
-                        ActiveAgentViewsModel::handle(ctx).update(ctx, |model, ctx| {
-                            model.register_ambient_session(me.terminal_view_id, task_id, ctx);
                         });
 
                         // Emit event so terminal view knows to show the info button

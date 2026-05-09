@@ -1,0 +1,28 @@
+---
+import GhIcon from './GhIcon.astro';
+const repo = 'https://github.com/zerx-lab/warp';
+---
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="/">
+      <img class="brand-logo" src="/logo.svg" alt="OpenWarp" width="26" height="23" />
+      OpenWarp
+    </a>
+    <nav class="nav-links">
+      <a href="/" data-lang="en">README</a><a href="/" data-lang="zh">首页</a>
+      <a href="/docs/quickstart" class="active" data-lang="en">Docs</a><a href="/docs/quickstart" class="active" data-lang="zh">文档</a>
+      <a href={repo} target="_blank" rel="noopener" data-lang="en">Providers</a><a href={repo} target="_blank" rel="noopener" data-lang="zh">服务商</a>
+      <a href={`${repo}/blob/main/CHANGELOG.md`} target="_blank" rel="noopener" data-lang="en">Changelog</a><a href={`${repo}/blob/main/CHANGELOG.md`} target="_blank" rel="noopener" data-lang="zh">更新日志</a>
+    </nav>
+    <div class="nav-spacer"></div>
+    <div class="nav-right">
+      <div class="lang">
+        <button class="active" data-set-lang="en" type="button">EN</button>
+        <button data-set-lang="zh" type="button">中</button>
+      </div>
+      <a class="gh-link" href={repo} target="_blank" rel="noopener">
+        <GhIcon /><span>GitHub</span>
+      </a>
+    </div>
+  </div>
+</header>

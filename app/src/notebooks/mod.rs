@@ -129,16 +129,11 @@ impl CloudModelType for CloudNotebookModel {
 
     fn update_object_queue_item(
         &self,
-        revision_ts: Option<Revision>,
-        notebook: &CloudNotebook,
-    ) -> QueueItem {
-        QueueItem::UpdateNotebook {
-            // Note that this is intentionally a deep clone of the model because we are grabbing
-            // a snapshot to update at a moment in time.
-            model: notebook.model().clone().into(),
-            id: notebook.id,
-            revision: revision_ts.or_else(|| notebook.metadata.revision.clone()),
-        }
+        _revision_ts: Option<Revision>,
+        _notebook: &CloudNotebook,
+    ) -> Option<QueueItem> {
+        // OpenWarp: notebooks are local-only, never enqueued to the cloud sync queue.
+        None
     }
 
     fn should_update_after_server_conflict(&self) -> bool {

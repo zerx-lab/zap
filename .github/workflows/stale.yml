@@ -1,0 +1,29 @@
+name: Close stale issues and PRs
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 7
+          days-before-close: 3
+          stale-issue-label: stale
+          stale-pr-label: stale
+          stale-issue-message: "本 issue 已 7 天无活动,标记为 stale。如 3 天内仍无更新将自动关闭。如仍需跟进请回复或移除 stale 标签。"
+          close-issue-message: "因长期无响应自动关闭。如问题仍存在欢迎重开。"
+          stale-pr-message: "本 PR 已 7 天无活动,标记为 stale。如 3 天内仍无更新将自动关闭。"
+          close-pr-message: "因长期无响应自动关闭。如需继续推进欢迎重开。"
+          exempt-issue-labels: "pinned,security,roadmap,keep-open"
+          exempt-pr-labels: "pinned,security,keep-open"
+          exempt-all-milestones: true
+          operations-per-run: 100

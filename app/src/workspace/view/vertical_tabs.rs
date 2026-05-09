@@ -1,7 +1,6 @@
 pub mod telemetry;
 
 use crate::ai::agent::conversation::ConversationStatus;
-use crate::ai::agent_management::AgentNotificationsModel;
 use crate::code::editor::{add_color, remove_color};
 use crate::code::icon_from_file_path;
 use crate::safe_triangle::SafeTriangle;
@@ -2429,15 +2428,8 @@ fn resolve_icon_with_status_variant(
     }
 }
 
-fn has_unread_activity(typed: &TypedPane<'_>, app: &AppContext) -> bool {
-    let TypedPane::Terminal(terminal_pane) = typed else {
-        return false;
-    };
-    let terminal_view = terminal_pane.terminal_view(app);
-    let terminal_view_id = terminal_view.as_ref(app).id();
-    AgentNotificationsModel::as_ref(app)
-        .notifications()
-        .has_unread_for_terminal_view(terminal_view_id)
+fn has_unread_activity(_typed: &TypedPane<'_>, _app: &AppContext) -> bool {
+    false
 }
 
 const INDICATOR_DOT_SIZE: f32 = 8.;

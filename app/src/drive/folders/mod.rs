@@ -104,12 +104,10 @@ impl CloudModelType for CloudFolderModel {
     fn update_object_queue_item(
         &self,
         _revision_ts: Option<Revision>,
-        folder: &CloudFolder,
-    ) -> QueueItem {
-        QueueItem::UpdateFolder {
-            id: folder.id,
-            model: folder.model().clone().into(),
-        }
+        _folder: &CloudFolder,
+    ) -> Option<QueueItem> {
+        // OpenWarp: folders are local-only, never enqueued to the cloud sync queue.
+        None
     }
 
     fn should_update_after_server_conflict(&self) -> bool {

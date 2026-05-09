@@ -389,9 +389,29 @@ impl AutoupdateState {
                 new_version,
                 update_id,
             }) => {
-                self.download_new_update(update_id.clone(), request_type, new_version.clone(), ctx);
-                // We report the update status after attempting to download the update.
-                return;
+                // openWarp(Channel::Oss):仅展示"有新版本可用"并在关于页面给出 GitHub 下载
+                // 链接;**不**自动下载安装包到本地。这里把 stage 直接置为 UpdateReady,
+                // 让 UI(关于页面 / VersionInfoWidget)能据此判断是否提示新版本。
+                if matches!(ChannelState::channel(), Channel::Oss) {
+                    log::info!(
+                        "openWarp: 发现新版本 {},不自动下载,等用户在关于页面手动下载",
+                        new_version.version
+                    );
+                    self.stage = AutoupdateStage::UpdateReady {
+                        new_version: new_version.clone(),
+                        update_id: update_id.clone(),
+                    };
+                    ctx.emit(AutoupdateStateEvent::UpdateAvailable);
+                } else {
+                    self.download_new_update(
+                        update_id.clone(),
+                        request_type,
+                        new_version.clone(),
+                        ctx,
+                    );
+                    // We report the update status after attempting to download the update.
+                    return;
+                }
             }
             Ok(UpdateReady::Yes {
                 new_version,

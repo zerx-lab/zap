@@ -1,0 +1,17 @@
+---
+interface Props {
+  file: string;
+  lang: string;
+  html: string;
+}
+const { file, lang, html } = Astro.props;
+---
+<div class="code-card">
+  <div class="code-head">
+    <span class="dot"></span>
+    <span class="file mono">{file}</span>
+    <span class="lang-tag">{lang}</span>
+    <button class="copy" data-copy type="button">Copy</button>
+  </div>
+  <pre class="code" set:html={html}></pre>
+</div>

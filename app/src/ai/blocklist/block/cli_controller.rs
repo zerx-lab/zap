@@ -179,15 +179,119 @@ impl CLISubagentController {
                     .get_action_result(action_id)
                     .and_then(|result| snapshot_block_id_for_action_result(&result.result))
                     .cloned();
+
+                // OpenWarp BYOP fallback: agent 自起 LRC 后,上游 server 路径会推
+                // `BlocklistAIHistoryEvent::CreatedSubtask` 触发
+                // `handle_history_model_event` 把 block 升级为 monitored 态;BYOP 没有
+                // 这条 server 事件源,如果不补,active_block 永远停在
+                // `Agent { long_running_control_state: None }` —— `is_agent_in_control()`
+                // / `is_agent_monitoring()` / `is_agent_tagged_in()` 全 false,命中
+                // `view.rs:6841-6853` `is_input_box_visible` 长命令分支的兜底 false 路径,
+                // 输入框消失;同时 `controller.rs:1112-1119` 分支读
+                // `subagent_task_id`,fallback 若不真实创建 conversation task,下一轮
+                // query 路由失败,触发"Could not find conversation for response stream"。
+                //
+                // 实现走 silent 路径:`create_silent_cli_subagent_task_for_conversation`
+                // 真实创建 subtask 但不 emit `CreatedSubtask`(原方法 emit 时机由调用方
+                // 控制),让本 hook 在升级 block 后再手动 emit。这样可以走完整的上游
+                // 升级链路并创建 SubagentView 浮窗,且配合 `cli.rs:431-446` 的 root_task
+                // 兜底,task 暂无 exchange 时 view 用 root last_exchange 占位创建,后续
+                // 用户 follow-up query 路由到 subtask 触发 `AppendedExchange`,view 自身
+                // 订阅(`cli.rs:355-399`)会自动 replace model 到真实 exchange。
+                //
+                // 副作用:浮窗创建瞬间用 root last_exchange 渲染,可能短暂闪现 root 内容
+                // 一帧;但 `set_agent_interaction_mode_for_agent_monitored_command` 升级
+                // 后 SubagentView 的过滤会让其只显示 task_id 关联内容,体验上和上游一致。
+                let upgrade_target = snapshot_block_id.as_ref().and_then(|block_id| {
+                    let terminal_model = me.terminal_model.lock();
+                    let block = terminal_model.block_list().block_with_id(block_id)?;
+                    if !block.is_agent_driving_command()
+                        || block.long_running_control_state().is_some()
+                    {
+                        return None;
+                    }
+                    let conversation_id = block.ai_conversation_id()?;
+                    Some((block_id.clone(), conversation_id))
+                });
+
+                let upgraded_task_id =
+                    if let Some((block_id, conversation_id)) = upgrade_target.as_ref() {
+                        let history_model = BlocklistAIHistoryModel::handle(ctx);
+                        let block_id_for_create = block_id.clone();
+                        let conversation_id = *conversation_id;
+                        match history_model.update(ctx, |history_model, _| {
+                            history_model.create_silent_cli_subagent_task_for_conversation(
+                                block_id_for_create,
+                                conversation_id,
+                            )
+                        }) {
+                            Ok(task_id) => {
+                                log::info!(
+                                    "[byop] BYOP LRC monitor fallback: silent subtask created \
+                                 block={block_id:?} task={task_id:?} \
+                                 conversation={conversation_id:?}"
+                                );
+                                Some(task_id)
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "[byop] BYOP LRC monitor fallback create_silent_subagent_task \
+                                 failed: {e:?}"
+                                );
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
+
                 let mut terminal_model = me.terminal_model.lock();
+                let mut emit_spawn_event_for: Option<(
+                    BlockId,
+                    TaskId,
+                    AIConversationId,
+                    Option<AIAgentActionId>,
+                )> = None;
+                if let (Some((block_id, conversation_id)), Some(task_id)) =
+                    (upgrade_target.as_ref(), upgraded_task_id.as_ref())
+                {
+                    if let Some(block) = terminal_model.block_list_mut().mut_block_from_id(block_id)
+                    {
+                        match block.set_agent_interaction_mode_for_agent_monitored_command(
+                            task_id,
+                            *conversation_id,
+                        ) {
+                            Ok(()) => {
+                                let action_id = block.requested_command_action_id().cloned();
+                                emit_spawn_event_for = Some((
+                                    block_id.clone(),
+                                    task_id.clone(),
+                                    *conversation_id,
+                                    action_id,
+                                ));
+                            }
+                            Err(e) => {
+                                log::error!(
+                                    "[byop] BYOP LRC monitor fallback: \
+                                     set_agent_interaction_mode_for_agent_monitored_command \
+                                     failed: {e:?}"
+                                );
+                            }
+                        }
+                    }
+                }
                 let active_block = terminal_model.block_list_mut().active_block_mut();
                 active_block.update_is_agent_blocked(false);
 
                 let action_id = active_block.requested_command_action_id().cloned();
+                let updated_control_block_id = active_block.id().clone();
+                let updated_control_agent_has_control = active_block.is_agent_in_control();
+                drop(terminal_model);
+
                 ctx.emit(CLISubagentEvent::UpdatedControl {
-                    block_id: active_block.id().clone(),
+                    block_id: updated_control_block_id,
                     requested_command_action_id: action_id,
-                    agent_has_control: active_block.is_agent_in_control(),
+                    agent_has_control: updated_control_agent_has_control,
                 });
 
                 // Updates the last snapshot timestamp for the active block after the agent has read the block output.
@@ -197,6 +301,33 @@ impl CLISubagentController {
                         .or_default()
                         .last_snapshot_at = Some(Instant::now());
                     ctx.emit(CLISubagentEvent::UpdatedLastSnapshot);
+                }
+
+                // OpenWarp BYOP: silent_create_for_byop 不 emit CreatedSubtask,这里手动
+                // 触发 SpawnedSubagent 让 terminal_view 创建 CLISubagentView 浮窗。
+                // active_subagents_by_block.task_id 同步更新,确保 BlockCompleted 钩子在
+                // LRC 结束时正确清理。
+                //
+                // 注意:terminal_model 锁已在上面 drop,避免之前 reproduce 的死锁(emit
+                // SpawnedSubagent → terminal_view::handle_cli_subagent_controller_event
+                // → CLISubagentView::new 同步内部还会再 lock terminal_model 之类导致
+                // FairMutex 重入)。
+                if let Some((block_id, task_id, conversation_id, action_id)) = emit_spawn_event_for
+                {
+                    me.active_subagents_by_block
+                        .entry(block_id.clone())
+                        .or_default()
+                        .task_id = Some(task_id.clone());
+                    log::info!(
+                        "[byop] BYOP LRC monitor fallback: emit SpawnedSubagent \
+                         block={block_id:?} task={task_id:?}"
+                    );
+                    ctx.emit(CLISubagentEvent::SpawnedSubagent {
+                        task_id,
+                        conversation_id,
+                        block_id,
+                        initial_requested_command_action_id: action_id,
+                    });
                 }
             }
             _ => (),

@@ -106,7 +106,7 @@ pub trait StringModel: Clone + Debug + PartialEq + Send + Sync + 'static {
         &self,
         revision_ts: Option<Revision>,
         object: &Self::CloudObjectType,
-    ) -> QueueItem;
+    ) -> Option<QueueItem>;
 
     /// Returns a new instance from a server update, or None if the update should be ignored.
     fn new_from_server_update(&self, server_cloud_object: &ServerCloudObject) -> Option<Self>;
@@ -263,7 +263,7 @@ where
         &self,
         revision_ts: Option<Revision>,
         object: &GenericCloudObject<GenericStringObjectId, Self>,
-    ) -> QueueItem {
+    ) -> Option<QueueItem> {
         self.string_model
             .update_object_queue_item(revision_ts, object)
     }

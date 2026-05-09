@@ -293,14 +293,14 @@ impl CloudModelType for CloudWorkflowModel {
         &self,
         revision_ts: Option<Revision>,
         workflow: &CloudWorkflow,
-    ) -> QueueItem {
-        QueueItem::UpdateWorkflow {
+    ) -> Option<QueueItem> {
+        Some(QueueItem::UpdateWorkflow {
             // Note that this is intentionally a deep clone of the model because we are grabbing
             // a snapshot to update at a moment in time.
             model: workflow.model().clone().into(),
             id: workflow.id,
             revision: revision_ts.or_else(|| workflow.metadata.revision.clone()),
-        }
+        })
     }
 
     fn should_update_after_server_conflict(&self) -> bool {

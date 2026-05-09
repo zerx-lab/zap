@@ -6,13 +6,12 @@ use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::Icon;
 use warpui::elements::{ConstrainedBox, Container, Highlight, ParentElement, Shrinkable, Text};
-use warpui::fonts::{Properties, Style, Weight};
+use warpui::fonts::{Properties, Weight};
 use warpui::prelude::{Align, CrossAxisAlignment, Flex, MainAxisAlignment, MainAxisSize};
 use warpui::scene::{CornerRadius, Radius};
 use warpui::text_layout::ClipConfig;
 use warpui::{AppContext, Element, SingletonEntity};
 
-use crate::ai::active_agent_views_model::{ActiveAgentViewsModel, ConversationOrTaskId};
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::conversation_navigation::ConversationNavigationData;
@@ -107,20 +106,8 @@ impl SearchItem for ConversationSearchItem {
         let primary_text_color = inline_styles::primary_text_color(theme, background_color.into());
         let secondary_text_color = theme.disabled_text_color(background_color.into());
 
-        let open_conversation_ids =
-            ActiveAgentViewsModel::as_ref(app).get_all_open_conversation_ids(app);
-        let is_active = open_conversation_ids.contains(&ConversationOrTaskId::ConversationId(
-            self.navigation_data.id,
-        ));
-
-        let secondary_suffix = " open in different pane";
         let title = &self.navigation_data.title;
-        let should_show_suffix = is_active && !self.navigation_data.is_in_active_pane;
-        let full_text = if should_show_suffix {
-            format!("{title}{secondary_suffix}")
-        } else {
-            title.clone()
-        };
+        let full_text = title.clone();
 
         let mut name_text = Text::new_inline(full_text, appearance.ui_font_family(), font_size)
             .with_color(primary_text_color.into())
@@ -135,18 +122,7 @@ impl SearchItem for ConversationSearchItem {
             }
         }
 
-        if should_show_suffix {
-            let secondary_range = title.len()..(title.len() + secondary_suffix.len());
-            name_text = name_text.with_single_highlight(
-                Highlight::new()
-                    .with_properties(Properties {
-                        style: Style::Italic,
-                        ..Default::default()
-                    })
-                    .with_foreground_color(secondary_text_color.into()),
-                secondary_range.collect(),
-            );
-        }
+        let _ = secondary_text_color;
 
         let mut primary_row = Flex::row()
             .with_main_axis_size(MainAxisSize::Max)

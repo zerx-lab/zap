@@ -25,7 +25,6 @@ mod terminal_message_bar;
 mod universal;
 pub mod user_query;
 
-use crate::ai::active_agent_views_model::{ActiveAgentViewsModel, ConversationOrTaskId};
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::{AIAgentExchangeId, CancellationReason};
 use crate::ai::blocklist::agent_view::shortcuts::AgentShortcutViewModel;
@@ -944,6 +943,8 @@ pub enum InputEmptyStateChangeReason {
 pub enum Event {
     AutosuggestionAccepted,
     ClearSelectedBlock,
+    PageUp,
+    PageDown,
     SelectRecentBlocks {
         /// Select the `count` most recent blocks.
         count: usize,
@@ -1071,6 +1072,8 @@ pub enum InputAction {
     CtrlR,
     CtrlD,
     Up,
+    PageUp,
+    PageDown,
     ClearScreen,
     SelectAndRefreshVoltron(VoltronItem),
     ShowAiCommandSearch,
@@ -1775,6 +1778,23 @@ pub fn init(app: &mut AppContext) {
     )
     .with_context_predicate(id!("Input"))
     .with_key_binding("ctrl-l")]);
+
+    app.register_editable_bindings([
+        EditableBinding::new(
+            "terminal:scroll_up_one_page",
+            "Scroll terminal output up one page",
+            InputAction::PageUp,
+        )
+        .with_context_predicate(id!("Input") & !id!("IMEOpen"))
+        .with_key_binding("pageup"),
+        EditableBinding::new(
+            "terminal:scroll_down_one_page",
+            "Scroll terminal output down one page",
+            InputAction::PageDown,
+        )
+        .with_context_predicate(id!("Input") & !id!("IMEOpen"))
+        .with_key_binding("pagedown"),
+    ]);
 
     app.register_editable_bindings([EditableBinding::new(
         "workspace:edit_prompt",
@@ -2510,6 +2530,10 @@ impl Input {
                     include_ai_context_menu: false,
                     delegate_paste_handling: true,
                     keymap_context_modifier: Some(Box::new(move |context, app| {
+                        context
+                            .set
+                            .insert(flags::TERMINAL_INPUT_PAGE_KEYS_HANDLED_BY_INPUT);
+
                         // When ctrl-enter is bound to accepting prompt suggestions and there's
                         // a pending passive code diff, suggested prompt, or prompt suggestion
                         // banner, set a flag so the editor's ctrl-enter binding doesn't match
@@ -3628,10 +3652,7 @@ impl Input {
                 );
 
                 let conversation_id = conversation_navigation_data.id;
-                let active_ids =
-                    ActiveAgentViewsModel::as_ref(ctx).get_all_active_conversation_ids(ctx);
-                let is_active =
-                    active_ids.contains(&ConversationOrTaskId::ConversationId(conversation_id));
+                let is_active = false;
 
                 if self
                     .suggestions_mode_model
@@ -7677,8 +7698,12 @@ impl Input {
             }
         });
         send_telemetry_from_ctx!(event, ctx);
-        self.editor
-            .update(ctx, |input, ctx| input.move_page_up(ctx));
+        if self.suggestions_mode_model.as_ref(ctx).is_visible() {
+            self.editor
+                .update(ctx, |input, ctx| input.move_page_up(ctx));
+        } else {
+            ctx.emit(Event::PageUp);
+        }
     }
 
     /// Asks the currently active inline menu whether the buffer should be restored on dismiss
@@ -7992,8 +8017,12 @@ impl Input {
             }
         });
         send_telemetry_from_ctx!(event, ctx);
-        self.editor
-            .update(ctx, |input, ctx| input.move_page_down(ctx));
+        if self.suggestions_mode_model.as_ref(ctx).is_visible() {
+            self.editor
+                .update(ctx, |input, ctx| input.move_page_down(ctx));
+        } else {
+            ctx.emit(Event::PageDown);
+        }
     }
 
     fn maybe_generate_autosuggestion(&mut self, ctx: &mut ViewContext<Self>) {
@@ -13884,6 +13913,8 @@ impl TypedActionView for Input {
         match action {
             InputAction::FocusInputBox => self.focus_input_box(ctx),
             InputAction::Up => self.editor_up(ctx),
+            InputAction::PageUp => self.editor_page_up(ctx),
+            InputAction::PageDown => self.editor_page_down(ctx),
             InputAction::CtrlD => self.ctrl_d(ctx),
             InputAction::CtrlR => self.ctrl_r(ctx),
             InputAction::ClearScreen => self.clear_screen(ctx),

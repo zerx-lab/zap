@@ -174,12 +174,12 @@ impl StringModel for Preference {
         &self,
         revision_ts: Option<Revision>,
         object: &CloudPreference,
-    ) -> QueueItem {
-        QueueItem::UpdateCloudPreferences {
+    ) -> Option<QueueItem> {
+        Some(QueueItem::UpdateCloudPreferences {
             model: object.model().clone().into(),
             id: object.id,
             revision: revision_ts.or_else(|| object.metadata.revision.clone()),
-        }
+        })
     }
 
     fn should_clear_on_unique_key_conflict(&self) -> bool {
