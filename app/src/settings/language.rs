@@ -1,6 +1,6 @@
 //! 用户界面语言设置(persisted via settings.toml,启动时应用到 i18n loader)。
 //!
-//! 当前支持英文与简体中文。新增语言只需:
+//! 当前支持英文、简体中文与日语。新增语言只需:
 //!   1. `Language` 加 variant
 //!   2. `app/i18n/<locale>/warp.ftl` 新建翻译文件
 //!   3. `Display` + `to_locale_str` 加 case
