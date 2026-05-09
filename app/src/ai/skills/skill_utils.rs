@@ -81,7 +81,9 @@ pub(crate) fn unique_skills(
         }
     }
 
-    dedup_map.into_values().collect()
+    let mut skills: Vec<SkillDescriptor> = dedup_map.into_values().collect();
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    skills
 }
 
 /// 列出当前 working directory 适用的全部 skills。
