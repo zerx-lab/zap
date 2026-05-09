@@ -97,7 +97,7 @@ fn test_unique_skills_dedupes_identical_skills_same_dir() {
 }
 
 #[test]
-fn test_unique_skills_does_not_dedupe_different_dirs() {
+fn test_unique_skills_name_dedup_different_dirs_same_provider() {
     let home_dir = PathBuf::from("/home/user");
     let project_dir = PathBuf::from("/home/user/projects/repo");
     let home_path = home_dir.join(".agents/skills/my-skill/SKILL.md");
@@ -133,13 +133,13 @@ fn test_unique_skills_does_not_dedupe_different_dirs() {
     let result = unique_skills(&skill_paths, &skills_by_path);
     assert_eq!(
         result.len(),
-        2,
-        "Skills with same content but different directories should not be deduped"
+        1,
+        "Same name+content+provider across different dirs should be name-deduped to 1"
     );
 }
 
 #[test]
-fn test_unique_skills_does_not_dedupe_different_content() {
+fn test_unique_skills_name_dedup_same_name_different_providers() {
     let shared_skill_dir = PathBuf::from("/home/user");
     let skill_path1 = shared_skill_dir.join(".agents/skills/my-skill/SKILL.md");
     let skill_path2 = shared_skill_dir.join(".claude/skills/my-skill/SKILL.md");
@@ -179,7 +179,10 @@ fn test_unique_skills_does_not_dedupe_different_content() {
     let result = unique_skills(&skill_paths, &skills_by_path);
     assert_eq!(
         result.len(),
-        2,
-        "Skills with different content should not be deduped even if same directory and name"
+        1,
+        "Same name with different content+providers should be name-deduped, keeping highest priority provider"
+    );
+    assert_eq!(result[0].provider, SkillProvider::Agents,
+        "Name-dedup should keep the higher priority provider (Agents > Claude)"
     );
 }

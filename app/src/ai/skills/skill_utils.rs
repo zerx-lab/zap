@@ -60,6 +60,10 @@ fn try_insert_skill(
 /// **and** identical content — which is the common case when a tool like `npx skills`
 /// symlinks the same skill under `~/.agents/skills/`, `~/.warp/skills/`, `~/.claude/skills/`, etc.
 ///
+/// After content dedup, additionally deduplicates by name: for skills with the same name,
+/// keeps only the one with the highest provider priority (per [`provider_rank`]); same provider
+/// rank breaks ties by shortest reference path. Final list is sorted by name for stable ordering.
+///
 /// Each element of `skill_paths` is a `(dir_path, skill_file_path)` tuple where
 /// `dir_path` is the directory that owns the skill.
 #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
@@ -67,7 +71,7 @@ pub(crate) fn unique_skills(
     skill_paths: &[(PathBuf, PathBuf)],
     skills_by_path: &HashMap<PathBuf, ParsedSkill>,
 ) -> Vec<SkillDescriptor> {
-    // hash(dir_path + content) → best descriptor seen so far
+    // First pass: hash(dir_path + content) → best descriptor (symlink-dedup)
     let mut dedup_map: HashMap<u64, SkillDescriptor> = HashMap::new();
 
     for (dir_path, path) in skill_paths {
@@ -81,9 +85,43 @@ pub(crate) fn unique_skills(
         }
     }
 
-    let mut skills: Vec<SkillDescriptor> = dedup_map.into_values().collect();
+    // Second pass: name → best descriptor (name-dedup), preferring higher provider
+    // priority, then shortest reference path for same-provider ties.
+    let mut name_map: HashMap<String, SkillDescriptor> = HashMap::new();
+    for skill in dedup_map.into_values() {
+        use std::collections::hash_map::Entry;
+        match name_map.entry(skill.name.clone()) {
+            Entry::Vacant(e) => {
+                e.insert(skill);
+            }
+            Entry::Occupied(mut e) => {
+                let existing_rank = provider_rank(e.get().provider);
+                let new_rank = provider_rank(skill.provider);
+                if new_rank < existing_rank {
+                    // Higher priority provider wins
+                    e.insert(skill);
+                } else if new_rank == existing_rank
+                    && reference_path_len(&skill.reference)
+                        < reference_path_len(&e.get().reference)
+                {
+                    // Same provider rank → shorter path wins
+                    e.insert(skill);
+                }
+            }
+        }
+    }
+
+    let mut skills: Vec<SkillDescriptor> = name_map.into_values().collect();
     skills.sort_by(|a, b| a.name.cmp(&b.name));
     skills
+}
+
+/// Length of the reference path string, used as tiebreaker between same-provider skills.
+fn reference_path_len(reference: &ai::skills::SkillReference) -> usize {
+    match reference {
+        ai::skills::SkillReference::Path(p) => p.to_string_lossy().len(),
+        ai::skills::SkillReference::BundledSkillId(id) => id.len(),
+    }
 }
 
 /// 列出当前 working directory 适用的全部 skills。

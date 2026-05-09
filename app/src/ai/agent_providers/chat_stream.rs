@@ -731,6 +731,12 @@ fn build_chat_request(
                 if let Some(p) = &user_attachments.prefix {
                     prefixes.push(p.clone());
                 }
+// 追加 env 块到当前轮 user message 前缀(system prompt 已不含 env,
+                // 此举使 system prompt 全长稳定,提升 DeepSeek 等前缀缓存命中率)。
+                let env_block = prompt_renderer::render_env_block(&params.model, agent_ctx);
+                if !env_block.trim().is_empty() {
+                    prefixes.push(env_block);
+                }
                 let full_text = match (prefixes.is_empty(), suffixes.is_empty()) {
                     (true, true) => query.clone(),
                     (false, true) => format!("{}\n\n{query}", prefixes.join("\n\n")),

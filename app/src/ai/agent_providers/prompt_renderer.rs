@@ -395,6 +395,39 @@ fn fallback_init_project_command(arguments: &str) -> String {
     )
 }
 
+/// 渲染 <env> 块,供 chat_stream 注入到当前轮 user message 前缀。
+///
+/// model_id + cwd / shell / os / git / current_time 由 `AIAgentContext` 驱动。
+/// 与 `render_system` 共享同一份 `collect_prompt_context` 和 `partials/env.j2`,
+/// 确保两块数据表现一致。
+pub fn render_env_block(model: &LLMId, ctx: &[AIAgentContext]) -> String {
+    let model_id = model_id_from_llm_id(model);
+    let prompt_ctx = collect_prompt_context(&model_id, ctx);
+    let env = env();
+    let template_name = "partials/env.j2";
+    let tmpl = match env.get_template(template_name) {
+        Ok(t) => t,
+        Err(e) => {
+            log::error!("[byop prompt] failed to get template {template_name}: {e}");
+            return fallback_env_block(&model_id, &prompt_ctx);
+        }
+    };
+    match tmpl.render(Value::from_serialize(&prompt_ctx)) {
+        Ok(s) => s,
+        Err(e) => {
+            log::error!("[byop prompt] render {template_name} failed: {e}");
+            fallback_env_block(&model_id, &prompt_ctx)
+        }
+    }
+}
+
+fn fallback_env_block(model_id: &str, ctx: &PromptContext) -> String {
+    let cwd = ctx.cwd.as_deref().unwrap_or("(unknown)");
+    format!(
+        "<env>\n  Model: {model_id}\n  Working directory: {cwd}\n</env>"
+    )
+}
+
 /// 渲染兜底 system(只在模板加载/渲染失败时用,不应在正常路径触发)。
 fn fallback_system(model_id: &str) -> String {
     format!(
@@ -478,7 +511,38 @@ mod tests {
     }
 
     #[test]
-    fn render_includes_env_block_with_cwd_and_shell() {
+    fn render_env_block_contains_env_tags_and_fields() {
+        let ctx = vec![
+            AIAgentContext::Directory {
+                pwd: Some("/home/user/project".into()),
+                home_dir: Some("/home/user".into()),
+                are_file_symbols_indexed: false,
+            },
+            AIAgentContext::ExecutionEnvironment(WarpAiExecutionContext {
+                os: WarpAiOsContext {
+                    category: Some("linux".into()),
+                    distribution: Some("Ubuntu 22.04".into()),
+                },
+                shell_name: "bash".into(),
+                shell_version: Some("5.1".into()),
+            }),
+        ];
+        let out = render_env_block(&LLMId::from("byop:p:deepseek-chat"), &ctx);
+        assert!(out.starts_with("<env>"), "{out}");
+        assert!(out.ends_with("</env>"), "{out}");
+        assert!(out.contains("Model: deepseek-chat"), "{out}");
+        assert!(
+            out.contains("Working directory: /home/user/project"),
+            "{out}"
+        );
+        assert!(out.contains("Shell: bash 5.1"), "{out}");
+        assert!(out.contains("linux (Ubuntu 22.04)"), "{out}");
+        // home 字段已对齐 opencode 砍掉,不再渲染
+        assert!(!out.contains("Home directory:"), "{out}");
+    }
+
+    #[test]
+    fn render_system_no_longer_contains_env_block() {
         let ctx = vec![
             AIAgentContext::Directory {
                 pwd: Some("/home/user/project".into()),
@@ -495,14 +559,12 @@ mod tests {
             }),
         ];
         let out = render_system(&LLMId::from("byop:p:deepseek-chat"), &ctx, &[], false);
-        assert!(
-            out.contains("Working directory: /home/user/project"),
-            "{out}"
-        );
-        assert!(out.contains("Shell: bash 5.1"), "{out}");
-        assert!(out.contains("linux (Ubuntu 22.04)"), "{out}");
-        // home 字段已对齐 opencode 砍掉,不再渲染
-        assert!(!out.contains("Home directory:"), "{out}");
+        // system prompt 不再包含 env 字段(已移至 user message)。
+        // Working directory: 大写开头是 env.j2 内的字段名,与小写的引导文本区分。
+        assert!(!out.contains("Working directory:"), "{out}");
+        // 静态引导提及了 <env> 标签,因此不能检查 "<env>" 子串。
+        // 验证关键字段 Shell 和 Platform 不在 system prompt 中即可。
+        assert!(!out.contains("Model:"), "{out}");
     }
 
     #[test]
