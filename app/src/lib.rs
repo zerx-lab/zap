@@ -563,13 +563,11 @@ fn apply_scroll_multiplier(event: &mut Event, app: &AppContext) {
 
 /// Runs the app. If a subcommand was requested, it'll be run instead of the main application.
 pub fn run() -> Result<()> {
-    // POSIX locale fallback: ensure C/Rust libs that consult LANG/LC_* (e.g. chrono number
-    // formatting, libc strftime) have a sane UTF-8 default when nothing is set. On Windows
-    // we deliberately skip this — Windows APIs (`GetUserPreferredUILanguages`) are the source
-    // of truth for UI locale, and forcing `LANG=en_US.UTF-8` here causes
-    // `DesktopLanguageRequester` to prefer en regardless of the user's selected UI language,
-    // which in turn breaks the CJK Han glyph fallback (Japanese UI ends up with Simplified
-    // Chinese glyph shapes).
+    // POSIX locale 兜底:在 LANG/LC_* 全部未设置时,给依赖这些环境变量的 C/Rust 库
+    // (chrono 数字格式化、libc strftime 等) 一个合理的 UTF-8 默认值。Windows 上特意跳过
+    // —— Windows API (`GetUserPreferredUILanguages`) 才是 UI locale 的真实来源,这里
+    // 强制 `LANG=en_US.UTF-8` 会让 `DesktopLanguageRequester` 不论用户选什么 UI 语言
+    // 都返回 en,进而把 CJK Han 字形回退打偏 (日文 UI 反倒拿到简体字字形)。
     #[cfg(not(windows))]
     if std::env::var_os("LANG").is_none()
         && std::env::var_os("LC_ALL").is_none()

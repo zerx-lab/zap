@@ -14,8 +14,6 @@ use owned_ttf_parser::OwnedFace;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-const EN_US_LOCALE: &str = "en-US";
-
 /// Returns the BCP-47 locale string used to bias DirectWrite Han-glyph fallback.
 /// Mirrors the current UI locale (set via `crate::set_ui_locale` from `app::i18n`).
 fn current_fallback_locale() -> String {
@@ -289,20 +287,38 @@ fn is_shared_cjk_han(ch: char) -> bool {
 /// Locale-preferred Windows system CJK font families, in priority order.
 /// Used to override DirectWrite's locale-insensitive Han fallback (which favors
 /// Microsoft YaHei / Simplified Chinese on Windows English/dev environments).
+///
+/// Routing handles BCP-47 region subtags (zh-TW / zh-HK / zh-MO) and script
+/// subtags (zh-Hant / zh-Hans, optionally with region: zh-Hant-TW etc.) so
+/// callers don't need to normalize their locale tag first.
 fn preferred_cjk_families_for_locale(locale: &str) -> &'static [&'static str] {
     let lower = locale.to_ascii_lowercase();
     if lower.starts_with("ja") {
         &["Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic"]
     } else if lower.starts_with("ko") {
         &["Malgun Gothic", "Gulim", "Dotum"]
-    } else if lower.starts_with("zh-tw") || lower.starts_with("zh-hk") || lower.starts_with("zh-mo")
-    {
+    } else if is_zh_traditional(&lower) {
         &["Microsoft JhengHei UI", "Microsoft JhengHei", "PMingLiU", "MingLiU"]
     } else if lower.starts_with("zh") {
         &["Microsoft YaHei UI", "Microsoft YaHei", "SimSun"]
     } else {
         &[]
     }
+}
+
+/// True if `lower` (already ASCII-lowercased BCP-47 tag) refers to Traditional Chinese.
+/// Matches both region forms (zh-tw / zh-hk / zh-mo) and script-subtag forms
+/// (zh-hant, zh-hant-tw, zh-foo-hant, etc.). Hyphenated boundaries are required so
+/// `zh-hansolo` style accidents don't match.
+fn is_zh_traditional(lower: &str) -> bool {
+    if !lower.starts_with("zh") {
+        return false;
+    }
+    if lower.starts_with("zh-tw") || lower.starts_with("zh-hk") || lower.starts_with("zh-mo") {
+        return true;
+    }
+    // Walk the hyphen-separated subtags after the primary "zh".
+    lower.split('-').skip(1).any(|sub| sub == "hant")
 }
 
 /// Builds a path-backed [`FontHandle`] for a font-kit DirectWrite `Font` by reaching through

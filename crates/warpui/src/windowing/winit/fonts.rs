@@ -298,12 +298,28 @@ impl Default for TextLayoutSystem {
     }
 }
 
+/// Rebuild the cosmic-text `FontSystem` in-place with a new locale, reusing the existing
+/// `fontdb::Database` so no font data is reloaded. `cosmic_text::FontSystem` exposes no public
+/// `set_locale`, so we swap the whole struct via `std::mem::replace` and reattach the db.
+fn rebuild_font_system_for_locale(
+    store: &std::sync::Arc<RwLock<cosmic_text::FontSystem>>,
+    locale: &str,
+) {
+    let mut guard = store.write();
+    let old = std::mem::replace(
+        &mut *guard,
+        cosmic_text::FontSystem::new_with_locale_and_db("en".into(), Default::default()),
+    );
+    let (_, db) = old.into_locale_and_db();
+    *guard = cosmic_text::FontSystem::new_with_locale_and_db(locale.to_string(), db);
+}
+
 impl TextLayoutSystem {
     pub fn new() -> Self {
         let initial_locale = crate::current_ui_locale();
         let font_store = std::sync::Arc::new(RwLock::new(
             cosmic_text::FontSystem::new_with_locale_and_db(
-                initial_locale,
+                initial_locale.clone(),
                 Default::default(),
             ),
         ));
@@ -314,21 +330,17 @@ impl TextLayoutSystem {
         let weak: std::sync::Weak<RwLock<cosmic_text::FontSystem>> =
             std::sync::Arc::downgrade(&font_store);
         crate::on_ui_locale_changed(std::sync::Arc::new(move |locale: &str| {
-            let Some(store) = weak.upgrade() else {
-                return;
-            };
-            let mut guard = store.write();
-            // `cosmic_text::FontSystem` has no public `set_locale`; replace + reuse the database.
-            let old = std::mem::replace(
-                &mut *guard,
-                cosmic_text::FontSystem::new_with_locale_and_db(
-                    "en".into(),
-                    Default::default(),
-                ),
-            );
-            let (_, db) = old.into_locale_and_db();
-            *guard = cosmic_text::FontSystem::new_with_locale_and_db(locale.to_string(), db);
+            if let Some(store) = weak.upgrade() {
+                rebuild_font_system_for_locale(&store, locale);
+            }
         }));
+        // Race compensation: `set_ui_locale` may have fired between `current_ui_locale()` and
+        // the listener registration above, in which case we'd miss that notification. Re-read
+        // and rebuild if it diverged.
+        let post_register_locale = crate::current_ui_locale();
+        if post_register_locale != initial_locale {
+            rebuild_font_system_for_locale(&font_store, &post_register_locale);
+        }
         Self {
             families: Default::default(),
             font_store,
