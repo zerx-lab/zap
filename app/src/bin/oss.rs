@@ -5,6 +5,7 @@
 use anyhow::Result;
 use warp_core::{
     channel::{Channel, ChannelConfig, ChannelState, OzConfig, WarpServerConfig},
+    features::{FeatureFlag, DEBUG_FLAGS},
     AppId,
 };
 
@@ -24,15 +25,14 @@ fn main() -> Result<()> {
         },
     );
     if cfg!(debug_assertions) {
-        state = state.with_additional_features(warp_core::features::DEBUG_FLAGS);
+        state = state.with_additional_features(DEBUG_FLAGS);
     }
-    // Always enable IME marked-text rendering on platforms where the winit IME path supports it.
-    // Without this, Warp drops the preedit/composition update and only the OS candidate window is
-    // visible while the user is typing — broken for Japanese/Chinese/Korean input on Windows.
-    #[cfg(any(target_os = "macos", windows))]
+    // 始终启用 IME marked-text 渲染:winit 的 IME 路径在 macOS / Windows 都支持,
+    // 但若不在此处显式开启,Warp 会把 preedit / 输入合成更新整体丢弃,只剩 OS 的候选窗
+    // 可见 —— 在 Windows 上对日文 / 中文 / 韩文输入都属于实质性损坏。
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     {
-        state = state
-            .with_additional_features(&[warp_core::features::FeatureFlag::ImeMarkedText]);
+        state = state.with_additional_features(&[FeatureFlag::ImeMarkedText]);
     }
     ChannelState::set(state);
 
