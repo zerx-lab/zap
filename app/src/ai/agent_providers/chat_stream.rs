@@ -784,12 +784,19 @@ render_env_prefix(params, agent_ctx, &mut prefixes);
             AIAgentInput::InvokeSkill {
                 skill, user_query, ..
             } => {
-                let mut composed = format!(
-                    "请按下面的技能 \"{}\" 指引执行任务:\n\n{}\n\n---\n",
+                let mut prefixes: Vec<String> = Vec::new();
+                render_env_prefix(params, agent_ctx, &mut prefixes);
+                let mut composed = String::new();
+                if !prefixes.is_empty() {
+                    composed.push_str(&prefixes.join("\n\n"));
+                    composed.push_str("\n\n---\n\n");
+                }
+                composed.push_str(&format!(
+                    "请按下面的技能 \"{}\" 指引执行任务:\n\n{}",
                     skill.name, skill.content,
-                );
+                ));
                 if let Some(uq) = user_query {
-                    composed.push_str(&format!("用户进一步指令: {}", uq.query));
+                    composed.push_str(&format!("\n\n---\n\n用户进一步指令: {}", uq.query));
                 }
                 messages.push(ChatMessage::user(composed));
             }
