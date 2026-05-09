@@ -1,4 +1,4 @@
-use super::{ChannelState, derive_http_origin_from_ws_url};
+use super::{derive_http_origin_from_ws_url, ChannelState};
 
 #[test]
 fn wss_becomes_https_and_strips_path() {
