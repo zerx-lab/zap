@@ -91,7 +91,12 @@ fn latest_input_context(input: &[AIAgentInput]) -> &[AIAgentContext] {
 /// LRC tag-in 场景下渲染 `<attached_running_command>` XML 块,prepend 到 user message,
 /// 让模型看到当前 PTY 的实际状态(命令、grid 内容、是否 alt-screen),从而正确选择
 /// `write_to_long_running_shell_command` 工具发送对应键序列。
-fn render_running_command_context(rc: &RunningCommand) -> String {
+fn render_env_prefix(params: &RequestParams, agent_ctx: &[AIAgentContext], prefixes: &mut Vec<String>) {
+    let env_block = prompt_renderer::render_env_block(&params.model, agent_ctx);
+    if !env_block.trim().is_empty() {
+        prefixes.insert(0, env_block);
+    }
+}(rc: &RunningCommand) -> String {
     format!(
         "<attached_running_command command_id=\"{}\" is_alt_screen_active=\"{}\">\n  \
          <command>{}</command>\n  \
@@ -731,12 +736,7 @@ fn build_chat_request(
                 if let Some(p) = &user_attachments.prefix {
                     prefixes.push(p.clone());
                 }
-// 追加 env 块到当前轮 user message 前缀(system prompt 已不含 env,
-                // 此举使 system prompt 全长稳定,提升 DeepSeek 等前缀缓存命中率)。
-                let env_block = prompt_renderer::render_env_block(&params.model, agent_ctx);
-                if !env_block.trim().is_empty() {
-                    prefixes.push(env_block);
-                }
+render_env_prefix(params, agent_ctx, &mut prefixes);
                 let full_text = match (prefixes.is_empty(), suffixes.is_empty()) {
                     (true, true) => query.clone(),
                     (false, true) => format!("{}\n\n{query}", prefixes.join("\n\n")),
@@ -804,6 +804,7 @@ fn build_chat_request(
                 if let Some(p) = &user_attachments.prefix {
                     prefixes.push(p.clone());
                 }
+                render_env_prefix(params, agent_ctx, &mut prefixes);
                 if !prefixes.is_empty() {
                     let full_text = format!("{}\n\nContinue.", prefixes.join("\n\n"));
                     messages.push(build_user_message_with_binaries(

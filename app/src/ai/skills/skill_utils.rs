@@ -89,7 +89,6 @@ pub(crate) fn unique_skills(
     // priority, then shortest reference path for same-provider ties.
     let mut name_map: HashMap<String, SkillDescriptor> = HashMap::new();
     for skill in dedup_map.into_values() {
-        use std::collections::hash_map::Entry;
         match name_map.entry(skill.name.clone()) {
             Entry::Vacant(e) => {
                 e.insert(skill);
