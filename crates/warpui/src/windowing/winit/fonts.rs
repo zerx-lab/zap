@@ -301,6 +301,18 @@ impl Default for TextLayoutSystem {
 /// Rebuild the cosmic-text `FontSystem` in-place with a new locale, reusing the existing
 /// `fontdb::Database` so no font data is reloaded. `cosmic_text::FontSystem` exposes no public
 /// `set_locale`, so we swap the whole struct via `std::mem::replace` and reattach the db.
+///
+/// Cost: `into_locale_and_db` only carries `(locale, db)` across the swap. The new
+/// `FontSystem` rebuilds its per-instance caches from scratch — `font_cache`,
+/// `monospace_font_ids`, `per_script_monospace_font_ids`, `font_codepoint_support_info_cache`,
+/// `font_matches_cache`, `shape_plan_cache`, and (with the `shape-run-cache` feature)
+/// `shape_run_cache`. The constructor also re-runs `cache_fonts` over the monospace set,
+/// which on Windows-with-many-system-fonts can take a few hundred ms to ~1 s on the first
+/// post-rebuild render. The mmap-backed font *file data* itself is not reread.
+///
+/// This is acceptable because UI locale switches are rare (driven by Settings → Language
+/// + a "restart Warp" prompt today) and the user already expects a discontinuity. If
+/// hot-reload latency ever matters, the hook lives in `app::i18n::set_locale`.
 fn rebuild_font_system_for_locale(
     store: &std::sync::Arc<RwLock<cosmic_text::FontSystem>>,
     locale: &str,

@@ -57,3 +57,26 @@ mod ui_locale {
 }
 
 pub use ui_locale::{current_ui_locale, on_ui_locale_changed, set_ui_locale};
+
+/// 共享 CJK Han 码点判定:这些字符在 ja / zh-Hans / zh-Hant / ko 之间字形不同,
+/// 调用方据此把 DirectWrite / cosmic-text 的 Han 回退偏向当前 UI locale 的本地字体
+/// (例如 ja-* → Yu Gothic UI、ko-* → Malgun Gothic、zh-Hant → Microsoft JhengHei UI)。
+///
+/// 覆盖 Unicode 15.0 之前已分配的所有 Unified Ideographs 区段(到 Extension G)。
+/// 后续 Unicode 再扩展时,按需在此处统一追加 —— 这是仓库内 CJK Han 范围的**单一来源**,
+/// 调用方(`crates/warpui/src/windowing/winit/fonts/windows.rs` 与
+/// `app/src/font_fallback.rs`)不应自己 fork 范围。
+pub fn is_shared_cjk_han(ch: char) -> bool {
+    matches!(
+        ch as u32,
+        0x3400..=0x4DBF       // CJK Unified Ideographs Extension A
+            | 0x4E00..=0x9FFF // CJK Unified Ideographs
+            | 0xF900..=0xFAFF // CJK Compatibility Ideographs
+            | 0x20000..=0x2A6DF // Extension B
+            | 0x2A700..=0x2B73F // Extension C
+            | 0x2B740..=0x2B81F // Extension D
+            | 0x2B820..=0x2CEAF // Extension E
+            | 0x2CEB0..=0x2EBEF // Extension F
+            | 0x30000..=0x3134F // Extension G
+    )
+}

@@ -122,26 +122,10 @@ fn cjk_han_font_for_ui_locale() -> ExternalFontFamily {
     }
 }
 
-/// True for CJK Han code points that are visually shared between Japanese / Chinese / Korean and
-/// therefore depend on UI locale to pick the right glyph shape. Limited to the most common Unified
-/// Ideographs blocks; rarer extensions stay on the upstream SC mapping.
-fn is_shared_cjk_han(ch: char) -> bool {
-    matches!(
-        ch as u32,
-        0x3400..=0x4DBF       // CJK Unified Ideographs Extension A
-            | 0x4E00..=0x9FFF // CJK Unified Ideographs
-            | 0xF900..=0xFAFF // CJK Compatibility Ideographs
-            | 0x20000..=0x2A6DF // Extension B
-            | 0x2A700..=0x2B73F // Extension C
-            | 0x2B740..=0x2B81F // Extension D
-            | 0x2B820..=0x2CEAF // Extension E
-    )
-}
-
 pub fn fallback_font_fn(ch: char) -> Option<ExternalFontFamily> {
     let raw = fallback_font_fn_raw(ch);
     if let Some(ref font) = raw {
-        if font.name == "Noto Sans SC" && is_shared_cjk_han(ch) {
+        if font.name == "Noto Sans SC" && warpui::is_shared_cjk_han(ch) {
             return Some(cjk_han_font_for_ui_locale());
         }
     }

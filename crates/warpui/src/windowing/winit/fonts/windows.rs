@@ -176,7 +176,7 @@ impl TextLayoutSystem {
         // 因此对共享 CJK Han 字符,我们在 DirectWrite 回退之前先 prepend 当前 locale 对应的系统字体
         // (例如 ja-* → Yu Gothic UI)。
         let mut fallback_font_vec: Vec<FontId> = Vec::new();
-        if is_shared_cjk_han(character) {
+        if crate::is_shared_cjk_han(character) {
             for family in preferred_cjk_families_for_locale(&locale) {
                 if let Ok(fam) = source.select_family_by_name(family) {
                     for fk_handle in fam.fonts() {
@@ -267,24 +267,6 @@ fn load_font_from_handle(
             Ok(FontHandle::from(typeface))
         }
     }
-}
-
-/// 共享 CJK Han 码点判定:这些字符在 ja / zh-Hans / zh-Hant / ko 之间字形不同,
-/// 用于把 DirectWrite 回退偏向当前 locale 的本地字体(例如 ja-* → Yu Gothic UI)。
-/// 覆盖到 Extension G(0x3134F),后续若 Unicode 再扩展可在此追加。
-fn is_shared_cjk_han(ch: char) -> bool {
-    matches!(
-        ch as u32,
-        0x3400..=0x4DBF       // CJK Unified Ideographs Extension A
-            | 0x4E00..=0x9FFF // CJK Unified Ideographs
-            | 0xF900..=0xFAFF // CJK Compatibility Ideographs
-            | 0x20000..=0x2A6DF // Extension B
-            | 0x2A700..=0x2B73F // Extension C
-            | 0x2B740..=0x2B81F // Extension D
-            | 0x2B820..=0x2CEAF // Extension E
-            | 0x2CEB0..=0x2EBEF // Extension F
-            | 0x30000..=0x3134F // Extension G
-    )
 }
 
 /// 提取 BCP-47 标签的主语言子标签(primary subtag),已统一 ASCII 小写。
