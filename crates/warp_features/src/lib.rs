@@ -930,8 +930,10 @@ pub const RELEASE_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::Autoupdate,
     FeatureFlag::Changelog,
     FeatureFlag::CrashReporting,
-    // Marked text is currently only supported on MacOS.
-    #[cfg(target_os = "macos")]
+    // Marked text is supported by the winit IME path on macOS and Windows.
+    // Windows needs this to render IME preedit/composition text; otherwise only
+    // the OS candidate window is visible while Warp drops the marked text update.
+    #[cfg(any(target_os = "macos", windows))]
     FeatureFlag::ImeMarkedText,
     // Remote server binary is not yet supported on Windows.
     #[cfg(not(windows))]

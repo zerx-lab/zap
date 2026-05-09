@@ -26,6 +26,14 @@ fn main() -> Result<()> {
     if cfg!(debug_assertions) {
         state = state.with_additional_features(warp_core::features::DEBUG_FLAGS);
     }
+    // Always enable IME marked-text rendering on platforms where the winit IME path supports it.
+    // Without this, Warp drops the preedit/composition update and only the OS candidate window is
+    // visible while the user is typing — broken for Japanese/Chinese/Korean input on Windows.
+    #[cfg(any(target_os = "macos", windows))]
+    {
+        state = state
+            .with_additional_features(&[warp_core::features::FeatureFlag::ImeMarkedText]);
+    }
     ChannelState::set(state);
 
     warp::run()
