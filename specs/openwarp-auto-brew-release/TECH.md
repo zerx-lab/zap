@@ -43,7 +43,7 @@
 - 上游新提交:GitHub API 或 `git ls-remote <upstream> main`。
 - 当前 fork main:`git ls-remote https://github.com/LeoYoung-code/warp.git main`。
 - 构建产物:GitHub Actions macOS runner 生成的 DMG artifact 与 GitHub Release asset。
-- 发布版本:Git tag, 建议 `openwarp-vYYYY.MM.DD.N`。
+- 发布版本:Git tag, 建议 `vYYYY.MM.DD.N`。
 - Homebrew 安装入口:tap 仓库的 `Casks/openwarp.rb`。
 - 审计记录:Actions run log、Release body、tap commit message。
 
@@ -75,7 +75,7 @@ flowchart TD
   E --> F{"同步是否成功"}
   F -- "否" --> G["开 issue / 保留日志 / 停止"]
   F -- "是" --> H["push fork main"]
-  H --> I["gh api 创建 openwarp-vYYYY.MM.DD.N tag"]
+  H --> I["gh api 创建 vYYYY.MM.DD.N tag"]
   I --> J["触发 GitHub macOS Release workflow"]
   J --> K["GitHub macOS runner 构建 OpenWarp-arm64.dmg"]
   K --> L["创建 GitHub Release"]
@@ -150,7 +150,7 @@ README.md
 8. merge 成功后做轻量仓库健康检查, 例如 `cargo fmt --check` 或仅校验工作树/merge 结果; 不在 Codex 阶段承担正式 macOS 编译。
 9. 检查通过后把临时分支推送到 `LeoYoung-code/warp:main`。
 10. 同步成功后, 重新读取 `LeoYoung-code/warp:main` HEAD SHA, 作为本次发布 commit。
-11. 检查该 commit 是否已有 `openwarp-v*` release marker; 如果已经发布过, 直接结束。
+11. 检查该 commit 是否已有 `v*` release marker; 如果已经发布过, 直接结束。
 12. 生成 tag, 用 `git tag && git push` 或 `gh api repos/LeoYoung-code/warp/git/refs` 创建 tag ref, 触发 GitHub macOS release workflow。
 13. 用 `gh run list --workflow openwarp_release.yml --repo LeoYoung-code/warp --limit 5` 记录触发结果; Codex 定时任务的最终输出必须包含同步范围、tag、GitHub workflow run URL。
 
@@ -161,7 +161,7 @@ name: OpenWarp upstream sync
 kind: cron
 workspace: /Users/staff/project/AI/warp
 schedule: 每天 03:30 Asia/Shanghai
-prompt: 使用 gh 命令检查 zerx-lab/warp main 是否有新提交; 如果 LeoYoung-code/warp main 落后, 在本地从 publish/main 创建临时分支并 git merge upstream/main, 轻量校验通过后推送到 LeoYoung-code/warp main; 同步成功后创建 openwarp-vYYYY.MM.DD.N tag 触发 GitHub macOS release workflow; 如果同步冲突, 使用 git diff --name-only --diff-filter=U 提取冲突文件, 用 gh issue create 在 LeoYoung-code/warp 创建 issue 并附冲突文件、上游 SHA、fork SHA、Actions/Codex 日志摘要; 结束时汇报是否同步、发布 tag、workflow run URL。
+prompt: 使用 gh 命令检查 zerx-lab/warp main 是否有新提交; 如果 LeoYoung-code/warp main 落后, 在本地从 publish/main 创建临时分支并 git merge upstream/main, 轻量校验通过后推送到 LeoYoung-code/warp main; 同步成功后创建 vYYYY.MM.DD.N tag 触发 GitHub macOS release workflow; 如果同步冲突, 使用 git diff --name-only --diff-filter=U 提取冲突文件, 用 gh issue create 在 LeoYoung-code/warp 创建 issue 并附冲突文件、上游 SHA、fork SHA、Actions/Codex 日志摘要; 结束时汇报是否同步、发布 tag、workflow run URL。
 ```
 
 Codex 任务里应执行的命令骨架:
@@ -230,7 +230,7 @@ cargo fmt --check
 git push "$PUBLISH_REMOTE" "HEAD:$BRANCH"
 new_sha="$(gh api "repos/$PUBLISH_REPO/commits/$BRANCH" --jq .sha)"
 version="$(date +%Y.%m.%d).1"
-tag="openwarp-v$version"
+tag="v$version"
 
 if gh release view "$tag" --repo "$PUBLISH_REPO" >/dev/null 2>&1; then
   echo "Release $tag already exists; skip."
@@ -243,18 +243,18 @@ git push "$PUBLISH_REMOTE" "$tag"
 gh run list --repo "$PUBLISH_REPO" --workflow openwarp_release.yml --limit 5
 ```
 
-正式实现时, `version` 的最后一段不能固定为 `.1`; 应根据当天已存在的 `openwarp-vYYYY.MM.DD.*` tag 自动递增, 避免同一天多次同步时 tag 冲突。
+正式实现时, `version` 的最后一段不能固定为 `.1`; 应根据当天已存在的 `vYYYY.MM.DD.*` tag 自动递增, 避免同一天多次同步时 tag 冲突。
 
 建议 tag 规则:
 
 ```text
-openwarp-vYYYY.MM.DD.N
+vYYYY.MM.DD.N
 ```
 
 现有 `openwarp_release.yml` 只监听 `v*`, 所以有两个选择:
 
 - 保持兼容:tag 用 `v0.YYYY.MM.DD.N`。
-- 更清楚:把 release workflow 的 tag 触发改为同时支持 `openwarp-v*`。
+- 更清楚:把 release workflow 的 tag 触发改为支持 `v*`。
 
 推荐第二种, 因为 `v0.*` 难以表达这是 OpenWarp 自动同步发布, 也不方便和未来手动 release 区分。
 
@@ -277,7 +277,6 @@ on:
   push:
     tags:
       - "v*"
-      - "openwarp-v*"
 ```
 
 2. 只保留 macOS arm64 job, 不依赖 Windows/Linux job:
@@ -322,7 +321,7 @@ cask "openwarp" do
   version "2026.05.05.1"
   sha256 "<sha256>"
 
-  url "https://github.com/LeoYoung-code/warp/releases/download/openwarp-v#{version}/OpenWarp-arm64.dmg",
+  url "https://github.com/LeoYoung-code/warp/releases/download/v#{version}/OpenWarp-arm64.dmg",
       verified: "github.com/LeoYoung-code/warp/"
   name "OpenWarp"
   desc "Open-source build of Warp terminal"
@@ -337,7 +336,7 @@ cask "openwarp" do
 end
 ```
 
-如果 tag 使用 `openwarp-vYYYY.MM.DD.N`, Homebrew `version` 建议只保留 `YYYY.MM.DD.N`, URL 拼接 `openwarp-v#{version}`。如果 tag 保持 `v0.YYYY.MM.DD.N`, cask URL 也必须同步调整。
+如果 tag 使用 `vYYYY.MM.DD.N`, Homebrew `version` 建议只保留 `YYYY.MM.DD.N`, URL 拼接 `v#{version}`。如果 tag 保持其他前缀格式, cask URL 也必须同步调整。
 
 提交信息必须使用 Conventional Commits 且中文, 例如:
 
@@ -371,8 +370,8 @@ gh api repos/LeoYoung-code/warp/commits/main --jq .sha
 用一个测试 tag 触发 macOS release:
 
 ```bash
-git tag openwarp-v2026.05.05.test
-git push https://github.com/LeoYoung-code/warp.git openwarp-v2026.05.05.test
+git tag v2026.05.05.test
+git push https://github.com/LeoYoung-code/warp.git v2026.05.05.test
 ```
 
 验收标准:
@@ -440,7 +439,7 @@ brew list --cask openwarp
 
 - Codex 定时任务使用 `gh` 手动或定时同步上游。
 - 自动 merge 成功后 push `main`。
-- 自动创建 `openwarp-vYYYY.MM.DD.N` tag。
+- 自动创建 `vYYYY.MM.DD.N` tag。
 - GitHub Actions 只构建 macOS arm64 unsigned DMG。
 - GitHub Actions 创建 GitHub Release。
 - GitHub Actions 更新 Homebrew cask。

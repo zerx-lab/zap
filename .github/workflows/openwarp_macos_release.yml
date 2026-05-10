@@ -1,6 +1,6 @@
 # OpenWarp macOS 自动发布流水线
 #
-# 只服务自动同步链路:openwarp-v* tag -> macOS arm64 DMG -> GitHub Release -> Homebrew cask。
+# 只服务自动同步链路:v* tag -> macOS arm64 DMG -> GitHub Release -> Homebrew cask。
 # 三平台手动发布继续使用 openwarp_release.yml,避免 Windows/Linux 构建失败阻塞 Homebrew。
 
 name: OpenWarp macOS Release
@@ -8,7 +8,7 @@ name: OpenWarp macOS Release
 on:
   push:
     tags:
-      - "openwarp-v*"
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -51,16 +51,16 @@ jobs:
             tag="${GITHUB_REF#refs/tags/}"
             branch="$tag"
           else
-            tag="openwarp-v$(date +%Y.%m.%d.%H%M)"
+            tag="v$(date +%Y.%m.%d.%H%M)"
             branch="${GITHUB_REF#refs/heads/}"
           fi
 
-          if [[ "$tag" != openwarp-v* ]]; then
-            echo "::error::OpenWarp macOS release tags must start with openwarp-v: $tag"
+          if [[ "$tag" != v* ]]; then
+            echo "::error::OpenWarp macOS release tags must start with v: $tag"
             exit 1
           fi
 
-          cask_version="${tag#openwarp-v}"
+          cask_version="${tag#v}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "cask_version=$cask_version" >> "$GITHUB_OUTPUT"
@@ -237,7 +237,7 @@ jobs:
               version "#{version}"
               sha256 "#{sha256}"
 
-              url "https://github.com/LeoYoung-code/warp/releases/download/openwarp-v\#{version}/OpenWarp-arm64.dmg"
+              url "https://github.com/LeoYoung-code/warp/releases/download/v\#{version}/OpenWarp-arm64.dmg"
               name "OpenWarp"
               desc "Open-source build of Warp terminal"
               homepage "https://github.com/LeoYoung-code/warp"

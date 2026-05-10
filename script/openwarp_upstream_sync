@@ -16,8 +16,8 @@ usage() {
   cat <<'USAGE'
 Usage: script/openwarp_upstream_sync [--dry-run|--execute]
 
-Synchronize zerx-lab/warp main into LeoYoung-code/warp main and create an
-openwarp-vYYYY.MM.DD.N release tag. The default mode is --dry-run.
+Synchronize zerx-lab/warp main into LeoYoung-code/warp main and create a
+vYYYY.MM.DD.N release tag. The default mode is --dry-run.
 
 Environment overrides:
   PUBLISH_REPO      default: LeoYoung-code/warp
@@ -87,7 +87,7 @@ next_tag_for_today() {
   local latest
   local next
 
-  prefix="openwarp-v$(date +%Y.%m.%d)."
+  prefix="v$(date +%Y.%m.%d)."
   latest="$(git tag -l "${prefix}*" | sed "s/^${prefix}//" | sort -n | tail -1)"
   if [[ -z "$latest" ]]; then
     next=1
@@ -223,7 +223,7 @@ fi
 
 git push "$PUBLISH_REMOTE" "HEAD:$BRANCH"
 new_sha="$(gh api "repos/$PUBLISH_REPO/commits/$BRANCH" --jq .sha)"
-existing_tag_for_new_sha="$(git tag --points-at "$new_sha" 'openwarp-v*' | head -1 || true)"
+existing_tag_for_new_sha="$(git tag --points-at "$new_sha" 'v*' | head -1 || true)"
 
 if [[ -n "$existing_tag_for_new_sha" ]]; then
   log "Synchronized commit already has release tag $existing_tag_for_new_sha; skip tag creation."
