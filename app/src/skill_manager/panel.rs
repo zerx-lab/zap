@@ -526,13 +526,9 @@ impl SkillManagerPanel {
             .with_spacing(6.0)
             .with_child(header)
             .with_child(
-                Shrinkable::new(
-                    1.0,
-                    ConstrainedBox::new(preview_scroll)
-                        .with_min_height(PREVIEW_MIN_HEIGHT)
-                        .finish(),
-                )
-                .finish(),
+                ConstrainedBox::new(preview_scroll)
+                    .with_height(PREVIEW_MIN_HEIGHT)
+                    .finish(),
             )
             .finish()
     }
