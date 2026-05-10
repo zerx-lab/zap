@@ -74,10 +74,9 @@ impl SearchCodebaseExecutor {
         ActionExecution::Sync(AIAgentActionResultType::SearchCodebase(
             SearchCodebaseResult::Failed {
                 reason: SearchCodebaseFailureReason::CodebaseNotIndexed,
-                message:
-                    "Codebase semantic search is not available in this build. \
+                message: "Codebase semantic search is not available in this build. \
                      Use `read_files`, `grep`, or `file_glob` to locate code instead."
-                        .to_owned(),
+                    .to_owned(),
             },
         ))
     }

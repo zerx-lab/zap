@@ -191,7 +191,10 @@ pub fn prewarm_db_in_background() {
                 }
                 let result = init_db();
                 let elapsed_ms = start.elapsed().as_millis();
-                log::info!("SQLite prewarm completed in {elapsed_ms} ms (success={})", result.is_ok());
+                log::info!(
+                    "SQLite prewarm completed in {elapsed_ms} ms (success={})",
+                    result.is_ok()
+                );
                 if let Some(cell) = PREWARMED_DB.get() {
                     if let Ok(mut guard) = cell.lock() {
                         // 转换为 Done。Pending 和 Joining 两种状态都需要写入结果。

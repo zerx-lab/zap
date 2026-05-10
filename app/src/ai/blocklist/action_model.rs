@@ -52,9 +52,7 @@ use parking_lot::FairMutex;
 use warpui::{AppContext, Entity, EntityId, ModelContext, ModelHandle, SingletonEntity};
 
 use crate::{
-    ai::{
-        agent::{AIAgentAction, AIAgentActionId, AIAgentActionResult},
-    },
+    ai::agent::{AIAgentAction, AIAgentActionId, AIAgentActionResult},
     terminal::{
         model::session::active_session::ActiveSession, model_events::ModelEventDispatcher,
         TerminalModel,
