@@ -51,6 +51,10 @@ if [[ -n "$WARP_SCHEME_NAME" ]]; then
   plutil -insert CFBundleURLTypes -xml "<array><dict><key>CFBundleURLName</key><string>Custom App</string><key>CFBundleURLSchemes</key><array><string>$WARP_SCHEME_NAME</string></array></dict></array>" "$WARP_PLIST_PATH"
 fi
 
+echo "Updating plist with supported localizations"
+plutil -insert CFBundleLocalizations -xml "<array><string>en</string><string>zh-CN</string></array>" "$WARP_PLIST_PATH" 2>/dev/null || \
+  plutil -replace CFBundleLocalizations -xml "<array><string>en</string><string>zh-CN</string></array>" "$WARP_PLIST_PATH"
+
 if [[ -z "$WARP_PLIST_NO_FILE_TYPES" ]]; then
   echo "Updating plist with supported file types"
   plutil -insert CFBundleDocumentTypes -xml "

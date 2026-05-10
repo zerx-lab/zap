@@ -568,7 +568,9 @@ pub fn run() -> Result<()> {
     // —— Windows API (`GetUserPreferredUILanguages`) 才是 UI locale 的真实来源,这里
     // 强制 `LANG=en_US.UTF-8` 会让 `DesktopLanguageRequester` 不论用户选什么 UI 语言
     // 都返回 en,进而把 CJK Han 字形回退打偏 (日文 UI 反倒拿到简体字字形)。
-    #[cfg(not(windows))]
+    // macOS 如果桌面打开 Bundle 也是没有环境变量的, 但它的 `DesktopLanguageRequester`
+    // 如果设置了 `LANG` 环境变量会直接返回该值而不询问系统, 因此同样需要跳过。
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     if std::env::var_os("LANG").is_none()
         && std::env::var_os("LC_ALL").is_none()
         && std::env::var_os("LC_CTYPE").is_none()
