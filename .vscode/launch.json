@@ -31,7 +31,7 @@
       "request": "launch",
       "name": "Debug MacOS executable",
       "preLaunchTask": "build_warplocal",
-      "program": "${workspaceFolder}/target/debug/bundle/osx/WarpLocal.app/Contents/MacOS/warp",
+      "program": "${workspaceFolder}/target/debug/bundle/osx/OpenWarp.app/Contents/MacOS/warp-oss",
       "args": [],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": ["rust"]
@@ -71,7 +71,7 @@
       "request": "launch",
       "name": "Debug MacOS executable local session sharing server",
       "preLaunchTask": "build_warplocal_localsessionsharing",
-      "program": "${workspaceFolder}/target/debug/bundle/osx/WarpLocal.app/Contents/MacOS/warp",
+      "program": "${workspaceFolder}/target/debug/bundle/osx/OpenWarp.app/Contents/MacOS/warp-oss",
       "args": [],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": ["rust"]
@@ -84,7 +84,7 @@
         "RUST_BACKTRACE": "1"
       },
       "preLaunchTask": "build_warplocal_fastdev",
-      "program": "${workspaceFolder}/target/debug/bundle/osx/WarpLocal.app/Contents/MacOS/warp",
+      "program": "${workspaceFolder}/target/debug/bundle/osx/OpenWarp.app/Contents/MacOS/warp-oss",
       "args": [],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": ["rust"]
@@ -94,7 +94,7 @@
       "request": "launch",
       "name": "Debug MacOS executable with fast_dev + local session sharing server",
       "preLaunchTask": "build_warplocal_fastdev_localsessionsharing",
-      "program": "${workspaceFolder}/target/debug/bundle/osx/WarpLocal.app/Contents/MacOS/warp",
+      "program": "${workspaceFolder}/target/debug/bundle/osx/OpenWarp.app/Contents/MacOS/warp-oss",
       "args": [],
       "cwd": "${workspaceFolder}",
       "sourceLanguages": ["rust"]
