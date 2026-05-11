@@ -491,25 +491,6 @@ diesel::table! {
 }
 
 diesel::table! {
-    workspace_language_server (id) {
-        id -> Integer,
-        workspace_id -> Integer,
-        language_server_name -> Text,
-        enabled -> Text,
-    }
-}
-
-diesel::table! {
-    workspace_metadata (id) {
-        id -> Integer,
-        repo_path -> Text,
-        navigated_ts -> Nullable<Timestamp>,
-        modified_ts -> Nullable<Timestamp>,
-        queried_ts -> Nullable<Timestamp>,
-    }
-}
-
-diesel::table! {
     workspace_teams (id) {
         id -> Integer,
         workspace_server_uid -> Text,
@@ -538,7 +519,6 @@ diesel::joinable!(ssh_servers -> ssh_nodes (node_id));
 diesel::joinable!(tabs -> windows (window_id));
 diesel::joinable!(team_members -> teams (team_id));
 diesel::joinable!(team_settings -> teams (team_id));
-diesel::joinable!(workspace_language_server -> workspace_metadata (workspace_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     ambient_agent_panes,
@@ -553,4 +533,3 @@ diesel::allow_tables_to_appear_in_same_query!(
 diesel::allow_tables_to_appear_in_same_query!(code_pane_tabs, code_panes,);
 diesel::allow_tables_to_appear_in_same_query!(object_metadata, object_permissions,);
 diesel::allow_tables_to_appear_in_same_query!(team_members, team_settings, teams,);
-diesel::allow_tables_to_appear_in_same_query!(workspace_language_server, workspace_metadata,);

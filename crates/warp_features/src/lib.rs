@@ -266,9 +266,6 @@ pub enum FeatureFlag {
     /// Enables prediction of Agent Mode queries.
     PredictAMQueries,
 
-    /// Enables full source code embedding of repos when using codebase context.
-    FullSourceCodeEmbedding,
-
     /// If enabled, command palette searches will use Tantivy search instead of the default fuzzy search.
     UseTantivySearch,
 
@@ -301,12 +298,6 @@ pub enum FeatureFlag {
 
     UsageBasedPricing,
 
-    /// Enables cross-repo codebase context.
-    CrossRepoContext,
-
-    /// Persist codebase indices to disk.
-    CodebaseIndexPersistence,
-
     /// Enables the AI context menu, or at-menu.
     AIContextMenuEnabled,
 
@@ -318,9 +309,6 @@ pub enum FeatureFlag {
 
     /// Enables the agent to decide whether to execute a command.
     AgentDecidesCommandExecution,
-
-    /// Show speed bump when enabling codebase indexing.
-    CodebaseIndexSpeedbump,
 
     /// Enables inline review comments on specific lines of code.
     ContextLineReviewComments,
@@ -366,9 +354,6 @@ pub enum FeatureFlag {
     /// setting in [`SessionSettings`] (defined in `app/src/terminal/session_settings.rs`),
     /// as model selectors are always shown when this flag is enabled.
     ProfilesDesignRevamp,
-
-    /// Enables new Search Codebase UI
-    SearchCodebaseUI,
 
     /// Enables return changed lines on apply diff result
     ChangedLinesOnlyApplyDiffResult,
@@ -640,9 +625,6 @@ pub enum FeatureFlag {
     /// If disabled, the server will send None as the SkillsContext.
     ListSkills,
 
-    /// When enabled, we expose LSP as a tool to the agent
-    LSPAsATool,
-
     /// Enables conversation artifacts.
     ConversationArtifacts,
 
@@ -888,12 +870,6 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::OzChangelogUpdates,
     FeatureFlag::PendingUserQueryIndicator,
     FeatureFlag::QueueSlashCommand,
-    // These are enabled via 100% experiment on prod warp-server,
-    // but we need to enable here for dogfood builds.
-    FeatureFlag::CrossRepoContext,
-    FeatureFlag::CodebaseIndexPersistence,
-    FeatureFlag::FullSourceCodeEmbedding,
-    FeatureFlag::CodebaseIndexSpeedbump,
     // End manually enabled Code features.
     FeatureFlag::DirectoryTabColors,
     FeatureFlag::EditableMarkdownMermaid,

@@ -456,6 +456,27 @@ fn copy_windows_assets(target_dir: &Path) {
         .expect("Could not copy platform OpenConsole.exe");
 }
 
+/// 把 `GIT_RELEASE_TAG`(如 `v2026.05.10.preview` 或 `v0`)解析成
+/// Windows VERSIONINFO 需要的 4 段 16-bit 数字。不识别的段(如
+/// "preview")跳过,不足 4 段补 0。
+///
+/// 为什么要认真填不是都填 1.0.0.0:Windows Shell / Defender / SmartScreen
+/// 会拿这个数值 FILEVERSION 与 installer `MyAppVersion`(字符串形式的同一
+/// `GIT_RELEASE_TAG`)做一致性校验,不一致会被走额外 reputation/cache miss 路径。
+#[cfg(windows)]
+fn parse_file_version_quad(tag: &str) -> (u16, u16, u16, u16) {
+    let stripped = tag.strip_prefix('v').unwrap_or(tag);
+    let mut parts = stripped
+        .split('.')
+        .filter_map(|s| s.parse::<u32>().ok())
+        .map(|n| n.min(u16::MAX as u32) as u16);
+    let a = parts.next().unwrap_or(0);
+    let b = parts.next().unwrap_or(0);
+    let c = parts.next().unwrap_or(0);
+    let d = parts.next().unwrap_or(0);
+    (a, b, c, d)
+}
+
 #[cfg(windows)]
 fn embed_resource_file(target_dir: &Path) {
     use std::io::Write;
@@ -463,9 +484,15 @@ fn embed_resource_file(target_dir: &Path) {
     let version = env::var("GIT_RELEASE_TAG").unwrap_or("v0".to_owned());
     let app_name = env::var("WARP_APP_NAME").unwrap_or("Warp".to_owned());
     let bin_name = env::var("CARGO_BIN_NAME").unwrap_or("local".to_owned());
+    // 以 `WARP_APP_PUBLISHER` 覆盖;默认与 installer / AUMID 一致为「OpenWarp」。
+    // 保持 installer `MyAppPublisher`、Cargo bundle metadata `copyright`、
+    // 进程 AUMID `dev.openwarp.OpenWarp` 三处全局对齐，避免 Windows Shell
+    // 因 publisher / product name fingerprint 不一致而 miss 掉 icon cache。
+    let publisher = env::var("WARP_APP_PUBLISHER").unwrap_or_else(|_| "OpenWarp".to_owned());
+    let (ver_major, ver_minor, ver_patch, ver_build) = parse_file_version_quad(&version);
 
     let icon_path = Path::new("channels")
-        .join(bin_name)
+        .join(&bin_name)
         .join("icon")
         .join("no-padding")
         .join("icon.ico");
@@ -484,8 +511,8 @@ fn embed_resource_file(target_dir: &Path) {
 
 IDI_ICON ICON "icon.ico"
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,0,0
-PRODUCTVERSION  1,0,0,0
+FILEVERSION     {ver_major},{ver_minor},{ver_patch},{ver_build}
+PRODUCTVERSION  {ver_major},{ver_minor},{ver_patch},{ver_build}
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 FILEFLAGS       0
 FILEOS          VOS__WINDOWS32
@@ -496,13 +523,13 @@ BEGIN
     BEGIN
         BLOCK "040904E4"
         BEGIN
-            VALUE "CompanyName",      "Denver Technologies, Inc\0"
+            VALUE "CompanyName",      "{publisher}\0"
             VALUE "FileDescription",  "{app_name}\0"
             VALUE "FileVersion",      "{version}\0"
-            VALUE "LegalCopyright",   "© 2025, Denver Technologies, Inc\0"
-            VALUE "InternalName",     "\0"
-            VALUE "OriginalFilename", "\0"
-            VALUE "ProductName",      "Warp\0"
+            VALUE "LegalCopyright",   "© 2025-2026, {publisher}\0"
+            VALUE "InternalName",     "{bin_name}\0"
+            VALUE "OriginalFilename", "{bin_name}.exe\0"
+            VALUE "ProductName",      "{app_name}\0"
             VALUE "ProductVersion",   "{version}\0"
         END
     END

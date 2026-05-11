@@ -130,9 +130,6 @@ define_settings_group!(InputSettings,
             toml_path: "terminal.input.enable_slash_commands_in_terminal",
             description: "Whether slash commands are available in the terminal input.",
         },
-        // OpenWarp:原 `outline_codebase_symbols_for_at_context_menu` 设置已随
-        // RepoOutlines / GetRelevantFilesController 的下线推退。该设置仅控制
-        // `@` 菜单中的代码符号子菜单,符号后台索引本身不存在后,开关也失去意义。
         completions_menu_width: CompletionsMenuWidth {
             type: f32,
             default: 330.,

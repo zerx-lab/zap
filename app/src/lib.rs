@@ -143,7 +143,6 @@ use ai::ambient_agents::scheduled::ScheduledAgentManager;
 use ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use ai::execution_profiles::profiles::AIExecutionProfilesModel;
-use ai::persisted_workspace::PersistedWorkspace;
 use auth::auth_state::AuthStateProvider;
 use auth::{auth_manager::AuthManager, auth_state::AuthState};
 use code::editor_management::CodeManager;
@@ -204,8 +203,6 @@ use crate::changelog_model::ChangelogModel;
 use crate::cloud_object::model::actions::ObjectActions;
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::code::global_buffer_model::GlobalBufferModel;
-#[cfg(feature = "local_fs")]
-use crate::code::language_server_shutdown_manager::LanguageServerShutdownManager;
 use crate::context_chips::prompt::Prompt;
 use crate::default_terminal::DefaultTerminal;
 use crate::drive::export::ExportManager;
@@ -446,17 +443,6 @@ impl LaunchMode {
             },
             LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon => true,
             LaunchMode::App { .. } | LaunchMode::Test { .. } => false,
-        }
-    }
-
-    /// Returns `true` if running in app mode or via `agent run` to permit codebase indexing.
-    fn supports_indexing(&self) -> bool {
-        match self {
-            LaunchMode::CommandLine { command, .. } => {
-                matches!(command, CliCommand::Agent(AgentCommand::Run { .. }))
-            }
-            LaunchMode::App { .. } | LaunchMode::Test { .. } => true,
-            LaunchMode::RemoteServerProxy | LaunchMode::RemoteServerDaemon => false,
         }
     }
 
@@ -1216,8 +1202,6 @@ fn initialize_app(
         object_actions,
         experiments,
         ai_queries,
-        persisted_workspaces,
-        workspace_language_servers,
         multi_agent_conversations,
         persisted_projects,
         persisted_project_rules,
@@ -1237,8 +1221,6 @@ fn initialize_app(
                 sqlite_data.object_actions,
                 sqlite_data.experiments,
                 sqlite_data.ai_queries,
-                sqlite_data.codebase_indices,
-                sqlite_data.workspace_language_servers,
                 sqlite_data.multi_agent_conversations,
                 sqlite_data.projects,
                 sqlite_data.project_rules,
@@ -1249,8 +1231,6 @@ fn initialize_app(
         })
         .unwrap_or_else(|| {
             (
-                Default::default(),
-                Default::default(),
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -1637,8 +1617,6 @@ fn initialize_app(
     ctx.add_singleton_model(GlobalBufferModel::new);
     #[cfg(windows)]
     ctx.add_singleton_model(util::traffic_lights::windows::RendererState::new);
-    #[cfg(feature = "local_fs")]
-    ctx.add_singleton_model(|_| LanguageServerShutdownManager::new());
 
     #[cfg(feature = "voice_input")]
     ctx.add_singleton_model(voice_input::VoiceInput::new);
@@ -1891,9 +1869,7 @@ fn initialize_app(
         ProjectContextModel::new_from_persisted(persisted_project_rules, ctx)
     });
     ctx.add_singleton_model(|ctx| {
-        PersistedWorkspace::new(
-            persisted_workspaces,
-            workspace_language_servers,
+        crate::ai::project_rules_persister::ProjectRulesPersister::new(
             persistence_writer.sender(),
             ctx,
         )
@@ -1996,11 +1972,6 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
             // openWarp 闭源遥测剥离 P4d:on_will_terminate 原最后 flush 一次每日聚焦时长。
             TelemetryCollector::handle(ctx).update(ctx, |telemetry_collector, ctx| {
                 telemetry_collector.flush_telemetry_events_for_shutdown(ctx);
-            });
-
-            // Shutdown all LSP servers gracefully before app termination
-            lsp::LspManagerModel::handle(ctx).update(ctx, |manager, ctx| {
-                manager.terminate(ctx);
             });
 
             // We want to tear down the terminal server before relaunching for
@@ -2453,7 +2424,7 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         flags.extend(features::RELEASE_FLAGS);
     }
 
-    flags.extend([
+    let extra_flags: &[FeatureFlag] = &[
         #[cfg(feature = "autoupdate")]
         FeatureFlag::Autoupdate,
         #[cfg(feature = "changelog")]
@@ -2618,8 +2589,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ReadImageFiles,
         #[cfg(feature = "usage_based_pricing")]
         FeatureFlag::UsageBasedPricing,
-        #[cfg(feature = "cross_repo_context")]
-        FeatureFlag::CrossRepoContext,
         #[cfg(feature = "ai_context_menu")]
         FeatureFlag::AIContextMenuEnabled,
         #[cfg(feature = "at_menu_outside_of_ai_mode")]
@@ -2652,8 +2621,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::TabCloseButtonOnLeft,
         #[cfg(feature = "profiles_design_revamp")]
         FeatureFlag::ProfilesDesignRevamp,
-        #[cfg(feature = "search_codebase_ui")]
-        FeatureFlag::SearchCodebaseUI,
         #[cfg(feature = "changed_lines_only_apply_diff_result")]
         FeatureFlag::ChangedLinesOnlyApplyDiffResult,
         #[cfg(feature = "linked_code_blocks")]
@@ -2814,8 +2781,6 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ListSkills,
         #[cfg(feature = "ask_user_question")]
         FeatureFlag::AskUserQuestion,
-        #[cfg(feature = "lsp_as_a_tool")]
-        FeatureFlag::LSPAsATool,
         #[cfg(feature = "inline_profile_selector")]
         FeatureFlag::InlineProfileSelector,
         #[cfg(feature = "oz_platform_skills")]
@@ -2898,7 +2863,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CloudModeInputV2,
         #[cfg(feature = "configurable_context_window")]
         FeatureFlag::ConfigurableContextWindow,
-    ]);
+    ];
+    flags.extend(extra_flags.iter().copied());
 
     flags
 }

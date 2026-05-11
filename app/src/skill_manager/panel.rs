@@ -5,7 +5,6 @@ use ai::skills::SkillProvider;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::{
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Border, ChildView, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
         CornerRadius, CrossAxisAlignment, Element, Fill as ElementFill, Flex, Hoverable,
@@ -13,6 +12,7 @@ use warpui::{
     },
     platform::Cursor,
     text_layout::ClipConfig,
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::ai::skills::{

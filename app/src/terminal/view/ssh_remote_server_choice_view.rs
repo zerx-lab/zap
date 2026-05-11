@@ -75,23 +75,17 @@ impl SshRemoteServerChoiceView {
         let buttons = ctx.add_typed_action_view(|_| {
             KeyboardNavigableButtons::new(vec![
                 rich_navigation_button(
-                    "Install Warp's SSH extension".to_string(),
-                    Some(
-                        "Install Warp's extension to enable agent features like file browsing, \
-                         code review, and intelligent command completions in this session."
-                            .to_string(),
-                    ),
+                    crate::t!("ssh-remote-choice-install-extension"),
+                    Some(crate::t!("ssh-remote-choice-install-extension-desc")),
                     /* recommended */ true,
                     MouseStateHandle::default(),
                     SshRemoteServerChoiceViewAction::Install,
                 ),
                 rich_navigation_button(
-                    "Continue without installing".to_string(),
-                    Some(
-                        "You'll still get a Warpified experience just without the coding \
-                         features."
-                            .to_string(),
-                    ),
+                    crate::t!("ssh-remote-choice-continue-without-installing"),
+                    Some(crate::t!(
+                        "ssh-remote-choice-continue-without-installing-desc"
+                    )),
                     /* recommended */ false,
                     MouseStateHandle::default(),
                     SshRemoteServerChoiceViewAction::Skip,
@@ -121,7 +115,7 @@ impl SshRemoteServerChoiceView {
         // Match the Figma design: a plain title row, no icon / chevron /
         // action buttons. `HeaderConfig` without an `interaction_mode` set
         // renders exactly that.
-        HeaderConfig::new("Choose your experience for this remote session:", app)
+        HeaderConfig::new(crate::t!("ssh-remote-choice-title"), app)
             .with_corner_radius_override(CornerRadius::with_top(Radius::Pixels(
                 PROMPT_BORDER_RADIUS,
             )))
@@ -180,7 +174,7 @@ impl SshRemoteServerChoiceView {
         let manage_settings_link = appearance
             .ui_builder()
             .link(
-                "Manage Warpify settings".into(),
+                crate::t!("ssh-remote-choice-manage-warpify-settings").into(),
                 None,
                 Some(Box::new(|ctx| {
                     ctx.dispatch_typed_action(SshRemoteServerChoiceViewAction::OpenWarpifySettings);

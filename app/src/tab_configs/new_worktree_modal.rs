@@ -30,7 +30,6 @@ pub fn init(app: &mut AppContext) {
 use warp_core::ui::theme::color::internal_colors;
 
 use crate::{
-    ai::persisted_workspace::PersistedWorkspace,
     appearance::Appearance,
     editor::{EditorView, Event as EditorEvent, SingleLineEditorOptions},
     modal::ModalAction,
@@ -209,15 +208,9 @@ impl NewWorktreeModal {
             e.clear_buffer_and_reset_undo_stack(ctx);
         });
 
-        // Prefer the active session's cwd; fall back to the first known
-        // workspace so that both pickers start populated even when no
-        // terminal session is active yet.
-        let effective_cwd = cwd.or_else(|| {
-            PersistedWorkspace::as_ref(ctx)
-                .workspaces()
-                .next()
-                .map(|ws| ws.path.clone())
-        });
+        // 仅使用当前 session 的 cwd 作为默认值。PersistedWorkspace 已下线,
+        // 不再有「上次打开的仓库」可退。
+        let effective_cwd = cwd;
 
         let default_repo = effective_cwd
             .as_ref()

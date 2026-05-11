@@ -11,7 +11,7 @@ use crate::search::{
 use crate::terminal::available_shells::AvailableShells;
 use fuzzy_match::{match_indices_case_insensitive, FuzzyMatchResult};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
@@ -203,14 +203,16 @@ impl Entity for NewSessionDataSource {
 
 type SearcherAction = <NewSessionDataSource as SyncDataSource>::Action;
 
-const SEARCHER_BASE_STRINGS: [&str; 6] = [
-    "Create New Tab",
-    "Create New Window",
-    "Split Pane Down",
-    "Split Pane Right",
-    "Split Pane Up",
-    "Split Pane Left",
-];
+static SEARCHER_BASE_STRINGS: LazyLock<[String; 6]> = LazyLock::new(|| {
+    [
+        crate::t!("new-session-create-new-tab"),
+        crate::t!("new-session-create-new-window"),
+        crate::t!("new-session-split-pane-down"),
+        crate::t!("new-session-split-pane-right"),
+        crate::t!("new-session-split-pane-up"),
+        crate::t!("new-session-split-pane-left"),
+    ]
+});
 
 trait NewSessionSearcher {
     fn search(&self, _search_term: &str) -> anyhow::Result<Vec<QueryResult<SearcherAction>>>;

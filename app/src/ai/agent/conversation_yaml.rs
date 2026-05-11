@@ -284,18 +284,6 @@ fn write_tool_call_args(out: &mut String, tool: &Tool) {
             out.push_str("command: |\n");
             write_block_scalar(out, &cmd.command);
         }
-        Tool::SearchCodebase(sc) => {
-            out.push_str(&format!("query: \"{}\"\n", escape_yaml_string(&sc.query)));
-            if !sc.codebase_path.is_empty() {
-                out.push_str(&format!("codebase_path: {}\n", sc.codebase_path));
-            }
-            if !sc.path_filters.is_empty() {
-                out.push_str("path_filters:\n");
-                for p in &sc.path_filters {
-                    out.push_str(&format!("  - \"{}\"\n", escape_yaml_string(p)));
-                }
-            }
-        }
         Tool::ReadFiles(rf) => {
             out.push_str("files:\n");
             for f in &rf.files {
@@ -551,31 +539,6 @@ fn write_tool_call_result_content(out: &mut String, result: &ToolCallResultType)
                     }
                     Result::PermissionDenied(_) => {
                         out.push_str("status: permission_denied\n");
-                    }
-                }
-            }
-        }
-        ToolCallResultType::SearchCodebase(r) => {
-            if let Some(res) = &r.result {
-                use api::search_codebase_result::Result;
-                match res {
-                    Result::Success(s) => {
-                        out.push_str("files:\n");
-                        for f in &s.files {
-                            out.push_str(&format!("  - name: {}\n", f.file_path));
-                            let preview = truncate_content(&f.content, 2048);
-                            if !preview.is_empty() {
-                                out.push_str("    content: |\n");
-                                for line in preview.lines() {
-                                    out.push_str("      ");
-                                    out.push_str(line);
-                                    out.push('\n');
-                                }
-                            }
-                        }
-                    }
-                    Result::Error(e) => {
-                        out.push_str(&format!("error: {}\n", e.message));
                     }
                 }
             }

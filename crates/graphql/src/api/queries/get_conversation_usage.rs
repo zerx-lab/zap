@@ -31,7 +31,6 @@ query GetConversationUsage(
               runCommandStats { count }
               runCommandsExecuted
               readFilesStats { count }
-              searchCodebaseStats { count }
               grepStats { count }
               fileGlobStats { count }
               callMcpToolStats { count }
@@ -212,7 +211,6 @@ pub struct ToolUsageMetadata {
     pub run_command_stats: ToolCallStats,
     pub run_commands_executed: i32,
     pub read_files_stats: ToolCallStats,
-    pub search_codebase_stats: ToolCallStats,
     pub grep_stats: ToolCallStats,
     pub file_glob_stats: ToolCallStats,
     pub call_mcp_tool_stats: ToolCallStats,
@@ -234,9 +232,6 @@ impl From<&ToolUsageMetadata> for persistence::model::ToolUsageMetadata {
             },
             read_files_stats: persistence::model::ToolCallStats {
                 count: gql.read_files_stats.count,
-            },
-            search_codebase_stats: persistence::model::ToolCallStats {
-                count: gql.search_codebase_stats.count,
             },
             grep_stats: persistence::model::ToolCallStats {
                 count: gql.grep_stats.count,

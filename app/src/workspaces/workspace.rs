@@ -340,13 +340,6 @@ pub struct UsageBasedPricingPolicy {
 }
 
 #[derive(Clone, Debug, Copy, Serialize, Deserialize)]
-pub struct CodebaseContextPolicy {
-    pub toggleable: bool,
-    pub index_limit: Option<u32>,
-    pub max_files_per_repo: u32,
-}
-
-#[derive(Clone, Debug, Copy, Serialize, Deserialize)]
 pub struct ByoApiKeyPolicy {
     pub enabled: bool,
 }
@@ -405,7 +398,6 @@ pub struct Tier {
     pub telemetry_data_collection_policy: Option<TelemetryDataCollectionPolicy>,
     pub ugc_data_collection_policy: Option<UgcDataCollectionPolicy>,
     pub usage_based_pricing_policy: Option<UsageBasedPricingPolicy>,
-    pub codebase_context_policy: Option<CodebaseContextPolicy>,
     pub byo_api_key_policy: Option<ByoApiKeyPolicy>,
     pub purchase_add_on_credits_policy: Option<PurchaseAddOnCreditsPolicy>,
     pub enterprise_pay_as_you_go_policy: Option<EnterprisePayAsYouGoPolicy>,
@@ -749,11 +741,6 @@ pub struct AddonCreditsSettings {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct CodebaseContextSettings {
-    pub setting: AdminEnablementSetting,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct SandboxedAgentSettings {
     pub execute_commands_denylist: Option<Vec<AgentModeCommandExecutionPredicate>>,
 }
@@ -772,7 +759,6 @@ pub struct WorkspaceSettings {
     pub is_discoverable: bool,
     pub usage_based_pricing_settings: UsageBasedPricingSettings,
     pub addon_credits_settings: AddonCreditsSettings,
-    pub codebase_context_settings: CodebaseContextSettings,
     pub sandboxed_agent_settings: Option<SandboxedAgentSettings>,
     /// The team-level agent attribution setting. When `Enable` or `Disable`, the
     /// user toggle is locked. When `RespectUserSetting` (or absent), the user can choose.

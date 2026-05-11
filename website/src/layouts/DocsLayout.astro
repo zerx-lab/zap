@@ -4,6 +4,7 @@ import I18nScript from '../components/I18nScript.astro';
 import Banner from '../components/Banner.astro';
 import DocsNav from '../components/DocsNav.astro';
 import DocsSidebar from '../components/DocsSidebar.astro';
+import Analytics from '../components/Analytics.astro';
 
 interface Heading {
   depth: number;
@@ -41,6 +42,7 @@ const editUrl = `${repo}/blob/main/website/src/content/docs/${activeSlug}.mdx`;
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+    <Analytics />
   </head>
   <body data-locale="en">
     <I18nScript />

@@ -887,10 +887,6 @@ impl AIAgentAction {
         self.action.is_read_files()
     }
 
-    pub fn is_get_relevant_files(&self) -> bool {
-        self.action.is_search_codebase()
-    }
-
     pub fn is_grep(&self) -> bool {
         self.action.is_grep()
     }
@@ -1041,25 +1037,6 @@ impl<'a> std::fmt::Display for MarkdownActionResult<'a> {
                 ReadFilesResult::Error(error) => write!(f, "\n_Read files error: {error} _"),
                 ReadFilesResult::Cancelled => write!(f, "\n_Read files cancelled_"),
             },
-            AIAgentActionResultType::SearchCodebase(result) => match result {
-                SearchCodebaseResult::Success { files } => {
-                    write!(f, "\n\n**Codebase Search Results:**\n\n")?;
-                    for file in files {
-                        writeln!(f, "- **{}**", file.file_name)?;
-                        let content = &file.content;
-                        if let AnyFileContent::StringContent(text) = content {
-                            if !text.trim().is_empty() {
-                                writeln!(f, "```\n{text}\n```\n")?;
-                            }
-                        }
-                    }
-                    Ok(())
-                }
-                SearchCodebaseResult::Failed { message, .. } => {
-                    write!(f, "\n_Codebase search failed: {message} _")
-                }
-                SearchCodebaseResult::Cancelled => write!(f, "\n_Codebase search cancelled_"),
-            },
             AIAgentActionResultType::FileGlobV2(result) => match result {
                 FileGlobV2Result::Success { matched_files, .. } => {
                     write!(f, "\n\n**File Glob Results:**\n\n")?;
@@ -1185,7 +1162,6 @@ impl AIAgentActionResult {
                     RequestCommandOutputResult::CancelledBeforeExecution
                 )
                 | AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled)
-                | AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
                 | AIAgentActionResultType::Grep(GrepResult::Cancelled)
                 | AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled)
                 | AIAgentActionResultType::ReadMCPResource(ReadMCPResourceResult::Cancelled)

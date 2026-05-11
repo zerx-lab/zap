@@ -66,7 +66,7 @@ impl ConversationSearchItem {
         Flex::row()
             .with_child(
                 Text::new_inline(
-                    "New conversation",
+                    crate::t!("workspace-conversation-list-new-conversation"),
                     appearance.ui_font_family(),
                     appearance.monospace_font_size(),
                 )
@@ -87,7 +87,7 @@ impl ConversationSearchItem {
         let appearance = Appearance::as_ref(app);
 
         let action_title = Text::new_inline(
-            "Fork current conversation",
+            crate::t!("command-palette-conversations-fork-current"),
             appearance.ui_font_family(),
             appearance.monospace_font_size(),
         )
@@ -413,28 +413,31 @@ impl SearchItem for ConversationSearchItem {
     fn accessibility_label(&self) -> String {
         match &self.action_info {
             ConversationAction::Resume(matched_conversation) => {
-                format!(
-                    "Conversation: {}",
-                    matched_conversation.as_ref().conversation.title()
-                )
+                let fallback_title = crate::t!("workspace-conversation-list-fallback-title");
+                let title = matched_conversation.as_ref().conversation.title();
+                format!("{fallback_title}: {title}")
             }
             ConversationAction::Fork { title, .. } => {
-                format!("Fork current conversation ({title})")
+                crate::t!(
+                    "command-palette-conversations-fork-current-with-title",
+                    title = title
+                )
             }
-            ConversationAction::New => "New conversation".to_string(),
+            ConversationAction::New => crate::t!("workspace-conversation-list-new-conversation"),
         }
     }
 
     fn accessibility_help_message(&self) -> Option<String> {
         match &self.action_info {
-            ConversationAction::Resume(matched_conversation) => Some(format!(
-                "Press enter to navigate to conversation \"{}\".",
-                matched_conversation.as_ref().conversation.title()
-            )),
-            ConversationAction::Fork { .. } => {
-                Some("Press enter to fork the current conversation into a new conversation.".into())
+            ConversationAction::Resume(matched_conversation) => {
+                let navigate = crate::t!("command-palette-conversations-a11y-navigate");
+                let title = matched_conversation.as_ref().conversation.title();
+                Some(format!("{navigate} \"{title}\"."))
             }
-            ConversationAction::New => Some("Press enter to create a new conversation.".into()),
+            ConversationAction::Fork { .. } => {
+                Some(crate::t!("command-palette-conversations-a11y-fork"))
+            }
+            ConversationAction::New => Some(crate::t!("command-palette-conversations-a11y-new")),
         }
     }
 }

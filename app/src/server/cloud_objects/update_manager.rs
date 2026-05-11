@@ -3593,6 +3593,10 @@ impl UpdateManager {
     }
 
     /// Generic function for creating a new cloud object with a given model.
+    ///
+    /// OpenWarp(本地化):同 `update_object` — 原实现入队 `SyncQueue` 等服务端创建 ack,
+    /// 本地化后仅保留创建内存对象 + 写 sqlite。对象以 client_id 身份永久存在,
+    /// 不再提升为 server_id。`entrypoint` / `initiated_by` 参数保留接口稳定。
     #[allow(clippy::too_many_arguments)]
     pub fn create_object<K, M>(
         &mut self,
@@ -3616,6 +3620,11 @@ impl UpdateManager {
             + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
+        // OpenWarp:上云队列腿被砍,两个参数仅用于 `create_object_queue_item` 构造;
+        // 保留接口以避免冲击 30+ 调用点签名。
+        let _ = entrypoint;
+        let _ = initiated_by;
+
         let object_id = SyncId::ClientId(client_id);
         let auth_state = AuthStateProvider::as_ref(ctx).get();
         let initial_editor = auth_state.user_id();
@@ -3641,17 +3650,6 @@ impl UpdateManager {
         if let Some(object) = cloud_model.get_object_of_type::<K, M>(&object_id) {
             self.save_to_db([object.upsert_event()]);
         }
-
-        // Populate sync queue.
-        SyncQueue::handle(ctx).update(ctx, |sync_queue, ctx| {
-            let cloud_model = CloudModel::as_ref(ctx);
-            if let Some(object) = cloud_model.get_object_of_type::<K, M>(&object_id) {
-                if let Some(queue_item) = object.create_object_queue_item(entrypoint, initiated_by)
-                {
-                    sync_queue.enqueue(queue_item, ctx);
-                }
-            };
-        });
     }
 
     /// Create a new cloud object as an online-only operation.
@@ -3904,6 +3902,12 @@ impl UpdateManager {
     }
 
     /// Generic function for updating a cloud object with a new model.
+    ///
+    /// OpenWarp(本地化):无云端 = 无服务端 ack。原实现:更新内存 → 标 `InFlight` →
+    /// 写 sqlite → 入队 `SyncQueue`(等服务端响应再 decrement `InFlight`)。本地化后
+    /// 砍掉两段云端腿,仅保留:更新内存 + 写 sqlite。对象 sync_status 永远停在初始
+    /// `NoLocalChanges`(本地写入即"完成"语义)。`revision_ts` 参数保留以维持接口
+    /// 签名稳定,在本地分支被忽略(Phase 2d-4b 重命名时统一收拾)。
     pub fn update_object<K, M>(
         &mut self,
         model: M,
@@ -3922,13 +3926,12 @@ impl UpdateManager {
             + 'static,
         M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
     {
+        let _ = revision_ts; // OpenWarp: 无服务端 revision 协调,忽略。
+
         // Update in-memory model.
         CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
             cloud_model.update_object_from_edit(model.clone(), object_id, ctx);
-            if let Some(object) = cloud_model.get_mut_by_uid(&object_id.uid()) {
-                object.increment_in_flight_request_count();
-                ctx.notify();
-            }
+            ctx.notify();
         });
 
         // Update sqlite.
@@ -3936,16 +3939,6 @@ impl UpdateManager {
         if let Some(object) = cloud_model.get_object_of_type::<K, M>(&object_id) {
             self.save_to_db([object.upsert_event()]);
         };
-
-        // Populate sync queue.
-        SyncQueue::handle(ctx).update(ctx, |sync_queue, ctx| {
-            let cloud_model = CloudModel::as_ref(ctx);
-            if let Some(object) = cloud_model.get_object_of_type::<K, M>(&object_id) {
-                if let Some(queue_item) = object.update_object_queue_item(revision_ts) {
-                    sync_queue.enqueue(queue_item, ctx);
-                }
-            };
-        });
     }
 
     // Takes a generic SyncId and records the action.
@@ -4809,6 +4802,7 @@ impl Entity for UpdateManager {
 
 impl SingletonEntity for UpdateManager {}
 
-#[cfg(test)]
-#[path = "update_manager_test.rs"]
-mod tests;
+// Phase 2c-2 删除 `update_manager_test.rs`(7500+ 行云端同步行为测试):
+// `update_object` OpenWarp 本地化后,云端断言全部失效;本文件原属 Phase 2d-4a
+// 整文件删除范围,提前删避免 12 个 `#[ignore]` 累积。`server/cloud_objects/`
+// 其余消费者(listener / update_manager 本体)在 2d-4a 整片下线。

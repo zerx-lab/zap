@@ -1025,7 +1025,6 @@ impl TeamsPageView {
             UserWorkspacesEvent::PurchaseAddonCreditsRejected(_) => {
                 // Addon credits purchase rejection is handled in billing_and_usage_page
             }
-            UserWorkspacesEvent::CodebaseContextEnablementChanged => {}
             UserWorkspacesEvent::SunsettedToBuildDataUpdated => {
                 // Build plan migration modal is handled by OneTimeModalModel
             }

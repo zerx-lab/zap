@@ -570,9 +570,6 @@ impl ConvertAPIToolCallToAIAgentAction for api::message::ToolCall {
             api::message::tool_call::Tool::ReadFiles(read_files) => {
                 create_standard_action(read_files.into())
             }
-            api::message::tool_call::Tool::SearchCodebase(search_codebase) => {
-                create_standard_action(search_codebase.into())
-            }
             api::message::tool_call::Tool::Grep(grep) => create_standard_action(grep.into()),
             #[allow(deprecated)]
             api::message::tool_call::Tool::FileGlob(glob) => create_standard_action(glob.into()),

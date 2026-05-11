@@ -163,7 +163,7 @@ fn render_deleted_state(
         .with_main_axis_size(MainAxisSize::Max)
         .with_child(
             Text::new(
-                cached_title.unwrap_or_else(|| "Deleted conversation".to_string()),
+                cached_title.unwrap_or_else(|| crate::t!("conversation-deleted")),
                 appearance.ui_font_family(),
                 appearance.monospace_font_size(),
             )
@@ -174,7 +174,7 @@ fn render_deleted_state(
             })
             .finish(),
         )
-        .with_child(render_subtext("Deleted".to_string(), appearance))
+        .with_child(render_subtext(crate::t!("common-deleted"), appearance))
         .finish();
 
     render_block_container(
@@ -258,7 +258,7 @@ impl View for AgentViewEntryBlock {
                     Text::new(
                         conversation
                             .title()
-                            .unwrap_or("Untitled conversation".to_string()),
+                            .unwrap_or_else(|| crate::t!("conversation-untitled")),
                         appearance.ui_font_family(),
                         appearance.monospace_font_size(),
                     )

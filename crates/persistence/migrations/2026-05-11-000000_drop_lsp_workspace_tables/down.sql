@@ -1,0 +1,2 @@
+-- OpenWarp 不维护 down 迁移:LSP 与持久化 workspace 历史已永久下线,
+-- 不存在合理的回滚目标。保留此空文件以满足 diesel migration 目录约定。

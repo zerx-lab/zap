@@ -1,5 +1,7 @@
 use itertools::Itertools as _;
 use std::os::windows::ffi::OsStrExt as _;
+use winreg::enums::HKEY_CURRENT_USER;
+use winreg::RegKey;
 
 // Re-export a couple winit types and modules as the concrete implementations
 // for Windows.
@@ -28,6 +30,15 @@ pub trait AppBuilderExt {
 
 impl AppBuilderExt for super::AppBuilder {
     fn set_app_user_model_id(&mut self, app_id: String) {
+        // 先把 AUMID 注册到 HKCU\Software\Classes\AppUserModelId\<aumid>,
+        // 这样即使没有 Start Menu 快捷方式(`cargo run` 开发模式 / 解压版),
+        // Windows ToastNotificationManager 也能找到该 AUMID,Toast 才会真正弹出。
+        // 否则 `Toast::show()` 会被系统层静默吞掉,API 不报错。
+        // 参考: https://learn.microsoft.com/en-us/windows/apps/design/shell/tiles-and-notifications/send-local-toast-other-apps
+        if let Err(err) = register_aumid_in_registry(&app_id) {
+            log::warn!("Unable to register Windows AppUserModel ID in registry: {err:?}");
+        }
+
         let set_id = unsafe { set_app_user_model_id(app_id) };
         if let Err(err) = set_id {
             log::error!("Unable to set Windows AppUserModel ID: {err:?}");
@@ -49,4 +60,21 @@ unsafe fn set_app_user_model_id(app_id: String) -> Result<(), windows::core::Err
     windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(windows::core::PCWSTR(
         wide_string.as_ptr(),
     ))
+}
+
+/// 把 AUMID 注册到 `HKCU\Software\Classes\AppUserModelId\<aumid>`,
+/// 这是 Windows 10/11 「unpackaged app」发送本地 toast 的官方注册路径。
+///
+/// `DisplayName` 决定 toast 上方显示的来源名;`IconBackgroundColor` 让
+/// Windows 用更干净的纯色背景替代默认灰底。Icon 暂不写(需要绝对路径,
+/// 且在 `cargo run` 与正式安装两种场景下路径不一样,留给 installer 处理)。
+fn register_aumid_in_registry(app_id: &str) -> std::io::Result<()> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let subkey = format!("Software\\Classes\\AppUserModelId\\{app_id}");
+    let (key, _) = hkcu.create_subkey(&subkey)?;
+
+    // 从 AUMID 末段推导一个体面的展示名(e.g. dev.openwarp.OpenWarp → OpenWarp)。
+    let display_name = app_id.rsplit('.').next().unwrap_or(app_id);
+    key.set_value("DisplayName", &display_name.to_string())?;
+    Ok(())
 }

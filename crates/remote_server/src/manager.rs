@@ -22,7 +22,7 @@ use crate::HostId;
 use repo_metadata::RepoMetadataUpdate;
 use serde::Serialize;
 #[cfg(not(target_family = "wasm"))]
-use warp_core::channel::ChannelState;
+use warp_core::channel::{Channel, ChannelState};
 use warp_core::SessionId;
 #[cfg(not(target_family = "wasm"))]
 use warpui::r#async::FutureExt as _;
@@ -143,6 +143,23 @@ fn version_is_compatible(client: Option<&str>, server: &str) -> bool {
         (None, true) => true,
         (Some(_), true) | (None, false) => false,
     }
+}
+
+/// 是否应当对远端 `server_version` 强制做 tag 严格匹配。
+///
+/// 对于 [`Channel::Oss`](OpenWarp),客户端目前是从源码 build 的
+/// (无 `GIT_RELEASE_TAG` → `ChannelState::app_version()` 永远是
+/// `None`),而 SSH Extension 临时复用官方 `app.warp.dev/download/cli`
+/// 上的 release 产物(带有非空 release tag)。这种组合在
+/// [`version_is_compatible`] 下永远落到 `(None, false) => false`,
+/// 触发 `remove_remote_server_binary()` → 下一次 reconnect 重新
+/// install → 又版本不匹配 → 死循环。详见 `setup.rs::download_url`
+/// 上的 `TODO(openwarp)`:等 OpenWarp 自己发布 remote-server 二进制、
+/// 把下载源切到 GitHub Release 后,客户端与服务端再次是同源构建,
+/// 这里的特例就可以删掉,版本校验回到所有 channel 一致的行为。
+#[cfg(not(target_family = "wasm"))]
+fn should_enforce_remote_version_check(channel: Channel) -> bool {
+    !matches!(channel, Channel::Oss)
 }
 
 /// Per-session connection state. Encodes which data is available at each
@@ -826,8 +843,13 @@ impl RemoteServerManager {
         // Version compatibility check. If the server reports a different release
         // tag than the client expects, the binary on disk is stale. Remove it so
         // the next reconnect (or explicit reconnect by the user) will reinstall.
+        //
+        // `Channel::Oss`(OpenWarp)下临时复用官方 release 二进制,客户端自己
+        // 没有 `GIT_RELEASE_TAG`,与服务器永远不匹配,故跳过严格校验。详见
+        // [`should_enforce_remote_version_check`] 的注释。
         let client_version = ChannelState::app_version();
-        if !version_is_compatible(client_version, &resp.server_version) {
+        let enforce_version_check = should_enforce_remote_version_check(ChannelState::channel());
+        if enforce_version_check && !version_is_compatible(client_version, &resp.server_version) {
             log::warn!(
                 "Remote server version mismatch for session {session_id:?}: \
                  client={client_version:?}, server={:?}. Removing stale binary.",
@@ -1587,3 +1609,7 @@ impl RemoteServerManager {
         }
     }
 }
+
+#[cfg(all(test, not(target_family = "wasm")))]
+#[path = "manager_tests.rs"]
+mod tests;

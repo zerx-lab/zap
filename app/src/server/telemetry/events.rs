@@ -865,16 +865,6 @@ pub enum AgentModeSetupProjectScopedRulesActionType {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum AgentModeSetupCodebaseContextActionType {
-    #[serde(rename = "index_codebase")]
-    IndexCodebase,
-    #[serde(rename = "skip_indexing")]
-    SkipIndexing,
-    #[serde(rename = "view_index_status")]
-    ViewIndexStatus,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AgentModeSetupCreateEnvironmentActionType {
     #[serde(rename = "create_environment")]
     CreateEnvironment,
@@ -2081,20 +2071,6 @@ pub enum TelemetryEvent {
         is_ai_enabled: bool,
     },
 
-    /// Emitted when the user toggles codebase context.
-    ToggleCodebaseContext {
-        is_codebase_context_enabled: bool,
-    },
-
-    ToggleAutoIndexing {
-        is_autoindexing_enabled: bool,
-    },
-
-    ActiveIndexedReposChanged {
-        updated_number_of_codebase_indices: usize,
-        hit_max_indices: bool,
-    },
-
     /// Emitted when the user toggles active AI.
     ToggleActiveAI {
         is_active_ai_enabled: bool,
@@ -2236,15 +2212,6 @@ pub enum TelemetryEvent {
         src: AutonomySettingToggleSource,
         new: AgentModeCodingPermissionsType,
     },
-    FullEmbedCodebaseContextSearchSuccess {
-        action_id: AIAgentActionId,
-        total_search_duration: Duration,
-        out_of_sync_delay: Option<Duration>,
-    },
-    FullEmbedCodebaseContextSearchFailed {
-        action_id: AIAgentActionId,
-        error: String,
-    },
     RepoOutlineConstructionSuccess {
         total_parse_seconds: usize,
         file_count: usize,
@@ -2381,15 +2348,6 @@ pub enum TelemetryEvent {
         long_os_version: Option<String>,
         exit_reason: Option<String>,
     },
-    SearchCodebaseRequested {
-        action_id: AIAgentActionId,
-        server_output_id: Option<ServerOutputId>,
-        is_cross_repo: bool,
-    },
-    SearchCodebaseRepoUnavailable {
-        action_id: AIAgentActionId,
-        error: String,
-    },
     /// User changed the input UX mode (e.g. Universal Developer Input, UDI, mode or Classic)
     InputUXModeChanged {
         is_udi_enabled: bool,
@@ -2486,9 +2444,6 @@ pub enum TelemetryEvent {
         action: AgentModeSetupProjectScopedRulesActionType,
     },
 
-    AgentModeSetupCodebaseContextAction {
-        action: AgentModeSetupCodebaseContextActionType,
-    },
     AgentModeSetupCreateEnvironmentAction {
         action: AgentModeSetupCreateEnvironmentActionType,
     },
@@ -3728,23 +3683,6 @@ impl TelemetryEvent {
             TelemetryEvent::ToggleActiveAI {
                 is_active_ai_enabled,
             } => Some(json!({"is_active_ai_enabled": is_active_ai_enabled})),
-            TelemetryEvent::ToggleCodebaseContext {
-                is_codebase_context_enabled,
-            } => Some(json!( {
-                "is_codebase_context_enabled": is_codebase_context_enabled
-            })),
-            TelemetryEvent::ToggleAutoIndexing {
-                is_autoindexing_enabled,
-            } => Some(json!({
-                "is_autoindexing_enabled": is_autoindexing_enabled
-            })),
-            TelemetryEvent::ActiveIndexedReposChanged {
-                updated_number_of_codebase_indices,
-                hit_max_indices,
-            } => Some(json!({
-                "updated_number_of_codebase_indices": updated_number_of_codebase_indices,
-                "hit_max_indices": hit_max_indices
-            })),
             TelemetryEvent::ToggleLigatureRendering { enabled } => {
                 Some(json!({"enabled": enabled}))
             }
@@ -3793,21 +3731,6 @@ impl TelemetryEvent {
                 "source": src,
                 "new": new,
             })),
-            TelemetryEvent::FullEmbedCodebaseContextSearchSuccess {
-                action_id,
-                total_search_duration,
-                out_of_sync_delay,
-            } => Some(json!({
-                "action_id": action_id,
-                "total_search_duration": total_search_duration,
-                "out_of_sync_delay": out_of_sync_delay
-            })),
-            TelemetryEvent::FullEmbedCodebaseContextSearchFailed { action_id, error } => {
-                Some(json!({
-                    "action_id": action_id,
-                    "error": error
-                }))
-            }
             TelemetryEvent::RepoOutlineConstructionSuccess {
                 total_parse_seconds,
                 file_count,
@@ -3910,19 +3833,6 @@ impl TelemetryEvent {
                 "antivirus_name": antivirus_name,
                 "long_os_version": long_os_version,
                 "exit_reason": exit_reason,
-            })),
-            TelemetryEvent::SearchCodebaseRequested {
-                action_id,
-                server_output_id,
-                is_cross_repo,
-            } => Some(json!({
-                "action_id": action_id,
-                "server_output_id": server_output_id,
-                "is_cross_repo": is_cross_repo,
-            })),
-            TelemetryEvent::SearchCodebaseRepoUnavailable { action_id, error } => Some(json!({
-                "action_id": action_id,
-                "error": error,
             })),
             TelemetryEvent::InputUXModeChanged {
                 is_udi_enabled,
@@ -4246,9 +4156,6 @@ impl TelemetryEvent {
             TelemetryEvent::AgentModeSetupBannerAccepted => None,
             TelemetryEvent::AgentModeSetupBannerDismissed => None,
             TelemetryEvent::AgentModeSetupProjectScopedRulesAction { action } => Some(json!({
-                "action": action,
-            })),
-            TelemetryEvent::AgentModeSetupCodebaseContextAction { action } => Some(json!({
                 "action": action,
             })),
             TelemetryEvent::AgentModeSetupCreateEnvironmentAction { action } => Some(json!({
@@ -4823,8 +4730,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AgentModeCodeDiffHunksNavigated { .. }
             | TelemetryEvent::ToggleIntelligentAutosuggestionsSetting { .. }
             | TelemetryEvent::ToggleGlobalAI { .. }
-            | TelemetryEvent::ToggleCodebaseContext { .. }
-            | TelemetryEvent::ToggleAutoIndexing { .. }
             | TelemetryEvent::ToggleActiveAI { .. }
             | TelemetryEvent::TogglePromptSuggestionsSetting { .. }
             | TelemetryEvent::ToggleCodeSuggestionsSetting { .. }
@@ -4888,16 +4793,11 @@ impl TelemetryEvent {
             | TelemetryEvent::FileGlobToolSucceeded
             | TelemetryEvent::FileGlobToolFailed { .. }
             | TelemetryEvent::ShellTerminatedPrematurely { .. }
-            | TelemetryEvent::FullEmbedCodebaseContextSearchFailed { .. }
-            | TelemetryEvent::FullEmbedCodebaseContextSearchSuccess { .. }
-            | TelemetryEvent::SearchCodebaseRequested { .. }
-            | TelemetryEvent::SearchCodebaseRepoUnavailable { .. }
             | TelemetryEvent::InputUXModeChanged { .. }
             | TelemetryEvent::ContextChipInteracted { .. }
             | TelemetryEvent::VoiceInputUsed { .. }
             | TelemetryEvent::AtMenuInteracted { .. }
             | TelemetryEvent::UserMenuUpgradeClicked
-            | TelemetryEvent::ActiveIndexedReposChanged { .. }
             | TelemetryEvent::TabCloseButtonPositionUpdated { .. }
             | TelemetryEvent::ExpandedCodeSuggestions { .. }
             | TelemetryEvent::AIExecutionProfileCreated
@@ -4914,7 +4814,6 @@ impl TelemetryEvent {
             | TelemetryEvent::AgentModeSetupBannerAccepted
             | TelemetryEvent::AgentModeSetupBannerDismissed
             | TelemetryEvent::AgentModeSetupProjectScopedRulesAction { .. }
-            | TelemetryEvent::AgentModeSetupCodebaseContextAction { .. }
             | TelemetryEvent::AgentModeSetupCreateEnvironmentAction { .. }
             | TelemetryEvent::CloneRepoPromptSubmitted { .. }
             | TelemetryEvent::GetStartedSkipToTerminal
@@ -5027,9 +4926,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
         // with a feature flag when appropriate.
         #[deny(clippy::wildcard_enum_match_arm)]
         match self {
-            Self::SearchCodebaseRequested { .. } | Self::SearchCodebaseRepoUnavailable { .. } => {
-                EnablementState::Flag(FeatureFlag::CrossRepoContext)
-            }
             Self::AISuggestedAgentModeWorkflowAdded
             | Self::ShowedSuggestedAgentModeWorkflowChip
             | Self::ShowedSuggestedAgentModeWorkflowModal => {
@@ -5040,10 +4936,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             }
             Self::RepoOutlineConstructionFailed { .. } => {
                 EnablementState::Flag(FeatureFlag::AgentModeAnalytics)
-            }
-            Self::FullEmbedCodebaseContextSearchFailed { .. }
-            | Self::FullEmbedCodebaseContextSearchSuccess { .. } => {
-                EnablementState::Flag(FeatureFlag::FullSourceCodeEmbedding)
             }
             Self::ObjectLinkCopied => EnablementState::Always,
             Self::FileTreeToggled => EnablementState::Flag(FeatureFlag::FileTree),
@@ -5436,8 +5328,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             | Self::AutoupdateFileInUse
             | Self::AutoupdateMutexTimeout
             | Self::AutoupdateForcekillFailed => EnablementState::Always,
-            Self::ToggleCodebaseContext => EnablementState::Always,
-            Self::ToggleAutoIndexing => EnablementState::Always,
             Self::ExecutedWarpDrivePrompt => EnablementState::Flag(FeatureFlag::AgentModeWorkflows),
             Self::ImageReceived => EnablementState::Always,
             Self::FileExceededContextLimit => EnablementState::Always,
@@ -5452,9 +5342,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::ContextChipInteracted { .. } => EnablementState::Always,
             Self::VoiceInputUsed { .. } => EnablementState::Always,
             Self::AtMenuInteracted { .. } => EnablementState::Always,
-            Self::ActiveIndexedReposChanged { .. } => {
-                EnablementState::Flag(FeatureFlag::FullSourceCodeEmbedding)
-            }
             Self::UserMenuUpgradeClicked => EnablementState::Always,
             Self::TabCloseButtonPositionUpdated { .. } => EnablementState::Always,
             Self::ExpandedCodeSuggestions { .. } => EnablementState::Always,
@@ -5475,7 +5362,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentModeSetupBannerAccepted { .. } => EnablementState::Always,
             Self::AgentModeSetupBannerDismissed => EnablementState::Always,
             Self::AgentModeSetupProjectScopedRulesAction { .. } => EnablementState::Always,
-            Self::AgentModeSetupCodebaseContextAction { .. } => EnablementState::Always,
             Self::AgentModeSetupCreateEnvironmentAction { .. } => EnablementState::Always,
             Self::InputBufferSubmitted => EnablementState::Flag(FeatureFlag::NldImprovements),
             Self::AgentModeContinueConversationButtonClicked { .. } => EnablementState::Always,
@@ -5962,9 +5848,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AutoupdateMutexTimeout => "Windows Autoupdate: Mutex Timeout",
             #[cfg(windows)]
             Self::AutoupdateForcekillFailed => "Windows Autoupdate: Forcekill Failed",
-            Self::ToggleCodebaseContext => "Toggle Agent Mode Codebase Context",
-            Self::ToggleAutoIndexing => "Toggle Codebase Context Autoindexing",
-            Self::ActiveIndexedReposChanged => "Active Indexed Repos Changed",
             Self::AttachedImagesToAgentModeQuery => "AgentMode.AttachedImages",
             Self::ExecutedWarpDrivePrompt => "AgentMode.ExecutedWarpDrivePrompt",
             Self::ImageReceived => "Image Received",
@@ -5976,22 +5859,12 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::FileGlobToolSucceeded => "AgentMode.FileGlob.Succeeded",
             Self::FileGlobToolFailed { .. } => "AgentMode.FileGlob.Failed",
             Self::ShellTerminatedPrematurely { .. } => "Shell Terminated Prematurely",
-            Self::FullEmbedCodebaseContextSearchSuccess { .. } => {
-                "AgentMode.FullEmbedCodebaseContextSearch.Success"
-            }
-            Self::FullEmbedCodebaseContextSearchFailed { .. } => {
-                "AgentMode.FullEmbedCodebaseContextSearch.Failed"
-            }
             Self::ShowedSuggestedAgentModeWorkflowChip => "AgentMode.ShowedSuggestedWorkflowChip",
             Self::AISuggestedAgentModeWorkflowAdded => {
                 "AgentMode.AISuggestedAgentModeWorkflowAdded"
             }
             Self::ShowedSuggestedAgentModeWorkflowModal => {
                 "AgentMode.ShowedSuggestedAgentModeWorkflowModal"
-            }
-            Self::SearchCodebaseRequested { .. } => "AgentMode.SearchCodebase.Requested",
-            Self::SearchCodebaseRepoUnavailable { .. } => {
-                "AgentMode.SearchCodebase.RepoUnavailable"
             }
             Self::InputUXModeChanged { .. } => "Input.InputUXModeChanged",
             Self::ContextChipInteracted { .. } => "Input.ContextChipInteracted",
@@ -6028,9 +5901,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentModeSetupBannerDismissed => "Agent Mode Setup Banner Dismissed",
             Self::AgentModeSetupProjectScopedRulesAction { .. } => {
                 "Agent Mode Setup Project Scoped Rules Action"
-            }
-            Self::AgentModeSetupCodebaseContextAction { .. } => {
-                "Agent Mode.Setup Codebase Context Action"
             }
             Self::AgentModeSetupCreateEnvironmentAction { .. } => {
                 "AgentMode.SetupCreateEnvironmentAction"
@@ -6777,15 +6647,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AutoupdateForcekillFailed => {
                 "The Windows auto-update installer failed to force-kill Warp after the mutex timeout"
             }
-            Self::ToggleCodebaseContext => {
-                "Toggled on/off the enablement of codebase context usage for Agent Mode."
-            }
-            Self::ToggleAutoIndexing => {
-                "Toggled on/off the enablement of autoindexing for codebase context."
-            }
-            Self::ActiveIndexedReposChanged => {
-                "Active indexed repositories changed, affecting codebase context."
-            }
             Self::ExecutedWarpDrivePrompt => "Executed a saved prompt.",
             Self::ImageReceived => "Received an image through an image protocol over the pty",
             Self::FileExceededContextLimit => "File from AI exceeded context limit",
@@ -6798,18 +6659,8 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::FileGlobToolSucceeded => "The file glob tool completed successfully",
             Self::FileGlobToolFailed { .. } => "The file glob tool failed to complete",
             Self::ShellTerminatedPrematurely { .. } => "The shell process terminated prematurely",
-            Self::FullEmbedCodebaseContextSearchSuccess => {
-                "Successfully searched full embed codebase context"
-            }
-            Self::FullEmbedCodebaseContextSearchFailed => {
-                "Failed to search full embed codebase context"
-            }
             Self::ShowedSuggestedAgentModeWorkflowChip => {
                 "Showed the Suggested Agent Mode workflow chip to the user"
-            }
-            Self::SearchCodebaseRequested { .. } => "Ran the Search Codebase tool",
-            Self::SearchCodebaseRepoUnavailable { .. } => {
-                "Tried to use the Search Codebase tool on a repo that is unavailable"
             }
             Self::InputUXModeChanged { .. } => "Changed the input UX mode",
             Self::ContextChipInteracted { .. } => "Interacted with a context chip",
@@ -6845,9 +6696,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentModeSetupBannerDismissed => "Agent Mode setup banner dismissed",
             Self::AgentModeSetupProjectScopedRulesAction { .. } => {
                 "User clicked a button in the Agent Mode setup project scoped rules step"
-            }
-            Self::AgentModeSetupCodebaseContextAction { .. } => {
-                "User clicked a button in the Agent Mode setup codebase context step"
             }
             Self::AgentModeSetupCreateEnvironmentAction { .. } => {
                 "User clicked a button in the Agent Mode setup create environment step"

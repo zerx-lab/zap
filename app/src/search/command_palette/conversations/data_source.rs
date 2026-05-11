@@ -25,11 +25,15 @@ enum ConversationSection {
 }
 
 impl ConversationSection {
-    fn title(&self) -> &'static str {
+    fn title(&self) -> String {
         match self {
-            ConversationSection::ActivePane => "Active pane conversations",
-            ConversationSection::OtherActive => "Other active conversations",
-            ConversationSection::Past => "Past conversations",
+            ConversationSection::ActivePane => {
+                crate::t!("command-palette-conversations-active-pane")
+            }
+            ConversationSection::OtherActive => {
+                crate::t!("command-palette-conversations-other-active")
+            }
+            ConversationSection::Past => crate::t!("command-palette-conversations-past"),
         }
     }
 
@@ -190,7 +194,7 @@ impl SyncDataSource for DataSource {
                                 .into(),
                             );
                         }
-                        results.push(SeparatorSearchItem::new(section.title().to_string()).into());
+                        results.push(SeparatorSearchItem::new(section.title()).into());
                     }
                 }
             }

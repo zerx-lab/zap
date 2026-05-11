@@ -1159,15 +1159,6 @@ fn serialize_outgoing_tool_call(
             "grep".to_owned(),
             json!({ "queries": g.queries, "path": g.path }).to_string(),
         ),
-        Some(Tool::SearchCodebase(s)) => (
-            "search_codebase".to_owned(),
-            json!({
-                "query": s.query,
-                "path_filters": s.path_filters,
-                "codebase_path": s.codebase_path,
-            })
-            .to_string(),
-        ),
         Some(Tool::AskUserQuestion(a)) => {
             let questions: Vec<Value> = a
                 .questions

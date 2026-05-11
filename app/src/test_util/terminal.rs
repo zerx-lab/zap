@@ -9,7 +9,6 @@ use crate::ai::document::ai_document_model::AIDocumentModel;
 use crate::ai::mcp::{
     gallery::MCPGalleryManager, templatable_manager::TemplatableMCPServerManager,
 };
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::skills::SkillManager;
 use crate::code_review::git_status_update::GitStatusUpdateModel;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
@@ -132,7 +131,6 @@ pub fn initialize_app_for_terminal_view(app: &mut App) {
     app.add_singleton_model(ByoLlmAuthBannerSessionState::new);
     app.add_singleton_model(|_| GitHubAuthNotifier::new());
     app.add_singleton_model(AgentConversationsModel::new);
-    app.add_singleton_model(PersistedWorkspace::new_for_test);
 
     app.update(experiments::init);
     AltScreenReporting::register(app);

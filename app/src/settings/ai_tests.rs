@@ -23,8 +23,6 @@ fn create_test_request_limit_info(
         is_unlimited_voice: false,
         voice_request_limit: 0,
         voice_requests_used_since_last_refresh: 0,
-        is_unlimited_codebase_indices: false,
-        max_codebase_indices: 0,
         max_files_per_repo: 5000,
         embedding_generation_batch_size: 100,
     }

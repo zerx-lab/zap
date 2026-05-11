@@ -909,18 +909,6 @@ impl VimHandler for CodeEditorView {
             }
         }
     }
-
-    fn goto_definition(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(CodeEditorEvent::VimGotoDefinition);
-    }
-
-    fn find_references(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(CodeEditorEvent::VimFindReferences);
-    }
-
-    fn show_hover(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(CodeEditorEvent::VimShowHover);
-    }
 }
 
 /// Like [`str::trim_end_matches`] except that it only trims up to a single instance.

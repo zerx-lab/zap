@@ -27,9 +27,6 @@ pub enum AIAgentActionResultType {
     /// The output of a read files action.
     ReadFiles(ReadFilesResult),
 
-    /// The output of a search codebase action.
-    SearchCodebase(SearchCodebaseResult),
-
     /// The output of a grep action.
     Grep(GrepResult),
 
@@ -110,7 +107,6 @@ impl Display for AIAgentActionResultType {
             AIAgentActionResultType::WriteToLongRunningShellCommand(result) => result.fmt(f),
             AIAgentActionResultType::RequestFileEdits(result) => result.fmt(f),
             AIAgentActionResultType::ReadFiles(result) => result.fmt(f),
-            AIAgentActionResultType::SearchCodebase(result) => result.fmt(f),
             AIAgentActionResultType::Grep(result) => result.fmt(f),
             AIAgentActionResultType::FileGlob(result) => result.fmt(f),
             AIAgentActionResultType::FileGlobV2(result) => result.fmt(f),
@@ -518,43 +514,6 @@ impl Display for ReadShellCommandOutputResult {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum SearchCodebaseFailureReason {
-    CodebaseNotIndexed,
-    InvalidFilePaths,
-    GetRelevantFilesError,
-    ClientError,
-    MissingCurrentWorkingDirectory,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum SearchCodebaseResult {
-    Success {
-        files: Vec<FileContext>,
-    },
-    Failed {
-        reason: SearchCodebaseFailureReason,
-
-        /// The message to be sent back to the LLM to inform it why the search failed.
-        message: String,
-    },
-    Cancelled,
-}
-
-impl Display for SearchCodebaseResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SearchCodebaseResult::Success { files } => {
-                write!(f, "Codebase search found: {}", files.iter().format(", "))
-            }
-            SearchCodebaseResult::Failed { reason, message } => {
-                write!(f, "Codebase search failed ({reason:?}): {message}")
-            }
-            SearchCodebaseResult::Cancelled => write!(f, "Codebase search cancelled"),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum RequestFileEditsResult {
     Success {
@@ -658,7 +617,6 @@ impl AIAgentActionResultType {
                 "The diff from editing the last file in Agent Mode"
             }
             AIAgentActionResultType::ReadFiles(_) => "The requested file content",
-            AIAgentActionResultType::SearchCodebase(_) => "The codebase search results",
             AIAgentActionResultType::Grep(_) => "The results of the grep operation",
             AIAgentActionResultType::FileGlob(_) => "The results of the file glob operation",
             AIAgentActionResultType::FileGlobV2(_) => "The results of the file glob operation",
@@ -690,7 +648,6 @@ impl AIAgentActionResultType {
             Self::RequestCommandOutput(r) => r.is_successful(),
             Self::RequestFileEdits(RequestFileEditsResult::Success { .. })
             | Self::ReadFiles(ReadFilesResult::Success { .. })
-            | Self::SearchCodebase(SearchCodebaseResult::Success { .. })
             | Self::Grep(GrepResult::Success { .. })
             | Self::FileGlob(FileGlobResult::Success { .. })
             | Self::FileGlobV2(FileGlobV2Result::Success { .. })
@@ -722,7 +679,6 @@ impl AIAgentActionResultType {
             Self::RequestCommandOutput(r) => r.failed(),
             Self::RequestFileEdits(RequestFileEditsResult::DiffApplicationFailed { .. })
             | Self::ReadFiles(ReadFilesResult::Error(_))
-            | Self::SearchCodebase(SearchCodebaseResult::Failed { .. })
             | Self::Grep(GrepResult::Error(_))
             | Self::FileGlob(FileGlobResult::Error(_))
             | Self::FileGlobV2(FileGlobV2Result::Error(_))
@@ -750,7 +706,6 @@ impl AIAgentActionResultType {
             }) if exit_code.value() == 130 => true,
             Self::RequestFileEdits(RequestFileEditsResult::Cancelled)
             | Self::ReadFiles(ReadFilesResult::Cancelled)
-            | Self::SearchCodebase(SearchCodebaseResult::Cancelled)
             | Self::Grep(GrepResult::Cancelled)
             | Self::FileGlob(FileGlobResult::Cancelled)
             | Self::FileGlobV2(FileGlobV2Result::Cancelled)

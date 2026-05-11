@@ -222,6 +222,73 @@ impl TextLayoutSystem {
         Ok(fallback_font_vec)
     }
 
+    /// 启动期预热当前 UI locale 偏好的 CJK 字体族(`preferred_cjk_families_for_locale`),
+    /// 在 `FontDB` 构造后立即同步调用一次。
+    ///
+    /// 修复 zerx-lab/warp#68 「启动后中文字体渲染出错,关闭面板重开才好」的回归:
+    /// PR #62 在 `get_fallback_fonts_for_character` 中按 locale prepend 系统 CJK 字体到
+    /// cosmic-text 的回退链;但首屏首次触发 CJK 回退时,`SystemSource::select_family_by_name`
+    /// 在 Windows DirectWrite cold path 下偶发拿不到字体,prepend 段为空,回退落到
+    /// `IDWriteFontFallback::MapCharacters` 的 cold 输出(可能给出非 locale 偏好的家族)。
+    /// 一旦该结果写入 cosmic-text 的 `font_codepoint_support_info_cache` /
+    /// `shape_run_cache`(FontSystem 实例级、locale 不变不会失效),后续渲染会一直复用错误回退,
+    /// 直到面板销毁/字号/font_id 变化绕过 cache key 才会重走一次。
+    ///
+    /// 预热在这里同步把 preferred 家族灌进 fontdb(`insert_font` 走
+    /// `loaded_fonts` 按 `(path, index)` 去重,后续 `get_fallback_fonts_for_character` 命中时
+    /// 直接返回已存在的 `FontId`,不会重复加载),消除 cold path 的不确定性。
+    ///
+    /// 性能开销:启动期一次性构造 `SystemSource`,并 select、load、insert 一个
+    /// preferred family。`load_font_from_handle` 走 font_kit Path 句柄转 `OwnedFace`,
+    /// fontdb 内部 mmap lazily。在 Windows 11 + 装机自带 YaHei UI 上实测不过数毫秒,
+    /// 且净收益为正 —— 之前 `get_fallback_fonts_for_character` 每次 CJK 字符 cache miss
+    /// 都会新建一次 `SystemSource` 并重新 select/load,预热后这条路径首屏即命中已加载 FontId。
+    ///
+    /// 失败(locale 未列入 preferred 表 / 系统未装该 family / 句柄加载失败)只记 warn,
+    /// 不影响启动 —— 此时退化到 PR #62 之前的行为,与原 DirectWrite 默认回退一致。
+    pub(crate) fn warm_up_preferred_cjk_families(&self) {
+        let locale = current_fallback_locale();
+        let families = preferred_cjk_families_for_locale(&locale);
+        if families.is_empty() {
+            // 非 CJK locale(en / fr / de / ...)无需预热。
+            return;
+        }
+        let source = FKSource::new();
+        let mut warmed_any = false;
+        for family in families {
+            let Ok(fam) = source.select_family_by_name(family) else {
+                // 系统未装该 family(例如纯净版 Windows 11 可能没有 SimSun) —— 继续试下一个。
+                continue;
+            };
+            let mut family_loaded = false;
+            for fk_handle in fam.fonts() {
+                match load_font_from_handle(fk_handle, ValidateFontSupportsEn::No) {
+                    Ok(handle) => {
+                        if self.insert_font(handle).is_ok() {
+                            family_loaded = true;
+                        }
+                    }
+                    Err(err) => {
+                        log::debug!(
+                            "warm_up_preferred_cjk_families: 跳过 {family:?} 的一个 face: {err:?}"
+                        );
+                    }
+                }
+            }
+            if family_loaded {
+                warmed_any = true;
+                // 与 `get_fallback_fonts_for_character` 的「一个 family 命中即 break」行为对齐,
+                // 避免预热超过实际回退会使用的字体集合。
+                break;
+            }
+        }
+        if !warmed_any {
+            log::warn!(
+                "warm_up_preferred_cjk_families: locale={locale:?} 下未能预热任何 CJK family ({families:?}) —— 首屏 CJK 回退将走 DirectWrite cold path"
+            );
+        }
+    }
+
     /// Critical section for fetching the font style, weight and family name from fontdb.
     /// This function performs the minimum work required to fetch this information from
     /// fontdb to minimize the amount of time spent holding a read lock on the font store.

@@ -1,0 +1,11 @@
+---
+// OpenPanel 网站访问分析组件
+// 通过 @openpanel/astro 接入 self-hosted OpenPanel 实例
+import { OpenPanelComponent } from '@openpanel/astro';
+---
+<OpenPanelComponent
+  apiUrl="https://openpanel-api.zerx.dev"
+  clientId="6f7a6170-ee22-4226-9e9b-1a6977b53f98"
+  trackScreenViews={true}
+  trackOutgoingLinks={true}
+/>

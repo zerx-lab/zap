@@ -37,9 +37,6 @@ use crate::{
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use git2::Repository as GitRepository;
 
-#[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-use crate::ai::persisted_workspace::PersistedWorkspace;
-
 const DIALOG_WIDTH: f32 = 600.;
 const AVAILABLE_LIST_MAX_HEIGHT: f32 = 260.;
 
@@ -712,31 +709,10 @@ impl View for AgentAssistedEnvironmentModal {
     }
 }
 
-fn available_indexed_repos(app: &AppContext) -> Vec<RepoEntry> {
-    #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-    {
-        let mut repos: Vec<RepoEntry> = PersistedWorkspace::as_ref(app)
-            .workspaces()
-            .map(|workspace| {
-                let root = workspace.path;
-                let name = root
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .map(ToOwned::to_owned)
-                    .unwrap_or_else(|| root.to_string_lossy().into_owned());
-                RepoEntry { name, path: root }
-            })
-            .collect();
-
-        repos.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-        repos
-    }
-
-    #[cfg(any(not(feature = "local_fs"), target_family = "wasm"))]
-    {
-        let _ = app;
-        Vec::new()
-    }
+fn available_indexed_repos(_app: &AppContext) -> Vec<RepoEntry> {
+    // PersistedWorkspace 已下线,原本这里按「之前打开过的 git 仓库」填 dropdown 候选,
+    // 现在统一返回空列表,调用方会接着走 补上手输/请求选择仓库 路径。
+    Vec::new()
 }
 
 #[cfg(test)]

@@ -72,11 +72,7 @@ pub fn model_reasoning_variants(
         //
         // Ollama 后端模型 id 任意,保守留空。
         AgentProviderApiType::DeepSeek => {
-            if id.contains("deepseek-reasoner")
-                || id.contains("deepseek-v4")
-                || id.contains("deepseek-thinking")
-                || id.contains("deepseek-r1")
-            {
+            if is_deepseek_thinking_model(&id) {
                 // DeepSeek 官方思考深度只有 high / max 两档(low/medium/xhigh
                 // 即便服务端 deserializer 接受也只是同档别名,picker 不暴露冗余项)。
                 // Off 档走"关闭思考":本地 fork genai 已支持 ChatOptions::extra_body,
@@ -183,6 +179,15 @@ fn is_openai_reasoning_model(id: &str) -> bool {
     false
 }
 
+fn is_deepseek_thinking_model(id: &str) -> bool {
+    // DeepSeek thinking-mode 模型名约定:reasoner / r1 / v4* / *-thinking。
+    // `deepseek-v4` 子串覆盖 `deepseek-v4-flash` 等后续变体。
+    id.contains("deepseek-reasoner")
+        || id.contains("deepseek-v4")
+        || id.contains("deepseek-thinking")
+        || id.contains("deepseek-r1")
+}
+
 fn is_gemini_reasoning_model(id: &str) -> bool {
     // gemini-2.5-* 起 thinking 模式(flash-thinking-exp / pro / pro-thinking)。
     // gemini-3.* 全系(opencode 在 levels 上区分 3 / 3.1)。
@@ -211,6 +216,10 @@ fn is_gemini_reasoning_model(id: &str) -> bool {
 /// - **DeepSeek api_type**:全 echo(adapter 即 DeepSeek 专属)
 /// - **OpenAI / OpenAiResp + model_id 含 `kimi` / `moonshot`**:Kimi 走 OpenAI
 ///   兼容路径,thinking-mode 校验同源
+/// - **OpenAI / OpenAiResp + DeepSeek thinking 模型**(`deepseek-reasoner` /
+///   `deepseek-r1` / `deepseek-v4*` / `deepseek-thinking`):DeepSeek 官方端点是
+///   OpenAI-compatible 的,用户常把它配成 OpenAI api_type 的 BYOP provider,
+///   thinking-mode 服务端校验完全相同
 /// - 其他:false(Anthropic 走 thinking blocks,Gemini 走 thought signatures,
 ///   都不需要这个 echo)
 pub fn model_requires_reasoning_echo(api_type: AgentProviderApiType, model_id: &str) -> bool {
@@ -218,7 +227,7 @@ pub fn model_requires_reasoning_echo(api_type: AgentProviderApiType, model_id: &
         AgentProviderApiType::DeepSeek => true,
         AgentProviderApiType::OpenAi | AgentProviderApiType::OpenAiResp => {
             let id = model_id.to_ascii_lowercase();
-            id.contains("kimi") || id.contains("moonshot")
+            id.contains("kimi") || id.contains("moonshot") || is_deepseek_thinking_model(&id)
         }
         AgentProviderApiType::Anthropic
         | AgentProviderApiType::Gemini
@@ -338,6 +347,29 @@ mod tests {
         // 普通 OpenAI 模型不 echo
         assert!(!model_requires_reasoning_echo(t, "gpt-5"));
         assert!(!model_requires_reasoning_echo(t, "o3-mini"));
+    }
+
+    #[test]
+    fn requires_reasoning_echo_deepseek_via_openai() {
+        // DeepSeek 官方端点是 OpenAI-compatible 的,用户常把它配成 OpenAI api_type 的
+        // BYOP provider。thinking 模型必须回 echo `reasoning_content`,否则 400。
+        let t = AgentProviderApiType::OpenAi;
+        assert!(model_requires_reasoning_echo(t, "deepseek-v4-flash"));
+        assert!(model_requires_reasoning_echo(t, "deepseek-v4"));
+        assert!(model_requires_reasoning_echo(t, "deepseek-reasoner"));
+        assert!(model_requires_reasoning_echo(t, "deepseek-r1"));
+        assert!(model_requires_reasoning_echo(t, "deepseek-thinking"));
+        // 大小写不敏感
+        assert!(model_requires_reasoning_echo(t, "DeepSeek-V4-Flash"));
+        // OpenAiResp 同源
+        assert!(model_requires_reasoning_echo(
+            AgentProviderApiType::OpenAiResp,
+            "deepseek-r1"
+        ));
+        // 非 thinking 的 DeepSeek 模型(deepseek-chat / deepseek-coder)走 OpenAI
+        // 兼容路径时不进 thinking-mode 校验,无需 echo
+        assert!(!model_requires_reasoning_echo(t, "deepseek-chat"));
+        assert!(!model_requires_reasoning_echo(t, "deepseek-coder"));
     }
 
     #[test]

@@ -120,7 +120,16 @@ if ("$CHANNEL" -eq 'local') {
 }
 
 $BINARY_PATH = "$CARGO_TARGET_OUTPUT_DIR\$BINARY_NAME"
-$BUNDLE_ID = "dev.warp.$APP_NAME"
+# AUMID(Windows AppUserModel ID)—— 必须与进程端 `ChannelState::app_id()` 生成的完全一致,
+# 否则 Windows ToastNotificationManager 会在 Start Menu 快捷方式 / 进程 AUMID 不匹配时
+# 静默吞掉 toast。OSS(OpenWarp)在 `app/src/bin/oss.rs` 里是 `dev.openwarp.OpenWarp`,
+# 其他官方 channel 是 `dev.warp.<Name>`。
+if ("$CHANNEL" -eq 'oss') {
+    $AUMID = "dev.openwarp.$APP_NAME"
+} else {
+    $AUMID = "dev.warp.$APP_NAME"
+}
+$BUNDLE_ID = $AUMID
 $INSTALLER_OUTPUT_DIR = "$WINDOWS_INSTALLER_DIR\Output"
 $INSTALLER_NAME = "$($APP_NAME)$($FILE_ENDING)"
 $INSTALLER_PATH = "$($INSTALLER_OUTPUT_DIR)\$($INSTALLER_NAME).exe"
@@ -212,7 +221,8 @@ $ISCC_ARGS = @(
     "/DMyAppName=$APP_NAME",
     "/DMyAppVersion=$env:GIT_RELEASE_TAG",
     "/DArch=$ARCH",
-    "/DOutputName=$INSTALLER_NAME"
+    "/DOutputName=$INSTALLER_NAME",
+    "/DAppUserModelId=$AUMID"
 )
 # Also accept the sign tool command via env var
 if (-not $SIGN_TOOL_CMD -and $env:SIGN_TOOL_CMD) {

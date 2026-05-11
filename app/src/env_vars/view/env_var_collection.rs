@@ -966,13 +966,6 @@ impl EnvVarCollectionView {
                 self.update_breadcrumbs(ctx);
                 ctx.notify()
             }
-            ActiveEnvVarCollectionDataEvent::CreatedOnServer(server_id) => {
-                self.update_breadcrumbs(ctx);
-                // TODO(openwarp-cloud-removal Phase 5): 同上,sharing UI 已退役,
-                // 不再回灌 ShareableObject;server_id 仅由 cloud_object 创建路径
-                // 触发,Phase 5 一并退役。
-                let _ = server_id;
-            }
             ActiveEnvVarCollectionDataEvent::TrashStatusChanged => {
                 self.pane_configuration.update(ctx, |pane_config, ctx| {
                     pane_config.refresh_pane_header_overflow_menu_items(ctx)

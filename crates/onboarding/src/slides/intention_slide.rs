@@ -269,7 +269,6 @@ impl IntentionSlide {
                     "onboarding-ai-feature-prompt-suggestions",
                     "Prompt suggestions",
                 ),
-                localized("onboarding-ai-feature-codebase-context", "Codebase context"),
                 localized(
                     "onboarding-ai-feature-remote-control-agents",
                     "Remote control with Claude Code, Codex, and other agents",

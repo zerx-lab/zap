@@ -38,6 +38,17 @@ impl fmt::Display for Direction {
     }
 }
 
+impl Direction {
+    fn localized_name(&self) -> String {
+        match self {
+            Direction::Down => crate::t!("new-session-direction-down"),
+            Direction::Right => crate::t!("new-session-direction-right"),
+            Direction::Up => crate::t!("new-session-direction-up"),
+            Direction::Left => crate::t!("new-session-direction-left"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(super) enum NewSessionConfig {
     NewTab(AvailableShell),
@@ -81,12 +92,24 @@ impl NewSessionOption {
 impl NewSessionOption {
     pub(super) fn new(id: NewSessionOptionId, config: NewSessionConfig) -> Self {
         let description = match &config {
-            NewSessionConfig::NewTab(shell) => format!("Create New Tab: {}", shell.short_name()),
+            NewSessionConfig::NewTab(shell) => {
+                crate::t!(
+                    "new-session-create-new-tab-with-shell",
+                    shell = shell.short_name()
+                )
+            }
             NewSessionConfig::NewWindow(shell) => {
-                format!("Create New Window: {}", shell.short_name())
+                crate::t!(
+                    "new-session-create-new-window-with-shell",
+                    shell = shell.short_name()
+                )
             }
             NewSessionConfig::Split(direction, shell) => {
-                format!("Split Pane {direction}: {}", shell.short_name())
+                crate::t!(
+                    "new-session-split-pane-with-shell",
+                    direction = direction.localized_name(),
+                    shell = shell.short_name()
+                )
             }
         };
         Self {

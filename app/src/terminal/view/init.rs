@@ -160,6 +160,18 @@ pub fn init(app: &mut AppContext) {
             TerminalAction::ControlSequence("\x1b[3~".as_bytes().to_vec()),
             id!("Terminal") & !id!("IMEOpen"),
         ),
+        FixedBinding::new(
+            "pageup",
+            TerminalAction::PageUp,
+            id!("Terminal") & !id!("IMEOpen") & !id!("EditorFocused"),
+        )
+        .with_command_description(crate::t!("keybinding-desc-terminal-scroll-up-one-page")),
+        FixedBinding::new(
+            "pagedown",
+            TerminalAction::PageDown,
+            id!("Terminal") & !id!("IMEOpen") & !id!("EditorFocused"),
+        )
+        .with_command_description(crate::t!("keybinding-desc-terminal-scroll-down-one-page")),
         // Resume conversation keybinding
         FixedBinding::new_per_platform(
             PerPlatformKeystroke {
@@ -639,7 +651,7 @@ pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([
         EditableBinding::new(
             "terminal:scroll_up_one_page",
-            "Scroll terminal output up one page",
+            crate::t!("keybinding-desc-terminal-scroll-up-one-page"),
             TerminalAction::PageUp,
         )
         .with_key_binding("pageup")
@@ -651,7 +663,7 @@ pub fn init(app: &mut AppContext) {
         ),
         EditableBinding::new(
             "terminal:scroll_down_one_page",
-            "Scroll terminal output down one page",
+            crate::t!("keybinding-desc-terminal-scroll-down-one-page"),
             TerminalAction::PageDown,
         )
         .with_key_binding("pagedown")

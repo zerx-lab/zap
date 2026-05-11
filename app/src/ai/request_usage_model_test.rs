@@ -62,8 +62,6 @@ fn test_request_limit_info() {
                 is_unlimited_voice: false,
                 voice_request_limit: 100,
                 voice_requests_used_since_last_refresh: 0,
-                is_unlimited_codebase_indices: false,
-                max_codebase_indices: 3,
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };
@@ -88,8 +86,6 @@ fn test_request_limit_info_with_limit() {
                 is_unlimited_voice: false,
                 voice_request_limit: 100,
                 voice_requests_used_since_last_refresh: 0,
-                is_unlimited_codebase_indices: false,
-                max_codebase_indices: 3,
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };
@@ -114,8 +110,6 @@ fn test_request_limit_info_past_refresh_time() {
                 is_unlimited_voice: false,
                 voice_request_limit: 100,
                 voice_requests_used_since_last_refresh: 0,
-                is_unlimited_codebase_indices: false,
-                max_codebase_indices: 3,
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };
@@ -140,8 +134,6 @@ fn test_request_limit_info_is_unlimited_true() {
                 is_unlimited_voice: false,
                 voice_request_limit: 100,
                 voice_requests_used_since_last_refresh: 0,
-                is_unlimited_codebase_indices: false,
-                max_codebase_indices: 3,
                 max_files_per_repo: 5000,
                 embedding_generation_batch_size: 100,
             };

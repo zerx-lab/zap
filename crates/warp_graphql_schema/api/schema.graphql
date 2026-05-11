@@ -669,32 +669,6 @@ union CloudObjectResult = CloudObjectOutput | UserFacingError
 
 union CloudObjectWithDescendants = AIConversation | FolderWithDescendants | GenericStringObject | Notebook | Workflow
 
-type CodebaseContextConfigOutput implements Response {
-  embeddingCadence: Int!
-  embeddingConfig: EmbeddingConfig!
-  responseContext: ResponseContext!
-}
-
-union CodebaseContextConfigResult = CodebaseContextConfigOutput | UserFacingError
-
-type CodebaseContextPolicy {
-  defaultEnabledValue: Boolean!
-  embeddingGenerationBatchSize: Int!
-  isUnlimitedIndices: Boolean!
-  maxFilesPerRepo: Int!
-  maxIndices: Int!
-  toggleable: Boolean!
-}
-
-type CodebaseContextSettings {
-  enabled: Boolean!
-  setting: AdminEnablementSetting!
-}
-
-input CodebaseContextSettingsInput {
-  enabled: AdminEnablementSetting
-}
-
 enum ComputerUseAutonomyValue {
   ALWAYS_ALLOW
   ALWAYS_ASK
@@ -1165,8 +1139,6 @@ enum Experiment {
   BUILD_PLAN_AUTO_RELOAD_POST_PURCHASE_MODAL
   CLOUD_PREFERENCES_CONTROL
   CLOUD_PREFERENCES_GRADUAL_ROLLOUT_EXPERIMENT
-  CODEBASE_CONTEXT_CONTROL
-  CODEBASE_CONTEXT_EXPERIMENT
   DISABLE_AGENT_MODE_EXPERIMENT
   ENV_VARS_EARLY_ACCESS_EXPERIMENT
   FREE_TIER_TO_BUILD_CONVERSION_CONTROL
@@ -2271,8 +2243,6 @@ type PlanArtifact {
 }
 
 type PlanPricing {
-  codebaseContextFileLimit: Int!
-  codebaseLimit: Int!
   maxTeamSize: Int
   monthlyPlanPricePerMonthUsdCents: Int!
   plan: StripeSubscriptionPlan!
@@ -2521,10 +2491,8 @@ type RequestLimitInfo {
   embeddingGenerationBatchSize: Int!
   isUnlimited: Boolean!
   isUnlimitedAutosuggestions: Boolean!
-  isUnlimitedCodebaseIndices: Boolean!
   isUnlimitedSuggestedCodeDiffs: Boolean!
   isUnlimitedVoice: Boolean!
-  maxCodebaseIndices: Int!
   maxFilesPerRepo: Int!
   nextRefreshTime: Time!
   requestLimit: Int!
@@ -2721,7 +2689,6 @@ type RootMutation {
 type RootQuery {
   apiKeys(requestContext: RequestContext!): APIKeyPropertiesResult!
   cloudObject(input: CloudObjectInput!, requestContext: RequestContext!): CloudObjectResult!
-  codebaseContextConfig(requestContext: RequestContext!): CodebaseContextConfigResult!
 
   """
   Returns the model choices available on the free tier without requiring
@@ -3263,7 +3230,6 @@ type Tier {
   anyoneWithLinkSharingPolicy: AnyoneWithLinkSharingPolicy
   byoApiKeyPolicy: ByoApiKeyPolicy
   cloudConversationStoragePolicy: CloudConversationStoragePolicy
-  codebaseContextPolicy: CodebaseContextPolicy
   customLlmPolicy: CustomLlmPolicy
   description: String!
   directApiUsOnlyInferencePolicy: DirectApiUsOnlyInferencePolicy
@@ -3334,7 +3300,6 @@ type ToolUsageMetadata {
   readShellCommandOutputStats: ToolCallStats!
   runCommandStats: ToolCallStats!
   runCommandsExecuted: Int!
-  searchCodebaseStats: ToolCallStats!
   suggestCreatePlanStats: ToolCallStats!
   suggestPlanStats: ToolCallStats!
   useComputerStats: ToolCallStats!
@@ -3657,7 +3622,6 @@ input UpdateWorkspaceSettingsInput {
   setAiPermissionsSettings: AiPermissionsSettingsInput
   setAmbientAgentSettings: AmbientAgentSettingsInput
   setCloudConversationStorageSettings: CloudConversationStorageSettingsInput
-  setCodebaseContextSettings: CodebaseContextSettingsInput
   setDomainCaptureSettings: DomainCaptureSettingsInput
   setEnterpriseBillingSettings: EnterpriseBillingSettingsInput
   setLinkSharingSettings: LinkSharingSettingsInput
@@ -4029,7 +3993,6 @@ type WorkspaceSettings {
   aiPermissionsSettings: AiPermissionsSettings!
   ambientAgentSettings: AmbientAgentSettings
   cloudConversationStorageSettings: CloudConversationStorageSettings!
-  codebaseContextSettings: CodebaseContextSettings!
   domainCaptureSettings: DomainCaptureSettings!
   enterpriseBillingSettings: EnterpriseBillingSettings
   isDiscoverable: Boolean!

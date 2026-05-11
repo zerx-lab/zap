@@ -170,8 +170,6 @@ impl From<RequestLimitInfoGraphql> for RequestLimitInfo {
             voice_request_limit: value.voice_request_limit as usize,
             voice_requests_used_since_last_refresh: value.voice_requests_used_since_last_refresh
                 as usize,
-            is_unlimited_codebase_indices: value.is_unlimited_codebase_indices,
-            max_codebase_indices: value.max_codebase_indices as usize,
             max_files_per_repo: value.max_files_per_repo as usize,
             embedding_generation_batch_size: value.embedding_generation_batch_size as usize,
         }

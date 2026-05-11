@@ -78,11 +78,11 @@ pub(crate) fn parent_conversation_navigation_card(
     let parent_title = BlocklistAIHistoryModel::as_ref(app)
         .conversation(&parent_conversation_id)
         .and_then(|conversation| conversation.title())
-        .unwrap_or_else(|| "Parent conversation".to_string());
+        .unwrap_or_else(|| crate::t!("orchestration-parent-conversation"));
     let action = conversation_navigation_action(parent_conversation_id, app);
     Some(conversation_navigation_card(
         parent_title,
-        Some("Back to parent conversation".to_string()),
+        Some(crate::t!("orchestration-back-to-parent-conversation")),
         move |ctx, _, _| {
             ctx.dispatch_typed_action(action.clone());
         },

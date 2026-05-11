@@ -195,8 +195,13 @@ impl View for ChildAgentStatusCard {
                 continue;
             }
 
-            let agent_name = child.agent_name().unwrap_or("Agent").to_string();
-            let raw_title = child.title().unwrap_or_else(|| "Untitled".to_string());
+            let agent_name = child
+                .agent_name()
+                .map(str::to_string)
+                .unwrap_or_else(|| crate::t!("child-agent-default-name"));
+            let raw_title = child
+                .title()
+                .unwrap_or_else(|| crate::t!("common-untitled"));
             let status_icon = child.status().status_icon_and_color(appearance.theme());
 
             // T3-7:in_progress 子代理在 title 里 surface 当前 action,

@@ -836,7 +836,7 @@ fn render_recent_conversations_section(
         .with_child(
             Container::new(
                 Text::new(
-                    "RECENT ACTIVITY",
+                    crate::t!("agent-zero-state-recent-activity"),
                     appearance.ui_font_family(),
                     header_font_size,
                 )

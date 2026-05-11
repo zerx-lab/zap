@@ -109,12 +109,7 @@ use crate::ai::agent::{
     ShellCommandCompletedTrigger,
 };
 use crate::ai::blocklist::block::{AIBlockAction, FinishReason};
-use crate::ai::blocklist::codebase_index_speedbump_banner::{
-    CodebaseIndexSpeedbumpBannerAction, CodebaseIndexSpeedbumpBannerState, VisibilityState,
-};
 use crate::ai::blocklist::model::AIBlockOutputStatus;
-#[cfg(feature = "local_fs")]
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::code_review::comments::{
     convert_insert_review_comments, AttachedReviewComment, PendingImportedReviewComment,
 };
@@ -1017,7 +1012,6 @@ pub enum InlineBannerType {
     ShellProcessTerminated,
     OpenInWarp,
     VimMode,
-    CodebaseIndexSpeedbump,
     AgentModeSetup,
     AnonymousUserAISignUp,
     AwsBedrockLogin,
@@ -1031,7 +1025,6 @@ impl InlineBannerType {
         match self {
             // Agent-related banners: visible in agent view
             Self::PromptSuggestions
-            | Self::CodebaseIndexSpeedbump
             | Self::AgentModeSetup
             | Self::AnonymousUserAISignUp
             | Self::AwsBedrockLogin
@@ -1093,8 +1086,6 @@ struct InlineBannersState {
     open_in_warp_banner: Option<OpenInWarpBannerState>,
 
     vim_banner_state: Option<VimModeBannerState>,
-
-    codebase_index_speedbump_banner: Option<CodebaseIndexSpeedbumpBannerState>,
 
     agent_setup_speedbump_banner: Option<AgentModeSetupSpeedbumpBannerState>,
 
@@ -6256,9 +6247,6 @@ impl TerminalView {
                     AIAgentActionType::ReadFiles(..) => {
                         "Oz needs your permission to read files".to_string()
                     }
-                    AIAgentActionType::SearchCodebase(..) => {
-                        "Oz needs your permission to search your codebase".to_string()
-                    }
                     AIAgentActionType::RequestFileEdits { .. } => {
                         "Oz needs your permission to edit a file".to_string()
                     }
@@ -9003,89 +8991,6 @@ impl TerminalView {
         }
     }
 
-    fn codebase_index_speedbump_banner_action(
-        &mut self,
-        action: CodebaseIndexSpeedbumpBannerAction,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match action {
-            CodebaseIndexSpeedbumpBannerAction::ToggleAlwaysAllow => {
-                if let Some(banner_state) =
-                    &mut self.inline_banners_state.codebase_index_speedbump_banner
-                {
-                    banner_state.toggle_always_allow_checked();
-                }
-                ctx.notify();
-            }
-            CodebaseIndexSpeedbumpBannerAction::AllowIndexing => {
-                if let Some(banner_state) =
-                    &mut self.inline_banners_state.codebase_index_speedbump_banner
-                {
-                    // Change state to indexing
-                    banner_state.show_indexing_banner();
-                }
-                ctx.notify();
-            }
-            CodebaseIndexSpeedbumpBannerAction::Close => {
-                if let Some(banner_state) = self
-                    .inline_banners_state
-                    .codebase_index_speedbump_banner
-                    .take()
-                {
-                    // If user dismissed the banner, we want to persist the dismissal (only if it's a speedbump banner).
-                    if banner_state.visibility_state == VisibilityState::Speedbump {
-                        let mut dismissed_repo_paths = AISettings::as_ref(ctx)
-                            .codebase_index_speedbump_banner_dismissed_for_repo_paths
-                            .clone();
-                        dismissed_repo_paths.push(banner_state.repo_path.clone());
-                        AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-                            if let Err(e) = ai_settings
-                                .codebase_index_speedbump_banner_dismissed_for_repo_paths
-                                .set_value(dismissed_repo_paths, ctx) {
-                                    log::error!(
-                                        "Failed to persist 'Codebase indexing speedbump banner dismissed' setting: {e}"
-                                    );
-                                }
-                        });
-                    }
-
-                    // Remove banner
-                    self.model
-                        .lock()
-                        .block_list_mut()
-                        .remove_inline_banner(banner_state.id);
-                }
-                ctx.notify();
-            }
-            CodebaseIndexSpeedbumpBannerAction::ViewStatus => {
-                ctx.emit(Event::OpenSettings(SettingsSection::CodeIndexing));
-            }
-            CodebaseIndexSpeedbumpBannerAction::DismissForever => {
-                AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
-                    if let Err(e) = ai_settings
-                        .codebase_index_speedbump_banner_globally_dismissed
-                        .set_value(true, ctx)
-                    {
-                        log::error!(
-                            "Failed to persist 'Codebase indexing speedbump banner globally dismissed' setting: {e}"
-                        );
-                    }
-                });
-                if let Some(banner_state) = self
-                    .inline_banners_state
-                    .codebase_index_speedbump_banner
-                    .take()
-                {
-                    self.model
-                        .lock()
-                        .block_list_mut()
-                        .remove_inline_banner(banner_state.id);
-                }
-                ctx.notify();
-            }
-        }
-    }
-
     #[cfg(feature = "local_fs")]
     fn insert_agent_mode_setup_speedbump_banner(
         &mut self,
@@ -9113,50 +9018,6 @@ impl TerminalView {
         self.mark_agent_init_callout_as_shown_for_directory(&repo_path, ctx);
 
         ctx.notify();
-    }
-
-    #[cfg(feature = "local_fs")]
-    fn insert_codebase_index_speedbump_banner(
-        &mut self,
-        repo_path: PathBuf,
-        show_is_indexing: bool,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Create new inline banner
-        let banner_id = self.inline_banners_state.next_banner_id();
-        let mut banner_state = CodebaseIndexSpeedbumpBannerState::new(banner_id, repo_path);
-        if show_is_indexing {
-            banner_state.show_indexing_banner(); // Set to indexing state
-        }
-
-        // Insert the banner into the block list
-        self.model
-            .lock()
-            .block_list_mut()
-            .append_inline_banner_with_custom_height(
-                InlineBannerItem::new(banner_id, InlineBannerType::CodebaseIndexSpeedbump),
-                4.0,
-            );
-
-        // Store the banner state
-        self.inline_banners_state.codebase_index_speedbump_banner = Some(banner_state);
-
-        ctx.notify();
-    }
-
-    #[cfg(feature = "local_fs")]
-    fn remove_codebase_index_speedbump_banner(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(banner_state) = self
-            .inline_banners_state
-            .codebase_index_speedbump_banner
-            .take()
-        {
-            self.model
-                .lock()
-                .block_list_mut()
-                .remove_inline_banner(banner_state.id);
-            ctx.notify();
-        }
     }
 
     #[cfg(feature = "local_fs")]
@@ -10834,10 +10695,6 @@ impl TerminalView {
                                             return;
                                         }
 
-                                        PersistedWorkspace::handle(ctx).update(ctx, |manager, _| {
-                                            manager.navigated_to_path(active_directory.as_path_buf());
-                                        });
-
                                         // Subscribe to GitRepoStatusModel if the repo changed
                                         // and git status updates are needed.
                                         if old_repo_path.as_ref() != Some(repo_path) {
@@ -10858,8 +10715,6 @@ impl TerminalView {
                                                 );
                                             });
                                         }
-
-                                        me.start_lsp_server_in_active_pwd(ctx);
 
                                         me.update_repo_banner_state(
                                             repo_path.clone(),
@@ -21286,13 +21141,6 @@ impl TerminalView {
             );
         }
 
-        if let Some(banner_state) = &self.inline_banners_state.codebase_index_speedbump_banner {
-            inline_banners.insert(
-                banner_state.id,
-                banner_state.render_codebase_index_speedbump_banner(appearance),
-            );
-        }
-
         if let Some(banner_state) = &self.inline_banners_state.agent_setup_speedbump_banner {
             inline_banners.insert(
                 banner_state.id,
@@ -23412,39 +23260,6 @@ impl TerminalView {
             .set_show_bootstrap_block(true);
     }
 
-    /// Starts all enabled LSP servers for the current working directory.
-    ///
-    /// 优先使用检测到的 git 仓库根 (`current_repo_path`) 作为
-    /// `workspace_root` 传给 LSP——这样在子目录里 cd 时也能正确取到整仓库,
-    /// 避免为同一仓库不同子路径重复启动 LSP。拿不到 repo 根时 fallback 到 cwd,
-    /// 交给下游 `workspace_root_for_lsp` 再判断是否要启动。
-    #[cfg(feature = "local_fs")]
-    fn start_lsp_server_in_active_pwd(&self, ctx: &mut ViewContext<Self>) {
-        use crate::ai::persisted_workspace::LspTask;
-
-        let workspace_root = if let Some(repo_path) = self.current_repo_path.clone() {
-            repo_path
-        } else if let Some(cwd) = self
-            .pwd_if_local(ctx)
-            .map(PathBuf::from)
-            .and_then(|p| p.canonicalize().ok())
-        {
-            cwd
-        } else {
-            return;
-        };
-
-        PersistedWorkspace::handle(ctx).update(ctx, |workspace, ctx| {
-            workspace.execute_lsp_task(
-                LspTask::Spawn {
-                    file_path: workspace_root,
-                    server_type: None,
-                },
-                ctx,
-            );
-        });
-    }
-
     pub(super) fn toggle_file_tree(
         &mut self,
         cli_agent: Option<crate::server::telemetry::CLIAgentType>,
@@ -23690,8 +23505,7 @@ impl TypedActionView for TerminalView {
             | ResumeConversation
             | ForkConversationFromLastKnownGoodState
             | ToggleAIDocumentPane
-            | ClearMarkedText
-            | StartLspServer => ActionAccessibilityContent::from_debug(),
+            | ClearMarkedText => ActionAccessibilityContent::from_debug(),
             #[cfg(feature = "local_fs")]
             OpenCodeInWarp { .. } => ActionAccessibilityContent::from_debug(),
             OpenInWarpBanner(action) => self.open_in_warp_banner_accessibility_content(*action),
@@ -23776,7 +23590,6 @@ impl TypedActionView for TerminalView {
             | OpenEditSkillPane { .. }
             | OpenAddPromptPane
             | AddProjectAtCurrentDirectory
-            | CodebaseIndexSpeedbumpBanner(_)
             | AgentModeSetupSpeedbumpBanner(_)
             | AnonymousUserAISignUpBanner(_)
             | SetupCloudEnvironment(_)
@@ -24465,9 +24278,6 @@ impl TypedActionView for TerminalView {
                 });
                 ctx.notify();
             }
-            CodebaseIndexSpeedbumpBanner(action) => {
-                self.codebase_index_speedbump_banner_action(*action, ctx);
-            }
             AgentModeSetupSpeedbumpBanner(action) => {
                 self.agent_mode_setup_speedbump_banner_action(*action, ctx)
             }
@@ -24705,10 +24515,6 @@ impl TypedActionView for TerminalView {
                     }
                 });
                 ctx.notify();
-            }
-            StartLspServer => {
-                #[cfg(feature = "local_fs")]
-                self.start_lsp_server_in_active_pwd(ctx);
             }
             OpenConversationsPalette => {
                 ctx.emit(Event::OpenConversationHistory);

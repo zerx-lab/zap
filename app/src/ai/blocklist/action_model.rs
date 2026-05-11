@@ -60,9 +60,8 @@ use crate::{
 };
 
 use self::execute::{
-    ask_user_question::AskUserQuestionExecutor, search_codebase::SearchCodebaseExecutor,
-    BlocklistAIActionExecutor, BlocklistAIActionExecutorEvent, NotExecutedReason,
-    RunningActionPhase, TryExecuteResult,
+    ask_user_question::AskUserQuestionExecutor, BlocklistAIActionExecutor,
+    BlocklistAIActionExecutorEvent, NotExecutedReason, RunningActionPhase, TryExecuteResult,
 };
 
 use super::BlocklistAIHistoryModel;
@@ -371,13 +370,6 @@ impl BlocklistAIActionModel {
             .as_ref(app)
             .request_file_edits_executor()
             .clone()
-    }
-
-    pub fn search_codebase_executor<'a>(
-        &'a self,
-        app: &'a AppContext,
-    ) -> &'a ModelHandle<SearchCodebaseExecutor> {
-        self.executor.as_ref(app).search_codebase_executor()
     }
 
     pub fn suggest_prompt_executor(

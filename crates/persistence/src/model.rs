@@ -16,8 +16,7 @@ use super::schema::{
     object_metadata, object_permissions, pane_branches, pane_leaves, pane_nodes, panels,
     project_rules, projects, server_experiments, settings_panes, ssh_nodes, ssh_servers, tabs,
     team_members, team_settings, teams, terminal_panes, user_profiles, welcome_panes, windows,
-    workflow_panes, workflows, workspace_language_server, workspace_metadata, workspace_teams,
-    workspaces,
+    workflow_panes, workflows, workspace_teams, workspaces,
 };
 
 #[derive(Insertable)]
@@ -181,42 +180,6 @@ pub struct ProjectRules {
 pub struct NewProjectRules {
     pub path: String,
     pub project_root: String,
-}
-
-#[derive(Clone, Identifiable, Queryable, AsChangeset)]
-#[diesel(table_name = workspace_metadata)]
-pub struct WorkspaceMetadata {
-    pub id: i32,
-    pub repo_path: String,
-    pub navigated_ts: Option<NaiveDateTime>,
-    pub modified_ts: Option<NaiveDateTime>,
-    pub queried_ts: Option<NaiveDateTime>,
-}
-
-#[derive(Clone, Insertable, AsChangeset)]
-#[diesel(table_name = workspace_metadata)]
-pub struct NewWorkspaceMetadata {
-    pub repo_path: String,
-    pub navigated_ts: Option<NaiveDateTime>,
-    pub modified_ts: Option<NaiveDateTime>,
-    pub queried_ts: Option<NaiveDateTime>,
-}
-
-#[derive(Clone, Identifiable, Insertable, Queryable, AsChangeset)]
-#[diesel(table_name = workspace_language_server)]
-pub struct WorkspaceLanguageServer {
-    pub id: i32,
-    pub workspace_id: i32,
-    pub language_server_name: String,
-    pub enabled: String,
-}
-
-#[derive(Clone, Insertable, AsChangeset)]
-#[diesel(table_name = workspace_language_server)]
-pub struct NewWorkspaceLanguageServer {
-    pub workspace_id: i32,
-    pub language_server_name: String,
-    pub enabled: String,
 }
 
 #[derive(Default, Clone, Debug, Insertable, Queryable, AsChangeset)]
@@ -1209,7 +1172,6 @@ impl From<&stream_finished::ApplyFileDiffStats> for ApplyFileDiffStats {
 pub struct ToolUsageMetadata {
     pub run_command_stats: RunCommandStats,
     pub read_files_stats: ToolCallStats,
-    pub search_codebase_stats: ToolCallStats,
     pub grep_stats: ToolCallStats,
     pub file_glob_stats: ToolCallStats,
     pub apply_file_diff_stats: ApplyFileDiffStats,
@@ -1226,7 +1188,6 @@ impl ToolUsageMetadata {
     pub fn total_tool_calls(&self) -> i32 {
         self.run_command_stats.count
             + self.read_files_stats.count
-            + self.search_codebase_stats.count
             + self.grep_stats.count
             + self.file_glob_stats.count
             + self.write_to_long_running_shell_command_stats.count
@@ -1245,7 +1206,6 @@ impl From<&ToolUsageMetadata> for stream_finished::ToolUsageMetadata {
         Self {
             run_command_stats: Some((&metadata.run_command_stats).into()),
             read_files_stats: Some((&metadata.read_files_stats).into()),
-            search_codebase_stats: Some((&metadata.search_codebase_stats).into()),
             grep_stats: Some((&metadata.grep_stats).into()),
             file_glob_stats: Some((&metadata.file_glob_stats).into()),
             apply_file_diff_stats: Some((&metadata.apply_file_diff_stats).into()),
@@ -1275,7 +1235,6 @@ impl From<&stream_finished::ToolUsageMetadata> for ToolUsageMetadata {
                 .map(Into::into)
                 .unwrap_or_default(),
             read_files_stats: convert(&tool_usage_metadata.read_files_stats),
-            search_codebase_stats: convert(&tool_usage_metadata.search_codebase_stats),
             grep_stats: convert(&tool_usage_metadata.grep_stats),
             file_glob_stats: convert(&tool_usage_metadata.file_glob_stats),
             apply_file_diff_stats: tool_usage_metadata

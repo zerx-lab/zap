@@ -52,9 +52,6 @@ mutation UpdateWorkspaceSettings($input: UpdateWorkspaceSettingsInput!, $request
           maxMonthlySpendCents
           selectedAutoReloadCreditDenomination
         }
-        codebaseContextSettings {
-          enabled
-        }
       }
     }
   }

@@ -223,13 +223,19 @@ pub struct FontDB {
 
 impl FontDB {
     pub fn new() -> Self {
-        Self {
+        let db = Self {
             text_layout_system: TextLayoutSystem::new(),
             #[cfg(feature = "fontkit-rasterizer")]
             font_kit_rasterizer: crate::fonts::font_kit::Rasterizer::new(),
             #[cfg(not(feature = "fontkit-rasterizer"))]
             swash_cache: RwLock::new(cosmic_text::SwashCache::new()),
-        }
+        };
+        // 添加预热仅限 Windows:PR #62 仅在 Windows 路径接入 locale-aware CJK 回退,
+        // 该回归(zerx-lab/warp#68)也仅出现在 Windows。macOS/Linux 走各自的 fallback 路径,
+        // 不需预热。
+        #[cfg(target_os = "windows")]
+        db.text_layout_system.warm_up_preferred_cjk_families();
+        db
     }
 
     /// Inserts the given font family into the DB, returning a [`FamilyId`]

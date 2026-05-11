@@ -16,7 +16,6 @@ use warpui::EntityId;
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent::AIAgentExchangeId;
-use crate::ai::blocklist::codebase_index_speedbump_banner::CodebaseIndexSpeedbumpBannerAction;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::server::telemetry::{AgentModeRewindEntrypoint, PaletteSource, ToggleBlockFilterSource};
 use crate::terminal::available_shells::AvailableShell;
@@ -363,7 +362,6 @@ pub enum TerminalAction {
     },
     ToggleAutoexecuteMode,
     ToggleQueueNextPrompt,
-    CodebaseIndexSpeedbumpBanner(CodebaseIndexSpeedbumpBannerAction),
     AgentModeSetupSpeedbumpBanner(AgentModeSetupSpeedbumpBannerAction),
     AnonymousUserAISignUpBanner(AnonymousUserLoginBannerAction),
     ResumeConversation,
@@ -391,8 +389,6 @@ pub enum TerminalAction {
         source: PaletteSource,
     },
     DismissCodeToolbeltTooltip,
-    /// Start a Language Server for the current working directory (if supported)
-    StartLspServer,
     /// Start the guided Warp Environment setup flow (inserts the inline setup block).
     SetupCloudEnvironment(Vec<String>),
     /// Start the guided Warp Environment setup flow immediately (no inline setup block).
@@ -641,9 +637,6 @@ impl fmt::Debug for TerminalAction {
             DeleteAttachment { index } => write!(f, "DeleteAttachment({index:?})"),
             ToggleAutoexecuteMode => write!(f, "ToggleAutoexecuteMode"),
             ToggleQueueNextPrompt => write!(f, "ToggleQueueNextPrompt"),
-            CodebaseIndexSpeedbumpBanner(action) => {
-                write!(f, "CodebaseIndexSpeedbumpBanner({action:?})")
-            }
             AgentModeSetupSpeedbumpBanner(action) => {
                 write!(f, "AgentModeSetupSpeedbumpBanner({action:?})")
             }
@@ -670,7 +663,6 @@ impl fmt::Debug for TerminalAction {
             PickRepoToOpen => write!(f, "PickRepoToOpen"),
             OpenFilesPalette { .. } => write!(f, "OpenFilesPalette"),
             DismissCodeToolbeltTooltip => write!(f, "DismissCodeToolbeltTooltip"),
-            StartLspServer => write!(f, "StartLspServer"),
             SetupCloudEnvironment(_) => write!(f, "SetupCloudEnvironment"),
             SetupCloudEnvironmentAndStart(_) => write!(f, "SetupCloudEnvironmentAndStart"),
             TriggerEnvironmentSetupSelection(_) => write!(f, "TriggerEnvironmentSetupSelection"),
