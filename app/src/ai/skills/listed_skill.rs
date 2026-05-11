@@ -7,7 +7,7 @@ pub struct SkillDescriptor {
     pub reference: SkillReference,
     pub name: String,
     pub description: String,
-    /// The scope of the skill (home directory vs project directory).
+    /// The scope of the skill.
     pub scope: SkillScope,
     /// The provider/origin of the skill (Claude, Codex, or Warp).
     /// None if the skill path didn't match a known provider directory.

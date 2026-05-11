@@ -53,7 +53,6 @@ impl From<ParsedSkill> for api::Skill {
 impl From<SkillScope> for api::skill_descriptor::Scope {
     fn from(scope: SkillScope) -> Self {
         let scope_type: api::skill_descriptor::scope::Type = match scope {
-            SkillScope::Home => api::skill_descriptor::scope::Type::Home(()),
             SkillScope::Project => api::skill_descriptor::scope::Type::Project(()),
             SkillScope::Bundled => api::skill_descriptor::scope::Type::Bundled(()),
         };
@@ -138,8 +137,8 @@ fn convert_scope(scope: api::skill_descriptor::Scope) -> Result<SkillScope, Skil
     };
 
     match scope_type {
-        api::skill_descriptor::scope::Type::Home(_) => Ok(SkillScope::Home),
-        api::skill_descriptor::scope::Type::Project(_) => Ok(SkillScope::Project),
+        api::skill_descriptor::scope::Type::Home(_)
+        | api::skill_descriptor::scope::Type::Project(_) => Ok(SkillScope::Project),
         api::skill_descriptor::scope::Type::Bundled(_) => Ok(SkillScope::Bundled),
     }
 }

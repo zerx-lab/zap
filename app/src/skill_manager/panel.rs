@@ -1,10 +1,11 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use ai::skills::{SkillProvider, SkillScope};
+use ai::skills::SkillProvider;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::{
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         Border, ChildView, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox, Container,
         CornerRadius, CrossAxisAlignment, Element, Fill as ElementFill, Flex, Hoverable,
@@ -12,7 +13,6 @@ use warpui::{
     },
     platform::Cursor,
     text_layout::ClipConfig,
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::ai::skills::{
@@ -30,12 +30,13 @@ const FONT_SIZE: f32 = 13.0;
 const META_FONT_SIZE: f32 = 11.0;
 const FILTER_BUTTON_HEIGHT: f32 = 24.0;
 const PREVIEW_MIN_HEIGHT: f32 = 180.0;
+const FILTER_LABEL_WIDTH: f32 = 44.0;
+const FILTER_BUTTON_MIN_WIDTH: f32 = 52.0;
 
 #[derive(Clone, Debug)]
 pub enum SkillManagerPanelAction {
     SelectSkill(PathBuf),
     SelectProviderFilter(Option<SkillProvider>),
-    SelectScopeFilter(Option<SkillScope>),
     EditSkill(PathBuf),
     EditSelected,
 }
@@ -48,9 +49,7 @@ pub enum SkillManagerPanelEvent {
 pub struct SkillManagerPanel {
     selected_path: Option<PathBuf>,
     provider_filter: Option<SkillProvider>,
-    scope_filter: Option<SkillScope>,
     query_editor: ViewHandle<EditorView>,
-    edit_button_state: MouseStateHandle,
     list_scroll_state: ClippedScrollStateHandle,
     preview_scroll_state: ClippedScrollStateHandle,
 }
@@ -96,9 +95,7 @@ impl SkillManagerPanel {
         Self {
             selected_path: None,
             provider_filter: None,
-            scope_filter: None,
             query_editor,
-            edit_button_state: MouseStateHandle::default(),
             list_scroll_state: ClippedScrollStateHandle::default(),
             preview_scroll_state: ClippedScrollStateHandle::default(),
         }
@@ -124,9 +121,6 @@ impl SkillManagerPanel {
                     .filter(|duplicate| {
                         self.provider_filter
                             .is_none_or(|provider| duplicate.provider == provider)
-                            && self
-                                .scope_filter
-                                .is_none_or(|scope| duplicate.scope == scope)
                             && (query.is_empty()
                                 || duplicate.name.to_lowercase().contains(&query)
                                 || duplicate.description.to_lowercase().contains(&query)
@@ -211,16 +205,63 @@ impl SkillManagerPanel {
             }
             ConstrainedBox::new(button.finish())
                 .with_height(FILTER_BUTTON_HEIGHT)
+                .with_min_width(FILTER_BUTTON_MIN_WIDTH)
                 .finish()
         })
         .with_cursor(Cursor::PointingHand)
-        .on_click(move |ctx, _, _| {
+        .on_mouse_down(move |ctx, _, _| {
             ctx.dispatch_typed_action(action.clone());
         })
         .finish()
     }
 
-    fn render_filter_row(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
+    fn render_filter_group<T>(
+        label: String,
+        values: Vec<T>,
+        is_all_active: bool,
+        is_active: impl Fn(T) -> bool,
+        action_for: impl Fn(Option<T>) -> SkillManagerPanelAction,
+        appearance: &Appearance,
+    ) -> Box<dyn Element>
+    where
+        T: Copy + ToString + 'static,
+    {
+        let theme = appearance.theme();
+        let mut row = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_spacing(4.0)
+            .with_child(
+                ConstrainedBox::new(Self::render_label(
+                    label,
+                    appearance,
+                    META_FONT_SIZE,
+                    theme.sub_text_color(theme.background()),
+                ))
+                .with_width(FILTER_LABEL_WIDTH)
+                .finish(),
+            )
+            .with_child(Self::render_filter_button(
+                crate::t!("skill-manager-filter-all"),
+                is_all_active,
+                MouseStateHandle::default(),
+                action_for(None),
+                appearance,
+            ));
+
+        for value in values {
+            row.add_child(Self::render_filter_button(
+                value.to_string(),
+                is_active(value),
+                MouseStateHandle::default(),
+                action_for(Some(value)),
+                appearance,
+            ));
+        }
+
+        row.finish()
+    }
+
+    fn render_filter_rows(&self, app: &AppContext, appearance: &Appearance) -> Box<dyn Element> {
         let inventory = SkillManager::as_ref(app).list_skill_inventory(app);
         let mut providers = inventory
             .iter()
@@ -230,69 +271,14 @@ impl SkillManagerPanel {
             .collect::<Vec<_>>();
         providers.sort_by_key(|provider| provider.to_string());
 
-        let mut scopes = inventory
-            .iter()
-            .flat_map(|item| item.duplicates.iter().map(|duplicate| duplicate.scope))
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        scopes.sort_by_key(|scope| scope.to_string());
-
-        let mut row = Flex::row()
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(4.0);
-
-        row.add_child(Self::render_filter_button(
-            crate::t!("skill-manager-filter-all"),
+        Self::render_filter_group(
+            crate::t!("skill-manager-filter-provider"),
+            providers,
             self.provider_filter.is_none(),
-            MouseStateHandle::default(),
-            SkillManagerPanelAction::SelectProviderFilter(None),
+            |provider| self.provider_filter == Some(provider),
+            SkillManagerPanelAction::SelectProviderFilter,
             appearance,
-        ));
-        for provider in providers {
-            row.add_child(Self::render_filter_button(
-                provider.to_string(),
-                self.provider_filter == Some(provider),
-                MouseStateHandle::default(),
-                SkillManagerPanelAction::SelectProviderFilter(Some(provider)),
-                appearance,
-            ));
-        }
-
-        row.add_child(
-            Container::new(
-                Text::new_inline("/", appearance.ui_font_family(), META_FONT_SIZE)
-                    .with_color(
-                        appearance
-                            .theme()
-                            .sub_text_color(appearance.theme().background())
-                            .into(),
-                    )
-                    .finish(),
-            )
-            .with_padding_left(2.0)
-            .with_padding_right(2.0)
-            .finish(),
-        );
-
-        row.add_child(Self::render_filter_button(
-            crate::t!("skill-manager-filter-all"),
-            self.scope_filter.is_none(),
-            MouseStateHandle::default(),
-            SkillManagerPanelAction::SelectScopeFilter(None),
-            appearance,
-        ));
-        for scope in scopes {
-            row.add_child(Self::render_filter_button(
-                scope.to_string(),
-                self.scope_filter == Some(scope),
-                MouseStateHandle::default(),
-                SkillManagerPanelAction::SelectScopeFilter(Some(scope)),
-                appearance,
-            ));
-        }
-
-        row.finish()
+        )
     }
 
     fn render_skill_row(
@@ -370,7 +356,7 @@ impl SkillManagerPanel {
             row.finish()
         })
         .with_cursor(Cursor::PointingHand)
-        .on_click(move |ctx, _, _| {
+        .on_mouse_down(move |ctx, _, _| {
             ctx.dispatch_typed_action(action.clone());
         })
         .finish()
@@ -429,39 +415,6 @@ impl SkillManagerPanel {
         .finish()
     }
 
-    fn render_edit_button(
-        &self,
-        duplicate: &SkillInventoryDuplicate,
-        appearance: &Appearance,
-    ) -> Box<dyn Element> {
-        let theme = appearance.theme();
-        let text = Self::render_label(
-            crate::t!("skill-manager-edit"),
-            appearance,
-            FONT_SIZE,
-            theme.main_text_color(theme.background()),
-        );
-        let action = SkillManagerPanelAction::SelectSkill(duplicate.path.clone());
-        Hoverable::new(self.edit_button_state.clone(), move |mouse| {
-            let mut button = Container::new(text)
-                .with_padding_left(10.0)
-                .with_padding_right(10.0)
-                .with_padding_top(4.0)
-                .with_padding_bottom(4.0)
-                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-                .with_border(Border::all(1.0).with_border_color(theme.surface_3().into()));
-            if mouse.is_hovered() {
-                button = button.with_background(internal_colors::fg_overlay_2(theme));
-            }
-            button.finish()
-        })
-        .with_cursor(Cursor::PointingHand)
-        .on_click(move |ctx, _, _| {
-            ctx.dispatch_typed_action(action.clone());
-        })
-        .finish()
-    }
-
     fn render_preview(
         &self,
         duplicate: Option<&SkillInventoryDuplicate>,
@@ -481,7 +434,6 @@ impl SkillManagerPanel {
 
         let header = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(8.0)
             .with_child(
                 Shrinkable::new(
                     1.0,
@@ -494,7 +446,6 @@ impl SkillManagerPanel {
                 )
                 .finish(),
             )
-            .with_child(self.render_edit_button(duplicate, appearance))
             .finish();
 
         let preview_text = Text::new_inline(
@@ -548,11 +499,6 @@ impl TypedActionView for SkillManagerPanel {
                 self.selected_path = None;
                 ctx.notify();
             }
-            SkillManagerPanelAction::SelectScopeFilter(scope) => {
-                self.scope_filter = *scope;
-                self.selected_path = None;
-                ctx.notify();
-            }
             SkillManagerPanelAction::EditSkill(path) => {
                 self.selected_path = Some(path.clone());
                 ctx.emit(SkillManagerPanelEvent::OpenSkillFile { path: path.clone() });
@@ -593,7 +539,7 @@ impl View for SkillManagerPanel {
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                 .with_spacing(8.0)
                 .with_child(search)
-                .with_child(self.render_filter_row(app, appearance))
+                .with_child(self.render_filter_rows(app, appearance))
                 .with_child(
                     Shrinkable::new(1.0, self.render_skill_list(&items, appearance)).finish(),
                 )

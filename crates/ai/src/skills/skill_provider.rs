@@ -41,7 +41,7 @@ pub enum SkillProvider {
     OpenCode,
 }
 
-/// Represents the scope of a skill (home directory vs project directory).
+/// Represents the scope of a skill.
 #[derive(
     Debug,
     Clone,
@@ -57,10 +57,8 @@ pub enum SkillProvider {
     VariantNames,
 )]
 pub enum SkillScope {
-    /// Skills from the user's home directory (e.g., `~/.agents/skills`).
-    #[default]
-    Home,
     /// Skills from a project directory (e.g., `./repo/.agents/skills`).
+    #[default]
     Project,
     /// Bundled skills distributed with Warp.
     Bundled,
@@ -195,26 +193,9 @@ pub fn get_provider_for_path(path: &Path) -> Option<SkillProvider> {
     None
 }
 
-/// Returns the skill scope (Home or Project) for a given path.
-/// A skill is considered a "Home" skill if its path starts with the user's home directory.
-/// Otherwise, it's a "Project" skill.
-pub fn get_scope_for_path(path: &Path) -> SkillScope {
-    for def in SKILL_PROVIDER_DEFINITIONS.iter() {
-        if home_skills_path(def.provider)
-            .into_iter()
-            .any(|home_skills_path| path.starts_with(home_skills_path))
-        {
-            return SkillScope::Home;
-        }
-    }
-    SkillScope::Project
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        get_provider_for_path, get_scope_for_path, home_skills_path, SkillProvider, SkillScope,
-    };
+    use super::{get_provider_for_path, home_skills_path, SkillProvider};
 
     #[test]
     fn warp_home_skills_path_uses_warp_home_path() {
@@ -225,7 +206,7 @@ mod tests {
     }
 
     #[test]
-    fn warp_home_skill_path_is_home_warp_skill() {
+    fn warp_home_skill_path_uses_warp_provider() {
         let Some(warp_home_skills_dir) = warp_core::paths::warp_home_skills_dir() else {
             eprintln!("Skipping test: home directory not available");
             return;
@@ -233,6 +214,5 @@ mod tests {
         let path = warp_home_skills_dir.join("my-skill").join("SKILL.md");
 
         assert_eq!(get_provider_for_path(&path), Some(SkillProvider::Warp));
-        assert_eq!(get_scope_for_path(&path), SkillScope::Home);
     }
 }

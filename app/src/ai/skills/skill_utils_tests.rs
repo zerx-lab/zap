@@ -68,7 +68,7 @@ fn test_unique_skills_dedupes_identical_skills_same_dir() {
         content: content.to_string(),
         line_range: Some(8..18),
         provider: SkillProvider::Agents,
-        scope: SkillScope::Home,
+        scope: SkillScope::Project,
     };
 
     let skill2 = ParsedSkill {
@@ -78,7 +78,7 @@ fn test_unique_skills_dedupes_identical_skills_same_dir() {
         content: content.to_string(),
         line_range: Some(8..18),
         provider: SkillProvider::Claude,
-        scope: SkillScope::Home,
+        scope: SkillScope::Project,
     };
 
     let mut skills_by_path = HashMap::new();
@@ -97,7 +97,7 @@ fn test_unique_skills_dedupes_identical_skills_same_dir() {
 }
 
 #[test]
-fn test_unique_skills_name_dedup_different_dirs_same_provider() {
+fn test_unique_skills_keeps_same_provider_skills_from_different_dirs() {
     let home_dir = PathBuf::from("/home/user");
     let project_dir = PathBuf::from("/home/user/projects/repo");
     let home_path = home_dir.join(".agents/skills/my-skill/SKILL.md");
@@ -111,7 +111,7 @@ fn test_unique_skills_name_dedup_different_dirs_same_provider() {
         content: content.to_string(),
         line_range: Some(8..18),
         provider: SkillProvider::Agents,
-        scope: SkillScope::Home,
+        scope: SkillScope::Project,
     };
 
     let project_skill = ParsedSkill {
@@ -131,19 +131,19 @@ fn test_unique_skills_name_dedup_different_dirs_same_provider() {
     let skill_paths = vec![(home_dir, home_path.clone()), (project_dir, project_path)];
 
     let result = unique_skills(&skill_paths, &skills_by_path);
-    assert_eq!(
-        result.len(),
-        1,
-        "同名 + 同 provider 跨目录应被 name-dedup 合并为 1"
-    );
-    // 同 provider 时 reference 路径短者胜——home_path 比 project_path 短。
+    assert_eq!(result.len(), 2, "同名 + 同 provider 跨目录应各自保留");
     assert!(
-        result[0]
+        result
+            .iter()
+            .any(|skill| skill.reference.to_string().contains("/home/user/.agents")),
+        "应保留 home 目录里的同名 skill,实际={result:?}"
+    );
+    assert!(
+        result.iter().any(|skill| skill
             .reference
             .to_string()
-            .contains("/home/user/.agents"),
-        "同 rank 应取路径最短的 reference,实际={}",
-        result[0].reference,
+            .contains("/home/user/projects/repo/.agents")),
+        "应保留 project 目录里的同名 skill,实际={result:?}"
     );
 }
 
@@ -163,7 +163,7 @@ fn test_unique_skills_name_dedup_same_name_different_providers() {
         content: content1.to_string(),
         line_range: Some(8..18),
         provider: SkillProvider::Agents,
-        scope: SkillScope::Home,
+        scope: SkillScope::Project,
     };
 
     let skill2 = ParsedSkill {
@@ -173,7 +173,7 @@ fn test_unique_skills_name_dedup_same_name_different_providers() {
         content: content2.to_string(),
         line_range: Some(8..18),
         provider: SkillProvider::Claude,
-        scope: SkillScope::Home,
+        scope: SkillScope::Project,
     };
 
     let mut skills_by_path = HashMap::new();

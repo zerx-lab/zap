@@ -18,6 +18,8 @@ use warpui::{
 
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
+use crate::ai::skills::{SkillManager, SkillOpenOrigin};
+use crate::code::editor_management::CodeSource;
 #[cfg(feature = "local_fs")]
 use crate::code::file_tree::FileTreeEvent;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
@@ -64,6 +66,8 @@ use crate::{
     TelemetryEvent,
 };
 
+const SKILL_MANAGER_MIN_SIDEBAR_WIDTH: f32 = 360.0;
+
 #[derive(Default)]
 struct MouseStateHandles {
     project_explorer_button: MouseStateHandle,
@@ -93,6 +97,9 @@ pub enum LeftPanelEvent {
         path: PathBuf,
         target: FileTarget,
         line_col: Option<LineAndColumnArg>,
+    },
+    OpenSkillFile {
+        source: CodeSource,
     },
     NewConversationInNewTab,
     ShowDeleteConfirmationDialog {
@@ -256,18 +263,13 @@ impl LeftPanelView {
         });
         ctx.subscribe_to_view(&skill_manager_view, |_me, _, event, ctx| match event {
             SkillManagerPanelEvent::OpenSkillFile { path } => {
-                let settings = EditorSettings::as_ref(ctx);
-                let target = resolve_file_target_with_editor_choice(
-                    path,
-                    *settings.open_code_panels_file_editor,
-                    false,
-                    *settings.open_file_layout,
-                    None,
-                );
-                ctx.emit(LeftPanelEvent::OpenFileWithTarget {
-                    path: path.clone(),
-                    target,
-                    line_col: None,
+                let reference = SkillManager::as_ref(ctx).reference_for_skill_path(path);
+                ctx.emit(LeftPanelEvent::OpenSkillFile {
+                    source: CodeSource::Skill {
+                        reference,
+                        path: path.clone(),
+                        origin: SkillOpenOrigin::SkillManager,
+                    },
                 });
             }
         });
@@ -1314,13 +1316,18 @@ impl View for LeftPanelView {
             super::PanelPosition::Left => DragBarSide::Right,
             super::PanelPosition::Right => DragBarSide::Left,
         };
+        let min_sidebar_width = if self.active_view.get() == ToolPanelView::SkillManager {
+            SKILL_MANAGER_MIN_SIDEBAR_WIDTH
+        } else {
+            MIN_SIDEBAR_WIDTH
+        };
         Resizable::new(self.resizable_state_handle.clone(), panel_content)
             .with_dragbar_side(drag_side)
             .on_resize(move |ctx, _| {
                 ctx.notify();
             })
-            .with_bounds_callback(Box::new(|window_size| {
-                let min_width = MIN_SIDEBAR_WIDTH;
+            .with_bounds_callback(Box::new(move |window_size| {
+                let min_width = min_sidebar_width;
                 let max_width = window_size.x() * MAX_SIDEBAR_WIDTH_RATIO;
                 (min_width, max_width.max(min_width))
             }))

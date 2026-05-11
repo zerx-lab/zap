@@ -709,6 +709,7 @@ impl CodeView {
     ) {
         // If the tab already exists, focus it (and optionally jump) without re-opening from disk.
         if let Some(existing_index) = self.focus_existing_tab_if_present(&path, ctx) {
+            self.promote_if_preview(ctx);
             if let Some(line_col) = line_col {
                 self.jump_to_line_col_in_tab(existing_index, line_col, ctx);
             }
@@ -1818,8 +1819,19 @@ impl CodeView {
             None,
         );
 
+        let mut right_controls = Flex::row()
+            .with_main_axis_alignment(MainAxisAlignment::End)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_main_axis_size(MainAxisSize::Min);
+
+        if let Some(segmented) = &self.markdown_mode_segmented_control {
+            right_controls.add_child(ChildView::new(segmented).finish());
+        }
+
+        right_controls.add_child(buttons);
+
         header_row.add_child(
-            Container::new(Align::new(buttons).finish())
+            Container::new(Align::new(right_controls.finish()).finish())
                 .with_padding_right(4.)
                 .with_border(
                     Border::bottom(TAB_BAR_BORDER_HEIGHT).with_border_fill(theme.outline()),

@@ -18,19 +18,19 @@ use warpui::{AppContext, Element, SingletonEntity};
 
 use crate::warp_managed_paths_watcher::warp_managed_skill_dirs;
 
-/// Deduplicates skills by **name**, keeping a single best representative per skill name.
+/// Deduplicates skills by **name and owning directory**, keeping a single best representative per
+/// skill name within each directory.
 ///
 /// 优先级规则(同名 skill 多份时):
 ///
 /// 1. **provider rank 小者胜**:依 [`SKILL_PROVIDER_DEFINITIONS`] 顺序(index 0 = 最高优先级),
 ///    例如 `Agents > Warp > Claude > …`。
-/// 2. **同 rank 时 reference 路径短者胜**:home scope 路径通常比 project scope 短,
-///    取为稳定 tiebreak。
+/// 2. **同 rank 时 reference 路径短者胜**:取为稳定 tiebreak。
 ///
 /// 该实现覆盖了三种场景:
 /// - `npx skills` 软链同名 skill 到 `~/.agents/skills/` / `~/.warp/skills/` / `~/.claude/skills/`
 ///   (同名不同 provider) → 保留高优先级 provider。
-/// - 同名 skill 同时存在于 home + project (同名同 provider 跨 scope) → 保留路径短的。
+/// - 同名 skill 同时存在于多个目录(例如 repo root + subdir) → 各自保留,让调用方按路径上下文处理。
 /// - 同名不同内容 (不同 provider) → 保留高优先级 provider。
 ///
 /// Each element of `skill_paths` is a `(dir_path, skill_file_path)` tuple where
@@ -47,14 +47,14 @@ pub(crate) fn unique_skills(
     skill_paths: &[(PathBuf, PathBuf)],
     skills_by_path: &HashMap<PathBuf, ParsedSkill>,
 ) -> Vec<SkillDescriptor> {
-    let mut name_map: HashMap<String, SkillDescriptor> = HashMap::new();
+    let mut name_map: HashMap<(String, PathBuf), SkillDescriptor> = HashMap::new();
 
-    for (_dir_path, path) in skill_paths {
+    for (dir_path, path) in skill_paths {
         let Some(skill) = skills_by_path.get(path) else {
             continue;
         };
         let descriptor = SkillDescriptor::from(skill.clone());
-        match name_map.entry(descriptor.name.clone()) {
+        match name_map.entry((descriptor.name.clone(), dir_path.clone())) {
             Entry::Vacant(e) => {
                 e.insert(descriptor);
             }

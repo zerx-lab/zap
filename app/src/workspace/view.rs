@@ -5555,6 +5555,23 @@ impl Workspace {
                     ctx,
                 );
             }
+            LeftPanelEvent::OpenSkillFile { source } => {
+                #[cfg(feature = "local_fs")]
+                {
+                    let layout = *EditorSettings::as_ref(ctx).open_file_layout.value();
+                    self.open_file_with_target(
+                        source.path().unwrap_or_default(),
+                        FileTarget::CodeEditor(layout),
+                        None,
+                        source.clone(),
+                        ctx,
+                    );
+                }
+                #[cfg(not(feature = "local_fs"))]
+                {
+                    let _ = source;
+                }
+            }
             LeftPanelEvent::NewConversationInNewTab => {
                 self.add_terminal_tab_with_new_agent_view(ctx);
             }

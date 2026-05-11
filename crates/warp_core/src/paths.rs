@@ -269,28 +269,54 @@ fn project_dirs_for_app_id(
 /// * [`containerURLForSecurityApplicationGroupIdentifier`](https://developer.apple.com/documentation/foundation/filemanager/containerurl(forsecurityapplicationgroupidentifier:)?language=objc)
 #[cfg(target_os = "macos")]
 pub fn app_group_container_path() -> Option<PathBuf> {
-    use std::sync::LazyLock;
+    use std::sync::{mpsc, LazyLock};
+    use std::time::Duration;
+
+    const APP_GROUP_CONTAINER_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
     static CONTAINER_PATH: LazyLock<Option<PathBuf>> = LazyLock::new(|| {
-        use objc2_foundation::{NSFileManager, NSString};
+        let (sender, receiver) = mpsc::sync_channel(1);
+        std::thread::spawn(move || {
+            use objc2_foundation::{NSFileManager, NSString};
 
-        let fm = NSFileManager::defaultManager();
-        // Keep in sync with Entitlements.plist
-        let group_id = format!("{}.dev.warp", crate::macos::APPLE_TEAM_ID);
-        let group_id = NSString::from_str(&group_id);
-        // containerURLForSecurityApplicationGroupIdentifier always returns a value on macOS (unlike iOS).
-        // We have to double-check that the path points to a directory we can actually use. In addition to
-        // macOS returning a path that may not exist, processes may list the container directory without
-        // having permissions to read to or write from it.
-        if let Some(url) = fm.containerURLForSecurityApplicationGroupIdentifier(&group_id) {
-            if let Some(ns_path) = url.path() {
-                let path = PathBuf::from(ns_path.to_string());
-                if tempfile::tempfile_in(&path).is_ok() {
-                    return Some(path);
+            let fm = NSFileManager::defaultManager();
+            // Keep in sync with Entitlements.plist
+            let group_id = format!("{}.dev.warp", crate::macos::APPLE_TEAM_ID);
+            let group_id = NSString::from_str(&group_id);
+            // containerURLForSecurityApplicationGroupIdentifier always returns a value on macOS (unlike iOS).
+            // We have to double-check that the path points to a directory we can actually use. In addition to
+            // macOS returning a path that may not exist, processes may list the container directory without
+            // having permissions to read to or write from it.
+            let container_path = if let Some(url) =
+                fm.containerURLForSecurityApplicationGroupIdentifier(&group_id)
+            {
+                if let Some(ns_path) = url.path() {
+                    let path = PathBuf::from(ns_path.to_string());
+                    if tempfile::tempfile_in(&path).is_ok() {
+                        Some(path)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 }
-            }
-        }
+            } else {
+                None
+            };
 
-        None
+            let _ = sender.send(container_path);
+        });
+
+        match receiver.recv_timeout(APP_GROUP_CONTAINER_PROBE_TIMEOUT) {
+            Ok(container_path) => container_path,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                eprintln!(
+                    "Timed out checking macOS app group container, falling back to state_dir"
+                );
+                None
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => None,
+        }
     });
     LazyLock::force(&CONTAINER_PATH).clone()
 }
