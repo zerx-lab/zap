@@ -48,7 +48,6 @@ integration = { path = "crates/integration" }
 ipc = { path = "crates/ipc" }
 jsonrpc = { path = "crates/jsonrpc" }
 languages = { path = "crates/languages" }
-lsp = { path = "crates/lsp" }
 markdown_parser = { path = "crates/markdown_parser" }
 natural_language_detection = { path = "crates/natural_language_detection" }
 node_runtime = { path = "crates/node_runtime" }
@@ -335,7 +334,7 @@ version-compare = "0.1"
 vte = { git = "https://github.com/warpdotdev/vte.git", rev = "4b399c87b63ba88f45709edaa6383fc519f6c900", default-features = false }
 walkdir = "2"
 warp-workflows = { git = "https://github.com/warpdotdev/workflows", rev = "793a98ddda6ef19682aed66364faebd2829f0e01" }
-warp_multi_agent_api = { git = "https://github.com/warpdotdev/warp-proto-apis.git", rev = "aa2f9cde164a5b48ac01087d417d1188771f9b6d" }
+warp_multi_agent_api = { git = "https://github.com/zerx-lab/warp-proto-apis.git", rev = "14ab9a71ea3e9521b2ffab2f97a64e7c21050669" }
 wasm-bindgen = "0.2.89"
 wasm-bindgen-futures = "0.4.42"
 web-sys = { version = "0.3.69", features = [
@@ -553,5 +552,6 @@ tikv-jemalloc-sys = { git = "https://github.com/warpdotdev/jemallocator.git", re
 genai = { path = "lib/rust-genai" }
 
 [patch."https://github.com/warpdotdev/warp-proto-apis.git"]
-# Uncomment for local development of warp-proto-apis
-# warp_multi_agent_api = { path = "../warp-proto-apis/apis/multi_agent/v1/gen/rust" }
+# OpenWarp 已切到 zerx-lab fork(见上方 dependency 改动),保留这条 patch 以
+# 便其它 transitive deps 若意外引用上游 url 时也走 fork。
+warp_multi_agent_api = { git = "https://github.com/zerx-lab/warp-proto-apis.git", rev = "14ab9a71ea3e9521b2ffab2f97a64e7c21050669" }

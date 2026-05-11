@@ -55,8 +55,6 @@ pub enum Experiment {
     TmuxSshWarpificationExperiment,
     UsageBasedPricingControl,
     UsageBasedPricingExperiment,
-    CodebaseContextExperiment,
-    CodebaseContextControl,
     SuggestedCodeDiffsControl,
     SuggestedCodeDiffsExperiment,
     UpgradeToProModalControl,

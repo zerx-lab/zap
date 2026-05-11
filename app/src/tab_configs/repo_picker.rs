@@ -8,7 +8,6 @@ use warpui::{
 };
 
 use crate::{
-    ai::persisted_workspace::{PersistedWorkspace, PersistedWorkspaceEvent},
     appearance::Appearance,
     tab_configs::PickerStyle,
     view_components::{DropdownItem, FilterableDropdown},
@@ -58,15 +57,8 @@ impl RepoPicker {
         style: Option<PickerStyle>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        // Subscribe to PersistedWorkspace so the list refreshes when the user
-        // adds a repo via the folder picker.
-        ctx.subscribe_to_model(&PersistedWorkspace::handle(ctx), |me, _, event, ctx| {
-            if let PersistedWorkspaceEvent::WorkspaceAdded { path } = event {
-                let path_str = path.to_string_lossy().to_string();
-                me.refresh_items(Some(&path_str), ctx);
-            }
-        });
-
+        // PersistedWorkspace 已下线,不再订阅「WorkspaceAdded」事件。
+        // dropdown 列表永远为空,只剩底部 `+ Add new repo...` 兜底按钮。
         let width = style.as_ref().map_or(DEFAULT_DROPDOWN_WIDTH, |s| s.width);
         let bg = style.and_then(|s| s.background);
         let dropdown = ctx.add_typed_action_view(|ctx| {
@@ -144,17 +136,9 @@ impl RepoPicker {
     }
 
     fn refresh_items(&mut self, select_path: Option<&str>, ctx: &mut ViewContext<Self>) {
-        // workspaces() already returns entries sorted by most-recently-touched.
-        // "+ Add new repo..." is a sticky footer (not a list item) so it is
-        // not included here.
-        let items: Vec<DropdownItem<RepoPickerAction>> = PersistedWorkspace::as_ref(ctx)
-            .workspaces()
-            .filter(|ws| ws.path.exists())
-            .map(|ws| {
-                let path_str = ws.path.to_string_lossy().into_owned();
-                DropdownItem::new(path_str.clone(), RepoPickerAction::Select(path_str))
-            })
-            .collect();
+        // PersistedWorkspace 已下线,不再有「之前打开过的 git 仓库」候选源,
+        // dropdown 列表永远为空,`+ Add new repo...` 作为 sticky footer 存在。
+        let items: Vec<DropdownItem<RepoPickerAction>> = Vec::new();
 
         let path_to_select = select_path
             .or(self.selected.as_deref())

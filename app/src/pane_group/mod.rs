@@ -697,10 +697,6 @@ pub enum Event {
     RunTabConfigSkill {
         path: PathBuf,
     },
-    /// Request to open LSP logs in a terminal pane
-    OpenLspLogs {
-        log_path: PathBuf,
-    },
     FreeTierLimitCheckTriggered,
     #[cfg(not(target_family = "wasm"))]
     OpenPluginInstructionsPane(crate::terminal::CLIAgent, PluginModalKind),

@@ -7,7 +7,7 @@ use itertools::Itertools;
 #[cfg(test)]
 use mockall::automock;
 use prost::Message;
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 use warp_core::channel::ChannelState;
 use warp_core::report_error;
 use warp_multi_agent_api::ConversationData;
@@ -52,9 +52,6 @@ use crate::{
     server::graphql::{
         default_request_options, get_request_context, get_user_facing_error_message,
     },
-};
-use ai::index::full_source_code_embedding::{
-    self, store_client::IntermediateNode, ContentHash, EmbeddingConfig, NodeHash, RepoMetadata,
 };
 use warp_graphql::client::Operation;
 #[cfg(not(feature = "agent_mode_evals"))]
@@ -732,20 +729,6 @@ pub trait AIClient: 'static + Send + Sync {
         referrer: Option<String>,
     ) -> Result<ModelsByFeature, anyhow::Error>;
 
-    async fn update_merkle_tree(
-        &self,
-        embedding_config: EmbeddingConfig,
-        nodes: Vec<IntermediateNode>,
-    ) -> anyhow::Result<HashMap<NodeHash, bool>>;
-
-    async fn generate_code_embeddings(
-        &self,
-        embedding_config: EmbeddingConfig,
-        fragments: Vec<full_source_code_embedding::Fragment>,
-        root_hash: NodeHash,
-        repo_metadata: RepoMetadata,
-    ) -> anyhow::Result<HashMap<ContentHash, bool>>;
-
     async fn provide_negative_feedback_response_for_ai_conversation(
         &self,
         conversation_id: String,
@@ -1201,26 +1184,6 @@ impl AIClient for ServerApi {
                 Err(anyhow!("Unexpected freeAvailableModels response variant"))
             }
         }
-    }
-
-    async fn update_merkle_tree(
-        &self,
-        embedding_config: EmbeddingConfig,
-        nodes: Vec<IntermediateNode>,
-    ) -> anyhow::Result<HashMap<NodeHash, bool>> {
-        let _ = (embedding_config, nodes);
-        anyhow::bail!("codebase indexing is disabled")
-    }
-
-    async fn generate_code_embeddings(
-        &self,
-        embedding_config: EmbeddingConfig,
-        fragments: Vec<full_source_code_embedding::Fragment>,
-        root_hash: NodeHash,
-        repo_metadata: RepoMetadata,
-    ) -> anyhow::Result<HashMap<ContentHash, bool>> {
-        let _ = (embedding_config, fragments, root_hash, repo_metadata);
-        anyhow::bail!("codebase indexing is disabled")
     }
 
     async fn provide_negative_feedback_response_for_ai_conversation(

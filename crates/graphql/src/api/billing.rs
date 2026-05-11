@@ -102,7 +102,6 @@ pub struct Tier {
     pub telemetry_data_collection_policy: Option<TelemetryDataCollectionPolicy>,
     pub ugc_data_collection_policy: Option<UgcDataCollectionPolicy>,
     pub usage_based_pricing_policy: Option<UsageBasedPricingPolicy>,
-    pub codebase_context_policy: Option<CodebaseContextPolicy>,
     pub byo_api_key_policy: Option<ByoApiKeyPolicy>,
     pub purchase_add_on_credits_policy: Option<PurchaseAddOnCreditsPolicy>,
     pub enterprise_pay_as_you_go_policy: Option<EnterprisePayAsYouGoPolicy>,
@@ -165,15 +164,6 @@ pub struct UgcDataCollectionPolicy {
 #[derive(cynic::QueryFragment, Debug, Clone)]
 pub struct UsageBasedPricingPolicy {
     pub toggleable: bool,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct CodebaseContextPolicy {
-    pub toggleable: bool,
-    pub is_unlimited_indices: bool,
-    pub max_indices: i32,
-    pub max_files_per_repo: i32,
-    pub embedding_generation_batch_size: i32,
 }
 
 #[derive(cynic::QueryFragment, Debug, Clone)]
@@ -271,8 +261,6 @@ pub struct PlanPricing {
     pub monthly_plan_price_per_month_usd_cents: i32,
     pub yearly_plan_price_per_month_usd_cents: i32,
     pub request_limit: Option<i32>,
-    pub codebase_limit: i32,
-    pub codebase_context_file_limit: i32,
     pub max_team_size: Option<i32>,
 }
 

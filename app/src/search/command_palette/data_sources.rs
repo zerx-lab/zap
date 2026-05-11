@@ -8,7 +8,6 @@ use crate::search::command_palette::files;
 use crate::search::command_palette::launch_config;
 use crate::search::command_palette::mixer::{CommandPaletteItemAction, ItemSummary};
 use crate::search::command_palette::new_session::NewSessionDataSource;
-use crate::search::command_palette::repos::RepoDataSource;
 use crate::search::command_palette::ssh_servers::SshServersDataSource;
 use crate::search::command_palette::{navigation, CommandPaletteMixer};
 use crate::search::data_source::QueryResult;
@@ -34,7 +33,6 @@ pub struct DataSourceStore {
     new_session_data_source: Option<ModelHandle<NewSessionDataSource>>,
     historical_conversation_data_source: ModelHandle<conversations::DataSource>,
     all_conversation_data_source: ModelHandle<conversations::DataSource>,
-    repo_data_source: ModelHandle<RepoDataSource>,
     ssh_servers_data_source: ModelHandle<SshServersDataSource>,
 }
 
@@ -64,7 +62,6 @@ impl DataSourceStore {
         let all_conversation_data_source: ModelHandle<conversations::DataSource> =
             ctx.add_model(|_| conversations::DataSource::new());
 
-        let repo_data_source = ctx.add_model(|_| RepoDataSource::new());
         let ssh_servers_data_source = ctx.add_model(|_| SshServersDataSource::new());
 
         Self {
@@ -75,7 +72,6 @@ impl DataSourceStore {
             new_session_data_source,
             historical_conversation_data_source,
             all_conversation_data_source,
-            repo_data_source,
             ssh_servers_data_source,
         }
     }
@@ -164,11 +160,6 @@ impl DataSourceStore {
                     HashSet::from([QueryFilter::HistoricalConversations]),
                 );
             }
-
-            mixer.add_sync_source(
-                self.repo_data_source.clone(),
-                HashSet::from([QueryFilter::Repos]),
-            );
 
             mixer.add_sync_source(
                 self.ssh_servers_data_source.clone(),

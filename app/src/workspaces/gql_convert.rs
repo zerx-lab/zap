@@ -5,8 +5,8 @@ use super::{
     workspace::{
         AIAutonomyPolicy, AddonCreditsSettings, AdminEnablementSetting, AiAutonomySettings,
         AiPermissionsSettings, AmbientAgentsPolicy, BillingMetadata,
-        CloudConversationStorageSettings, CodebaseContextSettings, CustomerType, DelinquencyStatus,
-        EmailInvite, EnterpriseSecretRegex, HostEnablementSetting, InstanceShape,
+        CloudConversationStorageSettings, CustomerType, DelinquencyStatus, EmailInvite,
+        EnterpriseSecretRegex, HostEnablementSetting, InstanceShape,
         InviteLinkDomainRestriction, LinkSharingSettings, LlmSettings, SandboxedAgentSettings,
         SecretRedactionSettings, SessionSharingPolicy, SharedNotebooksPolicy,
         SharedWorkflowsPolicy, TelemetryDataCollectionPolicy, TelemetrySettings, Tier,
@@ -26,7 +26,7 @@ use crate::{
     server::ids::ServerId,
     settings::AgentModeCommandExecutionPredicate,
     workspaces::workspace::{
-        AiOverages, BonusGrantsPurchased, ByoApiKeyPolicy, CodebaseContextPolicy,
+        AiOverages, BonusGrantsPurchased, ByoApiKeyPolicy,
         EnterpriseCreditsAutoReloadPolicy, EnterprisePayAsYouGoPolicy, MultiAdminPolicy,
         PurchaseAddOnCreditsPolicy, UsageBasedPricingSettings,
     },
@@ -49,7 +49,7 @@ use warp_graphql::{
     billing::{
         AiAutonomyPolicy as GqlAiAutonomyPolicy, AmbientAgentsPolicy as GqlAmbientAgentsPolicy,
         BillingMetadata as GqlBillingMetadata, BonusGrant as GqlBonusGrant,
-        ByoApiKeyPolicy as GqlByoApiKeyPolicy, CodebaseContextPolicy as GqlCodebaseContextPolicy,
+        ByoApiKeyPolicy as GqlByoApiKeyPolicy,
         CustomerType as GqlCustomerType, DelinquencyStatus as GqlDelinquencyStatus,
         EnterpriseCreditsAutoReloadPolicy as GqlEnterpriseCreditsAutoReloadPolicy,
         EnterprisePayAsYouGoPolicy as GqlEnterprisePayAsYouGoPolicy,
@@ -365,20 +365,6 @@ impl From<GqlAddonCreditsSettings> for AddonCreditsSettings {
     }
 }
 
-impl From<GqlCodebaseContextPolicy> for CodebaseContextPolicy {
-    fn from(gql_codebase_context_policy: GqlCodebaseContextPolicy) -> CodebaseContextPolicy {
-        Self {
-            toggleable: gql_codebase_context_policy.toggleable,
-            index_limit: if gql_codebase_context_policy.is_unlimited_indices {
-                None
-            } else {
-                Some(gql_codebase_context_policy.max_indices as u32)
-            },
-            max_files_per_repo: gql_codebase_context_policy.max_files_per_repo as u32,
-        }
-    }
-}
-
 impl From<GqlByoApiKeyPolicy> for ByoApiKeyPolicy {
     fn from(gql_byo_api_key_policy: GqlByoApiKeyPolicy) -> ByoApiKeyPolicy {
         Self {
@@ -455,7 +441,6 @@ impl From<GqlTier> for Tier {
                 .map(From::from),
             ugc_data_collection_policy: gql_tier.ugc_data_collection_policy.map(From::from),
             usage_based_pricing_policy: gql_tier.usage_based_pricing_policy.map(From::from),
-            codebase_context_policy: gql_tier.codebase_context_policy.map(From::from),
             byo_api_key_policy: gql_tier.byo_api_key_policy.map(From::from),
             purchase_add_on_credits_policy: gql_tier.purchase_add_on_credits_policy.map(From::from),
             enterprise_pay_as_you_go_policy: gql_tier
@@ -814,12 +799,6 @@ impl From<GqlWorkspaceSettings> for WorkspaceSettings {
                     }),
             },
             addon_credits_settings: gql_workspace_settings.addon_credits_settings.into(),
-            codebase_context_settings: CodebaseContextSettings {
-                setting: gql_workspace_settings
-                    .codebase_context_settings
-                    .setting
-                    .into(),
-            },
             sandboxed_agent_settings: gql_workspace_settings.sandboxed_agent_settings.map(|s| {
                 SandboxedAgentSettings {
                     execute_commands_denylist: s

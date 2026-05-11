@@ -623,9 +623,6 @@ pub enum WorkspaceAction {
     OpenWorktreeInRepo {
         repo_path: String,
     },
-    /// Open a folder picker to add a new repo to PersistedWorkspace (from the
-    /// "New worktree config" submenu's "+ Add new repo..." item).
-    OpenWorktreeAddRepoPicker,
     SaveCurrentTabAsNewConfig(usize),
     SyncTrafficLights,
     /// Opens a tab config file in the editor and dismisses the associated error toast.
@@ -839,7 +836,6 @@ impl WorkspaceAction {
             | OpenNewWorktreeModal
             | OpenNewWorktreeRepoPicker
             | OpenWorktreeInRepo { .. }
-            | OpenWorktreeAddRepoPicker
             | Crash
             | Panic
             | DumpHeapProfile

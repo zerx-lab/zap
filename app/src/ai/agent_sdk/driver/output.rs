@@ -15,7 +15,7 @@ pub mod text {
             AIAgentActionType, AIAgentInput, AIAgentOutput, AIAgentOutputMessageType, AIAgentTodo,
             ArtifactCreatedData, CallMCPToolResult, FileGlobResult, FileGlobV2Result, GrepResult,
             ReadFilesResult, ReadMCPResourceResult, RequestCommandOutputResult,
-            RequestFileEditsResult, SearchCodebaseResult, SuggestNewConversationResult,
+            RequestFileEditsResult, SuggestNewConversationResult,
             SuggestPromptResult, TodoOperation, WebFetchStatus, WebSearchStatus,
             WriteToLongRunningShellCommandResult,
         },
@@ -111,19 +111,6 @@ pub mod text {
                     ReadFilesResult::Success { .. } => Ok(()),
                     ReadFilesResult::Error(error) => writeln!(w, "Reading files failed: {error}"),
                     ReadFilesResult::Cancelled => writeln!(w, "{CANCELLED_MESSAGE}"),
-                },
-                AIAgentActionResultType::SearchCodebase(result) => match result {
-                    SearchCodebaseResult::Success { files } => {
-                        writeln!(w, "Codebase search results:")?;
-                        for file in files {
-                            writeln!(w, "- {file}")?;
-                        }
-                        Ok(())
-                    }
-                    SearchCodebaseResult::Failed { message, .. } => {
-                        writeln!(w, "Searching codebase failed: {message}")
-                    }
-                    SearchCodebaseResult::Cancelled => todo!(),
                 },
                 AIAgentActionResultType::Grep(result) => match result {
                     GrepResult::Success { matched_files } => {
@@ -295,14 +282,6 @@ pub mod text {
                                 .format_with(", ", |loc, f| f(&format_args!("{}", loc.name)))
                         )?;
                         // TODO: Better formatting, need shell info.
-                    }
-                    AIAgentActionType::SearchCodebase(request) => {
-                        writeln!(
-                            w,
-                            "Searching {} for {}",
-                            request.codebase_path.as_deref().unwrap_or("codebase"),
-                            request.query
-                        )?;
                     }
                     AIAgentActionType::RequestFileEdits { file_edits, title } => {
                         write!(w, "Editing files:")?;
@@ -503,7 +482,7 @@ pub mod json {
             AIAgentOutputMessageType, AIAgentTodo, ArtifactCreatedData, CallMCPToolResult,
             FileContext, FileGlobResult, FileGlobV2Result, GrepResult, ReadFilesResult,
             ReadMCPResourceResult, RequestCommandOutputResult, RequestFileEditsResult,
-            SearchCodebaseResult, SubagentCall, TodoOperation,
+            SubagentCall, TodoOperation,
             WriteToLongRunningShellCommandResult,
         },
         AIAgentActionResultType,
@@ -583,10 +562,6 @@ pub mod json {
         ReadFiles {
             files: Vec<JsonFile<'a>>,
         },
-        SearchCodebase {
-            query: &'a str,
-            codebase: Option<&'a str>,
-        },
         EditFiles {
             title: Option<&'a str>,
             file_paths: Vec<&'a str>,
@@ -615,7 +590,6 @@ pub mod json {
         RunCommand(JsonRunCommandResult<'a>),
         EditFiles(JsonEditFilesResult<'a>),
         ReadFiles(JsonFileCollectionResult<'a>),
-        SearchCodebase(JsonFileCollectionResult<'a>),
         Grep(JsonFileCollectionResult<'a>),
         FileGlob(JsonFileCollectionResult<'a>),
         ReadMcpResource(JsonReadMcpResourceResult<'a>),
@@ -795,17 +769,6 @@ pub mod json {
                     }),
                     ReadFilesResult::Cancelled => Some(JsonMessage::ToolCanceled),
                 },
-                AIAgentActionResultType::SearchCodebase(result) => match result {
-                    SearchCodebaseResult::Success { files } => Some(JsonMessage::ToolResult(
-                        JsonToolResult::SearchCodebase(JsonFileCollectionResult {
-                            files: JsonFile::from_file_contexts(files),
-                        }),
-                    )),
-                    SearchCodebaseResult::Failed { message, .. } => Some(JsonMessage::ToolError {
-                        error: Cow::Borrowed(message.as_str()),
-                    }),
-                    SearchCodebaseResult::Cancelled => Some(JsonMessage::ToolCanceled),
-                },
                 AIAgentActionResultType::Grep(result) => match result {
                     GrepResult::Success { matched_files } => {
                         use crate::ai::agent::GrepFileMatch;
@@ -933,12 +896,6 @@ pub mod json {
                             })
                             .collect();
                         Some(JsonMessage::ToolCall(JsonToolCall::ReadFiles { files }))
-                    }
-                    AIAgentActionType::SearchCodebase(request) => {
-                        Some(JsonMessage::ToolCall(JsonToolCall::SearchCodebase {
-                            query: request.query.as_str(),
-                            codebase: request.codebase_path.as_deref(),
-                        }))
                     }
                     AIAgentActionType::RequestFileEdits { file_edits, title } => {
                         let file_paths: Vec<&str> =

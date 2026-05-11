@@ -54,19 +54,23 @@ impl RegistryBackedPreferences {
             Ok(g) => g,
             // Mutex 中毒:走一次性 create 路径,不缓存,行为等价原版。
             Err(_) => {
-                let key = CURRENT_USER.create(self.app_key_path.clone()).map_err(|e| {
-                    log::error!("unable to access Warp app key in Windows Registry: {e:#}");
-                    super::Error::IoError(io::Error::from(e))
-                })?;
+                let key = CURRENT_USER
+                    .create(self.app_key_path.clone())
+                    .map_err(|e| {
+                        log::error!("unable to access Warp app key in Windows Registry: {e:#}");
+                        super::Error::IoError(io::Error::from(e))
+                    })?;
                 return f(&key);
             }
         };
 
         if guard.is_none() {
-            let key = CURRENT_USER.create(self.app_key_path.clone()).map_err(|e| {
-                log::error!("unable to access Warp app key in Windows Registry: {e:#}");
-                super::Error::IoError(io::Error::from(e))
-            })?;
+            let key = CURRENT_USER
+                .create(self.app_key_path.clone())
+                .map_err(|e| {
+                    log::error!("unable to access Warp app key in Windows Registry: {e:#}");
+                    super::Error::IoError(io::Error::from(e))
+                })?;
             *guard = Some(key);
         }
 

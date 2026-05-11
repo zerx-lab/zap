@@ -20,8 +20,6 @@ pub struct RequestLimitInfo {
     pub is_unlimited_voice: bool,
     pub voice_request_limit: i32,
     pub voice_requests_used_since_last_refresh: i32,
-    pub is_unlimited_codebase_indices: bool,
-    pub max_codebase_indices: i32,
     pub max_files_per_repo: i32,
     pub embedding_generation_batch_size: i32,
 }

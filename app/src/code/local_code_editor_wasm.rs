@@ -62,6 +62,8 @@ pub enum LocalCodeEditorEvent {
     DelayedRenderingFlushed,
     #[allow(dead_code)]
     LayoutInvalidated,
+    #[allow(dead_code)]
+    RunTabConfigSkill { path: PathBuf },
 }
 
 pub struct LocalCodeEditorView {

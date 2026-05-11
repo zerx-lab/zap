@@ -124,12 +124,6 @@ pub struct WorkspaceMemberUsageInfo {
 }
 
 #[derive(cynic::QueryFragment, Debug, Clone)]
-pub struct CodebaseContextSettings {
-    pub enabled: bool,
-    pub setting: AdminEnablementSetting,
-}
-
-#[derive(cynic::QueryFragment, Debug, Clone)]
 pub struct AmbientAgentSettings {
     pub enable_warp_attribution: AdminEnablementSetting,
 }
@@ -148,7 +142,6 @@ pub struct WorkspaceSettings {
     pub ai_autonomy_settings: AiAutonomySettings,
     pub usage_based_pricing_settings: UsageBasedPricingSettings,
     pub addon_credits_settings: AddonCreditsSettings,
-    pub codebase_context_settings: CodebaseContextSettings,
     pub sandboxed_agent_settings: Option<SandboxedAgentSettings>,
     pub ambient_agent_settings: Option<AmbientAgentSettings>,
 }

@@ -128,7 +128,6 @@ pub fn init(app: &mut AppContext) {
     notebooks::init(app);
     code::init(app);
     sync_inputs::init(app);
-    lsp::init(app);
 
     app.register_fixed_bindings([FixedBinding::empty(
         "Dump debug info",
@@ -1567,7 +1566,7 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         EditableBinding::new(
             "workspace:show_settings_code_page",
             BindingDescription::new(crate::t!("keybinding-desc-workspace-show-settings-code")),
-            WorkspaceAction::ShowSettingsPage(SettingsSection::CodeIndexing),
+            WorkspaceAction::ShowSettingsPage(SettingsSection::EditorAndCodeReview),
         )
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_context_predicate(id!("Workspace")),

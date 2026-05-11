@@ -24,10 +24,8 @@ use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
-use crate::ai::persisted_workspace::EnablementState;
 use ai::project_context::model::ProjectRulePath;
 use chrono::{DateTime, Local, Utc};
-use lsp::supported_servers::LSPServerType;
 use uuid::Uuid;
 use warp_core::command::ExitCode;
 use warp_graphql::scalars::time::ServerTimestamp;
@@ -55,7 +53,6 @@ use crate::terminal::model::session::SessionId;
 use crate::workflows::CloudWorkflow;
 use crate::workspaces::user_profiles::UserProfileWithUID;
 use crate::workspaces::workspace::{Workspace as WorkspaceMetadata, WorkspaceUid};
-use ai::workspace::WorkspaceMetadata as CodeWorkspaceMetadata;
 
 use self::model::{AgentConversation, AgentConversationData, Project};
 
@@ -202,8 +199,6 @@ pub struct PersistedData {
     pub object_actions: Vec<ObjectAction>,
     pub experiments: Vec<ServerExperiment>,
     pub ai_queries: Vec<PersistedAIInput>,
-    pub codebase_indices: Vec<CodeWorkspaceMetadata>,
-    pub workspace_language_servers: HashMap<PathBuf, HashMap<LSPServerType, EnablementState>>,
     pub multi_agent_conversations: Vec<AgentConversation>,
     pub projects: Vec<Project>,
     pub project_rules: Vec<ProjectRulePath>,
@@ -339,12 +334,6 @@ pub enum ModelEvent {
     UpsertCurrentUserInformation {
         user_information: PersistedCurrentUserInformation,
     },
-    UpsertCodebaseIndexMetadata {
-        index_metadata: Box<CodeWorkspaceMetadata>,
-    },
-    DeleteCodebaseIndexMetadata {
-        repo_path: PathBuf,
-    },
     UpsertProject {
         project: Project,
     },
@@ -381,11 +370,6 @@ pub enum ModelEvent {
     UpdateMCPInstallationRunning {
         installation_uuid: Uuid,
         running: bool,
-    },
-    UpsertWorkspaceLanguageServer {
-        workspace_path: PathBuf,
-        lsp_type: LSPServerType,
-        enabled: EnablementState,
     },
     UpdateBlockAgentViewVisibility {
         block_id: String,

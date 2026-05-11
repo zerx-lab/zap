@@ -1516,17 +1516,6 @@ define_settings_group!(AISettings, settings: [
         description: "Whether Warp Drive context is included in AI requests.",
     }
 
-    // Whether the codebase speedbump banner has been permanently dismissed for a given repo path.
-    //
-    // Not a user-visible settings - we model it as a setting so we can track state.
-    codebase_index_speedbump_banner_dismissed_for_repo_paths: CodebaseIndexSpeedbumpBannerDismissedForRepoPaths {
-        type: Vec<PathBuf>,
-        default: vec![],
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Never,
-        private: true,
-    }
-
     // Whether the agent mode setup banner has been shown for a given repo path.
     // Once shown, it will not be shown again for that repo.
     //
@@ -1536,17 +1525,6 @@ define_settings_group!(AISettings, settings: [
         default: vec![],
         supported_platforms: SupportedPlatforms::ALL,
         sync_to_cloud: SyncToCloud::Never,
-        private: true,
-    }
-
-    // Whether the codebase speedbump banner has been globally dismissed ("Don't show again").
-    //
-    // Not a user-visible settings - we model it as a setting so we can track state.
-    codebase_index_speedbump_banner_globally_dismissed: CodebaseIndexSpeedbumpBannerGloballyDismissed {
-        type: bool,
-        default: false,
-        supported_platforms: SupportedPlatforms::ALL,
-        sync_to_cloud: SyncToCloud::Globally(RespectUserSyncSetting::Yes),
         private: true,
     }
 
@@ -1860,8 +1838,8 @@ define_settings_group!(AISettings, settings: [
     }
 
     // OpenWarp T1-2:已完成工具卡默认隐藏(对齐 opencode TUI showDetails 行为)。
-    // true → 默认隐藏 status.is_done() 的 RequestCommandOutput / SearchCodebase /
-    // ReadFiles / Grep / FileGlob / RequestFileEdits 等卡片,只保留 in-progress + error,
+    // true → 默认隐藏 status.is_done() 的 RequestCommandOutput / ReadFiles /
+    // Grep / FileGlob / RequestFileEdits 等卡片,只保留 in-progress + error,
     // 长 session 不被历史卡片堆积淹没新内容。folded 状态可由外观设置面板切换。
     hide_completed_tool_cards: HideCompletedToolCards {
         type: bool,

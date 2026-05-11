@@ -1,8 +1,6 @@
 use std::borrow::Cow;
 use std::fs::File;
-use std::path::PathBuf;
 
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::auth::AuthStateProvider;
 use crate::default_terminal::DefaultTerminal;
 use crate::features::{runtime_flags_menu_items, FeatureFlag};
@@ -20,14 +18,11 @@ use crate::util::bindings::{self, trigger_to_keystroke, CustomAction};
 use crate::util::links;
 use crate::workspace::sync_inputs::SyncedInputState;
 use crate::{auth, report_if_error};
-use ai::workspace::WorkspaceMetadata;
 use csv::Writer;
 use enclose::enclose;
-use itertools::Itertools;
 use settings::manager::SettingsManager;
 use settings::Setting as _;
 use warp_core::context_flag::ContextFlag;
-use warp_util::path::user_friendly_path;
 use warpui::actions::StandardAction;
 use warpui::keymap::{Keystroke, Trigger};
 use warpui::platform::menu::{
@@ -39,7 +34,6 @@ use warpui::{AppContext, SingletonEntity};
 type CheckmarkStatusGetter = dyn 'static + Fn(&mut AppContext) -> bool;
 
 const SETTINGS_CSV_FILE_NAME: &str = "warp_default_settings.csv";
-const MAX_RECENT_REPOS_IN_MENU: usize = 10;
 
 /// Creates the root app menu bar
 pub fn menu_bar(ctx: &mut AppContext) -> MenuBar {
@@ -229,20 +223,6 @@ fn make_new_file_menu(ctx: &AppContext) -> Menu {
     file_menu_options.extend([
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::OpenRepository, ctx),
-        MenuItem::Custom(CustomMenuItem::new_with_submenu(
-            &crate::t!("app-menu-open-recent"),
-            |_| (),
-            |_props, ctx| {
-                let recent_repos = generate_recent_repos_for_menu(ctx);
-                MenuItemPropertyChanges {
-                    submenu: Some(Some(make_recent_repos_menu_items(ctx))),
-                    disabled: Some(recent_repos.is_empty()),
-                    ..Default::default()
-                }
-            },
-            None,
-            vec![],
-        )),
         MenuItem::Separator,
         updateable_custom_item_without_checkmark(CustomAction::CloseCurrentSession, ctx),
         updateable_custom_item_without_checkmark(CustomAction::CloseWindow, ctx),
@@ -1085,43 +1065,6 @@ fn open_new_window(ctx: &mut AppContext) {
 /// No-op updater function for custom menu items that never change.
 fn no_updates(_: &MenuItemProperties, _: &mut AppContext) -> MenuItemPropertyChanges {
     Default::default()
-}
-
-fn make_recent_repos_menu_items(ctx: &AppContext) -> Vec<MenuItem> {
-    let recent_repos = generate_recent_repos_for_menu(ctx);
-
-    if recent_repos.is_empty() {
-        return vec![];
-    }
-
-    let home = dirs::home_dir().map(|p| p.display().to_string());
-
-    recent_repos
-        .into_iter()
-        .map(|path| {
-            let full_path = path.display().to_string();
-            let display_path = user_friendly_path(&full_path, home.as_deref()).into_owned();
-
-            MenuItem::Custom(CustomMenuItem::new(
-                &display_path,
-                move |ctx| {
-                    ctx.dispatch_global_action("workspace:open_repository", &full_path);
-                },
-                no_updates,
-                None,
-            ))
-        })
-        .collect()
-}
-
-fn generate_recent_repos_for_menu(ctx: &AppContext) -> Vec<PathBuf> {
-    PersistedWorkspace::handle(ctx)
-        .as_ref(ctx)
-        .workspaces()
-        .sorted_by(WorkspaceMetadata::most_recently_navigated)
-        .take(MAX_RECENT_REPOS_IN_MENU)
-        .map(|cbm| cbm.path)
-        .collect::<Vec<_>>()
 }
 
 /// \return a callback that updates a custom action based menu item based on the

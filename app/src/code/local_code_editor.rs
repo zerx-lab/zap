@@ -2,40 +2,31 @@
 /// and displaying them in a code editor.
 /// It also handles applying an optional diff to the file content that will be applied
 /// when the file is loaded.
+//
+// LSP 全栈下线后,本文件不再承载任何 LSP / hover / goto-definition /
+// find-references / 诊断装饰相关逻辑;只保留文件 load/save、diff 接受/拒绝、
+// 选区上下文 tooltip、版本冲突横幅、TabConfig footer 等本地能力。
 use std::{
     ops::Range,
     path::{Path, PathBuf},
     rc::Rc,
-    time::Duration,
 };
 
-use futures::stream::AbortHandle;
-use lsp::{
-    types::FileLocation, LanguageId, LanguageServerId, LspEvent, LspManagerModel,
-    LspManagerModelEvent, LspServerModel, ReferenceLocation,
-};
-use lsp_types::FormattingOptions;
-use markdown_parser::FormattedText;
-use num_traits::SaturatingSub;
-use pathfinder_geometry::{rect::RectF, vector::Vector2F};
-use string_offset::CharOffset;
-use vec1::Vec1;
+use pathfinder_geometry::vector::Vector2F;
 use warp_core::{features::FeatureFlag, ui::appearance::Appearance};
-use warp_editor::{
-    content::{buffer::InitialBufferState, text::IndentUnit},
-    render::model::{Decoration, LineCount},
-};
+use warp_editor::{content::buffer::InitialBufferState, render::model::LineCount};
 use warp_util::{
     content_version::ContentVersion,
     file::{FileId, FileLoadError, FileSaveError},
     path::to_relative_path,
 };
+use warpui::platform::SaveFilePickerConfiguration;
 use warpui::{
     elements::{
-        Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
-        CornerRadius, CrossAxisAlignment, DropShadow, Flex, Hoverable, MainAxisAlignment,
-        MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
-        ParentOffsetBounds, Radius, Rect, Shrinkable, Stack, Text,
+        Border, ChildAnchor, ChildView, ConstrainedBox, Container, CornerRadius,
+        CrossAxisAlignment, DropShadow, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
+        MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
+        Radius, Rect, Shrinkable, Stack, Text,
     },
     keymap::{macros::*, FixedBinding},
     text::point::Point,
@@ -46,34 +37,26 @@ use warpui::{
     AppContext, Element, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     WindowId,
 };
-use warpui::{platform::SaveFilePickerConfiguration, ModelHandle};
 
-use crate::menu::{Event, Menu, MenuItem, MenuItemFields};
-
-use crate::{
-    code::{
-        editor::model::HoverableLink,
-        footer::{CodeFooterView, CodeFooterViewEvent},
-        global_buffer_model::{BufferState, GlobalBufferModel},
-        SaveOutcome, ShowFindReferencesCardProvider,
-    },
-    debounce::debounce,
-    settings::AISettings,
-    terminal::TerminalView,
-    util::sync::Condition,
-};
 use crate::{
     code::{editor::EditorReviewComment, global_buffer_model::GlobalBufferModelEvent},
     code_review::comments::CommentId,
 };
+use crate::{
+    code::{
+        footer::{CodeFooterView, CodeFooterViewEvent},
+        global_buffer_model::{BufferState, GlobalBufferModel},
+        SaveOutcome,
+    },
+    settings::AISettings,
+    terminal::TerminalView,
+    util::sync::Condition,
+};
 use ai::diff_validation::DiffType;
 use pathfinder_color::ColorU;
-#[cfg(feature = "local_fs")]
-use repo_metadata::repositories::DetectedRepositories;
 use vim::vim::{MotionType, VimMode};
 use warp_core::ui::icons::Icon;
 
-use crate::ai::persisted_workspace::{PersistedWorkspace, PersistedWorkspaceEvent};
 use crate::workspace::WorkspaceAction;
 
 const DROP_SHADOW_COLOR: ColorU = ColorU {
@@ -83,18 +66,12 @@ const DROP_SHADOW_COLOR: ColorU = ColorU {
     a: 48,
 };
 
-const HOVER_DEBOUNCE_PERIOD: Duration = Duration::from_millis(500);
-
 use super::diff_viewer::DiffViewer;
 use super::editor::{
     scroll::{ScrollPosition, ScrollTrigger},
     view::{CodeEditorEvent, CodeEditorView},
 };
-use super::find_references_view::{FindReferencesView, FindReferencesViewEvent};
-use super::language_server_extension::ProcessedDiagnostic;
-use super::lsp_telemetry::LspTelemetryEvent;
 use super::ImmediateSaveError;
-use warp_core::send_telemetry_from_ctx;
 
 type SaveCallback =
     Box<dyn FnOnce(SaveOutcome, &mut ViewContext<LocalCodeEditorView>) + Send + Sync + 'static>;
@@ -134,14 +111,6 @@ pub enum LocalCodeEditorEvent {
     DiscardUnsavedChanges {
         path: PathBuf,
     },
-    GotoDefinition {
-        path: PathBuf,
-        line: usize,
-        column: usize,
-        /// The ID of the LSP server that produced this definition.
-        /// Used to register external files with the correct server.
-        source_server_id: LanguageServerId,
-    },
     /// Emitted when a comment is saved. This propagates the comment content
     /// changes to the CodeReviewView, which will update the comment model.
     CommentSaved {
@@ -155,11 +124,7 @@ pub enum LocalCodeEditorEvent {
     ViewportUpdated,
     /// Emitted when the render state layout has been updated.
     LayoutInvalidated,
-    /// Request to open LSP logs for the given file path.
-    /// The workspace will handle opening a terminal with `tail -f` on the log file.
-    OpenLspLogs {
-        log_path: PathBuf,
-    },
+    /// TabConfig footer 上点击「/update-tab-config」后递到上层处理。
     RunTabConfigSkill {
         path: PathBuf,
     },
@@ -187,16 +152,6 @@ pub enum LocalCodeEditorAction {
     InsertSelectedTextToInput,
     SaveFile,
     DiscardUnsavedChanges,
-    NavigateToTarget(FileLocation),
-    GotoDefinition,
-    FindReferences,
-    OpenContextMenu,
-    /// Lazily fetch find-references and show the card (triggered on cmd-click when at definition).
-    /// This is the fallback when go-to-definition has no different location to navigate to.
-    FetchAndShowFindReferences {
-        lsp_position: lsp::types::Location,
-        anchor_offset: CharOffset,
-    },
 }
 
 #[derive(Default)]
@@ -204,66 +159,6 @@ struct ConflictResolutionBannerMouseStates {
     discard_mouse_state: MouseStateHandle,
     overwrite_mouse_state: MouseStateHandle,
 }
-
-#[derive(Default)]
-struct ContextMenuState {
-    mouse_state: MouseStateHandle,
-    is_open: bool,
-}
-
-/// A hover content segment - either plain text/markdown or a code block.
-pub(super) enum HoverContentSegment {
-    /// Plain text/markdown content (rendered with FormattedTextElement).
-    Text(FormattedText),
-    /// Code block with syntax highlighting (rendered with CodeEditorView).
-    CodeBlock { view: ViewHandle<CodeEditorView> },
-}
-
-/// State for the LSP hover tooltip.
-pub(super) enum LspHoverState {
-    None,
-    Loading(Option<AbortHandle>),
-    Loaded {
-        /// The content segments to display in the hover tooltip (from LSP hover info).
-        segments: Vec<HoverContentSegment>,
-        /// Diagnostics at the hovered location (displayed first, before hover info).
-        diagnostics: Vec<ProcessedDiagnostic>,
-        /// The offset range where the hover was triggered (used for positioning).
-        hovered_offset_range: Range<CharOffset>,
-        /// Scroll state for the tooltip content.
-        scroll_state: ClippedScrollStateHandle,
-        mouse_state: MouseStateHandle,
-    },
-}
-
-impl LspHoverState {
-    pub(super) fn clear(&mut self) -> bool {
-        if matches!(self, LspHoverState::None) {
-            return false;
-        }
-
-        if let Self::Loading(Some(handle)) = self {
-            handle.abort();
-        }
-        *self = LspHoverState::None;
-        true
-    }
-
-    pub(super) fn contains_offset(&self, offset: CharOffset) -> bool {
-        if let LspHoverState::Loaded {
-            hovered_offset_range,
-            ..
-        } = self
-        {
-            return hovered_offset_range.contains(&offset);
-        }
-
-        false
-    }
-}
-
-pub(super) const HOVER_TOOLTIP_MAX_WIDTH: f32 = 400.;
-pub(super) const HOVER_TOOLTIP_MAX_HEIGHT: f32 = 100.;
 
 pub struct LocalCodeEditorView {
     pub(super) editor: ViewHandle<CodeEditorView>,
@@ -282,27 +177,12 @@ pub struct LocalCodeEditorView {
     conflict_banner_mouse_states: ConflictResolutionBannerMouseStates,
     /// Default directory to use for save dialogs when creating new files
     default_directory: Option<PathBuf>,
-    pub(super) lsp_server: Option<ModelHandle<LspServerModel>>,
-    /// Footer for displaying LSP status. Only created for normal editing contexts, not for diff/review views.
+    /// Footer for displaying TabConfig actions. Only created for tab config TOML files.
     footer: Option<ViewHandle<CodeFooterView>>,
-    /// Context menu for right-click actions.
-    context_menu: ViewHandle<Menu<LocalCodeEditorAction>>,
-    context_menu_state: ContextMenuState,
-    /// Channel for debouncing hover requests.
-    hover_debounce_tx: async_channel::Sender<CharOffset>,
-    /// State for the LSP hover tooltip.
-    pub(super) lsp_hover_state: LspHoverState,
     /// Pending scroll position to apply after the file is loaded. This is used when
     /// `set_pending_scroll` is called before the file content has finished loading
     /// (e.g., in the GlobalBuffer path where content loads asynchronously).
     pending_scroll_on_load: Option<ScrollPosition>,
-    /// Cached processed diagnostics. Updated when diagnostics change.
-    /// Used as source of truth for both decorations and hover display.
-    pub(super) processed_diagnostics: Vec<ProcessedDiagnostic>,
-    /// Decorations for LSP diagnostics (errors and warnings).
-    pub(super) diagnostic_decorations: Vec<Decoration>,
-    /// View for the find references feature.
-    find_references_view: Option<ViewHandle<FindReferencesView>>,
 }
 
 impl LocalCodeEditorView {
@@ -313,15 +193,6 @@ impl LocalCodeEditorView {
         display_mode: Option<DisplayMode>,
         ctx: &mut ViewContext<Self>,
     ) -> Self {
-        let context_menu = ctx.add_typed_action_view(|_| {
-            Menu::new()
-                .prevent_interaction_with_other_elements()
-                .with_drop_shadow()
-        });
-        ctx.subscribe_to_view(&context_menu, |me, _, event, ctx| {
-            me.handle_menu_event(event, ctx);
-        });
-
         ctx.subscribe_to_view(&editor, |me, _, event, ctx| match event {
             CodeEditorEvent::UnifiedDiffComputed(_) => {
                 ctx.emit(LocalCodeEditorEvent::DiffAccepted);
@@ -329,103 +200,23 @@ impl LocalCodeEditorView {
             CodeEditorEvent::ContentChanged { origin, .. } => {
                 me.update_diff_hunk_gutter_buttons(ctx);
 
-                // Clear cached diagnostics/decorations on any content change. This is to avoid showing stale diagnostics while we are waiting for new diagnostics.
-                if !me.processed_diagnostics.is_empty() || !me.diagnostic_decorations.is_empty() {
-                    me.clear_diagnostics(ctx);
-                }
-
                 if origin.from_user() {
                     me.was_edited = true;
                     ctx.emit(LocalCodeEditorEvent::UserEdited);
                 }
             }
             CodeEditorEvent::VimEscapeInNormalMode => {
-                if me.dismiss_lsp_overlays(ctx) {
-                    ctx.notify();
-                } else {
-                    ctx.emit(LocalCodeEditorEvent::VimMinimizeRequested);
-                }
+                ctx.emit(LocalCodeEditorEvent::VimMinimizeRequested);
             }
-            CodeEditorEvent::EscapePressed => {
-                if me.dismiss_lsp_overlays(ctx) {
-                    ctx.notify();
-                }
-            }
+            CodeEditorEvent::EscapePressed => {}
             CodeEditorEvent::DiffUpdated => {
                 ctx.emit(LocalCodeEditorEvent::DiffStatusUpdated);
             }
             CodeEditorEvent::SelectionEnd => {
                 ctx.notify();
             }
-            CodeEditorEvent::MouseHovered {
-                offset,
-                cmd,
-                clamped,
-                is_covered,
-            } => {
-                // If the mouse location is clamped (meaning it's not hovering on an actual buffer text),
-                // or if the event is covered by an element above the editor,
-                // we should clear the hovered range and symbol.
-                //
-                // However, if the mouse is over the LSP hover card itself, we should not clear
-                // the hover state - the "covered" event is expected when hovering over the tooltip.
-                if *clamped || *is_covered {
-                    // Check if the mouse is currently over the hover tooltip.
-                    let is_over_hover_card =
-                        if let LspHoverState::Loaded { mouse_state, .. } = &me.lsp_hover_state {
-                            mouse_state
-                                .lock()
-                                .ok()
-                                .is_some_and(|state| state.is_mouse_over_element())
-                        } else {
-                            false
-                        };
-
-                    // If the mouse is over the hover card, don't clear the hover state.
-                    if is_over_hover_card {
-                        return;
-                    }
-
-                    let mut updated = me
-                        .editor
-                        .update(ctx, |editor, ctx| editor.clear_hovered_symbol_range(ctx));
-                    updated = updated || me.lsp_hover_state.clear();
-
-                    if updated {
-                        ctx.notify();
-                    }
-
-                    return;
-                }
-
-                // If hovering with cmd pressed, trigger goto definition search.
-                if *cmd {
-                    if me.is_lsp_server_available(ctx) {
-                        me.definition_for_hovered_range(*offset, ctx);
-                    }
-                } else {
-                    me.editor.update(ctx, |editor, ctx| {
-                        if editor.clear_hovered_symbol_range(ctx) {
-                            ctx.notify();
-                        }
-                    });
-                    // Queue hover request for documentation/type info (debounced).
-                    if me.is_lsp_server_available(ctx) {
-                        // Two conditions where we should early return:
-                        // 1. The active lsp hover state already contains the hovered offset.
-                        // 2. The lsp hover state is None. Meaning a later movement event cancelled the in progress hover.
-                        if me.lsp_hover_state.contains_offset(*offset) {
-                            return;
-                        }
-
-                        if me.lsp_hover_state.clear() {
-                            ctx.notify();
-                        }
-
-                        let _ = me.hover_debounce_tx.try_send(*offset);
-                        me.lsp_hover_state = LspHoverState::Loading(None);
-                    }
-                }
+            CodeEditorEvent::MouseHovered { .. } => {
+                // LSP 下线后,鼠标 hover 不再触发 hover/goto-definition;保留 event 订阅但不做处理。
             }
             CodeEditorEvent::CommentSaved { comment } => {
                 ctx.emit(LocalCodeEditorEvent::CommentSaved {
@@ -447,31 +238,18 @@ impl LocalCodeEditorView {
             CodeEditorEvent::DelayedRenderingFlushed => {
                 ctx.emit(LocalCodeEditorEvent::DelayedRenderingFlushed);
             }
-            CodeEditorEvent::VimGotoDefinition
-            | CodeEditorEvent::VimFindReferences
-            | CodeEditorEvent::VimShowHover => {
-                if me.dismiss_lsp_overlays(ctx) {
-                    ctx.notify();
-                }
-                match event {
-                    CodeEditorEvent::VimGotoDefinition => me.goto_definition_at_cursor(ctx),
-                    CodeEditorEvent::VimFindReferences => me.find_references_at_cursor(ctx),
-                    CodeEditorEvent::VimShowHover => me.show_hover_at_cursor(ctx),
-                    _ => unreachable!(),
-                }
-            }
-            _ => {}
+            CodeEditorEvent::Focused
+            | CodeEditorEvent::SelectionChanged
+            | CodeEditorEvent::SelectionStart
+            | CodeEditorEvent::CopiedEmptyText
+            | CodeEditorEvent::DiffHunkContextAdded { .. }
+            | CodeEditorEvent::DiffReverted
+            | CodeEditorEvent::HiddenSectionExpanded => {}
+            #[cfg(windows)]
+            CodeEditorEvent::WindowsCtrlC { .. } => {}
         });
 
         let is_new_file = matches!(diff_type, Some(DiffType::Create { .. }));
-
-        // Set up debounce for hover requests
-        let (hover_debounce_tx, hover_debounce_rx) = async_channel::unbounded();
-        ctx.spawn_stream_local(
-            debounce(HOVER_DEBOUNCE_PERIOD, hover_debounce_rx),
-            |me, offset, ctx| me.hover_for_offset(offset, ctx),
-            |_, _| {},
-        );
 
         let model = Self {
             editor,
@@ -485,616 +263,14 @@ impl LocalCodeEditorView {
             base_content_version: None,
             conflict_banner_mouse_states: Default::default(),
             default_directory: None,
-            lsp_server: None,
             footer: None,
-            context_menu,
-            context_menu_state: Default::default(),
-            hover_debounce_tx,
-            lsp_hover_state: LspHoverState::None,
             pending_scroll_on_load: None,
-            processed_diagnostics: Vec::new(),
-            diagnostic_decorations: Vec::new(),
-            find_references_view: None,
         };
 
         if let Some(display_mode) = display_mode {
             model.set_display_mode(display_mode, ctx);
         }
         model
-    }
-
-    /// Calls LSP goto_definition and spawns a callback with the result.
-    /// Returns true if the LSP call was initiated, false if prerequisites weren't met.
-    fn call_goto_definition<F>(
-        &self,
-        lsp_position: lsp::types::Location,
-        callback: F,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool
-    where
-        F: FnOnce(
-                &mut Self,
-                anyhow::Result<Vec<lsp::types::DefinitionLocation>>,
-                &mut ViewContext<Self>,
-            ) + Send
-            + 'static,
-    {
-        let Some(file_path) = self.file_path() else {
-            return false;
-        };
-
-        let Some(lsp_server) = &self.lsp_server else {
-            return false;
-        };
-
-        let future = match lsp_server
-            .as_ref(ctx)
-            .goto_definition(file_path.to_path_buf(), lsp_position)
-        {
-            Ok(future) => future,
-            Err(e) => {
-                log::error!("Failed to call lsp.goto_definition: {e}");
-                return false;
-            }
-        };
-
-        ctx.spawn(future, callback);
-        true
-    }
-
-    pub fn definition_for_hovered_range(
-        &mut self,
-        offset: CharOffset,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Early return if user is not moving away from the active hovered range.
-        let active_hovered_range = self.editor().as_ref(ctx).hovered_symbol_range(ctx);
-        if let Some(range) = active_hovered_range {
-            if range.contains(&offset) {
-                return;
-            }
-        }
-
-        let lsp_position = self
-            .editor()
-            .as_ref(ctx)
-            .offset_to_lsp_position(offset, ctx);
-
-        if cfg!(debug_assertions) {
-            if let (Some(file_path), Some(lsp_server)) = (self.file_path(), &self.lsp_server) {
-                let buffer_version = self.editor().as_ref(ctx).buffer_version(ctx).as_usize();
-                lsp_server.as_ref(ctx).log_to_server_log(
-                    lsp::LspServerLogLevel::Info,
-                    format!(
-                        "lsp-sync: gotoDefinition -> server file={} buffer_version={buffer_version} position={}:{}",
-                        file_path.display(),
-                        lsp_position.line,
-                        lsp_position.column,
-                    ),
-                );
-            }
-        }
-
-        // Only fetch definition on hover (fast path).
-        // Find references is fetched lazily on click as a fallback when at the definition.
-        // This follows Zed's approach: cmd-hover shows definition link quickly,
-        // and find-references is only fetched when the user clicks and there's no
-        // different definition to navigate to.
-        self.fetch_definition_for_hover(offset, lsp_position.clone(), ctx);
-    }
-
-    /// Fetches goto definition for cmd-hover underline.
-    /// On cmd-click: if definition exists and is different from current position, navigate to it.
-    /// Otherwise, trigger a lazy find-references fetch.
-    fn fetch_definition_for_hover(
-        &mut self,
-        offset: CharOffset,
-        lsp_position: lsp::types::Location,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(file_path) = self.file_path().map(|p| p.to_path_buf()) else {
-            return;
-        };
-
-        let lsp_position_for_references = lsp_position.clone();
-        self.call_goto_definition(
-            lsp_position,
-            move |me, definition_result, ctx| {
-                // Handle definition result - log errors and clear hover on failure
-                let definition_locations = match definition_result {
-                    Ok(locations) => locations,
-                    Err(e) => {
-                        log::debug!("Failed to get goto definition: {e}");
-                        return;
-                    }
-                };
-
-                // If no locations returned, clear the hovered symbol range
-                if definition_locations.is_empty() {
-                    me.editor.update(ctx, |editor, ctx| {
-                        if editor.clear_hovered_symbol_range(ctx) {
-                            ctx.notify();
-                        }
-                    });
-                    return;
-                }
-
-                // Determine highlight range (we know definition_locations is non-empty)
-                let editor = me.editor.as_ref(ctx);
-                let location = definition_locations.first().unwrap();
-                let highlight_range = match &location.origin {
-                    Some(range) => {
-                        let start = editor.lsp_location_to_offset(&range.start, ctx);
-                        let end = editor.lsp_location_to_offset(&range.end, ctx);
-                        start.saturating_sub(&CharOffset::from(1))
-                            ..end.saturating_sub(&CharOffset::from(1))
-                    }
-                    None => editor
-                        .word_range_at_offset(offset, ctx)
-                        .map(|range| {
-                            range.start.saturating_sub(&CharOffset::from(1))
-                                ..range.end.saturating_sub(&CharOffset::from(1))
-                        })
-                        .unwrap_or_else(|| offset..offset + 1),
-                };
-
-                // Get the LSP position of the hovered offset for comparison
-                let hovered_lsp_line = editor.offset_to_lsp_position(offset, ctx).line;
-
-                // Check if definition points to a different location (not the hovered position)
-                let has_different_definition = definition_locations.first().is_some_and(|loc| {
-                    // Definition is "different" if it's in a different file OR at a different line
-                    loc.target.path != file_path || loc.target.location.line != hovered_lsp_line
-                });
-
-                let view_id = ctx.view_id();
-                let window_id = ctx.window_id();
-
-                // Create the on-click action based on whether we have a definition
-                let on_click: Box<dyn Fn(&mut warpui::AppContext)> = if has_different_definition {
-                    let target_location = definition_locations.first().unwrap().target.clone();
-                    Box::new(move |app| {
-                        app.dispatch_typed_action_for_view(
-                            window_id,
-                            view_id,
-                            &LocalCodeEditorAction::NavigateToTarget(target_location.clone()),
-                        );
-                    })
-                } else {
-                    // No different definition - on click, lazily fetch find-references as fallback
-                    let anchor_offset = highlight_range.start;
-                    Box::new(move |app| {
-                        app.dispatch_typed_action_for_view(
-                            window_id,
-                            view_id,
-                            &LocalCodeEditorAction::FetchAndShowFindReferences {
-                                lsp_position: lsp_position_for_references.clone(),
-                                anchor_offset,
-                            },
-                        );
-                    })
-                };
-
-                // Set up the hoverable link
-                let link = HoverableLink::new(highlight_range).with_on_click(on_click);
-
-                me.editor.update(ctx, |editor, ctx| {
-                    if editor.set_hovered_symbol_range(Some(link), ctx) {
-                        ctx.notify();
-                    }
-                });
-            },
-            ctx,
-        );
-    }
-
-    /// Lazily fetches find-references and shows the card.
-    /// This is called when cmd-clicking on a symbol at its definition
-    /// (where go-to-definition has nowhere to navigate to).
-    fn fetch_find_references_and_show(
-        &mut self,
-        lsp_position: lsp::types::Location,
-        anchor_offset: CharOffset,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(file_path) = self.file_path().map(|p| p.to_path_buf()) else {
-            return;
-        };
-
-        let Some(lsp_server) = &self.lsp_server else {
-            return;
-        };
-
-        let references_future = match lsp_server
-            .as_ref(ctx)
-            .find_references(file_path, lsp_position)
-        {
-            Ok(future) => future,
-            Err(e) => {
-                log::info!("Failed to call lsp.find_references: {e}");
-                return;
-            }
-        };
-
-        ctx.spawn(references_future, move |me, references_result, ctx| {
-            let references = references_result.ok().unwrap_or_default();
-
-            if references.is_empty() {
-                return; // No references found, nothing to show
-            }
-
-            // Store the references (view will render automatically when present)
-            me.store_find_references_results(references, anchor_offset, ctx);
-            ctx.notify();
-        });
-    }
-
-    /// Stores find references results and prepares the view for display.
-    fn store_find_references_results(
-        &mut self,
-        references: Vec<ReferenceLocation>,
-        request_offset: CharOffset,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Some(server) = &self.lsp_server {
-            send_telemetry_from_ctx!(
-                LspTelemetryEvent::FindReferencesShown {
-                    server_type: server.as_ref(ctx).server_name(),
-                    num_references: references.len(),
-                },
-                ctx
-            );
-        }
-
-        // Get workspace root for relative path display from the LSP server
-        let workspace_root = self
-            .lsp_server
-            .as_ref()
-            .map(|server| server.as_ref(ctx).initial_workspace().to_path_buf());
-
-        // Create the view with editor views as a TypedActionView
-        let view = ctx.add_typed_action_view(|ctx| {
-            FindReferencesView::new(references, workspace_root, request_offset, ctx)
-        });
-
-        // Focus the view to enable keyboard navigation
-        ctx.focus(&view);
-
-        // Subscribe to view events
-        ctx.subscribe_to_view(&view, |me, _, event, ctx| match event {
-            FindReferencesViewEvent::GotoReference(index) => {
-                let Some(source_server_id) = me.lsp_server.as_ref().map(|s| s.as_ref(ctx).id())
-                else {
-                    log::debug!("No LSP server available for navigate to reference");
-                    return;
-                };
-
-                if let Some(ref_view) = &me.find_references_view {
-                    if let Some(reference) = ref_view.as_ref(ctx).get_reference(*index) {
-                        ctx.emit(LocalCodeEditorEvent::GotoDefinition {
-                            path: reference.file_path.clone(),
-                            line: reference.line_number.saturating_sub(1), // Convert 1-based to 0-based
-                            column: reference.column,
-                            source_server_id,
-                        });
-                        // Close the card after navigation
-                        me.find_references_view = None;
-                        me.editor.update(ctx, |editor, _ctx| {
-                            editor.set_find_references_anchor_offset(None);
-                        });
-                        ctx.notify();
-                    }
-                }
-            }
-            FindReferencesViewEvent::CloseRequested => {
-                me.close_find_references_card(ctx);
-                ctx.notify();
-            }
-        });
-
-        self.find_references_view = Some(view);
-        // Set the anchor offset on the editor so it can cache the gutter position
-        self.editor.update(ctx, |editor, _ctx| {
-            editor.set_find_references_anchor_offset(Some(request_offset));
-        });
-        // Don't notify here - the card should only show on cmd-click
-    }
-
-    /// Whether the local editor has a corresponding enabled LSP.
-    pub fn language_server_enabled(&self) -> bool {
-        self.lsp_server.is_some()
-    }
-
-    /// Helper function to compute card positioning for overlays at a given offset.
-    /// Positions the card above the offset if there's space, otherwise below.
-    fn compute_card_positioning(
-        &self,
-        offset: CharOffset,
-        max_card_height: f32,
-        app: &AppContext,
-    ) -> Option<OffsetPositioning> {
-        // Get the bounds of the offset in viewport coordinates.
-        let bounds = self
-            .editor
-            .as_ref(app)
-            .character_bounds_in_viewport(offset, app)?;
-
-        // Check if there's enough space above the symbol to render the card.
-        // If not, position it below the symbol instead.
-        let has_space_above = bounds.origin_y() >= max_card_height;
-
-        if has_space_above {
-            // Position the card above the symbol (bottom of card at top of symbol).
-            Some(OffsetPositioning::offset_from_parent(
-                Vector2F::new(bounds.origin_x(), bounds.origin_y()),
-                ParentOffsetBounds::ParentByPosition,
-                ParentAnchor::TopLeft,
-                ChildAnchor::BottomLeft,
-            ))
-        } else {
-            // Position the card below the symbol (top of card at bottom of symbol).
-            Some(OffsetPositioning::offset_from_parent(
-                Vector2F::new(bounds.origin_x(), bounds.max_y()),
-                ParentOffsetBounds::ParentByPosition,
-                ParentAnchor::TopLeft,
-                ChildAnchor::TopLeft,
-            ))
-        }
-    }
-
-    /// Get the positioning for the hover tooltip based on the hovered symbol position.
-    fn hover_tooltip_positioning(&self, app: &AppContext) -> Option<OffsetPositioning> {
-        let offset_start = match &self.lsp_hover_state {
-            LspHoverState::Loaded {
-                hovered_offset_range,
-                ..
-            } => hovered_offset_range.start,
-            _ => return None,
-        };
-
-        self.compute_card_positioning(offset_start, HOVER_TOOLTIP_MAX_HEIGHT, app)
-    }
-
-    /// Get the positioning for the find references card based on the request offset.
-    /// Anchors horizontally at the gutter start, positioned below the anchor line.
-    /// Returns None if the anchor is outside the visible viewport area.
-    fn find_references_card_positioning(&self, app: &AppContext) -> Option<OffsetPositioning> {
-        let view = self.find_references_view.as_ref()?;
-        let offset = view.as_ref(app).request_offset();
-
-        // Get the bounds of the offset in viewport coordinates.
-        let bounds = self
-            .editor
-            .as_ref(app)
-            .character_bounds_in_viewport(offset, app)?;
-
-        // Get the viewport height to check if the anchor is within the visible area.
-        // The bounds are viewport-relative (scroll offset subtracted), so:
-        // - origin_y < 0 means the anchor is above the viewport
-        // - origin_y > viewport_height means the anchor is below the viewport
-        let viewport_height = self
-            .editor
-            .as_ref(app)
-            .viewport_height(app)
-            .unwrap_or(f32::MAX);
-
-        // Check if the anchor is within the visible viewport area.
-        // We check if the bottom of the anchor line (max_y) is visible.
-        if bounds.origin_y() > viewport_height || bounds.max_y() < 0.0 {
-            // Anchor is outside the viewport, don't show the card.
-            return None;
-        }
-
-        // Position the card at the gutter start (x=0), below the symbol.
-        // Use ParentByPosition so the card spans the full width of the editor.
-        Some(OffsetPositioning::offset_from_parent(
-            Vector2F::new(0., bounds.max_y()),
-            ParentOffsetBounds::ParentByPosition,
-            ParentAnchor::TopLeft,
-            ChildAnchor::TopLeft,
-        ))
-    }
-
-    fn try_connect_lsp_server(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.lsp_server.is_some() {
-            return;
-        }
-        let lsp_manager = LspManagerModel::handle(ctx);
-        let Some(path) = self.file_path().map(|p| p.to_path_buf()) else {
-            return;
-        };
-
-        let Some(lsp_server) = lsp_manager.as_ref(ctx).server_for_path(&path, ctx) else {
-            // If the LSP is not registered, try to start it via PersistedWorkspace.
-            #[cfg(feature = "local_fs")]
-            {
-                use crate::ai::persisted_workspace::LspTask;
-                PersistedWorkspace::handle(ctx).update(ctx, |workspace, ctx| {
-                    workspace.execute_lsp_task(
-                        LspTask::Spawn {
-                            file_path: path,
-                            server_type: None,
-                        },
-                        ctx,
-                    );
-                });
-            }
-            return;
-        };
-
-        // Connect footer and subscribe to server events BEFORE attempting to open the document.
-        // This ensures the footer shows the correct state (including Failed) regardless of
-        // whether document opening succeeds.
-        if let Some(footer) = &self.footer {
-            footer.update(ctx, |footer, ctx| {
-                footer.subscribe_to_server_events(&lsp_server, ctx)
-            });
-        }
-
-        // Subscribe to LSP server events for diagnostics updates.
-        ctx.subscribe_to_model(&lsp_server, |me, _, event, ctx| {
-            if let LspEvent::DiagnosticsUpdated { path: updated_path } = event {
-                if let Some(file_path) = me.file_path() {
-                    if file_path == updated_path {
-                        me.refresh_diagnostics(ctx);
-                    }
-                }
-            }
-        });
-
-        // Store the server reference.
-        self.lsp_server = Some(lsp_server.clone());
-
-        // Load initial diagnostics. The document open (didOpen) is handled by
-        // GlobalBufferModel, which owns the full LSP document lifecycle.
-        self.refresh_diagnostics(ctx);
-    }
-
-    /// Subscribe to manager event updates so we could automatically connect when a server is started.
-    fn subscribe_to_lsp_manager_updates(&self, ctx: &mut ViewContext<Self>) {
-        let lsp_manager = LspManagerModel::handle(ctx);
-        ctx.subscribe_to_model(&lsp_manager, |me, _, event, ctx| {
-            let Some(file_path) = me.file_path() else {
-                return;
-            };
-            match event {
-                LspManagerModelEvent::ServerStarted(path) if file_path.starts_with(path) => {
-                    // Make sure we don't connect lsp server when the file content hasn't been loaded yet.
-                    if me.lsp_server.is_none() && me.base_content_version.is_some() {
-                        me.try_connect_lsp_server(ctx);
-                    }
-                    ctx.notify();
-                }
-                LspManagerModelEvent::ServerStopped(path) if file_path.starts_with(path) => {
-                    ctx.notify();
-                }
-                LspManagerModelEvent::ServerRemoved { server_id, .. } => {
-                    // Check if the removed server matches our current server by unique ID
-                    let matches = me
-                        .lsp_server
-                        .as_ref()
-                        .map(|s| s.as_ref(ctx).id() == *server_id)
-                        .unwrap_or(false);
-                    if matches {
-                        // Clear our reference to the removed server
-                        me.lsp_server = None;
-                        // Tell footer to clear its server subscription
-                        if let Some(footer) = &me.footer {
-                            footer.update(ctx, |footer, ctx| {
-                                footer.clear_server_subscription(ctx);
-                            });
-                        }
-                        ctx.notify();
-                    }
-                }
-                _ => (),
-            }
-        });
-    }
-
-    fn is_lsp_server_available(&self, ctx: &mut ViewContext<Self>) -> bool {
-        self.lsp_server
-            .as_ref()
-            .map(|server| server.as_ref(ctx).is_ready_for_requests())
-            .unwrap_or(false)
-    }
-
-    fn format_and_save(&mut self, file_id: FileId, ctx: &mut ViewContext<Self>) {
-        let Some(lsp_server) = &self.lsp_server else {
-            self.perform_save(file_id, ctx);
-            return;
-        };
-
-        let Some(file_path) = self.file_path() else {
-            self.perform_save(file_id, ctx);
-            return;
-        };
-
-        if !lsp_server.as_ref(ctx).is_ready_for_requests() {
-            self.perform_save(file_id, ctx);
-            return;
-        };
-
-        let file_path_for_format = file_path.to_path_buf();
-
-        // Now proceed with formatting
-        let Some(lsp_server) = &self.lsp_server else {
-            self.perform_save(file_id, ctx);
-            return;
-        };
-
-        let (tab_size, insert_spaces) = match self.editor.as_ref(ctx).indent_unit(ctx) {
-            IndentUnit::Tab => (1, false),
-            IndentUnit::Space(num) => (num, true),
-        };
-
-        // Create default formatting options
-        let formatting_options = FormattingOptions {
-            tab_size: tab_size as u32,
-            insert_spaces,
-            properties: Default::default(),
-            // TODO: These should eventually come from user settings.
-            trim_trailing_whitespace: Some(true),
-            insert_final_newline: Some(true),
-            trim_final_newlines: Some(true),
-        };
-
-        let format_future = match lsp_server
-            .as_ref(ctx)
-            .format_document(file_path_for_format, formatting_options)
-        {
-            Ok(future) => future,
-            Err(e) => {
-                log::warn!("Failed to request document formatting: {e}");
-                self.perform_save(file_id, ctx);
-                return;
-            }
-        };
-
-        ctx.spawn(format_future, move |me, result, ctx| {
-            match result {
-                Ok(Some(text_edits)) => {
-                    me.editor.update(ctx, |editor, ctx| {
-                        if text_edits.is_empty() {
-                            return;
-                        }
-
-                        // Convert LSP text edits to editor-friendly format
-                        let mut edits: Vec<(String, Range<CharOffset>)> = Vec::new();
-
-                        for text_edit in text_edits {
-                            // Convert LSP positions to CharOffsets
-                            let start_offset =
-                                editor.lsp_location_to_offset(&text_edit.range.start, ctx);
-                            let end_offset =
-                                editor.lsp_location_to_offset(&text_edit.range.end, ctx);
-
-                            if start_offset > end_offset {
-                                log::warn!("Received invalid formatting range from language server {:?}..{:?}", text_edit.range.start, text_edit.range.end);
-                                continue;
-                            }
-
-                            edits.push((text_edit.text, start_offset..end_offset));
-                        }
-
-                        // Sort edits by start position in reverse order to avoid offset shifting issues
-                        edits.sort_by(|a, b| b.1.start.cmp(&a.1.start));
-
-                        if let Ok(edits) = Vec1::try_from_vec(edits) {
-                            editor.apply_edits(edits, ctx);
-                        }
-                    });
-                }
-                Ok(None) => {
-                    log::debug!("LSP server doesn't support formatting for this document");
-                }
-                Err(e) => {
-                    log::warn!("Document formatting failed: {e}");
-                }
-            }
-            // After formatting (or if formatting failed), proceed with save
-            me.perform_save(file_id, ctx);
-        });
     }
 
     fn perform_save(&mut self, file_id: FileId, ctx: &mut ViewContext<Self>) {
@@ -1273,225 +449,23 @@ impl LocalCodeEditorView {
         self
     }
 
-    /// Sets the find references card provider on the underlying editor.
-    pub(crate) fn with_find_references_provider(
-        self,
-        provider: impl ShowFindReferencesCardProvider,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        self.editor.update(ctx, |editor, _ctx| {
-            editor.set_show_find_references_provider(provider);
-        });
-        self
-    }
-
-    /// Adds the LSP status footer to the editor view.
+    /// Adds the TabConfig footer to the editor view if the file is a tab config TOML.
+    /// LSP 下线后,普通源码文件不再渲染 footer。
     pub(crate) fn add_footer(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(path) = self.file_path() {
-            let footer =
-                ctx.add_typed_action_view(|ctx| CodeFooterView::new(path.to_path_buf(), ctx));
-            ctx.subscribe_to_view(&footer, |_, _, event, ctx| match event {
-                CodeFooterViewEvent::RunTabConfigSkill { path } => {
-                    ctx.emit(LocalCodeEditorEvent::RunTabConfigSkill { path: path.clone() });
-                }
-                CodeFooterViewEvent::EnableLSP { path, .. } => {
-                    Self::enable_lsp_for_path(path, ctx);
-                }
-                CodeFooterViewEvent::InstallAndEnableLSP { path, .. } => {
-                    Self::install_and_enable_lsp_for_path(path, ctx);
-                }
-                CodeFooterViewEvent::OpenLogs { path } => {
-                    Self::open_lsp_logs_for_path(path, ctx);
-                }
-                CodeFooterViewEvent::RestartServer { server } => {
-                    server.update(ctx, |server, ctx| {
-                        server.restart(ctx);
-                    });
-                }
-                CodeFooterViewEvent::StopServer { server } => {
-                    server.update(ctx, |server, ctx| {
-                        let _ = server.stop(true, ctx);
-                    });
-                }
-                CodeFooterViewEvent::StartServer { server } => {
-                    server.update(ctx, |server, ctx| {
-                        let _ = server.manual_start(ctx);
-                    });
-                }
-                CodeFooterViewEvent::RestartAllServers { .. }
-                | CodeFooterViewEvent::StopAllServers { .. }
-                | CodeFooterViewEvent::StartAllServers { .. }
-                | CodeFooterViewEvent::ManageServers => {}
-            });
-
-            // Subscribe to PersistedWorkspace events for LSP installation completion
-            #[cfg(feature = "local_fs")]
-            {
-                ctx.subscribe_to_model(
-                    &PersistedWorkspace::handle(ctx),
-                    move |me, _, event, ctx| {
-                        Self::handle_persisted_workspace_event(me, event, ctx);
-                    },
-                );
-            }
-
-            self.footer = Some(footer);
+        let Some(path) = self.file_path() else {
+            return;
+        };
+        if !CodeFooterView::is_tab_config_path(path) {
+            return;
         }
-    }
-
-    /// Handles PersistedWorkspaceEvent for LSP installation completion.
-    /// Note: Toast notifications are handled directly by PersistedWorkspace.
-    #[cfg(feature = "local_fs")]
-    fn handle_persisted_workspace_event(
-        me: &mut Self,
-        event: &PersistedWorkspaceEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            PersistedWorkspaceEvent::InstallationSucceeded
-            | PersistedWorkspaceEvent::InstallationFailed => {
-                // PersistedWorkspace handles spawning the server after install;
-                // we only need to refresh the footer UI here.
-                if let Some(footer) = &me.footer {
-                    footer.update(ctx, |_, ctx| {
-                        ctx.notify();
-                    });
-                }
+        let path_buf = path.to_path_buf();
+        let footer = ctx.add_typed_action_view(|ctx| CodeFooterView::new(path_buf, ctx));
+        ctx.subscribe_to_view(&footer, |_, _, event, ctx| match event {
+            CodeFooterViewEvent::RunTabConfigSkill { path } => {
+                ctx.emit(LocalCodeEditorEvent::RunTabConfigSkill { path: path.clone() });
             }
-            _ => {}
-        }
-    }
-
-    /// Enables LSP for the given file path by:
-    /// 1. Determining the language from the file extension
-    /// 2. Finding the appropriate LSP server type
-    /// 3. Getting the repository root from DetectedRepositories
-    /// 4. Enabling the LSP server in PersistedWorkspace
-    /// 5. Starting the LSP server via PersistedWorkspace
-    #[cfg(feature = "local_fs")]
-    fn enable_lsp_for_path(path: &Path, ctx: &mut ViewContext<Self>) {
-        use crate::ai::persisted_workspace::LspTask;
-
-        // Get the language ID from the file path
-        let Some(language_id) = LanguageId::from_path(path) else {
-            log::warn!("Enable lsp for path should only work for supported file paths");
-            return;
-        };
-
-        // Find the appropriate LSP server type for this language
-        let lsp_server_type = language_id.server_type();
-
-        // Get the repository root from PersistedWorkspace.
-        // If it doesn't exist, try to get it from DetectedRepositories.
-        // If it also doesn't exist in DetectedRepositories, use the parent path.
-        let repo_root = if let Some(workspace_root) =
-            PersistedWorkspace::as_ref(ctx).root_for_workspace(path)
-        {
-            Some(workspace_root.to_path_buf())
-        } else {
-            match DetectedRepositories::as_ref(ctx).get_root_for_path(path) {
-                Some(root) => Some(root),
-                None => path.parent().map(|s| s.to_path_buf()), // If we can't find root, treat the parent as the root.
-            }
-        };
-
-        let Some(repo_root) = repo_root else {
-            return;
-        };
-
-        // Enable and start the LSP server via PersistedWorkspace
-        let path = path.to_path_buf();
-        PersistedWorkspace::handle(ctx).update(ctx, |workspace, ctx| {
-            workspace.enable_lsp_server_for_path(&repo_root, lsp_server_type);
-            workspace.execute_lsp_task(
-                LspTask::Spawn {
-                    file_path: path,
-                    server_type: Some(lsp_server_type),
-                },
-                ctx,
-            );
         });
-    }
-
-    /// Installs the LSP server and then enables it for the given file path.
-    /// This delegates to PersistedWorkspace which handles the async installation
-    /// and emits events that are handled by handle_persisted_workspace_event.
-    #[cfg(feature = "local_fs")]
-    fn install_and_enable_lsp_for_path(path: &Path, ctx: &mut ViewContext<Self>) {
-        use crate::ai::persisted_workspace::LspTask;
-
-        let Some(language_id) = LanguageId::from_path(path) else {
-            log::warn!("Install and enable lsp for path should only work for supported file paths");
-            return;
-        };
-
-        let lsp_server_type = language_id.server_type();
-        let path = path.to_path_buf();
-
-        let repo_root = if let Some(workspace_root) =
-            PersistedWorkspace::as_ref(ctx).root_for_workspace(&path)
-        {
-            Some(workspace_root.to_path_buf())
-        } else {
-            match DetectedRepositories::as_ref(ctx).get_root_for_path(&path) {
-                Some(root) => Some(root),
-                None => path.parent().map(|s| s.to_path_buf()),
-            }
-        };
-
-        let Some(repo_root) = repo_root else {
-            return;
-        };
-
-        // Delegate to PersistedWorkspace which uses interactive PATH and emits events
-        PersistedWorkspace::handle(ctx).update(ctx, |workspace, ctx| {
-            workspace.execute_lsp_task(
-                LspTask::Install {
-                    file_path: path,
-                    repo_root,
-                    server_type: lsp_server_type,
-                },
-                ctx,
-            );
-        });
-    }
-
-    /// Opens the LSP log file in a terminal pane using `tail -f`.
-    /// Emits an event that bubbles up to Workspace which handles opening the terminal.
-    #[cfg(feature = "local_fs")]
-    fn open_lsp_logs_for_path(path: &Path, ctx: &mut ViewContext<Self>) {
-        // Get the language ID from the file path
-        let Some(language_id) = LanguageId::from_path(path) else {
-            log::warn!(
-                "Could not determine language ID for path: {}",
-                path.display()
-            );
-            return;
-        };
-
-        // Get the workspace root from LspManagerModel (canonical source for running servers)
-        let lsp_manager = LspManagerModel::handle(ctx);
-        let lsp_manager_ref = lsp_manager.as_ref(ctx);
-
-        // Find the LSP server for this path and get its workspace root
-        let repo_root = lsp_manager_ref
-            .server_for_path(path, ctx)
-            .map(|server| server.as_ref(ctx).initial_workspace().to_path_buf());
-
-        let Some(repo_root) = repo_root else {
-            log::warn!(
-                "Could not determine workspace root for path: {}",
-                path.display()
-            );
-            return;
-        };
-
-        // Compute the log file path (the log file is created by LspLogger when the server starts)
-        let lsp_server_type = language_id.server_type();
-        let log_path = crate::code::lsp_logs::log_file_path(lsp_server_type, &repo_root);
-
-        // Emit event to bubble up to Workspace
-        ctx.emit(LocalCodeEditorEvent::OpenLspLogs { log_path });
+        self.footer = Some(footer);
     }
 
     /// Unsubscribes from any existing GlobalBufferModel subscription and sets up a
@@ -1512,8 +486,6 @@ impl LocalCodeEditorView {
                         return;
                     }
                     me.base_content_version = Some(*content_version);
-                    me.subscribe_to_lsp_manager_updates(ctx);
-                    me.try_connect_lsp_server(ctx);
                     me.on_file_loaded(ctx);
                     ctx.emit(LocalCodeEditorEvent::FileLoaded);
                 }
@@ -1563,8 +535,8 @@ impl LocalCodeEditorView {
             return Err(ImmediateSaveError::NoFileId);
         };
 
-        // Always attempt to format before saving if LSP is available
-        self.format_and_save(file_id, ctx);
+        // LSP 下线后不再在保存前调用 LSP format。
+        self.perform_save(file_id, ctx);
         Ok(())
     }
 
@@ -1891,120 +863,6 @@ impl LocalCodeEditorView {
     pub fn diff(&self) -> Option<&DiffType> {
         self.diff_type.as_ref()
     }
-
-    /// Handles context menu events (like menu closing)
-    fn handle_menu_event(&mut self, event: &Event, ctx: &mut ViewContext<Self>) {
-        if let Event::Close { .. } = event {
-            self.context_menu_state.is_open = false;
-        }
-        ctx.notify();
-    }
-
-    /// Creates menu items for the context menu
-    fn context_menu_items(&self) -> Vec<MenuItem<LocalCodeEditorAction>> {
-        vec![
-            MenuItemFields::new(crate::t!("menu-codeeditor-go-to-definition"))
-                .with_on_select_action(LocalCodeEditorAction::GotoDefinition)
-                .into_item(),
-            MenuItemFields::new(crate::t!("menu-codeeditor-find-references"))
-                .with_on_select_action(LocalCodeEditorAction::FindReferences)
-                .into_item(),
-        ]
-    }
-
-    /// Perform find references at the cursor position and show the references card.
-    fn find_references_at_cursor(&mut self, ctx: &mut ViewContext<Self>) {
-        if !self.is_lsp_server_available(ctx) {
-            return;
-        }
-        let editor = self.editor().as_ref(ctx);
-        let lsp_position = editor.cursor_lsp_position(ctx);
-        let anchor_offset = editor.lsp_location_to_offset(&lsp_position, ctx);
-        self.fetch_find_references_and_show(lsp_position, anchor_offset, ctx);
-    }
-
-    /// Dismiss any open LSP overlays (hover tooltip and find references card).
-    fn dismiss_lsp_overlays(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let had_refs = self.close_find_references_card(ctx);
-        let had_hover = self.lsp_hover_state.clear();
-        had_refs || had_hover
-    }
-
-    /// Perform goto definition at the cursor position and navigate directly.
-    fn goto_definition_at_cursor(&mut self, ctx: &mut ViewContext<Self>) {
-        if !self.is_lsp_server_available(ctx) {
-            return;
-        }
-        let lsp_position = self.editor().as_ref(ctx).cursor_lsp_position(ctx);
-        let Some(source_server_id) = self.lsp_server.as_ref().map(|s| s.as_ref(ctx).id()) else {
-            log::debug!("No LSP server available for goto definition");
-            return;
-        };
-
-        let server_type_name = self
-            .lsp_server
-            .as_ref()
-            .map(|s| s.as_ref(ctx).server_name());
-
-        self.call_goto_definition(
-            lsp_position,
-            move |_me, result, ctx| {
-                let had_result = matches!(&result, Ok(locations) if !locations.is_empty());
-
-                if let Some(server_type) = server_type_name {
-                    send_telemetry_from_ctx!(
-                        LspTelemetryEvent::GotoDefinition {
-                            server_type,
-                            had_result,
-                        },
-                        ctx
-                    );
-                }
-
-                match result {
-                    Ok(locations) => {
-                        if let Some(location) = locations.first() {
-                            ctx.emit(LocalCodeEditorEvent::GotoDefinition {
-                                path: location.target.path.clone(),
-                                line: location.target.location.line,
-                                column: location.target.location.column,
-                                source_server_id,
-                            });
-                        }
-                    }
-                    Err(e) => {
-                        log::debug!("Failed to get goto definition: {e}");
-                    }
-                }
-            },
-            ctx,
-        );
-    }
-
-    /// Show hover (documentation/type info) at the current cursor position.
-    fn show_hover_at_cursor(&mut self, ctx: &mut ViewContext<Self>) {
-        if !self.is_lsp_server_available(ctx) {
-            return;
-        }
-        let cursor_offset = self.editor().as_ref(ctx).cursor_head_offset(ctx);
-        self.lsp_hover_state = LspHoverState::Loading(None);
-        self.hover_for_offset(cursor_offset, ctx);
-    }
-
-    /// Close the find references card if it is open and refocus the editor.
-    /// Returns true if a card was closed.
-    fn close_find_references_card(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        if self.find_references_view.is_some() {
-            self.find_references_view = None;
-            self.editor.update(ctx, |editor, _ctx| {
-                editor.set_find_references_anchor_offset(None);
-            });
-            ctx.focus(&self.editor);
-            true
-        } else {
-            false
-        }
-    }
 }
 
 impl DiffViewer for LocalCodeEditorView {
@@ -2125,12 +983,7 @@ impl View for LocalCodeEditorView {
             ChildView::new(&self.editor).finish()
         };
 
-        let base_with_handler =
-            Hoverable::new(self.context_menu_state.mouse_state.clone(), |_| base)
-                .on_right_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(LocalCodeEditorAction::OpenContextMenu);
-                })
-                .finish();
+        let base_with_handler = base;
 
         let mut stack = Stack::new()
             .with_constrain_absolute_children()
@@ -2150,55 +1003,6 @@ impl View for LocalCodeEditorView {
                     stack.add_positioned_child(tooltip, editor.selection_position_anchor(app))
                 }
             }
-        }
-
-        // Render context menu if open
-        if self.context_menu_state.is_open {
-            stack.add_positioned_child(
-                ChildView::new(&self.context_menu).finish(),
-                editor.selection_position_anchor(app),
-            )
-        }
-        // Render find references card if loaded (render before hover tooltip so hover appears on top)
-        if let Some(references_view) = &self.find_references_view {
-            let provider = editor.show_find_references_provider();
-
-            // Get the cached gutter position from the last paint (in screen coordinates).
-            // Same pattern as comment editor in CodeEditorView::render.
-            let line_location = app.element_position_by_id_at_last_frame(
-                editor.window_id(),
-                editor.find_references_save_position_id(),
-            );
-
-            // Determine if we should show the card.
-            // When line_location is None (first frame or anchor not rendered), default to true.
-            // This matches the comment editor pattern and avoids a one-frame delay on first click.
-            // The scroll-bounding check only runs when we have a cached position.
-            let should_show = match line_location {
-                Some(line_location) => {
-                    provider.should_show_find_references_card(line_location, app)
-                }
-                None => true,
-            };
-
-            if should_show {
-                // Compute positioning fresh from the stable CharOffset each frame.
-                // Same pattern as comment editor which uses vertical_offset_at_render_location.
-                if let Some(positioning) = self.find_references_card_positioning(app) {
-                    stack.add_positioned_overlay_child(
-                        ChildView::new(references_view).finish(),
-                        positioning,
-                    );
-                }
-            }
-        }
-
-        // Render LSP hover tooltip if available (render last so it appears on top)
-        if let (Some(hover_tooltip), Some(positioning)) = (
-            self.render_hover_tooltip(app),
-            self.hover_tooltip_positioning(app),
-        ) {
-            stack.add_positioned_overlay_child(hover_tooltip, positioning);
         }
 
         if let Some(footer) = &self.footer {
@@ -2237,48 +1041,6 @@ impl TypedActionView for LocalCodeEditorView {
                     self.base_content_version = Some(self.editor().as_ref(ctx).version(ctx));
                     ctx.emit(LocalCodeEditorEvent::DiscardUnsavedChanges { path });
                 }
-            }
-            LocalCodeEditorAction::NavigateToTarget(location) => {
-                let Some(source_server_id) = self.lsp_server.as_ref().map(|s| s.as_ref(ctx).id())
-                else {
-                    log::debug!("No LSP server available for navigate to target");
-                    return;
-                };
-                ctx.emit(LocalCodeEditorEvent::GotoDefinition {
-                    path: location.path.clone(),
-                    line: location.location.line,
-                    column: location.location.column,
-                    source_server_id,
-                });
-            }
-            LocalCodeEditorAction::GotoDefinition => {
-                self.context_menu_state.is_open = false;
-                // Cursor was already set to right-click position, use it
-                self.goto_definition_at_cursor(ctx);
-            }
-            LocalCodeEditorAction::FindReferences => {
-                self.context_menu_state.is_open = false;
-                self.find_references_at_cursor(ctx);
-            }
-            LocalCodeEditorAction::OpenContextMenu => {
-                // Only show context menu if LSP is available
-                if self.is_lsp_server_available(ctx) {
-                    self.context_menu_state.is_open = true;
-                    let menu_items = self.context_menu_items();
-                    self.context_menu.update(ctx, move |menu, ctx| {
-                        menu.set_items(menu_items, ctx);
-                        ctx.notify();
-                    });
-                    ctx.notify();
-                }
-            }
-            LocalCodeEditorAction::FetchAndShowFindReferences {
-                lsp_position,
-                anchor_offset,
-            } => {
-                // Lazily fetch find-references as fallback when at the definition.
-                // This is triggered on cmd-click when go-to-definition has no different location.
-                self.fetch_find_references_and_show(lsp_position.clone(), *anchor_offset, ctx);
             }
         }
     }
@@ -2430,41 +1192,4 @@ pub fn render_unsaved_circle_with_tooltip(
         }
     })
     .finish()
-}
-
-/// Provider for determining find references card visibility based on scroll state.
-#[derive(Debug)]
-pub struct ShowFindReferencesCard {
-    pub editor_window_id: WindowId,
-    /// Optional: position ID of parent scrollable container (e.g., code review list).
-    /// If None, card is in standalone LocalCodeEditorView - visibility is determined
-    /// by whether the anchor gutter element is rendered (cached position exists).
-    pub parent_scrollable_position_id: Option<String>,
-}
-
-impl ShowFindReferencesCardProvider for ShowFindReferencesCard {
-    fn should_show_find_references_card(
-        &self,
-        card_anchor_location: RectF,
-        app: &AppContext,
-    ) -> bool {
-        // For standalone editors (no parent scrollable), we don't need to check scroll bounds.
-        let Some(parent_position_id) = &self.parent_scrollable_position_id else {
-            return true;
-        };
-
-        // For editors within a parent scrollable (e.g., code review), check if anchor
-        // is within the parent's visible bounds.
-        let Some(parent_bounds) =
-            app.element_position_by_id_at_last_frame(self.editor_window_id, parent_position_id)
-        else {
-            return false;
-        };
-
-        // Check if anchor point is within parent scrollable bounds
-        // Use same logic as ShowCommentEditor: check upper-right and lower-left corners
-        let upper_right_in = parent_bounds.contains_point(card_anchor_location.upper_right());
-        let lower_left_in = parent_bounds.contains_point(card_anchor_location.lower_left());
-        upper_right_in || lower_left_in
-    }
 }

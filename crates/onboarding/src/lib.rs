@@ -34,7 +34,6 @@ pub const AI_FEATURES: &[&str] = &[
     "Oz cloud agents platform",
     "Next command predictions",
     "Prompt suggestions",
-    "Codebase context",
     "Remote control with Claude Code, Codex, and other agents",
     "Agents over SSH",
 ];

@@ -174,39 +174,6 @@ impl TryFrom<ReadFilesResult> for api::request::input::tool_call_result::Result 
     }
 }
 
-impl TryFrom<SearchCodebaseResult> for api::request::input::tool_call_result::Result {
-    type Error = ConvertToAPITypeError;
-
-    fn try_from(result: SearchCodebaseResult) -> Result<Self, Self::Error> {
-        match result {
-            SearchCodebaseResult::Success { files } => Ok(
-                api::request::input::tool_call_result::Result::SearchCodebase(
-                    api::SearchCodebaseResult {
-                        result: Some(api::search_codebase_result::Result::Success(
-                            api::search_codebase_result::Success {
-                                files: files
-                                    .into_iter()
-                                    .flat_map(Into::<Vec<api::FileContent>>::into)
-                                    .collect(),
-                            },
-                        )),
-                    },
-                ),
-            ),
-            SearchCodebaseResult::Failed { message, .. } => Ok(
-                api::request::input::tool_call_result::Result::SearchCodebase(
-                    api::SearchCodebaseResult {
-                        result: Some(api::search_codebase_result::Result::Error(
-                            api::search_codebase_result::Error { message },
-                        )),
-                    },
-                ),
-            ),
-            SearchCodebaseResult::Cancelled => Err(ConvertToAPITypeError::Ignore),
-        }
-    }
-}
-
 impl TryFrom<RequestFileEditsResult> for api::request::input::tool_call_result::Result {
     type Error = ConvertToAPITypeError;
 

@@ -50,9 +50,6 @@ pub enum CodeViewEvent {
     RunTabConfigSkill {
         path: PathBuf,
     },
-    OpenLspLogs {
-        log_path: PathBuf,
-    },
 }
 
 #[derive(Debug, Clone)]

@@ -479,7 +479,6 @@ impl LoginSlideView {
                 crate::t!("onboarding-ai-feature-next-command-predictions")
             }
             "Prompt suggestions" => crate::t!("onboarding-ai-feature-prompt-suggestions"),
-            "Codebase context" => crate::t!("onboarding-ai-feature-codebase-context"),
             "Remote control with Claude Code, Codex, and other agents" => {
                 crate::t!("onboarding-ai-feature-remote-control-agents")
             }

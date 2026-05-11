@@ -146,22 +146,6 @@ fn active_conversation_requirement_not_satisfied_when_no_conversation() {
     assert!(!session.contains(command));
 }
 
-// --- CODEBASE_CONTEXT flag tests ---
-
-#[test]
-fn codebase_context_requirement_satisfied_when_enabled() {
-    let command = Availability::CODEBASE_CONTEXT;
-    let session = Availability::AGENT_VIEW | Availability::CODEBASE_CONTEXT;
-    assert!(session.contains(command));
-}
-
-#[test]
-fn codebase_context_requirement_not_satisfied_when_disabled() {
-    let command = Availability::CODEBASE_CONTEXT;
-    let session = Availability::AGENT_VIEW;
-    assert!(!session.contains(command));
-}
-
 // --- AI_ENABLED flag tests ---
 
 #[test]
@@ -187,26 +171,6 @@ fn commands_without_ai_enabled_remain_available_when_ai_off() {
     let session_ai_off = Availability::TERMINAL_VIEW | Availability::LOCAL;
     assert!(session_ai_off.contains(command_local));
     assert!(session_ai_off.contains(command_always));
-}
-
-#[test]
-fn index_command_requires_repo_and_codebase_context() {
-    let command = Availability::REPOSITORY | Availability::CODEBASE_CONTEXT;
-
-    // Both present → available
-    let session = Availability::AGENT_VIEW
-        | Availability::LOCAL
-        | Availability::REPOSITORY
-        | Availability::CODEBASE_CONTEXT;
-    assert!(session.contains(command));
-
-    // Missing CODEBASE_CONTEXT → not available
-    let session = Availability::AGENT_VIEW | Availability::LOCAL | Availability::REPOSITORY;
-    assert!(!session.contains(command));
-
-    // Missing REPOSITORY → not available
-    let session = Availability::AGENT_VIEW | Availability::LOCAL | Availability::CODEBASE_CONTEXT;
-    assert!(!session.contains(command));
 }
 
 // --- Combined flag tests ---

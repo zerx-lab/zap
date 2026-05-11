@@ -42,7 +42,6 @@ use crate::ai::blocklist::suggested_rule_modal::{
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::ai::llms::LLMPreferences;
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::ai::AIRequestUsageModel;
 use crate::ai::{
     agent::{api::ServerConversationToken, conversation::AIConversationId, EntrypointType},
@@ -5710,10 +5709,6 @@ impl Workspace {
             } => {
                 self.add_tab_for_code_file(path, line_and_column, ctx);
             }
-            #[cfg(not(target_family = "wasm"))]
-            RightPanelEvent::OpenLspLogs { log_path } => {
-                self.open_lsp_logs(&log_path, ctx);
-            }
         }
         #[cfg(not(feature = "local_fs"))]
         let _ = (event, ctx);
@@ -8204,10 +8199,7 @@ impl Workspace {
         repository.as_ref(ctx).external_git_directory().is_none()
     }
 
-    fn build_worktree_sidecar_items(
-        &self,
-        ctx: &AppContext,
-    ) -> Vec<MenuItem<NewSessionSidecarSelection>> {
+    fn build_worktree_sidecar_items(&self) -> Vec<MenuItem<NewSessionSidecarSelection>> {
         let search_editor = self.worktree_sidecar_search_editor.clone();
         let search_item = MenuItemFields::new_with_custom_label(
             Arc::new(move |_, _, appearance, _| {
@@ -8249,33 +8241,10 @@ impl Workspace {
         .with_padding_override(0., 0.)
         .into_item();
         let query = self.worktree_sidecar_search_query.trim().to_lowercase();
-        let mut items = vec![search_item];
-        items.extend(
-            PersistedWorkspace::as_ref(ctx)
-                .workspaces()
-                .filter(|ws| ws.path.exists())
-                .filter(|ws| Self::should_include_worktree_sidecar_repo(&ws.path, ctx))
-                .filter(|ws| {
-                    if query.is_empty() {
-                        true
-                    } else {
-                        ws.path
-                            .to_string_lossy()
-                            .to_lowercase()
-                            .contains(query.as_str())
-                    }
-                })
-                .map(|ws| {
-                    let path_str = ws.path.to_string_lossy().into_owned();
-                    MenuItemFields::new(path_str.clone())
-                        .with_on_select_action(NewSessionSidecarSelection::OpenWorktreeRepo {
-                            repo_path: path_str,
-                        })
-                        .with_icon(icons::Icon::Folder)
-                        .into_item()
-                })
-                .collect::<Vec<_>>(),
-        );
+        // PersistedWorkspace 已下线,不再从「近期仓库」拉列表;
+        // _query 在这里只为保持变量使用语义,实际 items 总为空。
+        let _ = query;
+        let items = vec![search_item];
         items
     }
 
@@ -8285,7 +8254,7 @@ impl Workspace {
         auto_select_first_repo: bool,
         ctx: &mut ViewContext<Self>,
     ) {
-        let items = self.build_worktree_sidecar_items(ctx);
+        let items = self.build_worktree_sidecar_items();
         let repo_count = items.len().saturating_sub(1);
         log::info!(
             "Configuring worktree sidecar: hovered_index={hovered_index}, query={:?}, repo_count={repo_count}",
@@ -8341,7 +8310,8 @@ impl Workspace {
                 })
                 .with_cursor(Cursor::PointingHand)
                 .on_click(|ctx: &mut warpui::elements::EventContext, _, _| {
-                    ctx.dispatch_typed_action(WorkspaceAction::OpenWorktreeAddRepoPicker);
+                    // PersistedWorkspace 已下线,这里不再弹「添加仓库」选择器,
+                    // 仅关闭当前菜单。UI 按钮临时保留,后续可考虑理调。
                     ctx.dispatch_typed_action(crate::menu::MenuAction::Close(true));
                 })
                 .finish()
@@ -8722,13 +8692,8 @@ impl Workspace {
                 let Some(path) = paths.into_iter().next() else {
                     return;
                 };
-                // Register the chosen directory as a workspace so it appears in
-                // PersistedWorkspace (which is the data source for the repo picker
-                // and also triggers codebase indexing / project rules scanning).
                 let path_buf: PathBuf = path.clone().into();
-                PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                    persisted.user_added_workspace(path_buf.clone(), ctx);
-                });
+                // PersistedWorkspace 已下线,不再写入「近期仓库」列表。
                 // Refresh the repo picker and pre-select the new path.
                 modal_view.update(ctx, |modal, ctx| {
                     modal.body().update(ctx, |body, ctx| {
@@ -8927,9 +8892,7 @@ impl Workspace {
                     return;
                 };
                 let path_buf: PathBuf = path.clone().into();
-                PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                    persisted.user_added_workspace(path_buf.clone(), ctx);
-                });
+                // PersistedWorkspace 已下线,不再写入「近期仓库」列表。
                 modal_view.update(ctx, |modal, ctx| {
                     modal.body().update(ctx, |body, ctx| {
                         body.on_new_repo_selected(path_buf, ctx);
@@ -9022,24 +8985,6 @@ impl Workspace {
 
     #[cfg(not(feature = "local_fs"))]
     fn open_worktree_in_repo(&mut self, _repo_path: String, _ctx: &mut ViewContext<Self>) {}
-
-    /// Opens a native folder picker to add a new repo to PersistedWorkspace,
-    /// triggered from the "+ Add new repo..." item in the New worktree config submenu.
-    fn open_folder_picker_for_worktree_submenu(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.open_file_picker(
-            move |result, ctx| {
-                let Ok(paths) = result else { return };
-                let Some(path) = paths.into_iter().next() else {
-                    return;
-                };
-                let path_buf: PathBuf = path.into();
-                PersistedWorkspace::handle(ctx).update(ctx, |persisted, ctx| {
-                    persisted.user_added_workspace(path_buf, ctx);
-                });
-            },
-            warpui::platform::FilePickerConfiguration::new().folders_only(),
-        );
-    }
 
     fn handle_welcome_tips_event(&mut self, event: &TipsEvent, ctx: &mut ViewContext<Self>) {
         match event {
@@ -11761,17 +11706,6 @@ impl Workspace {
         ctx.notify();
     }
 
-    fn open_recent_repos_and_convos_palette(&mut self, ctx: &mut ViewContext<Self>) {
-        self.palette.update(ctx, |view, ctx| {
-            view.reset(ctx);
-            view.set_fixed_query_filters(
-                "Search recent repos and conversations".to_string(),
-                vec![QueryFilter::HistoricalConversations, QueryFilter::Repos],
-                ctx,
-            );
-        });
-    }
-
     fn open_conversations_palette(&mut self, ctx: &mut ViewContext<Self>) {
         self.palette.update(ctx, |view, ctx| {
             view.reset(ctx);
@@ -11967,7 +11901,6 @@ impl Workspace {
             PaletteMode::WarpDrive => self.open_warp_drive_palette(ctx),
             PaletteMode::Files => self.open_files_palette(ctx),
             PaletteMode::Conversations => self.open_conversations_palette(ctx),
-            PaletteMode::ConversationsAndRepos => self.open_recent_repos_and_convos_palette(ctx),
         }
 
         ctx.focus(&self.palette);
@@ -12265,9 +12198,6 @@ impl Workspace {
             }
             SettingsViewEvent::OpenExecutionProfileEditor(profile_id) => {
                 self.open_execution_profile_editor_pane(None, *profile_id, ctx);
-            }
-            SettingsViewEvent::OpenLspLogs { log_path } => {
-                self.open_lsp_logs(log_path, ctx);
             }
             SettingsViewEvent::OpenProjectRulesPane { rule_paths } => {
                 #[cfg(feature = "local_fs")]
@@ -13428,9 +13358,6 @@ impl Workspace {
                     ctx,
                 );
             }
-            pane_group::Event::OpenLspLogs { log_path } => {
-                self.open_lsp_logs(log_path, ctx);
-            }
             pane_group::Event::LeftPanelToggled { is_open } => {
                 // Only handle visibility changes from the active pane group.
                 if pane_group.id() == self.active_tab_pane_group().id() {
@@ -14095,63 +14022,6 @@ impl Workspace {
         }
 
         active_pane_group.as_ref(ctx).active_session_view(ctx)
-    }
-
-    /// Opens the LSP log file in a new terminal pane using `tail -f`.
-    ///
-    /// `log_path` 可能指向具体日志文件，也可能指向日志目录（LSP 未运行时的回退路径）。
-    /// 当路径是目录时，自动查找目录下最新修改的 `.log` 文件；若目录不存在或为空，
-    /// 则在终端中输出友好提示而非执行会报错的 tail 命令。
-    fn open_lsp_logs(&mut self, log_path: &PathBuf, ctx: &mut ViewContext<Self>) {
-        use crate::workflows::local_workflows::tail_command_for_shell;
-        use warp_util::path::ShellFamily;
-
-        let active_pane_group = self.active_tab_pane_group();
-
-        // Add a terminal pane to the right
-        active_pane_group.update(ctx, |pane_group, ctx| {
-            pane_group.add_terminal_pane(PaneGroupDirection::Right, None, ctx);
-        });
-
-        let Some(terminal_view_handle) = active_pane_group.as_ref(ctx).active_session_view(ctx)
-        else {
-            log::error!("Could not get terminal view handle when attempting to open LSP logs.");
-            return;
-        };
-
-        // 若 log_path 是目录（LSP 未运行时的回退路径），找目录下最新修改的 .log 文件
-        let resolved_path: Option<PathBuf> = if log_path.is_file() {
-            Some(log_path.clone())
-        } else if log_path.is_dir() {
-            std::fs::read_dir(log_path).ok().and_then(|entries| {
-                entries
-                    .filter_map(|e| e.ok())
-                    .filter(|e| e.path().extension().and_then(|ext| ext.to_str()) == Some("log"))
-                    .max_by_key(|e| e.metadata().ok().and_then(|m| m.modified().ok()))
-                    .map(|e| e.path())
-            })
-        } else {
-            None
-        };
-
-        terminal_view_handle.update(ctx, |terminal, ctx| {
-            let shell_family = terminal.shell_family(ctx);
-            let command = match resolved_path {
-                Some(ref path) => tail_command_for_shell(shell_family, path),
-                None => {
-                    let dir = log_path.display();
-                    match shell_family {
-                        ShellFamily::PowerShell => {
-                            format!(
-                                "Write-Host 'No log files found in: {dir}' -ForegroundColor Yellow"
-                            )
-                        }
-                        ShellFamily::Posix => format!("echo 'No log files found in: {dir}'"),
-                    }
-                }
-            };
-            terminal.set_pending_command(&command, ctx);
-        });
     }
 
     fn run_tab_config_skill(&mut self, path: &Path, ctx: &mut ViewContext<Self>) {
@@ -19342,10 +19212,6 @@ impl TypedActionView for Workspace {
             }
             OpenWorktreeInRepo { repo_path } => {
                 self.open_worktree_in_repo(repo_path.clone(), ctx);
-            }
-            OpenWorktreeAddRepoPicker => {
-                self.close_new_session_dropdown_menu(ctx);
-                self.open_folder_picker_for_worktree_submenu(ctx);
             }
             AutoupdateFailureLink => self.open_autoupdate_failure_link(ctx),
             ApplyUpdate => self.apply_update(ctx),

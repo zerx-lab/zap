@@ -195,8 +195,7 @@ impl TextLayoutSystem {
             }
         }
 
-        let fallback_result =
-            loaded_font.get_fallbacks(character.to_string().as_str(), &locale);
+        let fallback_result = loaded_font.get_fallbacks(character.to_string().as_str(), &locale);
 
         // Convert each font-kit fallback `Font` into a UI framework `FontHandle` and load it into
         // fontdb. We deliberately avoid `font_kit::Font::handle()` here: its default impl reads
@@ -289,11 +288,20 @@ fn primary_subtag(lower: &str) -> &str {
 fn preferred_cjk_families_for_locale(locale: &str) -> &'static [&'static str] {
     let lower = locale.to_ascii_lowercase();
     match primary_subtag(&lower) {
-        "ja" => &["Yu Gothic UI", "Yu Gothic", "Meiryo UI", "Meiryo", "MS Gothic"],
+        "ja" => &[
+            "Yu Gothic UI",
+            "Yu Gothic",
+            "Meiryo UI",
+            "Meiryo",
+            "MS Gothic",
+        ],
         "ko" => &["Malgun Gothic", "Gulim", "Dotum"],
-        "zh" if is_zh_traditional(&lower) => {
-            &["Microsoft JhengHei UI", "Microsoft JhengHei", "PMingLiU", "MingLiU"]
-        }
+        "zh" if is_zh_traditional(&lower) => &[
+            "Microsoft JhengHei UI",
+            "Microsoft JhengHei",
+            "PMingLiU",
+            "MingLiU",
+        ],
         "zh" => &["Microsoft YaHei UI", "Microsoft YaHei", "SimSun"],
         _ => &[],
     }

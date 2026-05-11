@@ -1,10 +1,13 @@
 //! Async data source for the inline repos menu.
+//!
+//! 历史上这里从 `PersistedWorkspace` 拉「之前打开过的 git 仓库」列表。
+//! LSP + workspace 历史下线后,这个候选源已不存在,因此本 data source
+//! 仅保留 trait 与 view 接线,永远返回空结果 —— 也就是说菜单仍能被
+//! 唤出但永远没有候选项。这样可以避免大改上层 view / suggestions mode
+//! 的接线,等未来若要接入「当前 pane group 实时 cwd」再补回数据来源。
 
-use std::path::PathBuf;
+use warpui::{AppContext, Entity};
 
-use warpui::{AppContext, Entity, SingletonEntity};
-
-use crate::ai::persisted_workspace::PersistedWorkspace;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{AsyncDataSource, BoxFuture, DataSourceRunErrorWrapper};
 use crate::terminal::input::repos::AcceptRepo;
@@ -13,7 +16,7 @@ pub struct RepoMenuDataSource;
 
 impl RepoMenuDataSource {
     pub fn new() -> Self {
-        Self {}
+        Self
     }
 }
 
@@ -22,63 +25,10 @@ impl AsyncDataSource for RepoMenuDataSource {
 
     fn run_query(
         &self,
-        query: &Query,
-        app: &AppContext,
+        _query: &Query,
+        _app: &AppContext,
     ) -> BoxFuture<'static, Result<Vec<QueryResult<Self::Action>>, DataSourceRunErrorWrapper>> {
-        let workspace_paths: Vec<PathBuf> = PersistedWorkspace::as_ref(app)
-            .workspaces()
-            .map(|m| m.path)
-            .collect();
-
-        let query_text = query.text.trim().to_lowercase();
-
-        Box::pin(async move {
-            #[cfg(feature = "local_fs")]
-            {
-                use crate::terminal::input::repos::search_item::RepoSearchItem;
-                use crate::util::git::get_repo_git_summary;
-
-                let futures: Vec<_> = workspace_paths
-                    .into_iter()
-                    .map(|path| async move {
-                        let summary = get_repo_git_summary(&path).await;
-                        RepoSearchItem::new(path, summary)
-                    })
-                    .collect();
-
-                let mut items: Vec<RepoSearchItem> = futures::future::join_all(futures).await;
-                items.sort_by(|a, b| a.display_name.cmp(&b.display_name));
-
-                let results: Vec<QueryResult<AcceptRepo>> = if query_text.is_empty() {
-                    items.into_iter().map(QueryResult::from).collect()
-                } else {
-                    items
-                        .into_iter()
-                        .filter_map(|item| {
-                            let match_result = fuzzy_match::match_indices_case_insensitive(
-                                &item.display_name,
-                                &query_text,
-                            )?;
-                            if match_result.score < 25 {
-                                return None;
-                            }
-                            Some(QueryResult::from(
-                                item.with_name_match_result(Some(match_result)),
-                            ))
-                        })
-                        .collect()
-                };
-
-                Ok(results)
-            }
-
-            #[cfg(not(feature = "local_fs"))]
-            {
-                let _ = workspace_paths;
-                let _ = query_text;
-                Ok(vec![])
-            }
-        })
+        Box::pin(async move { Ok(Vec::new()) })
     }
 }
 

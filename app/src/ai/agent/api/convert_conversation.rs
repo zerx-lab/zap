@@ -21,7 +21,7 @@ use crate::ai::agent::{
     ImageContext, InsertReviewCommentsResult, OutputModelInfo, PassiveCodeDiffEntry,
     PassiveSuggestionResultType, PassiveSuggestionTrigger, ReadDocumentsResult, ReadFilesResult,
     ReadMCPResourceResult, ReadShellCommandOutputResult, RequestCommandOutputResult,
-    RequestFileEditsResult, SearchCodebaseFailureReason, SearchCodebaseResult, ServerOutputId,
+    RequestFileEditsResult, ServerOutputId,
     Shared, ShellCommandCompletedTrigger, ShellCommandError, SuggestNewConversationResult,
     SuggestPromptResult, TransferShellCommandControlToUserResult, UpdatedFileContext,
     WriteToLongRunningShellCommandResult,
@@ -677,35 +677,6 @@ pub(crate) fn convert_tool_call_result_to_input(
             let _ = task_id;
             let _ = context;
             None
-        }
-        Some(ToolCallResultType::SearchCodebase(result)) => {
-            let search_result = match &result.result {
-                Some(api::search_codebase_result::Result::Success(success)) => {
-                    let files = success
-                        .files
-                        .iter()
-                        .map(|file| FileContext::from(file.clone()))
-                        .collect();
-
-                    SearchCodebaseResult::Success { files }
-                }
-                Some(api::search_codebase_result::Result::Error(error)) => {
-                    SearchCodebaseResult::Failed {
-                        reason: SearchCodebaseFailureReason::ClientError,
-                        message: error.message.clone(),
-                    }
-                }
-                None => SearchCodebaseResult::Cancelled,
-            };
-
-            Some(AIAgentInput::ActionResult {
-                result: AIAgentActionResult {
-                    id: tool_call_id.into(),
-                    task_id: task_id.clone(),
-                    result: AIAgentActionResultType::SearchCodebase(search_result),
-                },
-                context,
-            })
         }
         Some(ToolCallResultType::ApplyFileDiffs(result)) => {
             let edit_result = match &result.result {
@@ -1392,9 +1363,6 @@ fn create_cancelled_result_for_tool_call(
         }
         ToolType::ReadFiles(_) => AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled),
         ToolType::UploadFileArtifact(_) => return None,
-        ToolType::SearchCodebase(_) => {
-            AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
-        }
         ToolType::ApplyFileDiffs(_) => {
             AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
         }

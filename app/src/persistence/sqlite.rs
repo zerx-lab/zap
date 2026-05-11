@@ -42,9 +42,8 @@ use super::block_list::{
 use super::model::{
     self, ActiveMCPServer, CurrentUserInformation, MCPEnvironmentVariables, NewActiveMCPServer,
     NewApp, NewCommand, NewFolder, NewNotebook, NewServerExperiment, NewTab, NewTeam, NewWindow,
-    NewWorkspace, NewWorkspaceMetadata, NewWorkspaceTeam, ObjectMetadata, ObjectPermissions,
-    Project, Tab, Window, WorkspaceMetadata as WorkspaceMetadataModel, AI_DOCUMENT_PANE_KIND,
-    AI_FACT_PANE_KIND, CODE_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND,
+    NewWorkspace, NewWorkspaceTeam, ObjectMetadata, ObjectPermissions, Project, Tab, Window,
+    AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND, CODE_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND,
     EXECUTION_PROFILE_EDITOR_PANE_KIND, MCP_SERVER_PANE_KIND, NOTEBOOK_PANE_KIND,
     SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, WELCOME_PANE_KIND, WORKFLOW_PANE_KIND,
 };
@@ -69,7 +68,6 @@ use crate::ai::mcp::templatable_installation::VariableValue;
 use crate::ai::mcp::{
     CloudMCPServer, CloudMCPServerModel, TemplatableMCPServer, TemplatableMCPServerInstallation,
 };
-use crate::ai::persisted_workspace::EnablementState;
 use crate::app_state::{
     AIFactPaneSnapshot, AmbientAgentPaneSnapshot, CodeReviewPaneSnapshot,
     EnvVarCollectionPaneSnapshot, LeftPanelSnapshot, RightPanelSnapshot, SettingsPaneSnapshot,
@@ -128,7 +126,6 @@ use crate::{
     workflows::CloudWorkflowModel,
 };
 use crate::{report_error, report_if_error, safe_info, send_telemetry_from_app_ctx};
-use lsp::supported_servers::LSPServerType;
 
 diesel::define_sql_function! {
     fn json_extract(target: diesel::sql_types::Text, path: diesel::sql_types::Text) -> diesel::sql_types::Text;
@@ -191,7 +188,10 @@ pub fn prewarm_db_in_background() {
                 }
                 let result = init_db();
                 let elapsed_ms = start.elapsed().as_millis();
-                log::info!("SQLite prewarm completed in {elapsed_ms} ms (success={})", result.is_ok());
+                log::info!(
+                    "SQLite prewarm completed in {elapsed_ms} ms (success={})",
+                    result.is_ok()
+                );
                 if let Some(cell) = PREWARMED_DB.get() {
                     if let Ok(mut guard) = cell.lock() {
                         // 转换为 Done。Pending 和 Joining 两种状态都需要写入结果。
@@ -720,14 +720,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             server_creation_info,
         } => update_object_after_server_creation(connection, client_id, server_creation_info)
             .context("error executing object creation succeeded callback"),
-        ModelEvent::UpsertCodebaseIndexMetadata { index_metadata } => {
-            save_codebase_index_metadata(connection, *index_metadata)
-                .context("error upserting codebase index metadata")
-        }
-        ModelEvent::DeleteCodebaseIndexMetadata { repo_path } => {
-            delete_codebase_index_metadata(connection, &repo_path)
-                .context("error deleting codebase index metadata")
-        }
         ModelEvent::UpsertProject { project } => {
             save_project(connection, project).context("error upserting project")
         }
@@ -841,12 +833,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             running,
         } => update_mcp_server_running(connection, installation_uuid, running)
             .context("Error updating running field for MCP installation"),
-        ModelEvent::UpsertWorkspaceLanguageServer {
-            workspace_path,
-            lsp_type,
-            enabled,
-        } => upsert_workspace_language_server(connection, &workspace_path, lsp_type, enabled)
-            .context("error upserting workspace language server"),
         ModelEvent::UpdateBlockAgentViewVisibility {
             block_id,
             agent_view_visibility,
@@ -1498,126 +1484,6 @@ fn decode_path(bytes: Vec<u8>) -> PathBuf {
             OsString::from_wide(wide_char_sequence).into()
         }
     }
-}
-
-fn save_codebase_index_metadata(
-    conn: &mut SqliteConnection,
-    index_metadata: ai::workspace::WorkspaceMetadata,
-) -> Result<()> {
-    use schema::workspace_metadata::dsl::*;
-
-    let new_metadata: NewWorkspaceMetadata = index_metadata.into();
-
-    diesel::insert_into(workspace_metadata)
-        .values(new_metadata.clone())
-        .on_conflict(repo_path)
-        .do_update()
-        .set(&new_metadata)
-        .execute(conn)?;
-
-    Ok(())
-}
-
-fn get_all_codebase_index_metadata(
-    conn: &mut SqliteConnection,
-) -> Result<Vec<ai::workspace::WorkspaceMetadata>, diesel::result::Error> {
-    use schema::workspace_metadata::dsl::*;
-
-    Ok(workspace_metadata
-        .load_iter::<WorkspaceMetadataModel, DefaultLoadingMode>(conn)?
-        .filter_map(|item| item.ok().map(ai::workspace::WorkspaceMetadata::from))
-        .collect_vec())
-}
-
-fn get_all_workspace_language_servers_by_workspace(
-    conn: &mut SqliteConnection,
-) -> Result<HashMap<PathBuf, HashMap<LSPServerType, EnablementState>>, diesel::result::Error> {
-    use schema::workspace_language_server::dsl::*;
-    use schema::workspace_metadata;
-
-    let results = workspace_language_server
-        .inner_join(workspace_metadata::table)
-        .select((workspace_metadata::repo_path, language_server_name, enabled))
-        .load::<(String, String, String)>(conn)?;
-
-    let mut grouped: HashMap<PathBuf, HashMap<LSPServerType, EnablementState>> = HashMap::new();
-    for (path_str, server_name, enablement_str) in results {
-        let path = PathBuf::from(path_str);
-        let Some(server_type) = serde_json::from_str(&server_name).ok() else {
-            continue;
-        };
-
-        let Some(enablement) = serde_json::from_str(&enablement_str).ok() else {
-            continue;
-        };
-
-        grouped
-            .entry(path)
-            .or_default()
-            .insert(server_type, enablement);
-    }
-
-    Ok(grouped)
-}
-
-fn upsert_workspace_language_server(
-    conn: &mut SqliteConnection,
-    workspace_path: &Path,
-    server_type: LSPServerType,
-    enablement: EnablementState,
-) -> Result<()> {
-    use schema::workspace_language_server::dsl::*;
-    use schema::workspace_metadata::dsl::*;
-    let path_string = workspace_path.to_string_lossy().to_string();
-
-    // Try to find existing workspace
-    let metadata = workspace_metadata
-        .filter(repo_path.eq(&path_string))
-        .first::<WorkspaceMetadataModel>(conn)
-        .optional()?
-        .ok_or(anyhow::anyhow!("Can't find workspace for path"))?;
-
-    let ws_id = metadata.id;
-    let server_name = serde_json::to_string(&server_type)?;
-
-    // Now upsert the language server setting
-    // Check if record already exists
-    let existing = workspace_language_server
-        .filter(workspace_id.eq(ws_id))
-        .filter(language_server_name.eq(server_name.clone()))
-        .first::<model::WorkspaceLanguageServer>(conn)
-        .optional()?;
-
-    let enablement_str = serde_json::to_string(&enablement)?;
-
-    if let Some(existing_record) = existing {
-        // Update existing record
-        diesel::update(workspace_language_server.find(existing_record.id))
-            .set(enabled.eq(enablement_str))
-            .execute(conn)?;
-    } else {
-        // Insert new record
-        let new_language_server = model::NewWorkspaceLanguageServer {
-            workspace_id: ws_id,
-            language_server_name: server_name,
-            enabled: enablement_str.to_string(),
-        };
-
-        diesel::insert_into(workspace_language_server)
-            .values(&new_language_server)
-            .execute(conn)?;
-    }
-
-    Ok(())
-}
-
-fn delete_codebase_index_metadata(conn: &mut SqliteConnection, index_path: &Path) -> Result<()> {
-    use schema::workspace_metadata::dsl::*;
-
-    let target_path = index_path.to_string_lossy().to_string();
-    diesel::delete(workspace_metadata.filter(repo_path.eq(target_path))).execute(conn)?;
-
-    Ok(())
 }
 
 fn save_project(conn: &mut SqliteConnection, project: Project) -> Result<()> {
@@ -3357,8 +3223,6 @@ fn read_sqlite_data(
 
     let ai_queries = read_ai_queries(conn)?;
 
-    let codebase_indices = get_all_codebase_index_metadata(conn)?;
-    let workspace_language_servers = get_all_workspace_language_servers_by_workspace(conn)?;
     let multi_agent_conversations = read_agent_conversations(conn)?;
     let projects = get_all_projects(conn)?;
     let project_rules = get_all_project_rules(conn)?;
@@ -3377,8 +3241,6 @@ fn read_sqlite_data(
         object_actions,
         experiments: server_experiments,
         ai_queries,
-        codebase_indices,
-        workspace_language_servers,
         multi_agent_conversations,
         projects,
         project_rules,

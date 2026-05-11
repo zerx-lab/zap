@@ -2694,9 +2694,6 @@ impl FeaturesPageView {
             editor_widgets.push(Box::new(SlashCommandsInTerminalModeWidget::default()));
         }
 
-        // OpenWarp:原 `OutlineCodebaseSymbolsForAtContextMenuWidget` 开关已随
-        // outline / GetRelevantFilesController 下线推退,widget 一并删除。
-
         if FeatureFlag::AgentView.is_enabled() {
             editor_widgets.push(Box::new(ShowTerminalInputMessageLineWidget::default()));
         }
@@ -6035,10 +6032,6 @@ impl SettingsWidget for SlashCommandsInTerminalModeWidget {
         )
     }
 }
-
-// OpenWarp:原 `OutlineCodebaseSymbolsForAtContextMenuWidget` 已删除。该 widget
-// 对应的后台代码符号索引(RepoOutlines)与 RAG 控制器均已下线,
-// 开关 UI 失去意义。
 
 #[derive(Default)]
 struct ShowTerminalInputMessageLineWidget {

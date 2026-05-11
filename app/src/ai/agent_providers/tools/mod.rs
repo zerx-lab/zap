@@ -78,10 +78,6 @@ pub const REGISTRY: &[&OpenAiTool] = &[
     &files::READ_FILES,
     &search::GREP,
     &search::FILE_GLOB_V2,
-    // OpenWarp:原上游 search_codebase tool 不对外暴露。现 codebase.rs 文件也
-    // 已一并删除 —— 代码索引(embeddings/symbol outline)未实现,
-    // 且 BYOP 场景下由第三方 CLI agent (Claude Code / opencode 等) 走
-    // grep / read_file / mcp 代替,不需要该 tool。
     &edit::APPLY_FILE_DIFFS,
     &long_shell::WRITE_TO_LONG_RUNNING_SHELL_COMMAND,
     &long_shell::READ_SHELL_COMMAND_OUTPUT,
@@ -194,7 +190,6 @@ pub fn action_result_to_msg_result(
         ReqR::Grep(r) => MsgR::Grep(r),
         ReqR::FileGlobV2(r) => MsgR::FileGlobV2(r),
         ReqR::ApplyFileDiffs(r) => MsgR::ApplyFileDiffs(r),
-        ReqR::SearchCodebase(r) => MsgR::SearchCodebase(r),
         ReqR::CallMcpTool(r) => MsgR::CallMcpTool(r),
         ReqR::ReadMcpResource(r) => MsgR::ReadMcpResource(r),
         ReqR::AskUserQuestion(r) => MsgR::AskUserQuestion(r),

@@ -9,7 +9,6 @@ pub(super) mod read_files;
 pub(super) mod read_mcp_resource;
 pub(super) mod read_skill;
 pub(super) mod request_file_edits;
-pub(super) mod search_codebase;
 pub(super) mod shell_command;
 pub(super) mod suggest_new_conversation;
 pub(super) mod suggest_prompt;
@@ -65,7 +64,6 @@ use crate::util::image::{
 #[cfg(feature = "local_fs")]
 use mime_guess::from_path;
 
-use self::search_codebase::SearchCodebaseExecutor;
 #[cfg(feature = "local_fs")]
 use crate::ai::{agent::AnyFileContent, paths::host_native_absolute_path};
 use crate::{
@@ -228,7 +226,6 @@ impl AsyncExecutingAction {
 pub struct BlocklistAIActionExecutor {
     shell_command_executor: ModelHandle<ShellCommandExecutor>,
     read_files_executor: ModelHandle<ReadFilesExecutor>,
-    search_codebase_executor: ModelHandle<SearchCodebaseExecutor>,
     request_file_edits_executor: ModelHandle<RequestFileEditsExecutor>,
     grep_executor: ModelHandle<GrepExecutor>,
     file_glob_executor: ModelHandle<FileGlobExecutor>,
@@ -260,9 +257,6 @@ impl BlocklistAIActionExecutor {
     ) -> Self {
         let read_files_executor =
             ctx.add_model(|_| ReadFilesExecutor::new(active_session.clone(), terminal_view_id));
-        let search_codebase_executor = ctx.add_model(|ctx| {
-            SearchCodebaseExecutor::new(active_session.clone(), terminal_view_id, ctx)
-        });
         let shell_command_executor = ctx.add_model(|ctx| {
             ShellCommandExecutor::new(
                 active_session.clone(),
@@ -296,7 +290,6 @@ impl BlocklistAIActionExecutor {
         Self {
             shell_command_executor,
             read_files_executor,
-            search_codebase_executor,
             request_file_edits_executor,
             grep_executor,
             file_glob_executor,
@@ -328,10 +321,6 @@ impl BlocklistAIActionExecutor {
         &self.request_file_edits_executor
     }
 
-    pub fn search_codebase_executor(&self) -> &ModelHandle<SearchCodebaseExecutor> {
-        &self.search_codebase_executor
-    }
-
     pub fn suggest_new_conversation_executor(
         &self,
     ) -> &ModelHandle<SuggestNewConversationExecutor> {
@@ -344,9 +333,7 @@ impl BlocklistAIActionExecutor {
 
     pub fn action_phase(&self, action: &AIAgentAction, ctx: &AppContext) -> RunningActionPhase {
         match &action.action {
-            AIAgentActionType::ReadFiles(..)
-            | AIAgentActionType::SearchCodebase(..)
-            | AIAgentActionType::ReadSkill(_) => {
+            AIAgentActionType::ReadFiles(..) | AIAgentActionType::ReadSkill(_) => {
                 RunningActionPhase::Parallel(ParallelExecutionPolicy::ReadOnlyLocalContext)
             }
             AIAgentActionType::Grep { .. }
@@ -403,9 +390,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::ReadFiles(..) => self
                 .read_files_executor
-                .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
-            AIAgentActionType::SearchCodebase(..) => self
-                .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.preprocess_action(input, ctx)),
             AIAgentActionType::Grep { .. } => self
                 .grep_executor
@@ -564,10 +548,6 @@ impl BlocklistAIActionExecutor {
             }
             AIAgentActionType::ReadFiles(..) => self
                 .read_files_executor
-                .update(ctx, |executor, ctx| executor.execute(input, ctx))
-                .into(),
-            AIAgentActionType::SearchCodebase(..) => self
-                .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.execute(input, ctx))
                 .into(),
             AIAgentActionType::Grep { .. } => self
@@ -729,10 +709,6 @@ impl BlocklistAIActionExecutor {
                 self.shell_command_executor.update(ctx, |executor, ctx| {
                     executor.cancel_execution(&running.action.id, ctx);
                 });
-            } else if matches!(running.action.action, AIAgentActionType::SearchCodebase(..)) {
-                self.search_codebase_executor.update(ctx, |executor, ctx| {
-                    executor.cancel_execution(&running.action.id, ctx);
-                });
             }
             ctx.emit(BlocklistAIActionExecutorEvent::FinishedAction {
                 result: Arc::new(AIAgentActionResult {
@@ -774,9 +750,6 @@ impl BlocklistAIActionExecutor {
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::ReadFiles(_) => self
                 .read_files_executor
-                .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
-            AIAgentActionType::SearchCodebase(_) => self
-                .search_codebase_executor
                 .update(ctx, |executor, ctx| executor.should_autoexecute(input, ctx)),
             AIAgentActionType::RequestFileEdits { .. } => self
                 .request_file_edits_executor

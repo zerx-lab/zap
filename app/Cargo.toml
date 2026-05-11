@@ -125,7 +125,6 @@ jaq-all.workspace = true
 jemalloc_pprof = { version = "0.8.1", optional = true, features = [
     "symbolize",
 ] }
-lsp-types = "0.97.0"
 indexmap = { version = "2.0.2", features = ["serde"] }
 input_classifier.workspace = true
 instant.workspace = true
@@ -139,7 +138,6 @@ libc.workspace = true
 line-ending.workspace = true
 log.workspace = true
 log-panics = { version = "2.1.0", features = ["with-backtrace"] }
-lsp.workspace = true
 warp_logging.workspace = true
 sentry = { workspace = true, optional = true }
 lz4_flex = "0.11"
@@ -449,7 +447,6 @@ ask_user_question = []
 changelog = []
 clear_autosuggestion_on_escape = []
 cloud_object_initial_load = ["enforce_revisions_to_cloud_objects"]
-codebase_index_speedbump = []
 cocoa_sentry = ["crash_reporting"]
 command_predictor = []
 context_line_review_comments = []
@@ -467,8 +464,6 @@ crash_reporting = [
     "ai/crash_reporting",
 ]
 creating_shared_sessions = []
-cross_repo_context = []
-codebase_index_persistence = ["full_source_code_embedding"]
 default = [
     "agent_mode",
     "viewing_shared_sessions",
@@ -524,7 +519,6 @@ default = [
     "agent_decides_command_execution",
     "linked_code_blocks",
     "drive_objects_as_context",
-    "search_codebase_ui",
     "profiles_design_revamp",
     "multi_profile",
     "tabbed_editor_view",
@@ -671,8 +665,6 @@ github_pr_prompt_chip = []
 create_project_flow = []
 agent_mode_evals = [
     "integration_tests",
-    "full_source_code_embedding",
-    "cross_repo_context",
     "rust-embed/debug-embed",
     "warpui/log_named_telemetry_events",
     "warp_logging/agent_mode_evals",
@@ -713,7 +705,6 @@ local_computer_use = []
 # environments.
 local_fs = [
     "ai/local_fs",
-    "lsp/local_fs",
     "persistence/local_fs",
     "repo_metadata/local_fs",
     "warp_core/local_fs",
@@ -810,7 +801,6 @@ autoupdate_ui_revamp = []
 warp_packs = []
 suggested_rules = []
 command_correction_key = []
-full_source_code_embedding = []
 use_tantivy_search = []
 agent_management_popup = []
 simulate_github_unauthed = []
@@ -833,7 +823,6 @@ ai_context_menu_code = []
 expand_edit_to_pane = []
 fallback_model_load_output_messaging = []
 profiles_design_revamp = []
-search_codebase_ui = []
 changed_lines_only_apply_diff_result = []
 linked_code_blocks = []
 tabbed_editor_view = []
@@ -896,7 +885,6 @@ agent_view_conversation_list_view = ["agent_view"]
 inline_history_menu = ["agent_view"]
 inline_repo_menu = ["agent_view"]
 summarization_via_message_replacement = []
-lsp_as_a_tool = []
 inline_model_selector = ["agent_view"]
 inline_profile_selector = ["agent_view"]
 oz_platform_skills = []

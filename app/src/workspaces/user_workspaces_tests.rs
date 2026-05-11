@@ -18,8 +18,7 @@ use crate::workspaces::team_tester::TeamTesterStatus;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::workspaces::workspace::{
-    AdminEnablementSetting, CodebaseContextSettings, HostEnablementSetting, LlmHostSettings,
-    Workspace,
+    AdminEnablementSetting, HostEnablementSetting, LlmHostSettings, Workspace,
 };
 
 use mockall::Sequence;
@@ -188,27 +187,6 @@ fn test_loading_all_spaces_after_switching_from_offline() {
         // We also ensure that UserWorkspaces stores a team
         UserWorkspaces::handle(&app).read(&app, |teams, _| {
             assert!(teams.has_teams());
-        });
-    })
-}
-
-#[test]
-fn test_codebase_context_enabled_with_no_workspace() {
-    App::test((), |mut app| async move {
-        initialize_app(
-            &mut app,
-            CachedResources { workspaces: vec![] },
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-        );
-
-        app.read(|ctx| {
-            let codebase_context_enabled =
-                UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx);
-            assert!(
-                codebase_context_enabled,
-                "codebase context should be on by default"
-            );
         });
     })
 }
@@ -392,143 +370,6 @@ fn workspace_for_test(team: &Team) -> Workspace {
         members: vec![],
         total_requests_used_since_last_refresh: 0,
     }
-}
-
-#[test]
-fn test_codebase_context_enabled_by_team_disabled_by_user() {
-    // Enable codebase context on a team level
-    let mut team = team_for_test();
-    team.organization_settings.codebase_context_settings.setting = AdminEnablementSetting::Enable;
-
-    // Disable codebase context on the user level
-    let mut workspace = workspace_for_test(&team);
-    workspace.settings.codebase_context_settings = CodebaseContextSettings {
-        setting: AdminEnablementSetting::Enable, // This doesn't matter since team setting overrides
-    };
-
-    App::test((), |mut app| async move {
-        initialize_app(
-            &mut app,
-            CachedResources {
-                workspaces: vec![workspace],
-            },
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-        );
-
-        app.read(|ctx| {
-            let codebase_context_enabled = UserWorkspaces::as_ref(ctx)
-                .is_codebase_context_enabled(ctx);
-            assert!(codebase_context_enabled,
-            "codebase context should be on when it's enabled by the team, regardless of user setting");
-        });
-    })
-}
-
-#[test]
-fn test_codebase_context_enabled_by_team_and_user() {
-    // Enable codebase context on a team level
-    let mut team = team_for_test();
-    team.organization_settings.codebase_context_settings.setting = AdminEnablementSetting::Enable;
-
-    // Enable codebase context on the user level (this doesn't matter since team overrides)
-    let mut workspace = workspace_for_test(&team);
-    workspace.settings.codebase_context_settings = CodebaseContextSettings {
-        setting: AdminEnablementSetting::Enable,
-    };
-
-    App::test((), |mut app| async move {
-        initialize_app(
-            &mut app,
-            CachedResources {
-                workspaces: vec![workspace],
-            },
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-        );
-
-        app.read(|ctx| {
-            let codebase_context_enabled =
-                UserWorkspaces::as_ref(ctx).is_codebase_context_enabled(ctx);
-            assert!(
-                codebase_context_enabled,
-                "codebase context should be on when it's enabled by the team"
-            );
-        });
-    })
-}
-
-#[test]
-fn test_codebase_context_disabled_by_team() {
-    // Disable codebase context on a team level
-    let mut team = team_for_test();
-    team.organization_settings.codebase_context_settings.setting = AdminEnablementSetting::Disable;
-
-    // Enable codebase context on the user level (this doesn't matter since team overrides)
-    let mut workspace = workspace_for_test(&team);
-    workspace.settings.codebase_context_settings = CodebaseContextSettings {
-        setting: AdminEnablementSetting::Enable,
-    };
-
-    App::test((), |mut app| async move {
-        initialize_app(
-            &mut app,
-            CachedResources {
-                workspaces: vec![workspace],
-            },
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-        );
-
-        app.read(|ctx| {
-            let codebase_context_enabled = UserWorkspaces::as_ref(ctx)
-                .is_codebase_context_enabled(ctx);
-            assert!(
-                !codebase_context_enabled,
-                "codebase context should be off when it's disabled by the team, regardless of the user's settings"
-            );
-        });
-    })
-}
-
-#[test]
-fn test_codebase_context_respect_user_setting() {
-    // Set team to respect user setting
-    let mut team = team_for_test();
-    team.organization_settings.codebase_context_settings.setting =
-        AdminEnablementSetting::RespectUserSetting;
-
-    let workspace = workspace_for_test(&team);
-
-    App::test((), |mut app| async move {
-        initialize_app(
-            &mut app,
-            CachedResources {
-                workspaces: vec![workspace],
-            },
-            Arc::new(MockTeamClient::new()),
-            Arc::new(MockWorkspaceClient::new()),
-        );
-
-        app.read(|ctx| {
-            let codebase_context_enabled = UserWorkspaces::as_ref(ctx)
-                .is_codebase_context_enabled(ctx);
-            // Should respect user setting, which defaults to true when AI is enabled
-            assert!(
-                codebase_context_enabled,
-                "codebase context should respect user setting when team setting is RespectUserSetting"
-            );
-
-            // Test that team_allows_codebase_context returns the correct setting
-            let team_setting = UserWorkspaces::as_ref(ctx)
-                .team_allows_codebase_context();
-            assert_eq!(
-                team_setting,
-                AdminEnablementSetting::RespectUserSetting,
-                "team_allows_codebase_context should return RespectUserSetting"
-            );
-        });
-    })
 }
 
 #[test]

@@ -2,7 +2,6 @@ use crate::code::editor::scroll::ScrollPosition;
 use crate::code::editor::view::CodeEditorRenderOptions;
 use crate::code::editor_management::CodeEditorStatus;
 use crate::code::global_buffer_model::GlobalBufferModel;
-use crate::code::local_code_editor::ShowFindReferencesCard;
 use crate::code::{ImmediateSaveError, SaveOutcome, SaveStatus};
 use crate::editor::InteractionState;
 use crate::input::Vector2F;
@@ -22,7 +21,6 @@ use crate::terminal::view::CliAgentRouting;
 use crate::workspace::util::get_context_target_terminal_view;
 use crate::workspace::TabBarDropTargetData;
 use crate::{code::EditorTabBarDropTargetData, pane_group::pane::ActionOrigin};
-use lsp::LspManagerModel;
 use pathfinder_color::ColorU;
 use pathfinder_geometry::rect::RectF;
 use pathfinder_geometry::vector::vec2f;
@@ -36,7 +34,6 @@ use warp_editor::render::element::VerticalExpansionBehavior;
 use warp_util::path::LineAndColumnArg;
 use warpui::elements::Rect;
 use warpui::fonts::Style;
-use warpui::text::point::Point;
 use warpui::text_layout::ClipConfig;
 
 #[cfg(feature = "local_fs")]
@@ -188,9 +185,6 @@ pub enum CodeViewEvent {
     },
     RunTabConfigSkill {
         path: PathBuf,
-    },
-    OpenLspLogs {
-        log_path: PathBuf,
     },
 }
 
@@ -391,13 +385,6 @@ impl CodeView {
                 editor =
                     editor.with_selection_as_context(Box::new(get_context_target_terminal_view));
             }
-            let mut editor = editor.with_find_references_provider(
-                ShowFindReferencesCard {
-                    editor_window_id: ctx.window_id(),
-                    parent_scrollable_position_id: None,
-                },
-                ctx,
-            );
 
             editor.add_footer(ctx);
             editor
@@ -430,13 +417,7 @@ impl CodeView {
                 local_editor = local_editor
                     .with_selection_as_context(Box::new(get_context_target_terminal_view));
             }
-            local_editor.with_find_references_provider(
-                ShowFindReferencesCard {
-                    editor_window_id: ctx.window_id(),
-                    parent_scrollable_position_id: None,
-                },
-                ctx,
-            )
+            local_editor
         })
     }
 
@@ -546,34 +527,6 @@ impl CodeView {
                     global_buffer.discard_unsaved_changes(path, ctx);
                 });
             }
-            LocalCodeEditorEvent::GotoDefinition {
-                path,
-                line,
-                column,
-                source_server_id,
-            } => {
-                // Register the external file so it can use LSP features.
-                // The manager will skip registration if the path is under an existing workspace.
-                let lsp_manager = LspManagerModel::handle(ctx);
-                lsp_manager.update(ctx, |mgr, _| {
-                    mgr.maybe_register_external_file(path, *source_server_id);
-                });
-
-                // LSP uses 0-based line numbers, convert to 1-based for LineAndColumnArg
-                let line_1based = *line + 1;
-                let line_col = LineAndColumnArg {
-                    line_num: line_1based,
-                    column_num: Some(*column),
-                };
-
-                me.open_or_focus_existing(Some(path.to_path_buf()), Some(line_col), ctx);
-                if let Some(editor) = me.tab_at(me.active_tab_index()).map(|tab| &tab.editor_view) {
-                    editor.update(ctx, |editor, ctx| {
-                        editor.cursor_at(Point::new(line_1based as u32, *column as u32), ctx);
-                    });
-                }
-                me.focus_contents(ctx);
-            }
             LocalCodeEditorEvent::CommentSaved { .. }
             | LocalCodeEditorEvent::RequestOpenComment(_)
             | LocalCodeEditorEvent::DeleteComment { .. } => {
@@ -581,11 +534,6 @@ impl CodeView {
             }
             LocalCodeEditorEvent::RunTabConfigSkill { path } => {
                 ctx.emit(CodeViewEvent::RunTabConfigSkill { path: path.clone() });
-            }
-            LocalCodeEditorEvent::OpenLspLogs { log_path } => {
-                ctx.emit(CodeViewEvent::OpenLspLogs {
-                    log_path: log_path.clone(),
-                });
             }
             LocalCodeEditorEvent::DelayedRenderingFlushed => (),
         });

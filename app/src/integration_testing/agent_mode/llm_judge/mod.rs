@@ -158,32 +158,6 @@ pub fn filter_tool_call_result(result: &message::ToolCallResult) -> message::Too
                 result: filtered_read_result,
             }))
         }
-        Some(ToolResult::SearchCodebase(search_result)) => {
-            use search_codebase_result::Result as SearchResult;
-            let filtered_search_result = match &search_result.result {
-                Some(SearchResult::Success(success)) => {
-                    // Keep file paths and line ranges but remove file contents
-                    let filtered_files = success
-                        .files
-                        .iter()
-                        .map(|file| FileContent {
-                            file_path: file.file_path.clone(),
-                            line_range: file.line_range,
-                            content: "[CONTENT OMITTED]".to_string(),
-                        })
-                        .collect();
-
-                    Some(SearchResult::Success(search_codebase_result::Success {
-                        files: filtered_files,
-                    }))
-                }
-                Some(SearchResult::Error(err)) => Some(SearchResult::Error(err.clone())),
-                None => None,
-            };
-            Some(ToolResult::SearchCodebase(SearchCodebaseResult {
-                result: filtered_search_result,
-            }))
-        }
         Some(ToolResult::ApplyFileDiffs(diff_result)) => {
             use apply_file_diffs_result::Result as DiffResult;
             let filtered_diff_result = match &diff_result.result {

@@ -79,7 +79,6 @@ const clientMutations = [
 
 const clientQueries = [
   'cloudObject',
-  'codebaseContextConfig',
   'getRelevantFragments',
   'rerankFragments',
   'listWarpDevImages',

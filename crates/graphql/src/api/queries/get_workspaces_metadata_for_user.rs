@@ -89,9 +89,6 @@ query GetWorkspacesMetadataForUser($requestContext: RequestContext!) {
               anyoneWithLinkSharingEnabled
               directLinkSharingEnabled
             }
-            codebaseContextSettings {
-              enabled
-            }
           }
           hasBillingHistory
           inviteCode
@@ -124,8 +121,6 @@ query GetWorkspacesMetadataForUser($requestContext: RequestContext!) {
           monthlyPlanPricePerMonthUsdCents
           yearlyPlanPricePerMonthUsdCents
           requestLimit
-          codebaseLimit
-          codebaseContextFileLimit
           maxTeamSize
         }
         overages {

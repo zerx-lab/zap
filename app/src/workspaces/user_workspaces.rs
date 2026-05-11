@@ -19,7 +19,7 @@ use crate::{
         ids::ServerId,
         server_api::{team::TeamClient, workspace::WorkspaceClient},
     },
-    settings::{AISettings, AISettingsChangedEvent, PrivacySettings},
+    settings::{AISettings, PrivacySettings},
     workspaces::workspace::{
         AiAutonomySettings, AiOverages, SandboxedAgentSettings, UsageBasedPricingSettings,
     },
@@ -82,7 +82,6 @@ pub enum UserWorkspacesEvent {
     PurchaseAddonCreditsRejected(anyhow::Error),
     /// Fired whenever the set of teams the user is on changes.
     TeamsChanged,
-    CodebaseContextEnablementChanged,
     /// Fired when a service agreement's sunsetted_to_build_ts field is updated.
     SunsettedToBuildDataUpdated,
 }
@@ -168,12 +167,6 @@ impl UserWorkspaces {
         ctx.subscribe_to_model(&ServerExperiments::handle(ctx), |me, event, ctx| {
             let ServerExperimentsEvent::ExperimentsUpdated = event;
             me.update_session_sharing_enablement(ctx);
-        });
-
-        ctx.subscribe_to_model(&AISettings::handle(ctx), |_, ai_settings_event, ctx| {
-            if let AISettingsChangedEvent::IsAnyAIEnabled { .. } = ai_settings_event {
-                ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
-            }
         });
 
         Self {
@@ -746,7 +739,6 @@ impl UserWorkspaces {
         });
 
         ctx.emit(UserWorkspacesEvent::TeamsChanged);
-        ctx.emit(UserWorkspacesEvent::CodebaseContextEnablementChanged);
         ctx.notify();
     }
 
@@ -1441,10 +1433,6 @@ impl UserWorkspaces {
             .unwrap_or(true)
     }
 
-    pub fn is_codebase_context_enabled(&self, app: &AppContext) -> bool {
-        AISettings::as_ref(app).is_any_ai_enabled(app)
-    }
-
     /// Returns the team-level agent attribution setting.
     ///
     /// Use this to decide whether the user's attribution toggle should be locked
@@ -1452,20 +1440,6 @@ impl UserWorkspaces {
     pub fn get_agent_attribution_setting(&self) -> AdminEnablementSetting {
         self.current_team()
             .map(|team| team.organization_settings.enable_warp_attribution.clone())
-            .unwrap_or_default()
-    }
-
-    /// Returns only the organization-specific codebase context enablement setting.
-    /// Do not use this function to determine whether codebase context is generally enabled --
-    /// use `is_codebase_context_enabled` instead.
-    pub fn team_allows_codebase_context(&self) -> AdminEnablementSetting {
-        self.current_team()
-            .map(|team| {
-                team.organization_settings
-                    .codebase_context_settings
-                    .setting
-                    .clone()
-            })
             .unwrap_or_default()
     }
 
