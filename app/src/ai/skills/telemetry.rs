@@ -111,7 +111,9 @@ impl TelemetryEventDesc for SkillTelemetryEventDiscriminants {
     fn description(&self) -> &'static str {
         match self {
             Self::Read => "A skill was read via the ReadSkill tool call",
-            Self::Opened => "A skill was opened from an 'open skill' button or /edit-skill command",
+            Self::Opened => {
+                "A skill was opened from an open-skill entry point, slash command, or Skill Manager"
+            }
         }
     }
 

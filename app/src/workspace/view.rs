@@ -5558,13 +5558,17 @@ impl Workspace {
                 #[cfg(feature = "local_fs")]
                 {
                     let layout = *EditorSettings::as_ref(ctx).open_file_layout.value();
-                    self.open_file_with_target(
-                        source.path().unwrap_or_default(),
-                        FileTarget::CodeEditor(layout),
-                        None,
-                        source.clone(),
-                        ctx,
-                    );
+                    if let Some(path) = source.path() {
+                        self.open_file_with_target(
+                            path,
+                            FileTarget::CodeEditor(layout),
+                            None,
+                            source.clone(),
+                            ctx,
+                        );
+                    } else {
+                        log::error!("failed to open skill file: missing source path");
+                    }
                 }
                 #[cfg(not(feature = "local_fs"))]
                 {
@@ -18861,8 +18865,10 @@ impl Workspace {
         }
         // openWarp 独有:SSH 管理器,无 feature flag,默认始终显示。
         views.push(ToolPanelView::SshManager);
-        // openWarp 独有:Skill 管理器,无 feature flag,默认始终显示。
-        views.push(ToolPanelView::SkillManager);
+        // openWarp 独有:Skill 管理器,无 feature flag,local_fs 构建下默认显示。
+        if cfg!(feature = "local_fs") {
+            views.push(ToolPanelView::SkillManager);
+        }
         views
     }
 

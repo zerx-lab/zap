@@ -52,7 +52,8 @@ impl SkillManager {
         None
     }
 
-    pub fn list_skill_inventory(&self, _ctx: &AppContext) -> Vec<SkillInventoryItem> {
+    pub fn list_skill_inventory(&self, ctx: &AppContext) -> Vec<SkillInventoryItem> {
+        let _ = ctx;
         vec![]
     }
 

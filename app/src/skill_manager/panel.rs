@@ -295,9 +295,11 @@ impl SkillManagerPanel {
         let mut meta = format!("{} · {}", duplicate.provider, duplicate.scope);
         if has_duplicates {
             if is_default {
-                meta.push_str(" · default");
+                meta.push_str(" · ");
+                meta.push_str(&crate::t!("skill-manager-meta-default"));
             } else {
-                meta.push_str(" · duplicate");
+                meta.push_str(" · ");
+                meta.push_str(&crate::t!("skill-manager-meta-duplicate"));
             }
         }
 

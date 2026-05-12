@@ -370,7 +370,8 @@ impl SkillManager {
         bundled.activation.is_enabled(ctx).then_some(&bundled.skill)
     }
 
-    pub fn list_skill_inventory(&self, _ctx: &AppContext) -> Vec<SkillInventoryItem> {
+    pub fn list_skill_inventory(&self, ctx: &AppContext) -> Vec<SkillInventoryItem> {
+        let _ = ctx;
         let mut by_name: HashMap<String, Vec<SkillInventoryDuplicate>> = HashMap::new();
 
         for skill in self.skills_by_path.values() {
