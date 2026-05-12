@@ -477,8 +477,12 @@ pub(super) fn init_db() -> Result<SqliteConnection> {
     #[cfg(target_os = "macos")]
     if warp_core::channel::ChannelState::channel() == warp_core::channel::Channel::Oss {
         if let Some(legacy_dir) = openwarp_legacy_app_group_sqlite_dir() {
-            migrate_openwarp_app_group_sqlite_if_needed(&db_path, &legacy_dir)
-                .context("Failed to migrate OpenWarp SQLite database out of legacy App Group")?;
+            if let Err(err) = migrate_openwarp_app_group_sqlite_if_needed(&db_path, &legacy_dir)
+                .context("Failed to migrate OpenWarp SQLite database out of legacy App Group")
+            {
+                report_error!(err);
+                log::warn!("Skipping legacy App Group SQLite migration and continuing startup");
+            }
         }
     }
 
@@ -584,24 +588,36 @@ fn should_copy_legacy_openwarp_sqlite(legacy_db: &Path, target_db: &Path) -> Res
         return Ok(true);
     }
 
-    let legacy_modified = std::fs::metadata(legacy_db)
-        .and_then(|metadata| metadata.modified())
-        .with_context(|| {
-            format!(
-                "Failed to read modified time for legacy SQLite database `{}`",
-                legacy_db.display()
-            )
-        })?;
-    let target_modified = std::fs::metadata(target_db)
-        .and_then(|metadata| metadata.modified())
-        .with_context(|| {
-            format!(
-                "Failed to read modified time for target SQLite database `{}`",
-                target_db.display()
-            )
-        })?;
+    let legacy_modified = latest_sqlite_modified_time(legacy_db)?;
+    let target_modified = latest_sqlite_modified_time(target_db)?;
 
     Ok(legacy_modified > target_modified)
+}
+
+#[cfg(target_os = "macos")]
+fn latest_sqlite_modified_time(db: &Path) -> Result<std::time::SystemTime> {
+    let mut latest = std::fs::metadata(db)
+        .and_then(|metadata| metadata.modified())
+        .with_context(|| format!("Failed to read modified time for `{}`", db.display()))?;
+
+    for extension in ["sqlite-wal", "sqlite-shm"] {
+        let sidecar = db.with_extension(extension);
+        if !sidecar.exists() {
+            continue;
+        }
+
+        let modified = std::fs::metadata(&sidecar)
+            .and_then(|metadata| metadata.modified())
+            .with_context(|| {
+                format!(
+                    "Failed to read modified time for SQLite sidecar `{}`",
+                    sidecar.display()
+                )
+            })?;
+        latest = latest.max(modified);
+    }
+
+    Ok(latest)
 }
 
 #[cfg(target_os = "macos")]

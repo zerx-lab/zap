@@ -392,7 +392,7 @@ fn test_migrate_openwarp_app_group_sqlite_copies_newer_legacy_files() {
     fs::create_dir_all(&state_dir).expect("state dir should be created");
 
     fs::write(&target_db, "old-target").expect("target db should be written");
-    std::thread::sleep(std::time::Duration::from_millis(10));
+    std::thread::sleep(std::time::Duration::from_secs(1));
 
     let legacy_db = legacy_dir.join("warp.sqlite");
     fs::write(&legacy_db, "legacy-db").expect("legacy db should be written");
@@ -416,6 +416,36 @@ fn test_migrate_openwarp_app_group_sqlite_copies_newer_legacy_files() {
     assert!(state_dir
         .join(".openwarp-app-group-sqlite-migrated")
         .exists());
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn test_migrate_openwarp_app_group_sqlite_copies_when_legacy_wal_is_newer() {
+    use super::migrate_openwarp_app_group_sqlite_if_needed;
+
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let legacy_dir = tempdir.path().join("legacy");
+    let state_dir = tempdir.path().join("state");
+    let legacy_db = legacy_dir.join("warp.sqlite");
+    let target_db = state_dir.join("warp.sqlite");
+    fs::create_dir_all(&legacy_dir).expect("legacy dir should be created");
+    fs::create_dir_all(&state_dir).expect("state dir should be created");
+
+    fs::write(&legacy_db, "legacy-db").expect("legacy db should be written");
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    fs::write(&target_db, "target-db").expect("target db should be written");
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    fs::write(legacy_db.with_extension("sqlite-wal"), "legacy-wal")
+        .expect("legacy wal should be written");
+
+    migrate_openwarp_app_group_sqlite_if_needed(&target_db, &legacy_dir)
+        .expect("migration should succeed");
+
+    assert_eq!(fs::read_to_string(&target_db).unwrap(), "legacy-db");
+    assert_eq!(
+        fs::read_to_string(target_db.with_extension("sqlite-wal")).unwrap(),
+        "legacy-wal"
+    );
 }
 
 #[cfg(target_os = "macos")]
