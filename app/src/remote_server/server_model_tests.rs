@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use super::super::proto::{Authenticate, Initialize};
 use super::super::protocol::RequestId;
+#[cfg(feature = "local_fs")]
+use super::super::server_buffer_tracker::ServerBufferTracker;
 use super::{PendingFileOps, ServerModel};
 
 fn test_model() -> ServerModel {
@@ -13,6 +15,8 @@ fn test_model() -> ServerModel {
         host_id: "test-host-id".to_string(),
         executors: HashMap::new(),
         pending_file_ops: PendingFileOps::new(),
+        #[cfg(feature = "local_fs")]
+        buffers: ServerBufferTracker::new(),
         auth_token: None,
     }
 }
