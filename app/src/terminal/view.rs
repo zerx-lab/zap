@@ -406,7 +406,7 @@ use crate::banner::{
 use crate::debounce::debounce;
 use crate::editor::{
     AutosuggestionType, CrdtOperation, EditorAction, EditorView, Event as EditorEvent,
-    PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
+    PropagateAndNoOpEscapeKey, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
 use crate::features::FeatureFlag;
 use crate::pane_group::SplitPaneState;
@@ -15406,6 +15406,10 @@ impl TerminalView {
                     clear_selections_on_blur: true,
                     propagate_and_no_op_vertical_navigation_keys:
                         PropagateAndNoOpNavigationKeys::Always,
+                    // 让 escape 先 propagate 到 TerminalView 关闭菜单,
+                    // 与 ModelSelector(model_selector.rs:96)对齐——这样
+                    // 即便 vim 模式有 pending 操作,也优先关闭菜单。
+                    propagate_and_no_op_escape_key: PropagateAndNoOpEscapeKey::PropagateFirst,
                     ..Default::default()
                 },
                 ctx,
@@ -15495,34 +15499,28 @@ impl TerminalView {
                 .map(|c| (c.label.as_str(), c.subtitle.as_str())),
             &self.onekey_query,
         );
-
-        if let OnekeyMenuRows::NoMatches = order {
+        match order {
             // 命中为空:加一条 disabled 提示行,避免菜单只剩搜索框
             // 显得很怪;disabled 会被 select_next/previous 自动跳过。
-            return vec![
+            OnekeyMenuRows::NoMatches => vec![
                 MenuItemFields::new(crate::t!("terminal-onekey-search-no-results"))
                     .with_disabled(true)
                     .into_item(),
-            ];
+            ],
+            OnekeyMenuRows::Ordered(indices) => indices
+                .into_iter()
+                .map(|index| {
+                    let candidate = &self.onekey_prompt_candidates[index];
+                    MenuItemFields::new_with_stacked_label(
+                        candidate.label.clone(),
+                        candidate.subtitle.clone(),
+                    )
+                    .with_icon(icons::Icon::Key)
+                    .with_on_select_action(TerminalAction::OneKeyFillSecret { index })
+                    .into_item()
+                })
+                .collect(),
         }
-
-        let indices = match order {
-            OnekeyMenuRows::Ordered(v) => v,
-            OnekeyMenuRows::NoMatches => unreachable!(),
-        };
-        indices
-            .into_iter()
-            .map(|index| {
-                let candidate = &self.onekey_prompt_candidates[index];
-                MenuItemFields::new_with_stacked_label(
-                    candidate.label.clone(),
-                    candidate.subtitle.clone(),
-                )
-                .with_icon(icons::Icon::Key)
-                .with_on_select_action(TerminalAction::OneKeyFillSecret { index })
-                .into_item()
-            })
-            .collect()
     }
 
     fn fill_onekey_secret(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
