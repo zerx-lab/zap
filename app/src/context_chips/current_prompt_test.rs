@@ -1268,6 +1268,233 @@ fn test_git_status_change_updates_chip_value() {
     });
 }
 
+/// Regression test for the branch-chip dropdown being permanently empty.
+///
+/// Once the filesystem watcher (`GitRepoStatusModel`) takes over updates for
+/// `ShellGitBranch`, the only path that refreshes the dropdown's on-click
+/// values (run via `git --no-optional-locks branch --no-color
+/// --sort=-committerdate`) is the `MetadataChanged` event handler in
+/// `set_git_repo_status`. Previously that handler only refreshed the dropdown
+/// when the **current branch name** changed, so a user sitting on `main` and
+/// never switching branches would see an empty dropdown forever if the
+/// initial population attempt early-returned (e.g. because the session
+/// wasn't ready yet).
+///
+/// This test asserts:
+///   1. When `MetadataChanged` fires and `last_on_click_values` is `None`,
+///      the dropdown is refreshed even if the branch name didn't change.
+///   2. Once `last_on_click_values` is populated, subsequent
+///      `MetadataChanged` events on the same branch do NOT re-run
+///      `git branch` (so file-save bursts don't spawn a shell process every
+///      time).
+#[cfg(feature = "local_fs")]
+#[test]
+fn test_branch_dropdown_refreshes_when_initially_empty() {
+    App::test((), |mut app| async move {
+        let session_id = SessionId::from(901);
+        app.add_singleton_model(|_| {
+            Prompt::mock_with(
+                [ContextChipKind::ShellGitBranch],
+                false,
+                WarpPromptSeparator::None,
+            )
+        });
+        app.add_singleton_model(SessionSettings::new_with_defaults);
+        app.add_singleton_model(|_| History::new(vec![]));
+        app.add_singleton_model(|_ctx| {
+            settings::PublicPreferences::new(
+                Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
+            )
+        });
+        app.add_singleton_model(|_| {
+            settings::PrivatePreferences::new(
+                Box::<user_preferences::in_memory::InMemoryPreferences>::default(),
+            )
+        });
+        app.add_singleton_model(|_| AuthStateProvider::new_for_test());
+        app.add_singleton_model(AuthManager::new_for_test);
+        app.add_singleton_model(|_| crate::settings::manager::SettingsManager::default());
+        crate::settings::InputSettings::register(&mut app);
+        app.update(crate::settings::AISettings::register_and_subscribe_to_events);
+        app.add_singleton_model(crate::workspaces::user_workspaces::UserWorkspaces::default_mock);
+        #[cfg(windows)]
+        app.add_singleton_model(SystemInfo::new);
+
+        // Executor responses, in order:
+        //   1. `load_external_commands` probe — return "git" so the chip's
+        //      runtime policy sees `git` as available and the chip is Enabled.
+        //   2. First `git branch ... --sort=-committerdate` invocation triggered
+        //      by the same-branch `MetadataChanged` event after we manually
+        //      clear `last_on_click_values`.
+        let executor = Arc::new(RecordingCommandExecutor::with_success_responses([
+            "git\n",
+            "* main\n  feature-a\n  feature-b\n",
+        ]));
+        let sessions = app.add_model(|ctx| {
+            let mut sessions = Sessions::new_for_test().with_command_executor(executor.clone());
+            sessions.initialize_bootstrapped_session(
+                SessionInfo::new_for_test().with_id(session_id),
+                "test command".to_string(),
+                vec![],
+                None,
+                ctx,
+            );
+            sessions
+        });
+        let sessions_for_prompt = sessions.clone();
+        let current_prompt =
+            app.add_model(move |ctx| CurrentPrompt::new(sessions_for_prompt.clone(), ctx));
+
+        let session = app
+            .read(|ctx| sessions.as_ref(ctx).get(session_id))
+            .expect("session should exist");
+        session.load_external_commands().await;
+
+        // Set up the per-repo git status watcher with initial metadata on `main`.
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let watcher_handle = app.add_singleton_model(DirectoryWatcher::new_for_testing);
+        let repo_handle = watcher_handle.update(&mut app, |watcher, ctx| {
+            watcher
+                .add_directory(
+                    warp_util::standardized_path::StandardizedPath::from_local_canonicalized(
+                        temp_dir.path(),
+                    )
+                    .unwrap(),
+                    ctx,
+                )
+                .unwrap()
+        });
+        let initial_metadata = GitStatusMetadata {
+            current_branch_name: "main".to_string(),
+            main_branch_name: "main".to_string(),
+            stats_against_head: DiffStats::default(),
+        };
+        let git_status = app.add_model(move |_| {
+            GitRepoStatusModel::new_for_test(repo_handle, Some(initial_metadata))
+        });
+
+        // Subscribe to git status and seed the prompt context so that
+        // `prepare_shell_command_context` can succeed.
+        current_prompt.update(&mut app, |cp, ctx| {
+            cp.latest_context = Some(PromptContext {
+                active_block_metadata: BlockMetadata::new(
+                    Some(session_id),
+                    Some("/tmp/project".to_string()),
+                ),
+                environment: Environment::default(),
+            });
+            cp.set_git_repo_status(Some(git_status.downgrade()), ctx);
+            cp.update_states_with_new_context_and_session(ctx);
+        });
+
+        // Wait for any in-flight generators kicked off by the initial run to
+        // settle. The `RecordingCommandExecutor` will respond to anything that
+        // happens to fire here using its queue; we explicitly clear the queue
+        // afterwards so the regression assertion only sees the on-click call
+        // we trigger below.
+        current_prompt
+            .update(&mut app, |cp, ctx| cp.await_generators(ctx))
+            .await;
+
+        // Force the empty-dropdown precondition: clear `last_on_click_values`
+        // so the chip looks like it never received a successful on-click
+        // result. Also drain the recorded commands and re-prime the response
+        // queue with the branch-list output so the regression assertion has a
+        // clean baseline.
+        current_prompt.update(&mut app, |cp, _ctx| {
+            let state = cp
+                .states
+                .get_mut(&ContextChipKind::ShellGitBranch)
+                .expect("ShellGitBranch state should exist");
+            state.last_on_click_values = None;
+        });
+        executor.clear();
+        {
+            let mut queue = executor.response_queue.lock();
+            queue.clear();
+            queue.push_back(RecordingCommandExecutor::success_output(
+                "* main\n  feature-a\n  feature-b\n",
+            ));
+        }
+
+        // Fire a `MetadataChanged` event on the SAME branch (`main`). Under
+        // the old code path this was a no-op because the branch name didn't
+        // change. Under the fix, the empty dropdown triggers a refresh.
+        git_status.update(&mut app, |model, ctx| {
+            model.set_metadata_for_test(
+                Some(GitStatusMetadata {
+                    current_branch_name: "main".to_string(),
+                    main_branch_name: "main".to_string(),
+                    stats_against_head: DiffStats::default(),
+                }),
+                ctx,
+            );
+        });
+
+        // Await the spawned on-click future so the result lands in state.
+        current_prompt
+            .update(&mut app, |cp, ctx| cp.await_generators(ctx))
+            .await;
+
+        // Assertion 1: the branch-list command was actually run.
+        let commands = executor.commands.lock().clone();
+        assert!(
+            commands
+                .iter()
+                .any(|c| c.contains("git --no-optional-locks branch")),
+            "expected `git branch --sort=-committerdate` to run on same-branch \
+             MetadataChanged when the dropdown was empty; recorded commands: {commands:?}"
+        );
+
+        // Assertion 2: the dropdown is now populated.
+        app.read(|ctx| {
+            let state = current_prompt
+                .as_ref(ctx)
+                .states
+                .get(&ContextChipKind::ShellGitBranch)
+                .expect("ShellGitBranch state should exist");
+            let values = state
+                .last_on_click_values
+                .as_ref()
+                .expect("dropdown should be populated after the refresh");
+            assert!(
+                values.iter().any(|v| v == "main"),
+                "dropdown should contain `main`; got {values:?}"
+            );
+            assert!(
+                values.iter().any(|v| v == "feature-a"),
+                "dropdown should contain `feature-a`; got {values:?}"
+            );
+        });
+
+        // Assertion 3 (anti-regression for file-save bursts): a subsequent
+        // same-branch `MetadataChanged` with `last_on_click_values` already
+        // populated must NOT spawn another `git branch` invocation.
+        executor.clear();
+        git_status.update(&mut app, |model, ctx| {
+            model.set_metadata_for_test(
+                Some(GitStatusMetadata {
+                    current_branch_name: "main".to_string(),
+                    main_branch_name: "main".to_string(),
+                    stats_against_head: DiffStats::default(),
+                }),
+                ctx,
+            );
+        });
+        current_prompt
+            .update(&mut app, |cp, ctx| cp.await_generators(ctx))
+            .await;
+        let commands_after = executor.commands.lock().clone();
+        assert!(
+            !commands_after
+                .iter()
+                .any(|c| c.contains("git --no-optional-locks branch")),
+            "no `git branch` should run on same-branch MetadataChanged once the \
+             dropdown is already populated; recorded commands: {commands_after:?}"
+        );
+    });
+}
+
 /// A [`CommandExecutor`] implementation that records which commands were run, but does not
 /// execute them.
 #[derive(Debug, Default)]

@@ -1458,12 +1458,37 @@ impl CurrentPrompt {
                         let current_branch = me
                             .latest_chip_value(&ContextChipKind::ShellGitBranch)
                             .cloned();
-                        if current_branch.as_ref() != Some(&new_branch) {
+                        let branch_changed = current_branch.as_ref() != Some(&new_branch);
+                        if branch_changed {
                             me.update_chip_value(
                                 &ContextChipKind::ShellGitBranch,
                                 Some(new_branch),
                             );
-                            // Refresh the branch dropdown so it stays in sync.
+                        }
+                        // Refresh the branch dropdown when the branch name
+                        // changed, OR when the dropdown has never been
+                        // populated yet. Once the filesystem watcher takes
+                        // over (`is_updated_externally` returns true), the
+                        // 30s periodic timer in `fetch_chip_value_at_interval`
+                        // is suppressed, so this `MetadataChanged` path is the
+                        // only one that keeps the dropdown in sync. Gating the
+                        // refresh on a branch-name change alone left the
+                        // dropdown permanently empty for users who never
+                        // switch branches, because earlier attempts to
+                        // populate it (during the initial `run_chips` /
+                        // `fetch_chip_value_once` call) can silently early-
+                        // return when the session isn't ready yet
+                        // (`prepare_shell_command_context` returns `None`) or
+                        // when chip availability hasn't transitioned to
+                        // `Enabled`. The `last_on_click_values.is_none()`
+                        // guard re-attempts the fetch in that case while
+                        // avoiding a `git branch` invocation on every
+                        // file-save event once the dropdown is populated.
+                        let dropdown_empty = me
+                            .states
+                            .get(&ContextChipKind::ShellGitBranch)
+                            .is_some_and(|state| state.last_on_click_values.is_none());
+                        if branch_changed || dropdown_empty {
                             let chip_kind = ContextChipKind::ShellGitBranch;
                             if let Some(chip) = chip_kind.to_chip() {
                                 if let Some(on_click_gen) = chip.on_click_generator().cloned() {
