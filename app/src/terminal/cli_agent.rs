@@ -103,6 +103,14 @@ const CURSOR_COLOR: ColorU = ColorU {
     a: 255,
 };
 
+/// Antigravity brand color (#7C3AED, purple from official banner accent)
+const ANTIGRAVITY_PURPLE: ColorU = ColorU {
+    r: 0x7C,
+    g: 0x3A,
+    b: 0xED,
+    a: 255,
+};
+
 /// Goose brand color (#101010, from Block's official Goose logo)
 const DEEPSEEK_COLOR: ColorU = ColorU {
     r: 53,
@@ -133,6 +141,7 @@ pub enum CLIAgent {
     CursorCli,
     Goose,
     DeepSeek,
+    Antigravity,
     /// Represents an unknown/custom CLI agent matched by user-configured regex patterns.
     Unknown,
 }
@@ -153,6 +162,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => "agent",
             CLIAgent::Goose => "goose",
             CLIAgent::DeepSeek => "deepseek",
+            CLIAgent::Antigravity => "agy",
             CLIAgent::Unknown => "",
         }
     }
@@ -196,6 +206,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => "Cursor",
             CLIAgent::Goose => "Goose",
             CLIAgent::DeepSeek => "DeepSeek",
+            CLIAgent::Antigravity => "Antigravity",
             CLIAgent::Unknown => "CLI Agent",
         }
     }
@@ -215,6 +226,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => Some(Icon::CursorLogo),
             CLIAgent::Goose => Some(Icon::GooseLogo),
             CLIAgent::DeepSeek => Some(Icon::DeepSeekLogo),
+            CLIAgent::Antigravity => Some(Icon::AntigravityLogo),
             CLIAgent::Unknown => None,
         }
     }
@@ -244,6 +256,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => &[SkillProvider::Agents],
             CLIAgent::Goose => &[SkillProvider::Agents],
             CLIAgent::DeepSeek => &[SkillProvider::Agents],
+            CLIAgent::Antigravity => &[SkillProvider::Agents],
             CLIAgent::Unknown => &[],
         }
     }
@@ -285,6 +298,7 @@ impl CLIAgent {
             CLIAgent::CursorCli => Some(CURSOR_COLOR),
             CLIAgent::Goose => Some(GOOSE_COLOR),
             CLIAgent::DeepSeek => Some(DEEPSEEK_COLOR),
+            CLIAgent::Antigravity => Some(ANTIGRAVITY_PURPLE),
             CLIAgent::Unknown => None,
         }
     }
@@ -547,6 +561,7 @@ impl From<CLIAgent> for CLIAgentType {
             CLIAgent::CursorCli => CLIAgentType::Cursor,
             CLIAgent::Goose => CLIAgentType::Goose,
             CLIAgent::DeepSeek => CLIAgentType::DeepSeek,
+            CLIAgent::Antigravity => CLIAgentType::Antigravity,
             CLIAgent::Unknown => CLIAgentType::Unknown,
         }
     }

@@ -31,17 +31,21 @@ pub(crate) struct IconWithStatusSizing {
 }
 
 const DEEPSEEK_LOGO_PATH: &str = "bundled/svg/deepseek.svg";
+const ANTIGRAVITY_LOGO_PATH: &str = "bundled/svg/antigravity.svg";
 
 pub(crate) fn render_cli_agent_logo(
     agent: CLIAgent,
     icon_color: WarpThemeFill,
     fallback_icon_color: WarpThemeFill,
 ) -> Box<dyn Element> {
-    if matches!(agent, CLIAgent::DeepSeek) {
+    let multi_color_logo_path = match agent {
+        CLIAgent::DeepSeek => Some(DEEPSEEK_LOGO_PATH),
+        CLIAgent::Antigravity => Some(ANTIGRAVITY_LOGO_PATH),
+        _ => None,
+    };
+    if let Some(path) = multi_color_logo_path {
         Image::new(
-            AssetSource::Bundled {
-                path: DEEPSEEK_LOGO_PATH,
-            },
+            AssetSource::Bundled { path },
             CacheOption::BySize,
         )
         .finish()
@@ -153,11 +157,12 @@ pub(crate) fn render_icon_with_status(
                 .with_width(sizing.icon_size)
                 .with_height(sizing.icon_size)
                 .finish();
-            let background: ElementFill = if matches!(agent, CLIAgent::DeepSeek) {
-                theme.background().into()
-            } else {
-                ThemeFill::Solid(brand_color).into()
-            };
+            let background: ElementFill =
+                if matches!(agent, CLIAgent::DeepSeek | CLIAgent::Antigravity) {
+                    theme.background().into()
+                } else {
+                    ThemeFill::Solid(brand_color).into()
+                };
             let circle = Container::new(inner)
                 .with_uniform_padding(sizing.padding)
                 .with_background(background)

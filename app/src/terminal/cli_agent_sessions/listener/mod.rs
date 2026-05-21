@@ -67,6 +67,7 @@ pub fn is_agent_supported(agent: &CLIAgent) -> bool {
             | CLIAgent::Auggie
             | CLIAgent::Pi
             | CLIAgent::DeepSeek
+            | CLIAgent::Antigravity
     )
 }
 
@@ -82,7 +83,8 @@ fn create_handler(agent: &CLIAgent) -> Option<Box<dyn CLIAgentSessionHandler>> {
         | CLIAgent::OpenCode
         | CLIAgent::Gemini
         | CLIAgent::Auggie
-        | CLIAgent::Pi => Some(Box::new(DefaultSessionListener)),
+        | CLIAgent::Pi
+        | CLIAgent::Antigravity => Some(Box::new(DefaultSessionListener)),
         CLIAgent::Codex => Some(Box::new(CodexSessionHandler)),
         CLIAgent::DeepSeek => Some(Box::new(DeepSeekSessionHandler)),
         CLIAgent::Amp

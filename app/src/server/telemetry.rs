@@ -448,6 +448,7 @@ pub enum CLIAgentType {
     Cursor,
     Goose,
     DeepSeek,
+    Antigravity,
     Unknown,
 }
 

@@ -145,6 +145,7 @@ impl NotificationsModel {
                     let message = match agent {
                         CLIAgent::Codex => "Notification from Codex",
                         CLIAgent::DeepSeek => "Notification from DeepSeek",
+                        CLIAgent::Antigravity => "Notification from Antigravity",
                         _ => "Task completed.",
                     };
                     self.add_notification(
