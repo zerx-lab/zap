@@ -3652,6 +3652,57 @@ fn cli_agent_rich_input_hint_text_mentions_active_cli_agent() {
 }
 
 #[test]
+fn cli_agent_rich_input_open_sets_terminal_keymap_context() {
+    use crate::settings::import::model::ImportedConfigModel;
+
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        app.add_singleton_model(ImportedConfigModel::new);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
+
+        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
+        terminal.read(&app, |view, ctx| {
+            let keymap_context = <TerminalView as warpui::View>::keymap_context(view, ctx);
+            assert!(
+                keymap_context
+                    .set
+                    .contains(crate::settings_view::flags::CLI_AGENT_RICH_INPUT_OPEN),
+                "terminal keymap context should expose open CLI agent rich input"
+            );
+        });
+    })
+}
+
+// 行为测试：当 rich input 已打开时，再次触发 OpenCLIAgentRichInput action
+// （即 Ctrl-G 实际命中绑定后被 dispatch 的 handler）应当关闭 rich input。
+// 这覆盖了本次修复的核心 toggle 路径。
+#[test]
+fn ctrl_g_action_closes_open_cli_agent_rich_input() {
+    use crate::settings::import::model::ImportedConfigModel;
+
+    App::test((), |mut app| async move {
+        initialize_app_for_terminal_view(&mut app);
+        app.add_singleton_model(ImportedConfigModel::new);
+        let _agent_view = FeatureFlag::AgentView.override_enabled(true);
+        let _cli_rich = FeatureFlag::CLIAgentRichInput.override_enabled(true);
+
+        let terminal = open_cli_agent_rich_input_for_agent(&mut app, CLIAgent::Claude);
+        terminal.update(&mut app, |view, ctx| {
+            assert!(
+                view.is_cli_agent_rich_input_open(ctx),
+                "rich input should be open before toggling"
+            );
+            view.handle_action(&TerminalAction::OpenCLIAgentRichInput, ctx);
+            assert!(
+                !view.is_cli_agent_rich_input_open(ctx),
+                "OpenCLIAgentRichInput should close rich input when already open"
+            );
+        });
+    })
+}
+
+#[test]
 fn cli_agent_rich_input_shell_mode_uses_run_commands_hint_text() {
     App::test((), |mut app| async move {
         initialize_app_for_terminal_view(&mut app);

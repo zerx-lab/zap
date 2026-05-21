@@ -134,6 +134,53 @@ pub fn convert_keyboard_input_event(
     })
 }
 
+pub fn text_fallback_event_for_unconverted_key(
+    chars: Option<String>,
+    state: ElementState,
+    modifiers: ModifiersState,
+    is_synthetic: bool,
+) -> Option<crate::Event> {
+    if is_synthetic
+        || state != ElementState::Pressed
+        || modifiers.control_key()
+        || modifiers.alt_key()
+        || modifiers.super_key()
+    {
+        return None;
+    }
+
+    let chars = chars.filter(|chars| !chars.is_empty())?;
+    if let Some((key, key_chars)) = key_down_for_control_text(&chars) {
+        return Some(crate::event::Event::KeyDown {
+            keystroke: Keystroke {
+                ctrl: false,
+                alt: false,
+                shift: modifiers.shift_key(),
+                cmd: false,
+                meta: false,
+                key: key.to_string(),
+            },
+            chars: key_chars.to_string(),
+            details: KeyEventDetails::default(),
+            is_composing: false,
+        });
+    }
+
+    Some(crate::event::Event::TypedCharacters { chars })
+}
+
+fn key_down_for_control_text(chars: &str) -> Option<(&'static str, &'static str)> {
+    match chars {
+        "\r" => Some(("enter", "\r")),
+        "\n" => Some(("enter", "\n")),
+        "\t" => Some(("tab", "\t")),
+        "\u{8}" => Some(("backspace", "\u{8}")),
+        "\u{7f}" => Some(("delete", "\u{7f}")),
+        "\u{1b}" => Some(("escape", "\u{1b}")),
+        _ => None,
+    }
+}
+
 #[cfg(not(target_family = "wasm"))]
 /// Returns the base key without any modifiers applied, or `None` if it cannot be determined.
 fn get_key_without_modifiers(input: &winit::event::KeyEvent) -> Option<String> {

@@ -4,9 +4,13 @@ name: Issue Triage
 # → answer-or-defer（高置信 FAQ 直接答；有效 bug/需求 只打签；不确定 @ 相关 owner）。
 #
 # 与 .github/workflows/claude.yml 的边界：
-# - claude.yml 触发条件是 body/title 含 `@claude`，本 workflow 排除这种情况。
-# - 两者各自负责的事不重叠，但极端情况下可能并发。job 开头会重新检查 `triaged`
-#   label 做幂等防护。
+# - 本 workflow 只负责 issue 创建（issues.opened）的自动 triage 三件套，
+#   不论 issue body / title 是否含 @claude 都会跑。
+# - claude.yml 只负责评论（issue 评论 / PR 评论 / PR 行内评论）里的
+#   @claude 触发，不监听 issues event。
+# - 两者负责的 event 不重叠，不会双跑。job 开头仍检查 `triaged` label
+#   做幂等防护（应对 workflow_dispatch 重跑、与未来可能加的别的
+#   workflow 并发等）。
 #
 # 与 .github/workflows/stale.yml 的边界：本 workflow 完全不动 stale 逻辑。
 
@@ -16,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: '用于手动测试的已有 issue number'
+        description: "用于手动测试的已有 issue number"
         required: true
         type: string
 
@@ -34,17 +38,12 @@ concurrency:
 jobs:
   triage:
     # 防自激励（覆盖所有 *[bot] 账号，与 reopen workflow 的 user.type=='Bot' 对齐）
-    # + 排除 @claude 显式呼叫场景（让位给 claude.yml）
     # + 仅当 issue 尚未被 triage
     if: |
       !endsWith(github.actor, '[bot]') &&
       (
         github.event_name == 'workflow_dispatch' ||
-        (
-          !contains(github.event.issue.body, '@claude') &&
-          !contains(github.event.issue.title, '@claude') &&
-          !contains(toJSON(github.event.issue.labels.*.name), '"triaged"')
-        )
+        !contains(toJSON(github.event.issue.labels.*.name), '"triaged"')
       )
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -55,8 +54,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      # 竞态防护：workflow_dispatch 路径或 issues.opened 与 claude.yml 并发时，
-      # 重新查 issue 当前 label，已 triaged 则跳过后续。
+      # 竞态防护：workflow_dispatch 重跑路径，或未来与别的 workflow
+      # 并发时，重新查 issue 当前 label，已 triaged 则跳过后续。
       - name: Check if already triaged
         id: check
         env:

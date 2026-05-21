@@ -1,50 +1,162 @@
 name: Claude Code
 
+# 统一的 @claude 评论入口：
+# 在以下两种「评论」场景里出现 @claude 关键词时触发：
+#   1. issue / PR 的普通评论（issue_comment）
+#   2. PR 代码行内评论（pull_request_review_comment）
+# 任务路由：
+#   - PR 上下文 + 评论含 review / 审查 / 评审 / 检视 关键词
+#     → 跑官方 code-review plugin，产出一份 PR review。
+#   - PR 上下文 + 不含上述关键词
+#     → 走默认 Claude，按用户评论指令工作（例如「@claude 帮我修这个 bug」）。
+#   - issue 上下文
+#     → 走默认 Claude，按用户在 issue 评论里的指令工作。
+#
+# 边界（与其他 workflow）：
+#   - issue 创建（issues.opened）的自动 triage / dedupe / 答疑由
+#     `issue-triage.yml` 负责；本 workflow 不监听 issues event，避免双跑。
+#   - PR 创建 / push 时不会自动 review，需要维护者评论 @claude 才触发。
+#   - 不监听 issues.closed / labeled 等事件，因此 PR merge 关闭关联 issue
+#     不会触发本 workflow。
+#
+# 为什么不再用 `pull_request_target` 自动 review：
+#   fork 来的 PR 在 `pull_request_target` 下，GitHub 颁发的 OIDC token
+#   会带 `head_repository = <fork>`，Anthropic 的 token 交换端点据此返回
+#   401 Invalid OIDC token（与 secret 是否正确无关）。改走 `issue_comment`
+#   后，event 发生在 base 仓库上下文，head_repository = base，token 交换
+#   正常通过；fork PR 也能被维护者一键 review。
+#
+# 安全说明：
+#   本 workflow 不会主动 checkout 或执行 PR 内的代码，claude-code-action
+#   内部会再做触发者写权限校验（fork 作者默认会被它拒绝执行写操作），
+#   secrets 只在通过校验后才生效。
+
 on:
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  issues:
-    types: [opened, assigned]
-  pull_request_review:
-    types: [submitted]
+
+# 同一个 PR / Issue 上的多次 @claude 串行执行，不互相 cancel：
+#   - 防止短时间内多次 @claude review 并发跑（每次约 $0.08，且 code-review
+#     plugin 内部的 "是否已评论" 幂等检查在并行时会同时通过 → 重复评论）。
+#   - 防止「先让 Claude 写代码、再让 Claude review」两个任务竞态修改 PR 状态。
+# 用 false 而非 true：不要把已经在改文件 / 发评论的 Claude 半途 kill 掉，
+# 否则可能留下不一致的中间状态。
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
 
 jobs:
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
-      issues: read
+      issues: write
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: read # 让 Claude 能读取 PR 的 CI 结果
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Run Claude Code
-        id: claude
+      # 识别当前 event 落在哪里，并判断评论是否在请求 review。输出：
+      #   is_pr：'true' / 'false'
+      #   number：PR 号或 Issue 号（PR 与对应 issue 共享同一编号）
+      #   is_review_request：'true' / 'false'
+      #     评论里含 review / 审查 / 评审 / 检视 关键词时为 true。
+      #     用于区分「@claude review」与「@claude <其它指令>」，避免后者被
+      #     强制走完整 code-review plugin、忽视用户实际意图。
+      - name: Detect context
+        id: ctx
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          # 读 url 字段是为了拿到一个稳定的 string；对象为 null 时该变量为空。
+          ISSUE_PR_URL: ${{ github.event.issue.pull_request.url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          # 通过 env 传入，避免 ${{ }} 直接展开到 shell 字面量里的 injection 风险。
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+
+          case "$EVENT_NAME" in
+            pull_request_review_comment)
+              is_pr=true
+              number="$PR_NUMBER"
+              ;;
+            issue_comment)
+              if [ -n "${ISSUE_PR_URL:-}" ]; then
+                is_pr=true
+              else
+                is_pr=false
+              fi
+              number="$ISSUE_NUMBER"
+              ;;
+            *)
+              echo "::error::Unsupported event: $EVENT_NAME"
+              exit 1
+              ;;
+          esac
+
+          # 关键词路由：英文匹配 review 词族（review / reviewed / reviewing /
+          # reviewer），要求 review 前后是非字母边界，避免误命中 Preview
+          # 之类；中文匹配 审查 / 评审 / 检视。大小写不敏感（tr 先小写化，
+          # 对多字节中文无影响）。
+          # printf '%s' 而非 echo，避免 echo 解析评论里的反斜杠转义。
+          is_review_request=false
+          body_lower="$(printf '%s' "$COMMENT_BODY" | tr '[:upper:]' '[:lower:]')"
+          if printf '%s' "$body_lower" | grep -qE '(^|[^a-z])review[a-z]*([^a-z]|$)|审查|评审|检视'; then
+            is_review_request=true
+          fi
+
+          echo "is_pr=$is_pr" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "is_review_request=$is_review_request" >> "$GITHUB_OUTPUT"
+          echo "::notice::context: is_pr=$is_pr, number=$number, review_request=$is_review_request"
+
+      # PR 上下文 + review 请求：套官方 code-review plugin，对 PR 跑一次 review。
+      # 触发源是 @claude 评论，因此 fork PR 也能工作（避免 pull_request_target
+      # 在 fork PR 上 OIDC head_repository != base 导致的 401）。
+      - name: Run Claude PR review
+        if: |
+          steps.ctx.outputs.is_pr == 'true' &&
+          steps.ctx.outputs.is_review_request == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-
-          # This is an optional setting that allows Claude to read CI results on PRs
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          # 必须传 `--comment`，否则 code-review plugin 默认只在 workflow log
+          # 里输出 review 结果，不会 post 到 PR；anthropic 官方模板里漏掉了
+          # 这个参数，导致历史上很多 "成功" 的 run 实际上没在 PR 留下任何
+          # 评论。
+          prompt: "/code-review:code-review ${{ github.repository }}/pull/${{ steps.ctx.outputs.number }} --comment"
           additional_permissions: |
             actions: read
 
-          # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
-          # prompt: 'Update the pull request description to include a summary of changes.'
+      # PR 上下文 + 非 review 请求：走默认 Claude，按评论指令工作。
+      # 例：「@claude 帮我把变量名 foo 改成 bar」「@claude 解释一下这段逻辑」
+      - name: Run Claude on PR (general)
+        if: |
+          steps.ctx.outputs.is_pr == 'true' &&
+          steps.ctx.outputs.is_review_request == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
 
-          # Optional: Add claude_args to customize behavior and configuration
-          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
-          # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
-
+      # Issue 上下文：走默认 Claude，按用户在 issue 评论里的指令工作。
+      - name: Run Claude on issue
+        if: steps.ctx.outputs.is_pr == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read

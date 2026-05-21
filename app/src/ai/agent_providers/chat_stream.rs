@@ -2945,35 +2945,38 @@ fn dashscope_needs_enable_thinking(
         || id.contains("qwen-plus")
 }
 
-/// 判断 OpenAI 某 model 是否支持 24h Extended Cache(`prompt_cache_retention="24h"`)。
+/// 按 base_url 反推上游 provider,**仅**用于决定是否下发 `prompt_cache_key`。
 ///
-/// 官方文档(2026-05):
-/// - GPT-5 系列 / GPT-5.x / GPT-5-codex / GPT-4.1 / o-series:支持 24h
-/// - GPT-5.5+:**不支持** `in_memory`,默认 24h(不传亦可,但显式下发体验更佳)
-/// - 旧型号(GPT-4o / GPT-3.5):`in_memory`(默认 5-10min)
+/// 对齐 opencode `packages/opencode/src/provider/transform.ts` 的
+/// `options()` 函数:opencode 用 `providerID` 维度决定是否设置
+/// `promptCacheKey`,只有 `openai` / `azure` / `openrouter` / `venice` /
+/// `opencode*` 这五个 provider 会下发。其余 provider(含所有 OpenAI 兼容
+/// 中转 / 本地服务 / 大部分国内云)一律不发。
 ///
-/// model_id 处理原则:
-/// 1. 以在上游官方文档明确点名的名称为准
-/// 2. 包含则走 24h(含 prefix 匹配:“gpt-5-mini” / "gpt-5.5-pro" 都命中 "gpt-5")
-/// 3. 不识别的 model 默认不含在列表里 → 走 in_memory(低风险默认)
+/// Warp 这边没有 `providerID` 这个维度,只有用户自由填写的 `base_url`。
+/// 因此通过 `base_url` 反推:
+/// - `api.openai.com`           → "openai"
+/// - `*.openai.azure.com`       → "azure"
+/// - `openrouter.ai/api`        → "openrouter"
+/// - `api.venice.ai/api`        → "venice"
+/// - `opencode.ai/zen`          → "opencode"
 ///
-/// **跨云厂商使用同一 OpenAI 兼容 endpoint** 的情况(OpenRouter / vLLM / lm-studio /
-/// Azure OpenAI 等):model_id 可能被重命名,这里仅能以字面匹配推断,
-/// 未命中时走 in_memory 默认。后续可考虑提供设置项手动覆盖。
-fn openai_supports_extended_cache(model_id: &str) -> bool {
-    let m = model_id.to_ascii_lowercase();
-    // 官方文档明确点名支持 24h 的型号前缀集合。
-    // 顺序不重要(any),但要避免跨型号误匹配。
-    const PREFIXES: &[&str] = &[
-        "gpt-5",   // gpt-5, gpt-5-mini, gpt-5.5, gpt-5.5-pro, gpt-5-codex 均命中
-        "gpt-4.1", // gpt-4.1, gpt-4.1-mini, gpt-4.1-nano
-        "o3",      // o3, o3-mini, o3-pro
-        "o4",      // o4, o4-mini
-        "o1",      // o1, o1-mini, o1-preview
-    ];
-    PREFIXES
-        .iter()
-        .any(|p| m.starts_with(p) || m.contains(&format!("/{p}")))
+/// 其余一律返回 `None`(等价于 opencode 里未命中任何分支)。
+///
+/// 数据源:[models.dev](https://models.dev/api.json) provider 表的 `api`
+/// 字段。openai / azure / venice 在 models.dev 里没有 `api`(由 SDK 烤进去),
+/// 这里按各 SDK 默认 endpoint 硬编码。
+///
+/// 故意只覆盖这 5 个 \u{2014} 这是 opencode 的真实白名单,不要因为"看起来还有
+/// 其他兼容 cache 的 provider"自行扩大。OpenRouter 文档原生支持
+/// `prompt_cache_key`(snake_case),其余四家走 OpenAI Chat Completions 路径。
+fn opencode_compatible_cache_provider(base_url: &str) -> bool {
+    let u = base_url.to_ascii_lowercase();
+    u.contains("api.openai.com")
+        || u.contains(".openai.azure.com")
+        || u.contains("openrouter.ai/api")
+        || u.contains("api.venice.ai/api")
+        || u.contains("opencode.ai/zen")
 }
 
 fn build_chat_options(
@@ -2993,42 +2996,36 @@ fn build_chat_options(
         // 段抽出来归到 reasoning chunk,UI 显示更干净。仅对支持该格式的 adapter 生效。
         .with_normalize_reasoning_content(true);
 
-    // Prompt caching(对应 opencode `applyCaching` OpenAI 兼容路径)。
-    // genai 的 OpenAI / OpenAiResp adapter 不读 per-message cache_control,
-    // 只认 `ChatOptions::prompt_cache_key` 与 `ChatOptions::cache_control`:
-    //   - prompt_cache_key:OpenAI 把同 key 的请求路由到同一缓存分片,提升命中
-    //     (`prompt_cache_key` field,见 `adapter_shared.rs:194` /
-    //     `openai_resp/adapter_impl.rs:238`);用 conversation_id 作为稳定 key。
-    //   - cache_control → 序列化为 `prompt_cache_retention` 字段(genai
-    //     `adapter_shared.rs:197-205`):
-    //       * Memory / Ephemeral → "in_memory"(旧型号默认 5-10min)
-    //       * Ephemeral24h         → "24h"(GPT-5 / 4.1 / o-series Extended Cache)
-    //       * Ephemeral5m / 1h     → None(不下发字段)
+    // Prompt caching(1:1 对齐 opencode `packages/opencode/src/provider/transform.ts`
+    // 的 `options()` 函数)。要点:
     //
-    // **P0-5**:按 model_id 推断 TTL
-    // - 官方点名支持 24h 的型号(GPT-5/5.x/5-codex / GPT-4.1 / o-series) → 24h
-    // - 旧型号 / 未识别 model → in_memory(保证代理 / 本地服务不报错)
-    // - 官方明确点名:GPT-5.5+ 不支持 in_memory,仅 24h。不识别时 fallback in_memory
-    //   在 GPT-5.5+ 上反而会被拒;但另一面,上面的 prefix 匹配 "gpt-5" 会提前
-    //   拦截该型号走 24h,逻辑上不会遗漏。
+    // 1. **`prompt_cache_retention` 字段(genai `ChatOptions::cache_control`)从不下发**。
+    //    opencode 整个仓库不使用这个字段;严格 schema 校验的 BYOP 中转
+    //    (OpenCode Go / vLLM / lm-studio / 大部分国内代理)会以 HTTP 400
+    //    `Extra inputs are not permitted, field: 'prompt_cache_retention'` 拒绝
+    //    (issue #126)。即使是 OpenAI 官方,默认也有 5min 隐式缓存,不必显式声明。
     //
-    // Anthropic 走 per-message cache_control(在 build_chat_request 里),不在此处。
-    // DeepSeek / Gemini / Ollama 服务端隐式缓存,跳过。
+    // 2. **`prompt_cache_key` 仅在 opencode 已知的 5 个 provider 上下发**:
+    //    `openai` / `azure` / `openrouter` / `venice` / `opencode`。其余 provider
+    //    (含所有 OpenAI 兼容中转 / 国内云 / 本地服务)一律不发。
+    //
+    //    opencode 用 `providerID`(用户 config 选的字符串)做判定;Warp 这边没有
+    //    `providerID`,只能用 `base_url` 反推 → 见 `opencode_compatible_cache_provider`。
+    //    这是 base_url 唯一的语义用途,不要扩展到决定 cache 之外的行为。
+    //
+    // 3. Anthropic 走 per-message cache_control(在 `build_chat_request` 里),
+    //    不在此处。
+    // 4. DeepSeek / Gemini / Ollama 服务端隐式缓存,跳过。
     if matches!(
         api_type,
         AgentProviderApiType::OpenAi | AgentProviderApiType::OpenAiResp
-    ) {
+    ) && opencode_compatible_cache_provider(base_url)
+    {
         if let Some(cid) = conversation_id {
             if !cid.is_empty() {
                 opts = opts.with_prompt_cache_key(cid.to_owned());
             }
         }
-        let cc = if openai_supports_extended_cache(model_id) {
-            CacheControl::Ephemeral24h
-        } else {
-            CacheControl::Ephemeral
-        };
-        opts = opts.with_cache_control(cc);
     }
 
     // **思考深度档位下发**(对齐 Zed `LanguageModelRequest::thinking_allowed` 各
@@ -5353,71 +5350,6 @@ mod build_chat_options_off_tests {
     }
 }
 
-/// `openai_supports_extended_cache` 的单元测试。
-///
-/// 官方 2026-05 点名支持 24h Extended Cache 的型号:GPT-5 系列 / GPT-5.x /
-/// GPT-5-codex / GPT-4.1 / o-series。其他一律走 in_memory 低风险默认。
-#[cfg(test)]
-mod openai_extended_cache_tests {
-    use super::*;
-
-    #[test]
-    fn gpt5_family_supports_24h() {
-        assert!(openai_supports_extended_cache("gpt-5"));
-        assert!(openai_supports_extended_cache("gpt-5-mini"));
-        assert!(openai_supports_extended_cache("gpt-5-codex"));
-        assert!(openai_supports_extended_cache("gpt-5.5"));
-        assert!(openai_supports_extended_cache("gpt-5.5-pro"));
-    }
-
-    #[test]
-    fn gpt41_family_supports_24h() {
-        assert!(openai_supports_extended_cache("gpt-4.1"));
-        assert!(openai_supports_extended_cache("gpt-4.1-mini"));
-        assert!(openai_supports_extended_cache("gpt-4.1-nano"));
-    }
-
-    #[test]
-    fn o_series_supports_24h() {
-        assert!(openai_supports_extended_cache("o3"));
-        assert!(openai_supports_extended_cache("o3-mini"));
-        assert!(openai_supports_extended_cache("o4-mini"));
-        assert!(openai_supports_extended_cache("o1-preview"));
-    }
-
-    #[test]
-    fn legacy_models_default_in_memory() {
-        assert!(!openai_supports_extended_cache("gpt-4o"));
-        assert!(!openai_supports_extended_cache("gpt-4o-mini"));
-        assert!(!openai_supports_extended_cache("gpt-4-turbo"));
-        assert!(!openai_supports_extended_cache("gpt-3.5-turbo"));
-    }
-
-    #[test]
-    fn case_insensitive() {
-        assert!(openai_supports_extended_cache("GPT-5"));
-        assert!(openai_supports_extended_cache("GPT-4.1-Mini"));
-    }
-
-    /// OpenRouter 等代理会把型号写成 "openai/gpt-5";`/<prefix>` 包含判定仅
-    /// 在路径路由型型号上生效。
-    #[test]
-    fn openrouter_style_path_matches() {
-        assert!(openai_supports_extended_cache("openai/gpt-5"));
-        assert!(openai_supports_extended_cache("openai/gpt-4.1-mini"));
-        assert!(openai_supports_extended_cache("vendor/o3-mini"));
-    }
-
-    /// 未识别 / 本地服务 → 不走 24h(低风险默认)。
-    #[test]
-    fn unknown_models_default_false() {
-        assert!(!openai_supports_extended_cache("qwen-max"));
-        assert!(!openai_supports_extended_cache("deepseek-chat"));
-        assert!(!openai_supports_extended_cache("llama-3.1-70b"));
-        assert!(!openai_supports_extended_cache(""));
-    }
-}
-
 /// **端到端 cache 边界稳定性测试**:验证多轮对话模拟下,prompt cache
 /// 需要的“前缀字节级一致”保证。这些测试并不调用上游 API,仅检查
 /// `apply_caching_anthropic` 与 `build_chat_options` 输出的确定性。
@@ -5551,8 +5483,8 @@ mod cache_boundary_stability_tests {
         );
     }
 
-    /// **P0-5 主要验收**:OpenAI build_chat_options 下发的 cache_control
-    /// 在同输入上跨调用一致(prompt_cache_key + cache_control 两个字段)。
+    /// **build_chat_options 输出确定性**(同输入跨调用结果一致)。
+    /// prompt cache 命中的最低门槛 \u{2014} 哈希位级一致。
     #[test]
     fn openai_chat_options_is_deterministic() {
         use crate::settings::ReasoningEffortSetting as R;
@@ -5572,50 +5504,113 @@ mod cache_boundary_stability_tests {
         assert_eq!(a.cache_control, b.cache_control);
     }
 
-    /// **P0-5 GPT-5 走 24h 最终路径验收**。
+    /// **opencode 兼容白名单 provider**(api.openai.com / *.openai.azure.com /
+    /// openrouter.ai / api.venice.ai / opencode.ai/zen)→ 下发 prompt_cache_key,
+    /// 且 **永远不下发 cache_control**(对应 prompt_cache_retention 字段;
+    /// opencode 仓库不使用该字段)。
     #[test]
-    fn openai_gpt5_path_lands_24h_cache_control() {
+    fn whitelisted_provider_emits_prompt_cache_key_only() {
         use crate::settings::ReasoningEffortSetting as R;
-        let opts = build_chat_options(
-            AgentProviderApiType::OpenAi,
+        // 选 5 个白名单代表 URL,每个都覆盖到 api_type=OpenAi 的判定分支。
+        let whitelisted = [
             "https://api.openai.com/v1/",
-            "gpt-5-mini",
-            R::Auto,
-            vec![],
-            Some("conv-1"),
-        );
-        assert_eq!(
-            opts.cache_control,
-            Some(CacheControl::Ephemeral24h),
-            "GPT-5 系列必须下发 Ephemeral24h"
-        );
-        assert_eq!(
-            opts.prompt_cache_key.as_deref(),
-            Some("conv-1"),
-            "prompt_cache_key 必须 = conversation_id"
-        );
+            "https://my-resource.openai.azure.com/openai/v1/",
+            "https://openrouter.ai/api/v1/",
+            "https://api.venice.ai/api/v1/",
+            "https://opencode.ai/zen/v1/",
+        ];
+        for url in whitelisted {
+            let opts = build_chat_options(
+                AgentProviderApiType::OpenAi,
+                url,
+                "gpt-5-mini",
+                R::Auto,
+                vec![],
+                Some("conv-1"),
+            );
+            assert_eq!(
+                opts.prompt_cache_key.as_deref(),
+                Some("conv-1"),
+                "{url}: 白名单 provider 应下发 prompt_cache_key=conversation_id"
+            );
+            assert!(
+                opts.cache_control.is_none(),
+                "{url}: cache_control 永远不发(opencode 不使用 prompt_cache_retention)"
+            );
+        }
     }
 
-    /// **P0-5 旧型号 fallback in_memory 路径验收**。
+    /// **#126 回归**:OpenAi api_type 但 base_url 不在白名单(OpenCode Go
+    /// 中转 Kimi / GLM、vLLM、lm-studio、DashScope、Moonshot、智谱原生 等)
+    /// → 既不下发 cache_control,也不下发 prompt_cache_key。
+    ///
+    /// 对齐 opencode `options()` 函数:除 openai/azure/openrouter/venice/opencode
+    /// 五个 providerID 之外,任何 provider 都不设 promptCacheKey。
     #[test]
-    fn openai_legacy_path_lands_in_memory_cache_control() {
+    fn non_whitelisted_provider_emits_nothing() {
         use crate::settings::ReasoningEffortSetting as R;
-        let opts = build_chat_options(
-            AgentProviderApiType::OpenAi,
-            "https://api.openai.com/v1/",
-            "gpt-4o-mini",
-            R::Auto,
-            vec![],
-            Some("conv-2"),
-        );
-        assert_eq!(
-            opts.cache_control,
-            Some(CacheControl::Ephemeral),
-            "旧型号 fallback Ephemeral(in_memory)"
-        );
+        // issue #126 正文 + 用户后续 comment 的两个具体例子,加上其他主流
+        // OpenAI 兼容中转。每个 URL 都不应下发任何 cache 字段。
+        let byop_urls = [
+            ("https://opencode.go/v1/", "kimi-k2.6"),
+            ("https://opencode.go/v1/", "glm-5.1"),
+            ("https://api.moonshot.cn/v1/", "kimi-k2"),
+            ("https://open.bigmodel.cn/api/paas/v4/", "glm-4.6"),
+            (
+                "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+                "qwen-max",
+            ),
+            ("http://localhost:1234/v1/", "local-model"),
+        ];
+        for (url, model) in byop_urls {
+            let opts = build_chat_options(
+                AgentProviderApiType::OpenAi,
+                url,
+                model,
+                R::Auto,
+                vec![],
+                Some("conv-byop"),
+            );
+            assert!(
+                opts.cache_control.is_none(),
+                "{url}: 非白名单不应下发 cache_control"
+            );
+            assert!(
+                opts.prompt_cache_key.is_none(),
+                "{url}: 非白名单不应下发 prompt_cache_key"
+            );
+        }
     }
 
-    /// **conversation_id 为空不下发 prompt_cache_key**(避免跨会话误挂路由)。
+    /// OpenAiResp api_type 走同一份判定逻辑(genai openai_resp adapter 序列化
+    /// 同样的字段),白名单内下发 / 非白名单屏蔽。
+    #[test]
+    fn openai_resp_follows_same_whitelist() {
+        use crate::settings::ReasoningEffortSetting as R;
+        let on_whitelist = build_chat_options(
+            AgentProviderApiType::OpenAiResp,
+            "https://api.openai.com/v1/",
+            "gpt-5",
+            R::Auto,
+            vec![],
+            Some("conv-resp"),
+        );
+        assert_eq!(on_whitelist.prompt_cache_key.as_deref(), Some("conv-resp"));
+        assert!(on_whitelist.cache_control.is_none());
+
+        let off_whitelist = build_chat_options(
+            AgentProviderApiType::OpenAiResp,
+            "https://custom.relay/v1/",
+            "gpt-5",
+            R::Auto,
+            vec![],
+            Some("conv-resp"),
+        );
+        assert!(off_whitelist.prompt_cache_key.is_none());
+        assert!(off_whitelist.cache_control.is_none());
+    }
+
+    /// **conversation_id 为空跳过 prompt_cache_key**(避免跨会话误挂路由)。
     #[test]
     fn openai_empty_conversation_id_skips_cache_key() {
         use crate::settings::ReasoningEffortSetting as R;
@@ -5631,8 +5626,7 @@ mod cache_boundary_stability_tests {
             opts.prompt_cache_key.is_none(),
             "空 conversation_id 应跳过 prompt_cache_key"
         );
-        // 但 cache_control 仍然走(只是没有路由哈希辅助)
-        assert_eq!(opts.cache_control, Some(CacheControl::Ephemeral24h));
+        assert!(opts.cache_control.is_none(), "cache_control 永远不发");
     }
 
     /// **Anthropic 路径 build_chat_options 不下发 cache_control**
@@ -5677,8 +5671,7 @@ mod cache_boundary_stability_tests {
             );
             assert!(
                 opts.cache_control.is_none(),
-                "{:?} 不应下发 cache_control",
-                api
+                "{api:?} 不应下发 cache_control"
             );
         }
     }

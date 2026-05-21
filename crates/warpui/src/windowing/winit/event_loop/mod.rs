@@ -50,7 +50,7 @@ use super::CustomEvent;
 #[cfg(windows)]
 use super::windows::{add_network_connection_listener, WindowsNetworkConnectionPoint};
 
-use self::key_events::convert_keyboard_input_event;
+use self::key_events::{convert_keyboard_input_event, text_fallback_event_for_unconverted_key};
 
 /// This is the time duration beyond which clicks get treated as separate single clicks instead of
 /// double-click, triple-click, etc.
@@ -1306,8 +1306,19 @@ impl EventLoop {
                 }
 
                 let event_text = event.text.as_ref().map(|text| text.to_string());
-                let warp_ui_event =
-                    convert_keyboard_input_event(event, window_state, is_synthetic)?;
+                let event_state = event.state;
+                let modifiers = window_state.modifiers;
+                let Some(warp_ui_event) =
+                    convert_keyboard_input_event(event, window_state, is_synthetic)
+                else {
+                    return text_fallback_event_for_unconverted_key(
+                        event_text,
+                        event_state,
+                        modifiers,
+                        is_synthetic,
+                    )
+                    .map(ConvertedEvent::Event);
+                };
                 Some(ConvertedEvent::KeyDownWithTypedCharacters {
                     chars: event_text,
                     event: warp_ui_event,

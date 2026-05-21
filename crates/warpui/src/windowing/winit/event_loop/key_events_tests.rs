@@ -1,5 +1,6 @@
-use super::get_input_key;
-use winit::keyboard::{Key::Character, SmolStr};
+use super::{get_input_key, text_fallback_event_for_unconverted_key};
+use winit::event::ElementState;
+use winit::keyboard::{Key::Character, ModifiersState, SmolStr};
 
 #[test]
 fn test_get_input_key() {
@@ -47,4 +48,101 @@ fn test_get_input_key() {
             }
         }
     }
+}
+
+#[test]
+fn text_fallback_emits_typed_characters_for_unmodified_text() {
+    let event = text_fallback_event_for_unconverted_key(
+        Some("mobile".to_string()),
+        ElementState::Pressed,
+        ModifiersState::empty(),
+        false,
+    );
+
+    match event.expect("text input should produce an event") {
+        crate::Event::TypedCharacters { chars } => assert_eq!("mobile", chars),
+        unexpected => panic!("expected typed characters, got {unexpected:?}"),
+    }
+}
+
+#[test]
+fn text_fallback_maps_enter_to_key_down() {
+    let event = text_fallback_event_for_unconverted_key(
+        Some("\r".to_string()),
+        ElementState::Pressed,
+        ModifiersState::empty(),
+        false,
+    );
+
+    match event.expect("enter should produce a key event") {
+        crate::Event::KeyDown {
+            keystroke, chars, ..
+        } => {
+            assert_eq!("enter", keystroke.key);
+            assert_eq!("\r", chars);
+        }
+        unexpected => panic!("expected key down, got {unexpected:?}"),
+    }
+}
+
+#[test]
+fn text_fallback_preserves_control_key_chars() {
+    for (input, expected_key) in [
+        ("\u{8}", "backspace"),
+        ("\u{7f}", "delete"),
+        ("\u{1b}", "escape"),
+    ] {
+        let event = text_fallback_event_for_unconverted_key(
+            Some(input.to_string()),
+            ElementState::Pressed,
+            ModifiersState::empty(),
+            false,
+        );
+
+        match event.expect("control key should produce a key event") {
+            crate::Event::KeyDown {
+                keystroke, chars, ..
+            } => {
+                assert_eq!(expected_key, keystroke.key);
+                assert_eq!(input, chars);
+            }
+            unexpected => panic!("expected key down, got {unexpected:?}"),
+        }
+    }
+}
+
+#[test]
+fn text_fallback_ignores_shortcuts() {
+    let event = text_fallback_event_for_unconverted_key(
+        Some("v".to_string()),
+        ElementState::Pressed,
+        ModifiersState::CONTROL,
+        false,
+    );
+
+    assert!(event.is_none());
+}
+
+#[test]
+fn text_fallback_ignores_synthetic_events() {
+    let event = text_fallback_event_for_unconverted_key(
+        Some("a".to_string()),
+        ElementState::Pressed,
+        ModifiersState::empty(),
+        true,
+    );
+
+    assert!(event.is_none());
+}
+
+#[test]
+fn text_fallback_ignores_key_releases() {
+    let event = text_fallback_event_for_unconverted_key(
+        Some("a".to_string()),
+        ElementState::Released,
+        ModifiersState::empty(),
+        false,
+    );
+
+    assert!(event.is_none());
 }
