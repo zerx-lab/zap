@@ -73,10 +73,10 @@ echo "Relocating binary to $OPT_DIR/$WARP_BINARY_NAME"
 mv "$SRC_BIN" "$OPT_DIR/$WARP_BINARY_NAME"
 
 # Create a relative symlink so usr/bin/<name> still resolves to the binary.
-# Count slashes in WARP_OPT_DIR to figure out the relative-path depth.
-DEPTH_PREFIX="$(echo "$WARP_OPT_DIR" | awk -F/ '{depth=NF-1; out=""; for(i=0;i<depth;i++) out=out"../"; print out}')"
+# usr/bin/<name> 的父目录是 usr/bin/,固定需要 ../../ 才能回到 AppDir 根,
+# 然后拼上去掉前导 / 的 WARP_OPT_DIR 与二进制文件名。
 echo "Creating symlink at usr/bin/$WARP_BINARY_NAME"
-ln -s "../${DEPTH_PREFIX}${WARP_OPT_DIR#/}/$WARP_BINARY_NAME" "$SRC_BIN"
+ln -s "../..${WARP_OPT_DIR}/$WARP_BINARY_NAME" "$SRC_BIN"
 
 # Copy bundled resources alongside the binary.
 DEST_RESOURCES="$OPT_DIR/resources"
