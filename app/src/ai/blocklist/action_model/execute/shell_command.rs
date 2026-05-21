@@ -306,7 +306,10 @@ impl ShellCommandExecutor {
                 drop(model);
 
                 ActionExecution::new_async(
-                    self.action_result_future(block_selector.clone(), ActionResultDelay::Default),
+                    self.action_result_future(
+                        block_selector.clone(),
+                        action_result_delay_for_requested_command(*wait_until_completion),
+                    ),
                     move |result, ctx| {
                         // Remove the senders from the maps.
                         if let Some(handle) = handle.upgrade(ctx) {
@@ -576,41 +579,52 @@ impl ShellCommandExecutor {
         }
 
         async move {
-            // If we support long-running commands, set up a timeout after which we'll
-            // treat the command as long-running and give the agent a snapshot of the
-            // current state.  Otherwise, we'll wait indefinitely for the command to
-            // finish executing.
-            let mut timeout = match delay {
+            pin!(block_metadata_received_rx);
+            pin!(force_refresh_rx);
+
+            let timeout_duration = match delay {
+                ActionResultDelay::UntilCompletion => None,
                 ActionResultDelay::Duration(duration) => {
                     // Enforce a maximum allowed delay that the agent may request, never waiting longer than MAX_AGENT_DELAY_DURATION.
                     // If the requested duration exceeds this cap, we'll still behave as if the agent may expect a running command,
                     // so there's no need to signal preemption (the agent already anticipates an incomplete command state).
-                    Timer::after(duration.min(Self::MAX_AGENT_DELAY_DURATION))
+                    Some(duration.min(Self::MAX_AGENT_DELAY_DURATION))
                 }
                 ActionResultDelay::OnCompletion { timeout } => {
-                    Timer::after(timeout.min(Self::MAX_AGENT_DELAY_DURATION))
+                    Some(timeout.min(Self::MAX_AGENT_DELAY_DURATION))
                 }
-                ActionResultDelay::Default => Timer::after(Self::MAX_WAIT_DURATION),
-            }
-            .fuse();
+                ActionResultDelay::Default => Some(Self::MAX_WAIT_DURATION),
+            };
 
-            pin!(block_metadata_received_rx);
-            pin!(force_refresh_rx);
-
-            let wake_reason = select! {
-                val = block_metadata_received_rx => match val {
-                    Ok(_) => WakeReason::BlockFinished,
-                    Err(_) => return ActionResult::Cancelled,
-                },
-                val = force_refresh_rx => match val {
-                    // User asked the agent to check now; fall through to the snapshot
-                    // code path below. Treated as a preemption (snapshot arrives before
-                    // the agent's own timer would have fired).
-                    Ok(_) => WakeReason::ForceRefresh,
-                    // Sender was dropped (e.g. because the executor is being torn down).
-                    Err(_) => return ActionResult::Cancelled,
-                },
-                _ = timeout => WakeReason::Timeout,
+            let wake_reason = if let Some(timeout_duration) = timeout_duration {
+                let timeout = Timer::after(timeout_duration).fuse();
+                pin!(timeout);
+                select! {
+                    val = block_metadata_received_rx => match val {
+                        Ok(_) => WakeReason::BlockFinished,
+                        Err(_) => return ActionResult::Cancelled,
+                    },
+                    val = force_refresh_rx => match val {
+                        // User asked the agent to check now; fall through to the snapshot
+                        // code path below. Treated as a preemption (snapshot arrives before
+                        // the agent's own timer would have fired).
+                        Ok(_) => WakeReason::ForceRefresh,
+                        // Sender was dropped (e.g. because the executor is being torn down).
+                        Err(_) => return ActionResult::Cancelled,
+                    },
+                    _ = timeout => WakeReason::Timeout,
+                }
+            } else {
+                select! {
+                    val = block_metadata_received_rx => match val {
+                        Ok(_) => WakeReason::BlockFinished,
+                        Err(_) => return ActionResult::Cancelled,
+                    },
+                    val = force_refresh_rx => match val {
+                        Ok(_) => WakeReason::ForceRefresh,
+                        Err(_) => return ActionResult::Cancelled,
+                    },
+                }
             };
 
             // Mark the snapshot as preempted if woken early, allowing the server to distinguish
@@ -727,6 +741,7 @@ impl ShellCommandExecutor {
 /// `effective_read_shell_command_delay`)。
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum ActionResultDelay {
+    UntilCompletion,
     Default,
     Duration(Duration),
     OnCompletion { timeout: Duration },
@@ -741,6 +756,14 @@ impl ActionResultDelay {
             },
             None => Self::Default,
         }
+    }
+}
+
+fn action_result_delay_for_requested_command(wait_until_completion: bool) -> ActionResultDelay {
+    if wait_until_completion {
+        ActionResultDelay::UntilCompletion
+    } else {
+        ActionResultDelay::Default
     }
 }
 

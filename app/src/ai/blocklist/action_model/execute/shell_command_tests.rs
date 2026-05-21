@@ -114,3 +114,15 @@ fn preserves_explicit_or_non_interactive_read_delays() {
         ActionResultDelay::Default
     );
 }
+
+#[test]
+fn requested_command_wait_until_completion_does_not_use_snapshot_timeout() {
+    assert_eq!(
+        action_result_delay_for_requested_command(true),
+        ActionResultDelay::UntilCompletion
+    );
+    assert_eq!(
+        action_result_delay_for_requested_command(false),
+        ActionResultDelay::Default
+    );
+}
