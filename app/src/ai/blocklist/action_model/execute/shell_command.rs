@@ -687,25 +687,13 @@ impl ShellCommandExecutor {
         self.block_finished_senders.remove(&requested_selector);
         self.force_refresh_senders.remove(&requested_selector);
 
-        // 其他路径(ReadShellCommandOutput / WriteToLongRunningShellCommand 等)以
-        // active block id 为 selector,仅在 block 确实 long-running 时才可能在 map 里有
-        // sender。这里保留 long-running 守卫作为防御。
-        let terminal_model = self.terminal_model.lock();
-        let active_block = terminal_model.block_list().active_block();
-        if !active_block.is_active_and_long_running() {
-            return;
-        }
-        // active_block 就是上面已处理的 RequestedCommand 时跳过,避免重复 remove。
-        if active_block
-            .requested_command_action_id()
-            .is_some_and(|requested_command_id| requested_command_id == id)
-        {
-            return;
-        }
-        let selector = BlockSelector::Id(active_block.id().clone());
-        drop(terminal_model);
-        self.block_finished_senders.remove(&selector);
-        self.force_refresh_senders.remove(&selector);
+        // 不再用 `BlockSelector::Id(active_block.id())` 做兜底清理。WriteToLRC /
+        // ReadShellCommandOutput / TransferShellCommandControlToUser 的 sender key 来
+        // 自 action 参数中的 block_id 或创建时的 active_block,与 cancel 时刻的
+        // active_block 不存在可靠对应:若用户在 action 派生后切换了 active block,
+        // 旧的 active-block 兜底就匹配不上;若没切换,清理也只是"偶发正确"。它们的
+        // sender 由各自 on_complete 回调在 future 自然结束时清理;如需即时清理需引入
+        // action_id → BlockSelector 反向索引,属于本 issue 之外的独立改动。
     }
 
     /// Force any in-flight poll for the given long-running command block to resolve
