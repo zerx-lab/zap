@@ -91,6 +91,15 @@ impl ShellCommandExecutor {
     /// to finite `ShellCommandDelay::Duration` requests and to  
     /// `ShellCommandDelay::OnCompletion`, which would otherwise wait indefinitely.  
     pub const MAX_AGENT_DELAY_DURATION: Duration = Duration::from_secs(120);
+    /// 「pager 卡死防御」:`wait_until_completion=true`(`ActionResultDelay::UntilCompletion`)
+    /// 路径的最终兜底超时,仅用于防止 `turn_off_pager_for_command` 被用户 shell 配置
+    /// 绕过(`~/.zshrc` `export PAGER=less`、`git config --global core.pager less` 等)
+    /// 后 agent 永久挂起的极端情况。
+    ///
+    /// **不是**通用的命令超时:30 分钟刻意远超 `MAX_AGENT_DELAY_DURATION`,以避免误伤
+    /// `cargo build --release` / `docker build` / 大型 `npm install` 等合法长任务。
+    /// 触发时通过 `is_preempted=true` 把快照标记为抢占,而非"命令完成"。
+    pub const MAX_UNTIL_COMPLETION_DURATION: Duration = Duration::from_secs(30 * 60);
 
     pub fn new(
         active_session: ModelHandle<ActiveSession>,
@@ -231,21 +240,39 @@ impl ShellCommandExecutor {
     /// 这里改用 `PAGER=cat GIT_PAGER=cat MANPAGER=cat` 并在子壳/script block 里执行,
     /// 既能覆盖 git/man/bat/kubectl/psql/gh 等绝大多数 CLI 的 pager 行为,又让外层 `$?` /
     /// `$LASTEXITCODE` 取自命令本身。
+    ///
+    /// **加固两条**(配合 `ActionResultDelay::UntilCompletion` 没有短超时的事实,见 #138):
+    /// 1. 先 `unset` 再 `export`(对应 shell 的等价语法),清除从父进程继承的 `PAGER=less`
+    ///    等用户 `~/.zshrc` / `~/.bashrc` 导出值,再赋成 `cat`。仅 `export` 在某些边界
+    ///    场景下仍会被随后的 `.zshenv` 之类二次覆盖。
+    /// 2. 注入 `GIT_CONFIG_COUNT=1 / GIT_CONFIG_KEY_0=core.pager / GIT_CONFIG_VALUE_0=cat`
+    ///    作为双保险:经实测 git 2.54 中 `GIT_PAGER` 环境变量已经优先于
+    ///    `~/.gitconfig` 里 `git config --global core.pager less`,但用 git ≥ 2.31 的
+    ///    `GIT_CONFIG_COUNT` 机制再叠一层 in-process config override,可挡住未来 git
+    ///    版本调整优先级或第三方 pager wrapper 的边角情况。对非 git 命令完全无害,
+    ///    因此无需检测首 token。
+    ///
+    /// 即便上述都失效,`action_result_future` 的 `MAX_UNTIL_COMPLETION_DURATION` 兜底
+    /// 会保证 agent 不会**永久**挂起。
     fn turn_off_pager_for_command(&self, command: &String, ctx: &mut ModelContext<Self>) -> String {
         match self.active_session.as_ref(ctx).shell_type(ctx) {
             // 子壳里 export,子壳退出码 = 最后一条命令的退出码,从而保留真实 $?。
+            // 先 unset 清理继承自父 shell 的 PAGER/GIT_PAGER/MANPAGER,再 export=cat。
             Some(ShellType::Zsh) | Some(ShellType::Bash) => format!(
-                "(export PAGER=cat GIT_PAGER=cat MANPAGER=cat; {command})"
+                "(unset PAGER GIT_PAGER MANPAGER; export PAGER=cat GIT_PAGER=cat MANPAGER=cat GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.pager GIT_CONFIG_VALUE_0=cat; {command})"
             ),
             // fish: set -lx 在 begin/end 块内是局部 export, $status 取最后一条命令。
+            // 用 `set -e` 先清掉继承变量,再 `set -lx` 赋 cat。
             Some(ShellType::Fish) => format!(
-                "begin; set -lx PAGER cat; set -lx GIT_PAGER cat; set -lx MANPAGER cat; {command}; end"
+                "begin; set -e PAGER; set -e GIT_PAGER; set -e MANPAGER; set -lx PAGER cat; set -lx GIT_PAGER cat; set -lx MANPAGER cat; set -lx GIT_CONFIG_COUNT 1; set -lx GIT_CONFIG_KEY_0 core.pager; set -lx GIT_CONFIG_VALUE_0 cat; {command}; end"
             ),
             // pwsh: script block 局部 $env: 不污染外层会话, $LASTEXITCODE 透出。
+            // Remove-Item Env: 清理继承值,再赋 cat;对不存在变量用 -ErrorAction SilentlyContinue。
             Some(ShellType::PowerShell) => format!(
-                "& {{ $env:PAGER='cat'; $env:GIT_PAGER='cat'; $env:MANPAGER='cat'; {command} }}"
+                "& {{ Remove-Item Env:PAGER -ErrorAction SilentlyContinue; Remove-Item Env:GIT_PAGER -ErrorAction SilentlyContinue; Remove-Item Env:MANPAGER -ErrorAction SilentlyContinue; $env:PAGER='cat'; $env:GIT_PAGER='cat'; $env:MANPAGER='cat'; $env:GIT_CONFIG_COUNT='1'; $env:GIT_CONFIG_KEY_0='core.pager'; $env:GIT_CONFIG_VALUE_0='cat'; {command} }}"
             ),
-            // 未知 shell 无法安全装饰,直接放过。
+            // 未知 shell 无法安全装饰,直接放过 —— 此路径下 pager 抑制完全无效,只能
+            // 依靠 MAX_UNTIL_COMPLETION_DURATION 兜底超时避免永久挂起。
             None => command.clone(),
         }
     }
@@ -568,16 +595,6 @@ impl ShellCommandExecutor {
         // Create a future that resolves when we should send a result to the agent.
         let terminal_model = self.terminal_model.clone();
 
-        #[derive(Debug, Clone, Copy)]
-        enum WakeReason {
-            BlockFinished,
-            Timeout,
-            /// User clicked `Check now` in the warping indicator, short-circuiting  
-            /// the agent-set poll timer. Treated as a preemption so the server does  
-            /// not interpret the early snapshot as a completion.  
-            ForceRefresh,
-        }
-
         async move {
             pin!(block_metadata_received_rx);
             pin!(force_refresh_rx);
@@ -615,6 +632,12 @@ impl ShellCommandExecutor {
                     _ = timeout => WakeReason::Timeout,
                 }
             } else {
+                // ActionResultDelay::UntilCompletion 路径原本是无超时的。加上 `MAX_UNTIL_COMPLETION_DURATION`
+                // 硬兜底,防止 `turn_off_pager_for_command` 被用户 shell 配置绕过后 agent
+                // 永久挂起(见 #138)。超时触发走下面 `compute_is_preempted` 的
+                // `(Timeout, UntilCompletion)` 分支,被标记为抢占。
+                let hard_timeout = Timer::after(Self::MAX_UNTIL_COMPLETION_DURATION).fuse();
+                pin!(hard_timeout);
                 select! {
                     val = block_metadata_received_rx => match val {
                         Ok(_) => WakeReason::BlockFinished,
@@ -624,16 +647,19 @@ impl ShellCommandExecutor {
                         Ok(_) => WakeReason::ForceRefresh,
                         Err(_) => return ActionResult::Cancelled,
                     },
+                    _ = hard_timeout => WakeReason::Timeout,
                 }
             };
 
             // Mark the snapshot as preempted if woken early, allowing the server to distinguish
-            // true completion from a forced client poll (`ForceRefresh`) or a timeout during `on_completion`.
-            let is_preempted = matches!(wake_reason, WakeReason::ForceRefresh)
-                || matches!(
-                    (wake_reason, delay),
-                    (WakeReason::Timeout, ActionResultDelay::OnCompletion { .. })
-                );
+            // true completion from a forced client poll (`ForceRefresh`), a timeout during
+            // `on_completion`, or the `UntilCompletion` pager-hang safety-net timeout.
+            //
+            // 注: `RequestCommandOutputResult::LongRunningCommandSnapshot` 目前没有 `is_preempted`
+            // 字段(与 `ReadShellCommandOutputResult` / `TransferShellCommandControlToUserResult` 不同),
+            // 该标记在 `RequestCommandOutput` 路径上会被 `action_result_for_requested_command` 的 `..`
+            // 丢弃;这里仍然按语义正确赋值,以便日后字段补齐后自动生效。
+            let is_preempted = compute_is_preempted(wake_reason, delay);
 
             // At this point, we've either received block metadata or we've timed out.
             // Check the current state of the block and produce a result accordingly.
@@ -757,6 +783,34 @@ impl ActionResultDelay {
             None => Self::Default,
         }
     }
+}
+
+/// `action_result_future` 中决定 `is_preempted` 取值的原因。提到模块作用域
+/// 以便 `compute_is_preempted` 可被同模块单测调用。
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum WakeReason {
+    BlockFinished,
+    Timeout,
+    /// User clicked `Check now` in the warping indicator, short-circuiting  
+    /// the agent-set poll timer. Treated as a preemption so the server does  
+    /// not interpret the early snapshot as a completion.  
+    ForceRefresh,
+}
+
+/// 计算快照是否应被标记为抢占(`is_preempted=true`)。提取为纯函数使其能被
+/// 单测验证表驱动逻辑正确性(避免需要在异步 `select!` 里 mock 时钟)。
+///
+/// 抢占语义:server 将快照视为"提前看一眼",而非"命令完成"。满足以下任一:
+/// - `ForceRefresh`(用户 Check now 手动触发)
+/// - `Timeout` 且 delay 为 `OnCompletion`(超过 agent 订的 on-completion 超时)
+/// - `Timeout` 且 delay 为 `UntilCompletion`(命中 pager 卡死兜底超时,见 #138)
+fn compute_is_preempted(wake: WakeReason, delay: ActionResultDelay) -> bool {
+    matches!(wake, WakeReason::ForceRefresh)
+        || matches!(
+            (wake, delay),
+            (WakeReason::Timeout, ActionResultDelay::OnCompletion { .. })
+                | (WakeReason::Timeout, ActionResultDelay::UntilCompletion)
+        )
 }
 
 fn action_result_delay_for_requested_command(wait_until_completion: bool) -> ActionResultDelay {
