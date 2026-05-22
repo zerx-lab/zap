@@ -126,3 +126,40 @@ fn requested_command_wait_until_completion_does_not_use_snapshot_timeout() {
         ActionResultDelay::Default
     );
 }
+
+#[test]
+fn preemption_logic_covers_until_completion_timeout() {
+    use ActionResultDelay::{Default, Duration as DurationDelay, OnCompletion, UntilCompletion};
+    use WakeReason::*;
+
+    // BlockFinished 从不抢占 —— 它是“命令真正完成”的信号。
+    assert!(!compute_is_preempted(BlockFinished, UntilCompletion));
+    assert!(!compute_is_preempted(BlockFinished, Default));
+    assert!(!compute_is_preempted(
+        BlockFinished,
+        OnCompletion {
+            timeout: Duration::from_secs(1)
+        }
+    ));
+
+    // ForceRefresh 总是抢占,与 delay 无关。
+    assert!(compute_is_preempted(ForceRefresh, UntilCompletion));
+    assert!(compute_is_preempted(ForceRefresh, Default));
+
+    // Timeout + OnCompletion / UntilCompletion 是抢占。
+    assert!(compute_is_preempted(
+        Timeout,
+        OnCompletion {
+            timeout: Duration::from_secs(1)
+        }
+    ));
+    // #138: pager 卡死兜底超时必须被标记为抢占,避免 server 误解为“命令完成”。
+    assert!(compute_is_preempted(Timeout, UntilCompletion));
+
+    // Timeout + Default / Duration 不是抢占 —— agent 本来就预期会拿到中间快照。
+    assert!(!compute_is_preempted(Timeout, Default));
+    assert!(!compute_is_preempted(
+        Timeout,
+        DurationDelay(Duration::from_secs(1))
+    ));
+}
