@@ -3361,11 +3361,9 @@ impl TypedActionView for AISettingsPageView {
                     let client = http_client::Client::new();
                     ctx.spawn(
                         async move { models_dev::fetch_and_cache(client).await },
-                        |view, result, ctx| {
-                            if let Err(e) = result {
-                                log::warn!("[models.dev] 拉取失败: {e}");
-                            }
-                            view.rebuild_current_page(ctx);
+                        |view, result, ctx| match result {
+                            Ok(()) => view.rebuild_current_page(ctx),
+                            Err(e) => log::warn!("[models.dev] 拉取失败: {e}"),
                         },
                     );
                 } else {
@@ -3377,11 +3375,9 @@ impl TypedActionView for AISettingsPageView {
                 let client = http_client::Client::new();
                 ctx.spawn(
                     async move { models_dev::fetch_and_cache(client).await },
-                    |view, result, ctx| {
-                        if let Err(e) = result {
-                            log::warn!("[models.dev] 刷新失败: {e}");
-                        }
-                        view.rebuild_current_page(ctx);
+                    |view, result, ctx| match result {
+                        Ok(()) => view.rebuild_current_page(ctx),
+                        Err(e) => log::warn!("[models.dev] 刷新失败: {e}"),
                     },
                 );
             }
