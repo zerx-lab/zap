@@ -678,20 +678,32 @@ impl ShellCommandExecutor {
     }
 
     pub(super) fn cancel_execution(&mut self, id: &AIAgentActionId, _ctx: &mut ModelContext<Self>) {
+        // RequestedCommand 路径以 action id 为 selector,无条件清理。
+        // 不能依赖 `is_active_and_long_running()` 守卫:命令派生后 ~50ms
+        // (LONG_RUNNING_COMMAND_DURATION_MS) 窗口内守卫为 false,会导致 senders 残留,
+        // 进而让 detached future 挂到命令真正结束才退出(对 wait_until_completion=true
+        // 即 ActionResultDelay::UntilCompletion 的影响尤其大)。
+        let requested_selector = BlockSelector::RequestedCommandId(id.clone());
+        self.block_finished_senders.remove(&requested_selector);
+        self.force_refresh_senders.remove(&requested_selector);
+
+        // 其他路径(ReadShellCommandOutput / WriteToLongRunningShellCommand 等)以
+        // active block id 为 selector,仅在 block 确实 long-running 时才可能在 map 里有
+        // sender。这里保留 long-running 守卫作为防御。
         let terminal_model = self.terminal_model.lock();
         let active_block = terminal_model.block_list().active_block();
         if !active_block.is_active_and_long_running() {
             return;
         }
-
-        let selector = if active_block
+        // active_block 就是上面已处理的 RequestedCommand 时跳过,避免重复 remove。
+        if active_block
             .requested_command_action_id()
             .is_some_and(|requested_command_id| requested_command_id == id)
         {
-            BlockSelector::RequestedCommandId(id.clone())
-        } else {
-            BlockSelector::Id(active_block.id().clone())
-        };
+            return;
+        }
+        let selector = BlockSelector::Id(active_block.id().clone());
+        drop(terminal_model);
         self.block_finished_senders.remove(&selector);
         self.force_refresh_senders.remove(&selector);
     }
