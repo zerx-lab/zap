@@ -12617,11 +12617,9 @@ impl Workspace {
                     let remote_id = RemoteRepositoryIdentifier::new(host_id.clone(), std_path);
                     let pane_group_id = pane_group.id();
                     self.left_panel_view.update(ctx, |left_panel, ctx| {
-                        left_panel.set_server_file_browser_root(
+                        left_panel.navigate_server_file_browser(
                             host_id.clone(),
                             indexed_path.to_string(),
-                            None,
-                            None,
                             ctx,
                         );
                     });

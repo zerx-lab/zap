@@ -655,6 +655,17 @@ impl LeftPanelView {
         });
     }
 
+    pub fn navigate_server_file_browser(
+        &mut self,
+        host_id: HostId,
+        path: String,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.server_file_browser_view.update(ctx, |view, ctx| {
+            view.navigate_to_remote_path(host_id, path, ctx);
+        });
+    }
+
     pub fn active_view(&self) -> ToolPanelView {
         self.active_view.get()
     }
