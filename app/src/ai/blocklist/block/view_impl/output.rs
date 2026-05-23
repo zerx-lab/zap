@@ -1649,7 +1649,7 @@ fn render_stopped_output(props: Props, app: &AppContext) -> Box<dyn Element> {
             let keybinding = Text::new_inline(
                 keybinding_string,
                 appearance.ui_font_family(),
-                appearance.ui_font_size() - 1.,
+                appearance.ui_font_footnote(),
             )
             .with_color(theme.foreground().into())
             .finish();

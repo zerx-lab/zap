@@ -17,8 +17,6 @@ use warpui::{
 
 pub const MODAL_WIDTH: f32 = 400.;
 pub const MODAL_PADDING: f32 = 24.;
-pub const HEADER_FONT_SIZE: f32 = 16.;
-pub const TEXT_FONT_SIZE: f32 = 14.;
 pub const BUTTON_WIDTH: f32 = 172.;
 pub const BUTTON_HEIGHT: f32 = 40.;
 
@@ -154,7 +152,7 @@ impl InactivityModalBody {
         );
 
         Container::new(
-            Text::new_inline(text, appearance.ui_font_family(), TEXT_FONT_SIZE)
+            Text::new_inline(text, appearance.ui_font_family(), appearance.ui_font_subheading())
                 .with_color(blended_colors::text_main(
                     appearance.theme(),
                     appearance.theme().background(),
@@ -174,7 +172,7 @@ impl InactivityModalBody {
                 .with_style(UiComponentStyles {
                     width: Some(BUTTON_WIDTH),
                     height: Some(BUTTON_HEIGHT),
-                    font_size: Some(TEXT_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_subheading()),
                     font_weight: Some(Weight::Bold),
                     ..Default::default()
                 })
@@ -200,7 +198,7 @@ impl InactivityModalBody {
             .with_style(UiComponentStyles {
                 width: Some(BUTTON_WIDTH),
                 height: Some(BUTTON_HEIGHT),
-                font_size: Some(TEXT_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 font_weight: Some(Weight::Bold),
                 ..Default::default()
             })
@@ -233,7 +231,7 @@ impl View for InactivityModalBody {
             Text::new_inline(
                 "Are you still there?",
                 appearance.ui_font_family(),
-                HEADER_FONT_SIZE,
+                appearance.ui_font_heading_3(),
             )
             .with_color(blended_colors::text_main(
                 appearance.theme(),

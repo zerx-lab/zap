@@ -243,7 +243,7 @@ fn render_step_text(step: ProgressStep, appearance: &Appearance) -> Box<dyn Elem
     let name_text = Text::new(
         step.name,
         appearance.ui_font_family(),
-        appearance.ui_font_size() + 2.,
+        appearance.ui_font_subheading(),
     )
     .with_color(name_text_color.into_solid())
     .finish();

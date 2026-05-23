@@ -1,5 +1,5 @@
 use super::dropdown::{
-    DropdownAction, DropdownItem, MenuHeaderTextFormatter, DROPDOWN_PADDING, TOP_MENU_BAR_HEIGHT,
+    DropdownAction, DropdownItem, MenuHeaderTextFormatter, DROPDOWN_PADDING,
     TOP_MENU_BAR_MAX_WIDTH,
 };
 use crate::{
@@ -67,7 +67,7 @@ pub struct FilterableDropdown<A: Action + Clone> {
     has_pinned_footer: bool,
     menu_width: Option<f32>,
     vertical_margin: f32,
-    top_bar_height: f32,
+    top_bar_height: Option<f32>,
 }
 
 impl<A> FilterableDropdown<A>
@@ -124,7 +124,7 @@ where
             has_pinned_footer: false,
             menu_width: None,
             vertical_margin: DROPDOWN_PADDING,
-            top_bar_height: TOP_MENU_BAR_HEIGHT,
+            top_bar_height: None,
         }
     }
 
@@ -298,6 +298,11 @@ where
 
     pub fn set_top_bar_max_width(&mut self, max_width: f32) {
         self.top_bar_max_width = max_width;
+    }
+
+    pub fn set_top_bar_height(&mut self, height: f32, ctx: &mut ViewContext<Self>) {
+        self.top_bar_height = Some(height);
+        ctx.notify();
     }
 
     pub fn set_menu_width(&mut self, width: f32, ctx: &mut ViewContext<Self>) {
@@ -493,6 +498,10 @@ where
     }
 
     fn render_top_bar(&self, appearance: &Appearance) -> Box<dyn Element> {
+        let effective_height = self
+            .top_bar_height
+            .unwrap_or_else(|| appearance.dropdown_top_bar_height());
+
         let top_bar_element = if self.is_expanded {
             self.render_filter_input(appearance)
         } else {
@@ -503,7 +512,7 @@ where
             Container::new(
                 ConstrainedBox::new(top_bar_element)
                     .with_max_width(self.top_bar_max_width)
-                    .with_height(self.top_bar_height)
+                    .with_height(effective_height)
                     .finish(),
             )
             .finish(),

@@ -24,7 +24,7 @@ use super::settings_page::{
 };
 use super::settings_page::{
     render_body_item, render_dropdown_item, AdditionalInfo, SettingsPageMeta,
-    SettingsPageViewHandle, ToggleState, CONTENT_FONT_SIZE, HEADER_PADDING,
+    SettingsPageViewHandle, ToggleState, HEADER_PADDING,
 };
 use super::{features, SettingsAction};
 use super::{flags, DisplayCount};
@@ -2334,7 +2334,7 @@ impl FeaturesPageView {
             ctx.add_typed_action_view(|ctx| {
                 let options = SingleLineEditorOptions {
                     text: TextOptions {
-                        font_size_override: Some(appearance_handle.as_ref(ctx).ui_font_size() - 2.),
+                        font_size_override: Some(appearance_handle.as_ref(ctx).ui_font_footnote()),
                         ..Default::default()
                     },
                     ..Default::default()
@@ -2360,7 +2360,7 @@ impl FeaturesPageView {
         let notification_toast_duration_editor = ctx.add_typed_action_view(|ctx| {
             let options = SingleLineEditorOptions {
                 text: TextOptions {
-                    font_size_override: Some(appearance_handle.as_ref(ctx).ui_font_size() - 2.),
+                    font_size_override: Some(appearance_handle.as_ref(ctx).ui_font_footnote()),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -3656,7 +3656,7 @@ impl FeaturesPageView {
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
-        let font_size = appearance.ui_font_size() - 2.;
+        let font_size = appearance.ui_font_footnote();
         let font_color = if notification_settings.is_long_running_enabled {
             theme.active_ui_text_color()
         } else {
@@ -3762,7 +3762,7 @@ impl FeaturesPageView {
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let text = text.to_string();
-        let font_size = appearance.ui_font_size() - 2.;
+        let font_size = appearance.ui_font_footnote();
         let font_color = if is_enabled {
             appearance.theme().active_ui_text_color()
         } else {
@@ -4309,7 +4309,7 @@ impl SettingsWidget for SessionRestorationWidget {
             let message = Text::new_inline(
                 crate::t!("settings-features-wayland-window-restore-warning"),
                 appearance.ui_font_family(),
-                CONTENT_FONT_SIZE,
+                appearance.ui_font_body(),
             )
             .with_color(appearance.theme().disabled_ui_text_color().into())
             .finish();
@@ -5038,7 +5038,7 @@ impl SettingsWidget for DesktopNotificationsWidget {
 
             if show_agent_notifications {
                 let theme = appearance.theme();
-                let font_size = appearance.ui_font_size() - 2.;
+                let font_size = appearance.ui_font_footnote();
                 let font_color = theme.active_ui_text_color();
 
                 let editor_style = UiComponentStyles {
@@ -6228,7 +6228,7 @@ impl SettingsWidget for TabKeyBehaviorWidget {
                     .ui_builder()
                     .span(crate::t!("settings-features-tab-key-behavior"))
                     .with_style(UiComponentStyles {
-                        font_size: Some(CONTENT_FONT_SIZE + 1.),
+                        font_size: Some(appearance.ui_font_body_large()),
                         ..Default::default()
                     })
                     .build()

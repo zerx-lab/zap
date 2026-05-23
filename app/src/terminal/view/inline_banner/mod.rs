@@ -183,7 +183,7 @@ fn render_inline_block_list_banner(
     inline_banner_content: InlineBannerContent,
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let title_font_size = appearance.ui_font_size() + 1.;
+    let title_font_size = appearance.ui_font_body_large();
     let button_text_size = title_font_size;
     let hover_background_fill = warpui::elements::Fill::from(
         theme

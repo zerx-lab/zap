@@ -12,6 +12,11 @@ pub const DEFAULT_MONOSPACE_FONT_NAME: &str = "Hack";
 pub const DEFAULT_MONOSPACE_FONT_SIZE: f32 = 13.0;
 pub const DEFAULT_MONOSPACE_FONT_WEIGHT: Weight = Weight::Normal;
 
+pub const DEFAULT_UI_FONT_NAME: &str = "";
+pub const DEFAULT_UI_FONT_SIZE: f32 = 12.0;
+pub const UI_FONT_SIZE_MIN: f32 = 8.0;
+pub const UI_FONT_SIZE_MAX: f32 = 20.0;
+
 define_settings_group!(FontSettings,
     settings: [
         monospace_font_name: MonospaceFontName {
@@ -108,6 +113,26 @@ define_settings_group!(FontSettings,
             private: false,
             toml_path: "appearance.text.use_thin_strokes",
             description: "Whether to use thin font strokes on macOS.",
+        },
+        ui_font_name: UiFontName {
+            type: String,
+            default: DEFAULT_UI_FONT_NAME.to_string(),
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            storage_key: "UiFontName",
+            toml_path: "appearance.text.ui_font_name",
+            description: "The font used for UI elements.",
+        },
+        ui_font_size: UiFontSize {
+            type: f32,
+            default: DEFAULT_UI_FONT_SIZE,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            storage_key: "UiFontSize",
+            toml_path: "appearance.text.ui_font_size",
+            description: "The base font size for UI elements.",
         },
     ]
 );

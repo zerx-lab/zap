@@ -18,8 +18,6 @@ use crate::{appearance::Appearance, ui_components::blended_colors};
 
 use super::{panel::AIAssistantAction, requests::Requests, transcript::CodeBlockMouseStateHandles};
 
-const PREPARED_RESPONSE_FONT_SIZE: f32 = 11.;
-const REQUEST_LIMIT_INFO_FONT_SIZE: f32 = 11.;
 
 const SQUARE_ALERT_SVG_PATH: &str = "bundled/svg/alert-square.svg";
 const TRIANGLE_ALERT_SVG_PATH: &str = "bundled/svg/alert-triangle.svg";
@@ -267,7 +265,7 @@ pub fn render_prepared_response_button(
     let theme = appearance.theme();
     let default_button_styles = UiComponentStyles {
         width,
-        font_size: Some(PREPARED_RESPONSE_FONT_SIZE),
+        font_size: Some(appearance.ui_font_footnote()),
         font_family_id: Some(appearance.ui_font_family()),
         font_color: Some(
             appearance
@@ -332,7 +330,7 @@ pub fn render_request_limit_info(
             Text::new_inline(
                 format!("Credits used: {num_requests_used} / {request_limit}.",),
                 appearance.ui_font_family(),
-                REQUEST_LIMIT_INFO_FONT_SIZE,
+                appearance.ui_font_footnote(),
             )
             .with_color(text_color)
             .finish(),
@@ -373,7 +371,7 @@ pub fn render_request_limit_info(
                 Text::new_inline(
                     format!("{next_refresh_time} until refresh."),
                     appearance.ui_font_family(),
-                    REQUEST_LIMIT_INFO_FONT_SIZE,
+                    appearance.ui_font_footnote(),
                 )
                 .with_color(text_color)
                 .finish(),

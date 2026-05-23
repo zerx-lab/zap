@@ -54,7 +54,6 @@ const COLLAPSED_BUTTON_VERTICAL_PADDING: f32 = 5.;
 const COLLAPSED_BUTTON_HORIZONTAL_PADDING: f32 = 9.;
 
 /// Environment variables row
-const ENV_VAR_SPAN_FONT_SIZE: f32 = 14.;
 const ENV_VAR_ROW_HEIGHT: f32 = 50.;
 const ENV_VAR_DROPDOWN_WIDTH: f32 = 225.;
 const ENV_VAR_HORIZONTAL_MARGIN: f32 = 20.;
@@ -570,7 +569,7 @@ impl WorkflowsMoreInfoView {
                     .ui_builder()
                     .span(crate::t!("workflow-environment-variables"))
                     .with_style(UiComponentStyles {
-                        font_size: Some(ENV_VAR_SPAN_FONT_SIZE),
+                        font_size: Some(appearance.ui_font_subheading()),
                         ..Default::default()
                     })
                     .build()

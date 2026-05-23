@@ -60,7 +60,6 @@ pub enum CommitSubAction {
     ToggleChangesExpanded,
 }
 
-const EDITOR_FONT_SIZE: f32 = 12.;
 const EDITOR_MIN_HEIGHT: f32 = 72.;
 /// Loading-state label while the commit / chain runs. Static because the shared
 /// button API currently stores borrowed labels.
@@ -108,7 +107,7 @@ pub(super) fn new_state(
         let appearance = Appearance::as_ref(ctx);
         let options = EditorOptions {
             text: TextOptions {
-                font_size_override: Some(EDITOR_FONT_SIZE),
+                font_size_override: Some(appearance.ui_font_body()),
                 font_family_override: Some(appearance.ui_font_family()),
                 ..Default::default()
             },

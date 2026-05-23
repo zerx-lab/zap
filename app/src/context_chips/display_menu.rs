@@ -104,7 +104,6 @@ const ENV_MENU_ITEM_HORIZONTAL_PADDING: f32 = 16.;
 const ENV_MENU_ITEM_VERTICAL_PADDING: f32 = 4.;
 const ENV_MENU_ICON_SIZE: f32 = 16.;
 const ENV_MENU_ICON_SLOT_SIZE: f32 = 16.;
-const ENV_MENU_ITEM_FONT_SIZE: f32 = 14.;
 const ENV_MENU_SEARCH_VERTICAL_PADDING: f32 = 4.;
 // Bottom padding under the search field. The model selector's bottom padding
 // is effectively `SEARCH_VERTICAL_PADDING (4) + MENU_CONTENT_VERTICAL_PADDING
@@ -259,7 +258,7 @@ impl DisplayChipMenu {
 
                     let text_options = match chip_menu_type {
                         ChipMenuType::Environments => {
-                            TextOptions::ui_text(Some(ENV_MENU_ITEM_FONT_SIZE), appearance)
+                            TextOptions::ui_text(Some(appearance.ui_font_subheading()), appearance)
                         }
                         ChipMenuType::Directories
                         | ChipMenuType::Branches
@@ -834,7 +833,7 @@ impl DisplayChipMenu {
 
         let chip_menu_type = self.chip_menu_type;
         let (font_size, icon_size) = match chip_menu_type {
-            ChipMenuType::Environments => (ENV_MENU_ITEM_FONT_SIZE, ENV_MENU_ICON_SIZE),
+            ChipMenuType::Environments => (appearance.ui_font_subheading(), ENV_MENU_ICON_SIZE),
             ChipMenuType::Directories | ChipMenuType::Branches | ChipMenuType::CodeReview => {
                 let font_size = appearance.ui_font_size();
                 (font_size, font_size * 0.8)
@@ -964,7 +963,7 @@ impl DisplayChipMenu {
                     match self.chip_menu_type {
                         ChipMenuType::Environments => (
                             "No results",
-                            ENV_MENU_ITEM_FONT_SIZE,
+                            appearance.ui_font_subheading(),
                             ENV_MENU_ITEM_HORIZONTAL_PADDING,
                             ENV_MENU_ITEM_VERTICAL_PADDING,
                             internal_colors::text_sub(theme, theme.surface_2()),
@@ -1016,7 +1015,7 @@ impl DisplayChipMenu {
                         let is_selected = index == selected_index && !is_footer_hovered;
 
                         let font_size = if matches!(chip_menu_type, ChipMenuType::Environments) {
-                            ENV_MENU_ITEM_FONT_SIZE
+                            appearance.ui_font_subheading()
                         } else {
                             appearance.ui_font_size()
                         };

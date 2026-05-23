@@ -862,7 +862,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                     Text::new_inline(
                         label.text.clone(),
                         appearance.ui_builder().ui_font_family(),
-                        appearance.ui_builder().ui_font_size() * 0.75,
+                        appearance.ui_font_overline(),
                     )
                     .with_color(color)
                     .with_style(label.font_properties)
@@ -908,7 +908,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
         appearance: &Appearance,
         icon_color: Fill,
     ) -> Box<dyn Element> {
-        let icon_size = appearance.ui_font_size() * 1.2;
+        let icon_size = appearance.ui_font_subheading();
         let icon =
             ConstrainedBox::new(Icon::new(CHEVRON_RIGHT_ALIGN_SVG_PATH, icon_color).finish())
                 .with_height(icon_size)

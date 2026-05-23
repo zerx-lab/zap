@@ -53,10 +53,9 @@ use super::theme;
 // All units in px
 const THEME_CHOOSER_TITLE: &str = "Themes";
 const CLOSE_BUTTON_MARGIN_RIGHT: f32 = 6.;
-const TITLE_FONT_SIZE: f32 = 16.;
+const THEME_NAME_FONT_SIZE: f32 = 14.;
 const TITLE_MARGIN: f32 = 12.;
 const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;
-const THEME_NAME_FONT_SIZE: f32 = 14.;
 const THEME_NAME_MARGIN_LEFT: f32 = 16.;
 const DELETE_BUTTON_LINE_WIDTH: f32 = 10.;
 const DELETE_BUTTON_LINE_HEIGHT: f32 = 1.33;
@@ -618,7 +617,7 @@ impl ThemeChooser {
                             .span(THEME_CHOOSER_TITLE.to_string())
                             .with_style(UiComponentStyles {
                                 font_family_id: Some(appearance.ui_font_family()),
-                                font_size: Some(TITLE_FONT_SIZE),
+                                font_size: Some(appearance.ui_font_heading_3()),
                                 font_weight: Some(Weight::Semibold),
                                 ..Default::default()
                             })

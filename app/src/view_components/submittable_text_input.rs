@@ -15,7 +15,7 @@ use crate::{
     themes::theme::Fill,
 };
 
-const ENTER_BUTTON_SIZE: f32 = 22.;
+const ENTER_BUTTON_SIZE_SCALE: f32 = 1.85;
 
 enum ValidatorType {
     /// Validates whenever the input changes.
@@ -153,17 +153,19 @@ impl View for SubmittableTextInput {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let ui_font_size = appearance.ui_font_size();
         let border_fill = if self.has_error {
             appearance.theme().ui_error_color().into()
         } else {
             appearance.theme().outline()
         };
 
+        let button_size = ui_font_size * ENTER_BUTTON_SIZE_SCALE;
         let mut submit_button = appearance
             .ui_builder()
-            .enter_button(ENTER_BUTTON_SIZE, self.submit_button_state.clone())
+            .enter_button(button_size, self.submit_button_state.clone())
             .with_style(UiComponentStyles {
-                padding: Some(Coords::uniform(4.)),
+                padding: Some(Coords::uniform(ui_font_size / 3.)),
                 ..Default::default()
             })
             .build();
@@ -188,7 +190,7 @@ impl View for SubmittableTextInput {
                             .with_style(UiComponentStyles {
                                 background: Some(Fill::Solid(ColorU::transparent_black()).into()),
                                 border_color: Some(Fill::Solid(ColorU::transparent_black()).into()),
-                                padding: Some(Coords::uniform(8.)),
+                                padding: Some(Coords::uniform(ui_font_size * 2. / 3.)),
                                 ..Default::default()
                             })
                             .build()
@@ -207,8 +209,8 @@ impl View for SubmittableTextInput {
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.)))
         .with_margin_top(self.outer_margin_top)
         .with_margin_bottom(self.outer_margin_bottom)
-        .with_padding_left(4.)
-        .with_padding_right(8.)
+        .with_padding_left(ui_font_size / 3.)
+        .with_padding_right(ui_font_size * 2. / 3.)
         .finish()
     }
 }

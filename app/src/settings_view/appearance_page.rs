@@ -1,7 +1,6 @@
 use super::directory_color_add_picker::{DirectoryColorAddPicker, DirectoryColorAddPickerEvent};
 use super::settings_page::{
     AdditionalInfo, Category, LocalOnlyIconState, MatchData, PageType, SettingsWidget,
-    CONTENT_FONT_SIZE,
 };
 use super::{flags, SettingsSection};
 use super::{
@@ -32,7 +31,7 @@ use crate::settings::{
     respect_system_theme, AIFontName, AppEditorSettings, CursorBlink, CursorBlinkEnabled,
     EnforceMinimumContrast, FocusPaneOnHover, FontSettings, FontSettingsChangedEvent, InputBoxType,
     InputModeSettings, InputModeState, MonospaceFontName, PaneSettings, ShouldDimInactivePanes,
-    ThemeSettings, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME,
+    ThemeSettings, UiFontName, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
 use crate::terminal::block_list_viewport::InputMode;
@@ -437,6 +436,8 @@ pub enum AppearancePageAction {
     BlurSliderDragged(f32),
     SetFontFamily(String),
     SetAIFontFamily(String),
+    SetUIFontFamily(String),
+    SetUIFontSize,
     SetThinStrokes(ThinStrokes),
     SetInputMode {
         new_mode: InputMode,
@@ -493,6 +494,8 @@ pub struct AppearanceSettingsPageView {
     line_height_editor: ViewHandle<EditorView>,
     notebook_font_size_editor: ViewHandle<EditorView>,
     ai_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
+    ui_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
+    ui_font_size_editor: ViewHandle<EditorView>,
     new_window_columns_editor: ViewHandle<EditorView>,
     valid_new_window_columns: bool,
     new_window_rows_editor: ViewHandle<EditorView>,
@@ -565,6 +568,10 @@ impl TypedActionView for AppearanceSettingsPageView {
                         .set_value(false, ctx));
                 });
             }
+            SetUIFontFamily(name) => {
+                self.set_ui_font_family_setting(name, ctx);
+            }
+            SetUIFontSize => self.set_ui_font_size_setting(ctx),
             SetThinStrokes(value) => self.set_thin_strokes(value, ctx),
             SetEnforceMinimumContrast(value) => {
                 FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
@@ -739,6 +746,7 @@ impl AppearanceSettingsPageView {
             monospace_font_weight,
             notebook_font_size,
             match_notebook_to_monospace_font_size,
+            ui_font_size_setting,
         ) = {
             let appearance = Appearance::as_ref(ctx);
             let font_settings = FontSettings::as_ref(ctx);
@@ -749,12 +757,20 @@ impl AppearanceSettingsPageView {
                 appearance.monospace_font_weight(),
                 *font_settings.notebook_font_size,
                 *font_settings.match_notebook_to_monospace_font_size,
+                *font_settings.ui_font_size,
             )
         };
 
         let font_size_editor = Self::editor(
             |me, event, ctx| me.handle_font_size_editor_event(event, ctx),
             &format!("{monospace_font_size}"),
+            ui_font_size,
+            ctx,
+        );
+
+        let ui_font_size_editor = Self::editor(
+            |_me, _event, _ctx| {},
+            &format!("{ui_font_size_setting}"),
             ui_font_size,
             ctx,
         );
@@ -1028,6 +1044,17 @@ impl AppearanceSettingsPageView {
             dropdown
         });
 
+        let ui_font_family_dropdown = ctx.add_typed_action_view(|ctx| {
+            let mut dropdown = FilterableDropdown::new(ctx);
+            dropdown.set_top_bar_max_width(FONT_FAMILY_DROPDOWN_WIDTH);
+            dropdown.set_menu_width(FONT_FAMILY_DROPDOWN_WIDTH, ctx);
+
+            // Initialize dropdown with the default font in case system fonts failed to load.
+            dropdown.add_items(vec![Self::default_ui_font_item(ctx)], ctx);
+            dropdown.set_selected_by_index(0, ctx);
+            dropdown
+        });
+
         let font_weight_dropdown = ctx.add_typed_action_view(|ctx| {
             let mut dropdown = Dropdown::new(ctx);
             dropdown.set_top_bar_max_width(FONT_WEIGHT_DROPDOWN_WIDTH);
@@ -1247,6 +1274,8 @@ impl AppearanceSettingsPageView {
             window_id: ctx.window_id(),
             local_only_icon_tooltip_states: Default::default(),
             ai_font_family_dropdown,
+            ui_font_family_dropdown,
+            ui_font_size_editor,
             notebook_font_size_editor,
             font_size_editor,
             line_height_editor,
@@ -1391,6 +1420,7 @@ impl AppearanceSettingsPageView {
         let mut text_settings_widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
             Box::new(TerminalFontWidget::default()),
             Box::new(AIFontWidget::default()),
+            Box::new(UIFontWidget::default()),
             Box::new(NotebookFontSizeWidget::default()),
         ];
         if font_settings
@@ -1520,6 +1550,19 @@ impl AppearanceSettingsPageView {
                     editor.set_buffer_text(&format!("{line_height_ratio}"), ctx);
                 });
             }
+            AppearanceEvent::UiFontSizeChanged { .. } => {
+                let ui_font_size = *FontSettings::as_ref(ctx).ui_font_size;
+                let target = format!("{ui_font_size}");
+                let current = self.ui_font_size_editor.as_ref(ctx).buffer_text(ctx);
+                if current != target {
+                    self.ui_font_size_editor.update(ctx, move |editor, ctx| {
+                        editor.set_buffer_text(&target, ctx);
+                    });
+                }
+            }
+            AppearanceEvent::UiFontFamilyChanged { .. } => {
+                self.update_font_dropdown(ctx);
+            }
             _ => {}
         }
 
@@ -1571,6 +1614,25 @@ impl AppearanceSettingsPageView {
         // If we're on a non-Linux platform, render the dropdown item in the
         // actual font.  We currently don't do this on Linux because
         // pre-loading all of the fonts is too expensive.
+        if cfg!(not(any(target_os = "linux", target_os = "freebsd"))) {
+            if let Some(family_id) = ctx.font_cache().family_id_for_name(&font_name) {
+                initial_dropdown_item = initial_dropdown_item.with_font_override(family_id);
+            }
+        }
+
+        initial_dropdown_item
+    }
+
+    fn default_ui_font_item<V>(ctx: &mut ViewContext<V>) -> DropdownItem<AppearancePageAction>
+    where
+        V: View,
+    {
+        let font_name = UiFontName::default_value();
+        let mut initial_dropdown_item = DropdownItem::new(
+            format!("{} (default)", font_name),
+            AppearancePageAction::SetUIFontFamily(font_name.clone()),
+        );
+
         if cfg!(not(any(target_os = "linux", target_os = "freebsd"))) {
             if let Some(family_id) = ctx.font_cache().family_id_for_name(&font_name) {
                 initial_dropdown_item = initial_dropdown_item.with_font_override(family_id);
@@ -1967,6 +2029,7 @@ impl AppearanceSettingsPageView {
     fn update_font_dropdown(&mut self, ctx: &mut ViewContext<Self>) {
         let monospace_font_family = Appearance::as_ref(ctx).monospace_font_family();
         let ai_font_family = Appearance::as_ref(ctx).ai_font_family();
+        let ui_font_family = Appearance::as_ref(ctx).ui_font_family();
 
         self.font_family_dropdown.update(ctx, |dropdown, ctx| {
             // Get the family name of the current monospace font.
@@ -2094,6 +2157,53 @@ impl AppearanceSettingsPageView {
             }
         });
 
+        self.ui_font_family_dropdown.update(ctx, |dropdown, ctx| {
+            let font_name = ctx.font_cache().load_family_name_from_id(ui_font_family);
+
+            if let Some(font_name) = &font_name {
+                self.available_families
+                    .entry(font_name.clone())
+                    .and_modify(|entry| entry.0 = Some(ui_font_family))
+                    .or_insert((Some(ui_font_family), FontType::Any));
+            }
+            let font_name = font_name.unwrap_or_default();
+
+            let mut items = self
+                .available_families
+                .iter()
+                .filter_map(|(name, (family, _font_type))| {
+                    if name == &UiFontName::default_value() {
+                        return None;
+                    }
+
+                    let name_move = name.clone();
+                    let mut dropdown =
+                        DropdownItem::new(name, AppearancePageAction::SetUIFontFamily(name_move));
+
+                    if cfg!(not(any(target_os = "linux", target_os = "freebsd"))) {
+                        if let Some(family_id) = family {
+                            dropdown = dropdown.with_font_override(*family_id)
+                        }
+                    }
+
+                    Some(dropdown)
+                })
+                .collect::<Vec<_>>();
+
+            items.sort_by(|a, b| a.display_text.cmp(&b.display_text));
+            items.insert(0, Self::default_ui_font_item(ctx));
+            dropdown.set_items(items, ctx);
+
+            if !font_name.is_empty() {
+                let label = if font_name == UiFontName::default_value() {
+                    &format!("{} (default)", UiFontName::default_value())
+                } else {
+                    &font_name
+                };
+                dropdown.set_selected_by_name(label, ctx);
+            }
+        });
+
         ctx.notify();
     }
 
@@ -2159,6 +2269,22 @@ impl AppearanceSettingsPageView {
         FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
             report_if_error!(font_settings.ai_font_name.set_value(name.to_string(), ctx))
         });
+    }
+
+    fn set_ui_font_family_setting(&mut self, name: &str, ctx: &mut ViewContext<Self>) {
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            report_if_error!(font_settings.ui_font_name.set_value(name.to_string(), ctx));
+        });
+    }
+
+    fn set_ui_font_size_setting(&mut self, ctx: &mut ViewContext<Self>) {
+        let user_input = self.ui_font_size_editor.as_ref(ctx).buffer_text(ctx);
+        if let Ok(num) = user_input.parse::<f32>() {
+            let clamped = num.clamp(8.0, 20.0);
+            FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+                report_if_error!(font_settings.ui_font_size.set_value(clamped, ctx));
+            });
+        }
     }
 
     fn set_thin_strokes(&mut self, value: &ThinStrokes, ctx: &mut ViewContext<Self>) {
@@ -3112,12 +3238,12 @@ impl SettingsWidget for CustomWindowSizeWidget {
                             .ui_builder()
                             .text_input(view.new_window_columns_editor.clone())
                             .with_style(UiComponentStyles {
-                                width: Some(60.),
+                                width: Some(appearance.ui_font_size() * 5.),
                                 padding: Some(Coords {
-                                    top: 4.,
-                                    bottom: 4.,
-                                    left: 6.,
-                                    right: 6.,
+                                    top: appearance.ui_font_size() / 3.,
+                                    bottom: appearance.ui_font_size() / 3.,
+                                    left: appearance.ui_font_size() / 2.,
+                                    right: appearance.ui_font_size() / 2.,
                                 }),
                                 background: Some(appearance.theme().surface_2().into()),
                                 border_color: column_border_color,
@@ -3148,12 +3274,12 @@ impl SettingsWidget for CustomWindowSizeWidget {
                             .ui_builder()
                             .text_input(view.new_window_rows_editor.clone())
                             .with_style(UiComponentStyles {
-                                width: Some(60.),
+                                width: Some(appearance.ui_font_size() * 5.),
                                 padding: Some(Coords {
-                                    top: 4.,
-                                    bottom: 4.,
-                                    left: 6.,
-                                    right: 6.,
+                                    top: appearance.ui_font_size() / 3.,
+                                    bottom: appearance.ui_font_size() / 3.,
+                                    left: appearance.ui_font_size() / 2.,
+                                    right: appearance.ui_font_size() / 2.,
                                 }),
                                 background: Some(appearance.theme().surface_2().into()),
                                 border_color: row_border_color,
@@ -3968,6 +4094,101 @@ impl SettingsWidget for AIFontWidget {
 }
 
 #[derive(Default)]
+struct UIFontWidget;
+
+impl SettingsWidget for UIFontWidget {
+    type View = AppearanceSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "text ui font family font size interface"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        _app: &AppContext,
+    ) -> Box<dyn Element> {
+        let mut ui_font_row = Flex::row();
+
+        // UI Font Family Dropdown
+        let mut ui_font = Flex::column();
+        ui_font.add_child(render_body_item_label::<AppearancePageAction>(
+            crate::t!("settings-appearance-font-ui-label"),
+            None,
+            None,
+            LocalOnlyIconState::Hidden,
+            ToggleState::Enabled,
+            appearance,
+        ));
+        ui_font.add_child(
+            Container::new(ChildView::new(&view.ui_font_family_dropdown).finish())
+                .with_margin_bottom(10.)
+                .finish(),
+        );
+        ui_font_row.add_child(Shrinkable::new(1., ui_font.finish()).finish());
+
+        // UI Font Size Input
+        let mut font_size = Flex::column();
+        font_size.add_child(
+            appearance
+                .ui_builder()
+                .label(crate::t!("settings-appearance-font-size-label"))
+                .with_style(UiComponentStyles {
+                    margin: Some(Coords {
+                        left: 2.,
+                        ..Default::default()
+                    }),
+                    font_size: Some(appearance.ui_font_size()),
+                    ..Default::default()
+                })
+                .build()
+                .finish(),
+        );
+        font_size.add_child(
+            Container::new(
+                Dismiss::new(
+                    appearance
+                        .ui_builder()
+                        .text_input(view.ui_font_size_editor.clone())
+                        .with_style(UiComponentStyles {
+                            width: Some(appearance.ui_font_size() * 4.2),
+                            padding: Some(Coords {
+                                top: appearance.ui_font_size() * 7. / 12.,
+                                bottom: appearance.ui_font_size() * 7. / 12.,
+                                left: appearance.ui_font_size(),
+                                right: appearance.ui_font_size(),
+                            }),
+                            margin: Some(Coords {
+                                top: 2.,
+                                left: 2.,
+                                ..Default::default()
+                            }),
+                            background: Some(appearance.theme().surface_2().into()),
+                            ..Default::default()
+                        })
+                        .build()
+                        .finish(),
+                )
+                .on_dismiss(|ctx, _app| {
+                    ctx.dispatch_typed_action(AppearancePageAction::SetUIFontSize)
+                })
+                .finish(),
+            )
+            .with_padding_top(4.)
+            .finish(),
+        );
+        ui_font_row.add_child(
+            Container::new(font_size.finish())
+                .with_margin_left(12.)
+                .finish(),
+        );
+
+        ui_font_row.finish()
+    }
+}
+
+#[derive(Default)]
 struct TerminalFontWidget {
     line_height_button_state: MouseStateHandle,
     fonts_checkbox_state: MouseStateHandle,
@@ -3990,7 +4211,7 @@ impl TerminalFontWidget {
                         left: 12.,
                         ..Default::default()
                     }),
-                    font_size: Some(CONTENT_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_body()),
                     ..Default::default()
                 })
                 .build()
@@ -4005,10 +4226,10 @@ impl TerminalFontWidget {
                         .with_style(UiComponentStyles {
                             width: Some(LINE_HEIGHT_INPUT_BOX_WIDTH),
                             padding: Some(Coords {
-                                top: 7.,
-                                bottom: 7.,
-                                left: 12.,
-                                right: 12.,
+                                top: appearance.ui_font_size() * 7. / 12.,
+                                bottom: appearance.ui_font_size() * 7. / 12.,
+                                left: appearance.ui_font_size(),
+                                right: appearance.ui_font_size(),
                             }),
                             margin: Some(Coords {
                                 top: 2.,
@@ -4048,7 +4269,7 @@ impl TerminalFontWidget {
                         left: 8.,
                         ..Default::default()
                     }),
-                    font_size: Some(appearance.ui_font_size() * 0.8),
+                    font_size: Some(appearance.ui_font_overline()),
                     ..Default::default()
                 })
                 .with_text_label(crate::t!("settings-appearance-font-reset-default"));
@@ -4148,7 +4369,7 @@ impl SettingsWidget for TerminalFontWidget {
                 .ui_builder()
                 .label(crate::t!("settings-appearance-font-weight-label"))
                 .with_style(UiComponentStyles {
-                    font_size: Some(CONTENT_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_body()),
                     ..Default::default()
                 })
                 .build()
@@ -4175,7 +4396,7 @@ impl SettingsWidget for TerminalFontWidget {
                         left: 2.,
                         ..Default::default()
                     }),
-                    font_size: Some(CONTENT_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_body()),
                     ..Default::default()
                 })
                 .build()
@@ -4190,10 +4411,10 @@ impl SettingsWidget for TerminalFontWidget {
                         .with_style(UiComponentStyles {
                             width: Some(FONT_SIZE_INPUT_BOX_WIDTH),
                             padding: Some(Coords {
-                                top: 7.,
-                                bottom: 7.,
-                                left: 12.,
-                                right: 12.,
+                                top: appearance.ui_font_size() * 7. / 12.,
+                                bottom: appearance.ui_font_size() * 7. / 12.,
+                                left: appearance.ui_font_size(),
+                                right: appearance.ui_font_size(),
                             }),
                             margin: Some(Coords {
                                 top: 2.,
@@ -5287,8 +5508,8 @@ impl SettingsWidget for AltScreenPaddingWidget {
             };
 
             let editor_style = UiComponentStyles {
-                width: Some(40.),
-                padding: Some(Coords::uniform(5.)),
+                width: Some(appearance.ui_font_size() * 3.33),
+                padding: Some(Coords::uniform(appearance.ui_font_size() * 5. / 12.)),
                 background: Some(theme.surface_2().into()),
                 border_color,
                 ..Default::default()

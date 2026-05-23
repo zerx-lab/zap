@@ -25,7 +25,6 @@ use crate::{
 };
 
 const VARIABLE_DIVIDER_HEIGHT: f32 = 2.;
-const SECTION_FONT_SIZE: f32 = 16.;
 const BUTTON_HEIGHT: f32 = 32.;
 
 /// This file contains components that fixed in the view,
@@ -80,7 +79,7 @@ impl EnvVarCollectionView {
                             .ui_builder()
                             .span(text)
                             .with_style(UiComponentStyles {
-                                font_size: Some(appearance.ui_font_size() + 2.),
+                                font_size: Some(appearance.ui_font_subheading()),
                                 ..Default::default()
                             })
                             .build()
@@ -164,7 +163,7 @@ impl EnvVarCollectionView {
                     .ui_builder()
                     .span(crate::t!("env-vars-variables-label"))
                     .with_style(UiComponentStyles {
-                        font_size: Some(SECTION_FONT_SIZE),
+                        font_size: Some(appearance.ui_font_heading_3()),
                         ..Default::default()
                     })
                     .build()

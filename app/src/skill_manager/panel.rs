@@ -29,13 +29,9 @@ use crate::editor::{
 const PANEL_PADDING: f32 = 8.0;
 const ROW_PADDING_VERTICAL: f32 = 5.0;
 const ROW_PADDING_HORIZONTAL: f32 = 8.0;
-const FONT_SIZE: f32 = 13.0;
-const SEARCH_FONT_SIZE: f32 = 14.0;
-const META_FONT_SIZE: f32 = 11.0;
 // filter tab:保持紧凑高度,用 12px 字号 + 强对比激活态撑起可读性,
 // 避免被外壳 ClippedScrollable 拦截点击事件。
 const FILTER_BUTTON_HEIGHT: f32 = 24.0;
-const FILTER_BUTTON_FONT_SIZE: f32 = 12.0;
 const FILTER_BUTTON_HORIZONTAL_PADDING: f32 = 8.0;
 const FILTER_BUTTON_CORNER_RADIUS: f32 = 4.0;
 
@@ -63,7 +59,7 @@ impl SkillManagerPanel {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
         let query_editor = ctx.add_typed_action_view(|ctx| {
             let options = EditorOptions {
-                text: TextOptions::ui_text(Some(SEARCH_FONT_SIZE), Appearance::as_ref(ctx)),
+                text: TextOptions::ui_text(Some(Appearance::as_ref(ctx).ui_font_subheading()), Appearance::as_ref(ctx)),
                 propagate_and_no_op_vertical_navigation_keys:
                     PropagateAndNoOpNavigationKeys::AtBoundary,
                 propagate_horizontal_navigation_keys: PropagateHorizontalNavigationKeys::Always,
@@ -258,7 +254,7 @@ impl SkillManagerPanel {
                 .with_child(Self::render_label(
                     label.clone(),
                     appearance,
-                    FILTER_BUTTON_FONT_SIZE,
+                    appearance.ui_font_body(),
                     text_color,
                 ))
                 .finish();
@@ -358,25 +354,25 @@ impl SkillManagerPanel {
         let title = Self::render_label(
             duplicate.name.clone(),
             appearance,
-            FONT_SIZE,
+            appearance.ui_font_body_large(),
             theme.main_text_color(theme.background()),
         );
         let description = Self::render_label(
             duplicate.description.clone(),
             appearance,
-            META_FONT_SIZE,
+            appearance.ui_font_footnote(),
             theme.sub_text_color(theme.background()),
         );
         let meta = Self::render_label(
             meta,
             appearance,
-            META_FONT_SIZE,
+            appearance.ui_font_footnote(),
             theme.sub_text_color(theme.background()),
         );
         let path = Self::render_label(
             path,
             appearance,
-            META_FONT_SIZE,
+            appearance.ui_font_footnote(),
             theme.sub_text_color(theme.background()),
         );
 
@@ -431,7 +427,7 @@ impl SkillManagerPanel {
             return Container::new(Self::render_label(
                 crate::t!("skill-manager-empty"),
                 appearance,
-                FONT_SIZE,
+                appearance.ui_font_body_large(),
                 appearance
                     .theme()
                     .sub_text_color(appearance.theme().background()),

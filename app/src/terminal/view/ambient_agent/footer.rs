@@ -36,7 +36,7 @@ fn build_centered_footer(
             Text::new(
                 header_text,
                 appearance.ui_font_family(),
-                appearance.ui_font_size() + 2.,
+                appearance.ui_font_subheading(),
             )
             .with_style(Properties::default().weight(Weight::Bold))
             .with_color(header_color)

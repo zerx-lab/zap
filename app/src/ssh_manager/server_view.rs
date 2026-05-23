@@ -779,7 +779,7 @@ impl View for SshServerView {
         let title = Text::new_inline(
             title_text,
             appearance.ui_font_family(),
-            appearance.ui_font_size() + 6.0,
+            appearance.ui_font_heading_2(),
         )
         .with_color(
             appearance

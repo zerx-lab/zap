@@ -106,7 +106,7 @@ pub fn render_static_item(props: StaticItemProps<'_>, app: &AppContext) -> Box<d
     let title_text = Text::new_inline(
         crate::t!("workspace-conversation-list-new-conversation"),
         appearance.ui_font_family(),
-        appearance.ui_font_size() + 2.,
+        appearance.ui_font_subheading(),
     )
     .with_color(theme.main_text_color(theme.background()).into())
     .finish();

@@ -39,7 +39,7 @@ pub const FIND_BAR_PADDING: f32 = 4.;
 const FIND_EDITOR_PADDING: f32 = 6.;
 pub const FIND_EDITOR_BORDER_RADIUS: f32 = 6.;
 pub(crate) const FIND_EDITOR_BORDER_WIDTH: f32 = 1.;
-const FIND_EDITOR_FONT_SIZE: f32 = 12.;
+
 
 pub const REGEX_TOGGLE_LABEL: &str = ". *";
 pub const REGEX_TOGGLE_TOOLTIP: &str = "Regex toggle";
@@ -155,7 +155,7 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
             let appearance = Appearance::as_ref(ctx);
             let mut editor = EditorView::single_line(
                 SingleLineEditorOptions {
-                    text: TextOptions::ui_text(Some(FIND_EDITOR_FONT_SIZE), appearance),
+                    text: TextOptions::ui_text(Some(appearance.ui_font_body()), appearance),
                     select_all_on_focus: true,
                     clear_selections_on_blur: true,
                     propagate_and_no_op_vertical_navigation_keys:
@@ -324,7 +324,7 @@ impl<T: FindModel + Entity<Event = FindEvent> + 'static> Find<T> {
             Some(idx) => idx + 1,
         };
         let label = format!("{}/{}", index, self.model.as_ref(app).match_count());
-        Text::new_inline(label, appearance.ui_font_family(), FIND_EDITOR_FONT_SIZE)
+        Text::new_inline(label, appearance.ui_font_family(), appearance.ui_font_body())
             .with_color(blended_colors::text_sub(
                 appearance.theme(),
                 appearance.theme().surface_1(),

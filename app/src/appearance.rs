@@ -23,7 +23,7 @@ use macos_app_icon::*;
 use crate::{
     settings::{
         active_theme_kind, FontSettings, FontSettingsChangedEvent, MonospaceFontSize, Settings,
-        ThemeSettings,
+        ThemeSettings, UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX,
     },
     themes::theme::{ThemeKind, WarpTheme},
     ASSETS,
@@ -126,6 +126,26 @@ impl AppearanceManager {
                             });
                         }
                     }
+                }
+                FontSettingsChangedEvent::UiFontName { .. } => {
+                    let font_name = FontSettings::as_ref(ctx).ui_font_name.value().clone();
+                    let new_family = if font_name.is_empty() {
+                        load_default_ui_font_family(ctx).ok()
+                    } else {
+                        get_or_load_font_family(&font_name, ctx)
+                    };
+                    if let Some(new_family) = new_family {
+                        Appearance::handle(ctx).update(ctx, |appearance, ctx| {
+                            appearance.set_ui_font_family(new_family, ctx);
+                        });
+                    }
+                }
+                FontSettingsChangedEvent::UiFontSize { .. } => {
+                    let new_font_size = *FontSettings::as_ref(ctx).ui_font_size.value();
+                    let clamped = new_font_size.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX);
+                    Appearance::handle(ctx).update(ctx, |appearance, ctx| {
+                        appearance.set_ui_font_size(clamped, ctx);
+                    });
                 }
                 _ => {}
             },
@@ -399,8 +419,15 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
 
     let monospace_font_family_from_settings = get_or_load_font_family(&monospace_font_name, ctx);
 
-    let ui_font_family =
-        load_default_ui_font_family(ctx).expect("unable to load default ui font family");
+    let ui_font_name = FontSettings::as_ref(ctx).ui_font_name.value().clone();
+    let ui_font_size = *FontSettings::as_ref(ctx).ui_font_size.value();
+
+    let ui_font_family = if ui_font_name.is_empty() {
+        load_default_ui_font_family(ctx).expect("unable to load default ui font family")
+    } else {
+        get_or_load_font_family(&ui_font_name, ctx)
+            .unwrap_or_else(|| load_default_ui_font_family(ctx).expect("unable to load default ui font family"))
+    };
 
     let am_font_family_from_settings = get_or_load_font_family(&am_font_name, ctx);
 
@@ -427,6 +454,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
         line_height_ratio,
         am_font_family_from_settings.unwrap_or(default_monospace_font_family),
         password_font_family,
+        ui_font_size.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX),
     )
 }
 

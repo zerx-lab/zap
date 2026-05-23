@@ -1307,6 +1307,7 @@ settings-appearance-block-show-dividers-label = 显示命令块分隔线
 # Text / Fonts
 settings-appearance-font-agent-label = Agent 字体
 settings-appearance-font-match-terminal = 匹配终端
+settings-appearance-font-ui-label = UI 字体
 settings-appearance-font-terminal-label = 终端字体
 settings-appearance-font-view-all-system = 查看所有可用系统字体
 settings-appearance-font-weight-label = 字重

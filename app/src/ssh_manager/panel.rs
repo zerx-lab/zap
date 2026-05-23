@@ -40,7 +40,6 @@ use crate::editor::{
 use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 
 // ---- 视觉常量(参考 Drive) ----
-const ITEM_FONT_SIZE: f32 = 14.0;
 const TOOLBAR_BUTTON_SIZE: f32 = 26.0;
 const TOOLBAR_ICON_SIZE: f32 = 14.0;
 const ITEM_PADDING_VERTICAL: f32 = 5.0;
@@ -464,7 +463,7 @@ impl SshManagerPanel {
             let options = SingleLineEditorOptions {
                 is_password: false,
                 text: TextOptions {
-                    font_size_override: Some(ITEM_FONT_SIZE),
+                    font_size_override: Some(appearance.ui_font_subheading()),
                     font_family_override: Some(appearance.ui_font_family()),
                     text_colors_override: Some(TextColors {
                         default_color: theme.active_ui_text_color(),
@@ -706,7 +705,7 @@ impl SshManagerPanel {
                     Text::new_inline(
                         crate::t!("workspace-left-panel-ssh-manager-tree-empty"),
                         appearance.ui_font_family(),
-                        ITEM_FONT_SIZE,
+                        appearance.ui_font_subheading(),
                     )
                     .with_color(muted.into())
                     .finish(),
@@ -814,7 +813,7 @@ impl SshManagerPanel {
                     border_color: Some(theme.accent().into()),
                     border_width: Some(1.0),
                     border_radius: Some(CornerRadius::with_all(Radius::Pixels(3.0))),
-                    font_size: Some(ITEM_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_subheading()),
                     ..Default::default()
                 })
                 .build()
@@ -824,7 +823,7 @@ impl SshManagerPanel {
             Text::new_inline(
                 node.name.clone(),
                 appearance.ui_font_family(),
-                ITEM_FONT_SIZE,
+                appearance.ui_font_subheading(),
             )
             .with_color(theme.main_text_color(theme.background()).into())
             .finish()
@@ -1009,7 +1008,7 @@ impl SshManagerPanel {
                 .get(i)
                 .cloned()
                 .unwrap_or_default();
-            let label_el = Text::new_inline(label, appearance.ui_font_family(), ITEM_FONT_SIZE)
+            let label_el = Text::new_inline(label, appearance.ui_font_family(), appearance.ui_font_subheading())
                 .with_color(theme.main_text_color(theme.background()).into())
                 .finish();
             let row_action = action.clone();

@@ -26,7 +26,6 @@ use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize};
 use warp_editor::editor::NavigationKey;
 
-const ITEM_FONT_SIZE: f32 = 14.;
 
 const MENU_HORIZONTAL_PADDING: f32 = 16.;
 
@@ -39,8 +38,6 @@ const MENU_WIDTH: f32 = 320.;
 const MENU_MAX_HEIGHT: f32 = 200.;
 
 const ITEM_ICON_SIZE: f32 = 16.;
-
-const SEARCH_FONT_SIZE: f32 = 14.;
 
 const SEARCH_VERTICAL_PADDING: f32 = 4.;
 
@@ -88,7 +85,7 @@ impl ModelSelector {
             let appearance = Appearance::as_ref(ctx);
             let mut editor = EditorView::single_line(
                 SingleLineEditorOptions {
-                    text: TextOptions::ui_text(Some(SEARCH_FONT_SIZE), appearance),
+                    text: TextOptions::ui_text(Some(appearance.ui_font_subheading()), appearance),
                     select_all_on_focus: true,
                     clear_selections_on_blur: true,
                     propagate_and_no_op_vertical_navigation_keys:
@@ -255,7 +252,7 @@ impl ModelSelector {
                     MenuItemFields::new(display_name)
                         .with_icon(icon)
                         .with_icon_size_override(ITEM_ICON_SIZE)
-                        .with_font_size_override(ITEM_FONT_SIZE)
+                        .with_font_size_override(appearance.ui_font_subheading())
                         .with_padding_override(ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
                         .with_override_hover_background_color(hover_background)
                         .with_on_select_action(ModelSelectorAction::SelectModel(llm.id.clone()))
@@ -268,7 +265,7 @@ impl ModelSelector {
             let no_results_text_color = internal_colors::text_sub(theme, theme.surface_2());
             items.push(MenuItem::Item(
                 MenuItemFields::new(crate::t!("common-no-results"))
-                    .with_font_size_override(ITEM_FONT_SIZE)
+                    .with_font_size_override(appearance.ui_font_subheading())
                     .with_padding_override(ITEM_VERTICAL_PADDING, MENU_HORIZONTAL_PADDING)
                     .with_override_text_color(no_results_text_color)
                     .with_no_interaction_on_hover(),

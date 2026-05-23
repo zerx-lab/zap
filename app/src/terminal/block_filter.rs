@@ -37,7 +37,6 @@ const BLOCK_FILTER_EDITOR_PADDING: f32 = 6.;
 const BLOCK_FILTER_EDITOR_BORDER_RADIUS: f32 = 4.;
 const BLOCK_FILTER_BAR_MARGIN_BETWEEN_EDITORS: f32 = 4.;
 const BLOCK_FILTER_EDITOR_BORDER_WIDTH: f32 = 1.;
-const BLOCK_FILTER_FONT_SIZE: f32 = 12.;
 const BLOCK_FILTER_ICON_PADDING: f32 = 2.;
 const BLOCK_FILTER_ICON_MARGIN: f32 = 4.;
 const BLOCK_FILTER_ICON_CORNER_RADIUS: f32 = 4.;
@@ -177,7 +176,7 @@ impl BlockFilterEditor {
             let appearance = Appearance::as_ref(ctx);
             let mut editor = EditorView::single_line(
                 SingleLineEditorOptions {
-                    text: TextOptions::ui_text(Some(BLOCK_FILTER_FONT_SIZE), appearance),
+                    text: TextOptions::ui_text(Some(appearance.ui_font_body()), appearance),
                     select_all_on_focus: true,
                     clear_selections_on_blur: true,
                     propagate_and_no_op_vertical_navigation_keys:
@@ -198,7 +197,7 @@ impl BlockFilterEditor {
             let appearance = Appearance::as_ref(ctx);
             let mut editor = EditorView::single_line(
                 SingleLineEditorOptions {
-                    text: TextOptions::ui_text(Some(BLOCK_FILTER_FONT_SIZE), appearance),
+                    text: TextOptions::ui_text(Some(appearance.ui_font_body()), appearance),
                     propagate_and_no_op_vertical_navigation_keys:
                         PropagateAndNoOpNavigationKeys::Always,
                     select_all_on_focus: true,

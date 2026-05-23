@@ -1330,6 +1330,7 @@ settings-appearance-block-show-dividers-label = Show block dividers
 # Text / Fonts
 settings-appearance-font-agent-label = Agent font
 settings-appearance-font-match-terminal = Match terminal
+settings-appearance-font-ui-label = UI font
 settings-appearance-font-terminal-label = Terminal font
 settings-appearance-font-view-all-system = View all available system fonts
 settings-appearance-font-weight-label = Font weight

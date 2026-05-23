@@ -3276,7 +3276,8 @@ impl TerminalView {
                 | AppearanceEvent::LineHeightRatioChanged { .. }
                 | AppearanceEvent::MonospaceFontFamilyChanged { .. }
                 | AppearanceEvent::MonospaceFontWeightChanged { .. }
-                | AppearanceEvent::UiFontFamilyChanged { .. } => {
+                | AppearanceEvent::UiFontFamilyChanged { .. }
+                | AppearanceEvent::UiFontSizeChanged { .. } => {
                     me.refresh_size(ctx);
                 }
             },

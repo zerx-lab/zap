@@ -1283,7 +1283,7 @@ impl GlobalSearchView {
             let mut match_text = Text::new_inline(
                 display_text,
                 appearance.ui_font_family(),
-                appearance.ui_font_size() + 2.,
+                appearance.ui_font_subheading(),
             )
             .with_color(text_color);
 
@@ -2202,7 +2202,7 @@ impl GlobalSearchView {
                 Text::new(
                     title,
                     appearance.ui_font_family(),
-                    appearance.ui_font_size() + 2.,
+                    appearance.ui_font_subheading(),
                 )
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(theme.sub_text_color(theme.background()).into())
@@ -2218,7 +2218,7 @@ impl GlobalSearchView {
                                 FormattedTextElement::from_str(
                                     body,
                                     appearance.ui_font_family(),
-                                    appearance.ui_font_size() + 2.,
+                                    appearance.ui_font_subheading(),
                                 )
                                 .with_alignment(TextAlignment::Center)
                                 .with_color(theme.disabled_text_color(theme.background()).into())

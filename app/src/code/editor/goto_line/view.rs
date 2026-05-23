@@ -16,9 +16,6 @@ use warpui::{
 };
 
 const GOTO_LINE_WIDTH: f32 = 300.;
-const GOTO_LINE_LABEL_FONT_SIZE: f32 = 12.;
-const GOTO_LINE_EDITOR_FONT_SIZE: f32 = 12.;
-const GOTO_LINE_ERROR_FONT_SIZE: f32 = 11.;
 const GOTO_LINE_EDITOR_PADDING: f32 = 6.;
 const GOTO_LINE_EDITOR_BORDER_WIDTH: f32 = 1.;
 const GOTO_LINE_ROW_SPACING: f32 = 6.;
@@ -41,7 +38,7 @@ impl GoToLineView {
             let appearance = Appearance::as_ref(ctx);
             let mut editor = EditorView::single_line(
                 SingleLineEditorOptions {
-                    text: TextOptions::ui_text(Some(GOTO_LINE_EDITOR_FONT_SIZE), appearance),
+                    text: TextOptions::ui_text(Some(appearance.ui_font_body()), appearance),
                     select_all_on_focus: true,
                     clear_selections_on_blur: false,
                     propagate_and_no_op_vertical_navigation_keys:
@@ -137,7 +134,7 @@ impl View for GoToLineView {
         let label = Text::new_inline(
             "Go to line",
             appearance.ui_font_family(),
-            GOTO_LINE_LABEL_FONT_SIZE,
+            appearance.ui_font_body(),
         )
         .with_color(theme.active_ui_text_color().into())
         .finish();
@@ -167,7 +164,7 @@ impl View for GoToLineView {
             let error_text = Text::new_inline(
                 error.clone(),
                 appearance.ui_font_family(),
-                GOTO_LINE_ERROR_FONT_SIZE,
+                appearance.ui_font_footnote(),
             )
             .with_color(theme.ui_error_color())
             .finish();

@@ -24,7 +24,7 @@ use warpui::{
 use super::settings_page::{
     render_body_item, render_page_title, render_sub_header_with_description, AdditionalInfo,
     LocalOnlyIconState, MatchData, PageType, SettingsPageEvent, SettingsPageMeta,
-    SettingsPageViewHandle, SettingsWidget, ToggleState, HEADER_FONT_SIZE,
+    SettingsPageViewHandle, SettingsWidget, ToggleState,
 };
 use super::SettingsSection;
 use crate::appearance::Appearance;
@@ -44,7 +44,6 @@ const TEST_CONNECTION_TIMEOUT_SECS: u64 = 8;
 /// 输入框区域(editor + 两个按钮)的最大宽度,与字段标签右侧的槽位约束对齐。
 const INPUT_AREA_MAX_WIDTH: f32 = 420.0;
 
-const BUTTON_FONT_SIZE: f32 = 12.0;
 const BUTTON_PADDING: f32 = 6.0;
 
 /// 从环境变量读取系统代理(跨平台最小集):返回 (https_proxy, http_proxy, no_proxy)。
@@ -601,7 +600,7 @@ impl SettingsWidget for NetworkPageWidget {
 
         let mut content = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_child(render_page_title(&page_title, HEADER_FONT_SIZE, appearance))
+            .with_child(render_page_title(&page_title, appearance))
             .with_child(render_sub_header_with_description(
                 appearance,
                 header,
@@ -639,7 +638,7 @@ impl SettingsWidget for NetworkPageWidget {
                     .ui_builder()
                     .button(ButtonVariant::Accent, save_state.clone())
                     .with_style(UiComponentStyles {
-                        font_size: Some(BUTTON_FONT_SIZE),
+                        font_size: Some(appearance.ui_font_body()),
                         padding: Some(Coords::uniform(BUTTON_PADDING)),
                         ..Default::default()
                     })
@@ -657,7 +656,7 @@ impl SettingsWidget for NetworkPageWidget {
                     .ui_builder()
                     .button(ButtonVariant::Text, clear_state.clone())
                     .with_style(UiComponentStyles {
-                        font_size: Some(BUTTON_FONT_SIZE),
+                        font_size: Some(appearance.ui_font_body()),
                         padding: Some(Coords::uniform(BUTTON_PADDING)),
                         ..Default::default()
                     })
@@ -749,7 +748,7 @@ impl SettingsWidget for NetworkPageWidget {
             .ui_builder()
             .button(ButtonVariant::Accent, view.test_button_state.clone())
             .with_style(UiComponentStyles {
-                font_size: Some(BUTTON_FONT_SIZE),
+                font_size: Some(appearance.ui_font_body()),
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
             })

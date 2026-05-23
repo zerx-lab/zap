@@ -13,7 +13,7 @@ use crate::{
     server::telemetry::TelemetryEvent,
     settings_view::features_page::render_group,
     terminal::session_settings::*,
-    view_components::{dropdown::TOP_MENU_BAR_HEIGHT, Dropdown, DropdownItem},
+    view_components::{Dropdown, DropdownItem},
 };
 
 #[derive(Clone, Debug)]
@@ -274,7 +274,7 @@ fn render_row(
                     .ui_builder()
                     .text_input(editor.clone())
                     .with_style(UiComponentStyles {
-                        height: Some(TOP_MENU_BAR_HEIGHT),
+                        height: Some(appearance.dropdown_top_bar_height()),
                         font_color: Some(pathfinder_color::ColorU::black()),
                         font_size: Some(appearance.ui_font_size()),
                         padding: Some(Coords::uniform(7.)),
