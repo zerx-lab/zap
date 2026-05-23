@@ -205,6 +205,7 @@ pub struct ServerFileBrowserView {
     path_editor: ViewHandle<EditorView>,
     rename_editor: ViewHandle<EditorView>,
     pending_rename_index: Option<usize>,
+    pending_rename_path_after_reload: Option<String>,
     entries: Vec<ServerFileBrowserEntry>,
     expanded_directories: HashSet<String>,
     loaded_directories: HashMap<String, Vec<ServerFileBrowserEntry>>,
@@ -300,6 +301,7 @@ impl ServerFileBrowserView {
             path_editor,
             rename_editor,
             pending_rename_index: None,
+            pending_rename_path_after_reload: None,
             entries: Vec::new(),
             expanded_directories: HashSet::new(),
             loaded_directories: HashMap::new(),
@@ -510,8 +512,14 @@ impl ServerFileBrowserView {
                     self.selected_index,
                 );
                 self.sync_row_states();
+                if let Some(path) = self.pending_rename_path_after_reload.take() {
+                    if let Some(index) = self.entries.iter().position(|entry| entry.path == path) {
+                        self.start_rename(index, ctx);
+                    }
+                }
             }
             Err(error) => {
+                self.pending_rename_path_after_reload = None;
                 self.status = Some(error);
             }
         }
@@ -746,7 +754,13 @@ impl ServerFileBrowserView {
     }
 
     fn dismiss_context_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        self.context_menu_position = None;
+        let mut empty_items: Vec<MenuItem<ServerFileBrowserAction>> = Vec::new();
+        clear_context_menu_state(&mut self.context_menu_position, &mut empty_items);
+        self.context_menu.update(ctx, |menu, ctx| {
+            menu.set_safe_zone_target(None);
+            menu.set_submenu_being_shown_for_item_index(None);
+            menu.set_items(Vec::new(), ctx);
+        });
         ctx.notify();
     }
 
@@ -756,7 +770,8 @@ impl ServerFileBrowserView {
                 self.update_context_menu_safe_triangle(ctx);
             }
             MenuEvent::Close { .. } => {
-                self.context_menu_position = None;
+                let mut empty_items: Vec<MenuItem<ServerFileBrowserAction>> = Vec::new();
+                clear_context_menu_state(&mut self.context_menu_position, &mut empty_items);
                 self.context_menu.update(ctx, |menu, _| {
                     menu.set_safe_zone_target(None);
                     menu.set_submenu_being_shown_for_item_index(None);
@@ -1004,7 +1019,7 @@ impl ServerFileBrowserView {
             move |me, result, ctx| {
                 me.loading = false;
                 match result {
-                    Ok(_) => {
+                    Ok(entry) => {
                         me.status = Some(match kind {
                             NewRemoteEntryKind::File => {
                                 crate::t!("server-file-browser-created-file")
@@ -1013,6 +1028,7 @@ impl ServerFileBrowserView {
                                 crate::t!("server-file-browser-created-folder")
                             }
                         });
+                        me.pending_rename_path_after_reload = Some(entry.path);
                         me.reload_directory(ctx, false);
                     }
                     Err(error) => {
@@ -1146,25 +1162,20 @@ impl ServerFileBrowserView {
         new_name: &str,
         is_directory: bool,
     ) {
+        remap_loaded_directories_after_rename(
+            &mut self.loaded_directories,
+            from_path,
+            new_path,
+            new_name,
+            is_directory,
+        );
+
         if is_directory {
             self.expanded_directories = self
                 .expanded_directories
                 .iter()
                 .map(|path| remap_path_after_rename(path, from_path, new_path))
                 .collect();
-
-            let mut new_loaded = HashMap::new();
-            for (dir_path, mut children) in self.loaded_directories.drain() {
-                let remapped_dir = remap_path_after_rename(&dir_path, from_path, new_path);
-                for child in &mut children {
-                    child.path = remap_path_after_rename(&child.path, from_path, new_path);
-                    if child.path == new_path {
-                        child.name = new_name.to_string();
-                    }
-                }
-                new_loaded.insert(remapped_dir, children);
-            }
-            self.loaded_directories = new_loaded;
         }
 
         for entry in &mut self.entries {
@@ -4136,6 +4147,39 @@ fn remap_path_after_rename(path: &str, from_path: &str, new_path: &str) -> Strin
     path.to_string()
 }
 
+fn remap_loaded_directories_after_rename(
+    loaded_directories: &mut HashMap<String, Vec<ServerFileBrowserEntry>>,
+    from_path: &str,
+    new_path: &str,
+    new_name: &str,
+    is_directory: bool,
+) {
+    if is_directory {
+        let mut new_loaded = HashMap::new();
+        for (dir_path, mut children) in loaded_directories.drain() {
+            let remapped_dir = remap_path_after_rename(&dir_path, from_path, new_path);
+            for child in &mut children {
+                child.path = remap_path_after_rename(&child.path, from_path, new_path);
+                if child.path == new_path {
+                    child.name = new_name.to_string();
+                }
+            }
+            new_loaded.insert(remapped_dir, children);
+        }
+        *loaded_directories = new_loaded;
+        return;
+    }
+
+    for children in loaded_directories.values_mut() {
+        for child in children {
+            if child.path == from_path {
+                child.path = new_path.to_string();
+                child.name = new_name.to_string();
+            }
+        }
+    }
+}
+
 fn join_remote_path(base: &str, name: &str) -> String {
     let normalized_name = name.replace('\\', "/");
     if base == "/" {
@@ -4156,6 +4200,14 @@ fn context_menu_submenu(
         fields: MenuItemFields::new_submenu(label).with_icon(icon),
         menu: SubMenu::new(items),
     }
+}
+
+fn clear_context_menu_state<A: warpui::Action + Clone>(
+    position: &mut Option<Vector2F>,
+    items: &mut Vec<MenuItem<A>>,
+) {
+    *position = None;
+    items.clear();
 }
 
 fn remote_parent(path: &str) -> Option<String> {
@@ -4412,6 +4464,46 @@ mod tests {
             next_available_entry_name("untitled folder", &entries),
             "untitled folder 2"
         );
+    }
+
+    #[test]
+    fn apply_rename_updates_loaded_directory_file_entries() {
+        let mut loaded_directories = HashMap::from([(
+            "/root/project".to_string(),
+            vec![entry(
+                "/root/project/untitled",
+                "untitled",
+                FileSystemEntryKind::File,
+                1,
+            )],
+        )]);
+
+        remap_loaded_directories_after_rename(
+            &mut loaded_directories,
+            "/root/project/untitled",
+            "/root/project/renamed.txt",
+            "renamed.txt",
+            false,
+        );
+
+        let child = &loaded_directories["/root/project"][0];
+        assert_eq!(child.path, "/root/project/renamed.txt");
+        assert_eq!(child.name, "renamed.txt");
+    }
+
+    #[test]
+    fn clear_context_menu_state_removes_items_and_selection() {
+        let mut position = Some(vec2f(10.0, 20.0));
+        let mut menu_items = vec![
+            MenuItemFields::new("Refresh")
+                .with_on_select_action(ServerFileBrowserAction::Refresh)
+                .into_item(),
+        ];
+
+        clear_context_menu_state(&mut position, &mut menu_items);
+
+        assert_eq!(position, None);
+        assert!(menu_items.is_empty());
     }
 
     #[test]
