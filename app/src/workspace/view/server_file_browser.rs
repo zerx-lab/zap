@@ -92,6 +92,8 @@ pub enum ServerFileBrowserAction {
     Download(String),
     UploadFiles(String),
     UploadFolder(String),
+    CreateFile(String),
+    CreateFolder(String),
     RenameEntry(usize),
     DeleteEntry(usize),
     CommitRename,
@@ -185,6 +187,12 @@ struct PendingUploadStart {
     remote_directory: String,
     pending_files: Vec<PendingUploadFile>,
     directory_roots: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum NewRemoteEntryKind {
+    File,
+    Directory,
 }
 
 pub struct ServerFileBrowserView {
@@ -889,45 +897,76 @@ impl ServerFileBrowserView {
 
         vec![
             MenuItemFields::new(crate::t!("server-file-browser-menu-refresh"))
+                .with_icon(Icon::Refresh)
                 .with_on_select_action(ServerFileBrowserAction::Refresh)
                 .into_item(),
+            MenuItem::Separator,
             context_menu_submenu(
                 crate::t!("server-file-browser-menu-upload"),
+                Icon::UploadCloud,
                 vec![
                     MenuItemFields::new(crate::t!("server-file-browser-menu-upload-file"))
+                        .with_icon(Icon::UploadCloud)
                         .with_on_select_action(ServerFileBrowserAction::UploadFiles(
                             upload_target.clone(),
                         ))
                         .into_item(),
                     MenuItemFields::new(crate::t!("server-file-browser-menu-upload-folder"))
+                        .with_icon(Icon::Folder)
                         .with_on_select_action(ServerFileBrowserAction::UploadFolder(
+                            upload_target.clone(),
+                        ))
+                        .into_item(),
+                ],
+            ),
+            context_menu_submenu(
+                crate::t!("server-file-browser-menu-new"),
+                Icon::Plus,
+                vec![
+                    MenuItemFields::new(crate::t!("server-file-browser-menu-new-file"))
+                        .with_icon(Icon::File)
+                        .with_on_select_action(ServerFileBrowserAction::CreateFile(
+                            upload_target.clone(),
+                        ))
+                        .into_item(),
+                    MenuItemFields::new(crate::t!("server-file-browser-menu-new-folder"))
+                        .with_icon(Icon::Folder)
+                        .with_on_select_action(ServerFileBrowserAction::CreateFolder(
                             upload_target,
                         ))
                         .into_item(),
                 ],
             ),
+            MenuItem::Separator,
             MenuItemFields::new(crate::t!("server-file-browser-menu-download"))
+                .with_icon(Icon::Download)
                 .with_on_select_action(ServerFileBrowserAction::Download(target.path.clone()))
                 .into_item(),
             MenuItemFields::new(crate::t!("server-file-browser-menu-copy-path"))
+                .with_icon(Icon::Copy)
                 .with_on_select_action(ServerFileBrowserAction::CopyPath(target.path.clone()))
                 .into_item(),
             MenuItem::Separator,
             context_menu_submenu(
                 crate::t!("server-file-browser-menu-terminal"),
+                Icon::Terminal,
                 vec![MenuItemFields::new(crate::t!(
                     "server-file-browser-menu-cd-to-terminal"
                 ))
+                .with_icon(Icon::Terminal)
                 .with_on_select_action(ServerFileBrowserAction::CdToTerminal(cd_target))
                 .into_item()],
             ),
             context_menu_submenu(
                 crate::t!("server-file-browser-menu-other"),
+                Icon::DotsHorizontal,
                 vec![
                     MenuItemFields::new(crate::t!("server-file-browser-menu-rename"))
+                        .with_icon(Icon::Rename)
                         .with_on_select_action(ServerFileBrowserAction::RenameEntry(index))
                         .into_item(),
                     MenuItemFields::new(crate::t!("server-file-browser-menu-copy-filename"))
+                        .with_icon(Icon::Copy)
                         .with_on_select_action(ServerFileBrowserAction::CopyName(
                             target.name.clone(),
                         ))
@@ -936,10 +975,53 @@ impl ServerFileBrowserView {
             ),
             MenuItem::Separator,
             MenuItemFields::new(crate::t!("server-file-browser-menu-delete"))
+                .with_icon(Icon::Trash)
+                .with_override_icon_color(delete_color.into())
                 .with_override_text_color(delete_color)
                 .with_on_select_action(ServerFileBrowserAction::DeleteEntry(index))
                 .into_item(),
         ]
+    }
+
+    fn create_new_entry(
+        &mut self,
+        remote_directory: String,
+        kind: NewRemoteEntryKind,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.dismiss_context_menu(ctx);
+        let Some(client) = self.client(ctx) else {
+            self.status = Some(crate::t!("server-file-browser-create-requires-session"));
+            ctx.notify();
+            return;
+        };
+
+        self.loading = true;
+        self.status = None;
+        ctx.notify();
+        ctx.spawn(
+            async move { create_remote_entry(client, remote_directory, kind).await },
+            move |me, result, ctx| {
+                me.loading = false;
+                match result {
+                    Ok(_) => {
+                        me.status = Some(match kind {
+                            NewRemoteEntryKind::File => {
+                                crate::t!("server-file-browser-created-file")
+                            }
+                            NewRemoteEntryKind::Directory => {
+                                crate::t!("server-file-browser-created-folder")
+                            }
+                        });
+                        me.reload_directory(ctx, false);
+                    }
+                    Err(error) => {
+                        me.status = Some(crate::t!("server-file-browser-operation-failed", error = error));
+                        ctx.notify();
+                    }
+                }
+            },
+        );
     }
 
     fn start_rename(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
@@ -2879,6 +2961,12 @@ impl TypedActionView for ServerFileBrowserView {
                 self.dismiss_context_menu(ctx);
                 self.choose_and_upload_folder(path.clone(), ctx);
             }
+            ServerFileBrowserAction::CreateFile(path) => {
+                self.create_new_entry(path.clone(), NewRemoteEntryKind::File, ctx);
+            }
+            ServerFileBrowserAction::CreateFolder(path) => {
+                self.create_new_entry(path.clone(), NewRemoteEntryKind::Directory, ctx);
+            }
             ServerFileBrowserAction::RenameEntry(index) => self.start_rename(*index, ctx),
             ServerFileBrowserAction::DeleteEntry(index) => self.confirm_delete(*index, ctx),
             ServerFileBrowserAction::CommitRename => self.commit_rename(ctx),
@@ -3394,6 +3482,64 @@ fn collect_upload_tasks(
 fn dedupe_pending_upload_files(files: &mut Vec<PendingUploadFile>) {
     let mut seen = HashSet::new();
     files.retain(|file| seen.insert(file.final_remote_path.clone()));
+}
+
+async fn create_remote_entry(
+    client: Arc<RemoteServerClient>,
+    remote_directory: String,
+    kind: NewRemoteEntryKind,
+) -> Result<ServerFileBrowserEntry, String> {
+    let (canonical_directory, entries) = list_directory(client.clone(), remote_directory).await?;
+    let base_name = match kind {
+        NewRemoteEntryKind::File => crate::t!("server-file-browser-default-file-name"),
+        NewRemoteEntryKind::Directory => crate::t!("server-file-browser-default-folder-name"),
+    };
+    let name = next_available_entry_name(&base_name, &entries);
+    let path = join_remote_path(&canonical_directory, &name);
+    match kind {
+        NewRemoteEntryKind::File => create_remote_file(client, path.clone()).await?,
+        NewRemoteEntryKind::Directory => create_remote_directory(client, path.clone()).await?,
+    }
+    Ok(ServerFileBrowserEntry {
+        name,
+        path,
+        kind: match kind {
+            NewRemoteEntryKind::File => FileSystemEntryKind::File,
+            NewRemoteEntryKind::Directory => FileSystemEntryKind::Directory,
+        },
+        size_bytes: Some(0),
+        modified_epoch_millis: None,
+        depth: 0,
+    })
+}
+
+fn next_available_entry_name(base_name: &str, entries: &[ServerFileBrowserEntry]) -> String {
+    let existing_names: HashSet<&str> = entries.iter().map(|entry| entry.name.as_str()).collect();
+    if !existing_names.contains(base_name) {
+        return base_name.to_string();
+    }
+    for suffix in 2.. {
+        let candidate = format!("{base_name} {suffix}");
+        if !existing_names.contains(candidate.as_str()) {
+            return candidate;
+        }
+    }
+    unreachable!("unbounded suffix search must find an available name")
+}
+
+async fn create_remote_file(
+    client: Arc<RemoteServerClient>,
+    remote_path: String,
+) -> Result<(), String> {
+    let response = client
+        .write_file_chunk(remote_path, 0, Vec::new(), true, None)
+        .await
+        .map_err(|error| error.to_string())?;
+    match response.result {
+        Some(write_file_chunk_response::Result::Success(_)) => Ok(()),
+        Some(write_file_chunk_response::Result::Error(error)) => Err(error.message),
+        None => Ok(()),
+    }
 }
 
 async fn create_remote_directory(
@@ -4003,10 +4149,11 @@ fn join_remote_path(base: &str, name: &str) -> String {
 
 fn context_menu_submenu(
     label: String,
+    icon: Icon,
     items: Vec<MenuItem<ServerFileBrowserAction>>,
 ) -> MenuItem<ServerFileBrowserAction> {
     MenuItem::Submenu {
-        fields: MenuItemFields::new_submenu(label),
+        fields: MenuItemFields::new_submenu(label).with_icon(icon),
         menu: SubMenu::new(items),
     }
 }
@@ -4244,6 +4391,26 @@ mod tests {
                 session_id == first_session || session_id == second_session
             }),
             Some(second_session)
+        );
+    }
+
+    #[test]
+    fn next_available_entry_name_appends_suffix_to_avoid_sibling_conflicts() {
+        let entries = vec![
+            entry("/root/untitled", "untitled", FileSystemEntryKind::File, 0),
+            entry("/root/untitled 2", "untitled 2", FileSystemEntryKind::File, 0),
+            entry(
+                "/root/untitled folder",
+                "untitled folder",
+                FileSystemEntryKind::Directory,
+                0,
+            ),
+        ];
+
+        assert_eq!(next_available_entry_name("untitled", &entries), "untitled 3");
+        assert_eq!(
+            next_available_entry_name("untitled folder", &entries),
+            "untitled folder 2"
         );
     }
 
