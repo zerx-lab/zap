@@ -30,10 +30,15 @@ use super::proto::{
 // `local_fs` 下可用,因此整套服务端 buffer 处理都按 `local_fs` 门控。
 #[cfg(feature = "local_fs")]
 use super::proto::{
-    list_directory_response, resolve_conflict_response, save_buffer_response, BufferEdit,
-    BufferUpdatedPush, CloseBuffer, DirEntry, ListDirectory, ListDirectoryResponse,
-    ListDirectorySuccess, OpenBuffer, OpenBufferResponse, ResolveConflict, ResolveConflictResponse,
-    ResolveConflictSuccess, SaveBuffer, SaveBufferResponse, SaveBufferSuccess, TextEdit,
+    create_directory_response, list_directory_response, read_file_chunk_response,
+    resolve_conflict_response, resolve_path_response, save_buffer_response,
+    write_file_chunk_response, BufferEdit, BufferUpdatedPush, CloseBuffer, CreateDirectory,
+    CreateDirectoryResponse, CreateDirectorySuccess, DirEntry, FileSystemEntryKind, ListDirectory,
+    ListDirectoryResponse, ListDirectorySuccess, OpenBuffer, OpenBufferResponse, ReadFileChunk,
+    ReadFileChunkResponse, ReadFileChunkSuccess, ResolveConflict, ResolveConflictResponse,
+    ResolveConflictSuccess, ResolvePath, ResolvePathResponse, ResolvePathSuccess, SaveBuffer,
+    SaveBufferResponse, SaveBufferSuccess, TextEdit, WriteFileChunk, WriteFileChunkResponse,
+    WriteFileChunkSuccess,
 };
 #[cfg(feature = "local_fs")]
 use super::server_buffer_tracker::{PendingBufferRequestKind, ServerBufferTracker};
@@ -72,6 +77,16 @@ enum HandlerOutcome {
     /// are tracked by `FileId` in `pending_file_ops` rather than by
     /// `RequestId` in `in_progress`).
     Async(Option<SpawnedFutureHandle>),
+}
+
+#[cfg(test)]
+impl HandlerOutcome {
+    fn into_message(self) -> server_message::Message {
+        match self {
+            HandlerOutcome::Sync(message) => message,
+            HandlerOutcome::Async(_) => panic!("expected synchronous handler outcome"),
+        }
+    }
 }
 
 /// Tracks an in-flight file write or delete so the async completion
@@ -637,6 +652,14 @@ impl ServerModel {
             // Zap:远端终端文件链接的目录列举(校验路径形态用)。
             #[cfg(feature = "local_fs")]
             Some(client_message::Message::ListDirectory(msg)) => self.handle_list_directory(msg),
+            #[cfg(feature = "local_fs")]
+            Some(client_message::Message::ResolvePath(msg)) => self.handle_resolve_path(msg),
+            #[cfg(feature = "local_fs")]
+            Some(client_message::Message::CreateDirectory(msg)) => self.handle_create_directory(msg),
+            #[cfg(feature = "local_fs")]
+            Some(client_message::Message::ReadFileChunk(msg)) => self.handle_read_file_chunk(msg),
+            #[cfg(feature = "local_fs")]
+            Some(client_message::Message::WriteFileChunk(msg)) => self.handle_write_file_chunk(msg),
             #[cfg(not(feature = "local_fs"))]
             Some(
                 client_message::Message::OpenBuffer(_)
@@ -644,7 +667,11 @@ impl ServerModel {
                 | client_message::Message::CloseBuffer(_)
                 | client_message::Message::SaveBuffer(_)
                 | client_message::Message::ResolveConflict(_)
-                | client_message::Message::ListDirectory(_),
+                | client_message::Message::ListDirectory(_)
+                | client_message::Message::ResolvePath(_)
+                | client_message::Message::CreateDirectory(_)
+                | client_message::Message::ReadFileChunk(_)
+                | client_message::Message::WriteFileChunk(_),
             ) => HandlerOutcome::Sync(server_message::Message::Error(ErrorResponse {
                 code: ErrorCode::InvalidRequest.into(),
                 message: "Buffer syncing requires the local_fs feature".to_string(),
@@ -1486,20 +1513,42 @@ impl ServerModel {
     fn handle_list_directory(&self, msg: ListDirectory) -> HandlerOutcome {
         log::info!("Handling ListDirectory path={}", msg.path);
 
-        let result = match std::fs::read_dir(&msg.path) {
+        let path = expand_user_path(&msg.path);
+        let result = match std::fs::read_dir(&path) {
             Ok(read_dir) => {
                 let mut entries = Vec::new();
                 for entry in read_dir.flatten() {
                     let name = entry.file_name().to_string_lossy().into_owned();
                     // 优先用 `file_type()`(不跟随符号链接、无需额外 stat);
                     // 失败时回退到 `metadata()`(会跟随符号链接)。
-                    let is_dir = match entry.file_type() {
-                        Ok(ft) => ft.is_dir(),
-                        Err(_) => entry.metadata().map(|m| m.is_dir()).unwrap_or(false),
-                    };
-                    entries.push(DirEntry { name, is_dir });
+                    let file_type = entry.file_type().ok();
+                    let metadata = entry.metadata().ok();
+                    let kind = entry_kind(file_type.as_ref(), metadata.as_ref());
+                    let is_dir = kind == FileSystemEntryKind::Directory as i32;
+                    let size_bytes =
+                        metadata.as_ref().filter(|m| m.is_file()).map(|m| m.len());
+                    let modified_epoch_millis = metadata
+                        .as_ref()
+                        .and_then(|m| m.modified().ok())
+                        .and_then(system_time_to_epoch_millis);
+                    entries.push(DirEntry {
+                        name,
+                        is_dir,
+                        kind,
+                        size_bytes,
+                        modified_epoch_millis,
+                    });
                 }
-                list_directory_response::Result::Success(ListDirectorySuccess { entries })
+                entries.sort_by(|a, b| a.name.cmp(&b.name));
+                let canonical_path = path
+                    .canonicalize()
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string();
+                list_directory_response::Result::Success(ListDirectorySuccess {
+                    entries,
+                    canonical_path,
+                })
             }
             Err(err) => list_directory_response::Result::Error(FileOperationError {
                 message: format!("Failed to list directory {}: {err}", msg.path),
@@ -1508,6 +1557,142 @@ impl ServerModel {
 
         HandlerOutcome::Sync(server_message::Message::ListDirectoryResponse(
             ListDirectoryResponse {
+                result: Some(result),
+            },
+        ))
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn handle_resolve_path(&self, msg: ResolvePath) -> HandlerOutcome {
+        let path = expand_user_path(&msg.path);
+        let result = match std::fs::symlink_metadata(&path) {
+            Ok(metadata) => {
+                let file_type = metadata.file_type();
+                let kind = entry_kind(Some(&file_type), Some(&metadata));
+                let canonical_path = path
+                    .canonicalize()
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string();
+                resolve_path_response::Result::Success(ResolvePathSuccess {
+                    canonical_path,
+                    kind,
+                    size_bytes: metadata.is_file().then_some(metadata.len()),
+                })
+            }
+            Err(err) => resolve_path_response::Result::Error(FileOperationError {
+                message: format!("Failed to resolve path {}: {err}", msg.path),
+            }),
+        };
+
+        HandlerOutcome::Sync(server_message::Message::ResolvePathResponse(
+            ResolvePathResponse {
+                result: Some(result),
+            },
+        ))
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn handle_create_directory(&self, msg: CreateDirectory) -> HandlerOutcome {
+        let path = expand_user_path(&msg.path);
+        let result = match std::fs::create_dir_all(&path) {
+            Ok(()) => {
+                let canonical_path = path
+                    .canonicalize()
+                    .unwrap_or(path)
+                    .to_string_lossy()
+                    .to_string();
+                create_directory_response::Result::Success(CreateDirectorySuccess {
+                    canonical_path,
+                })
+            }
+            Err(err) => create_directory_response::Result::Error(FileOperationError {
+                message: format!("Failed to create directory {}: {err}", msg.path),
+            }),
+        };
+
+        HandlerOutcome::Sync(server_message::Message::CreateDirectoryResponse(
+            CreateDirectoryResponse {
+                result: Some(result),
+            },
+        ))
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn handle_read_file_chunk(&self, msg: ReadFileChunk) -> HandlerOutcome {
+        use std::io::{Read, Seek, SeekFrom};
+
+        let path = expand_user_path(&msg.path);
+        let result = (|| -> std::io::Result<ReadFileChunkSuccess> {
+            let mut file = std::fs::File::open(&path)?;
+            let total_size = file.metadata().ok().map(|m| m.len());
+            file.seek(SeekFrom::Start(msg.offset))?;
+            let max_bytes = msg.max_bytes.min(8 * 1024 * 1024) as usize;
+            let mut bytes = vec![0; max_bytes];
+            let read = file.read(&mut bytes)?;
+            bytes.truncate(read);
+            let next_offset = msg.offset + read as u64;
+            let eof = total_size.is_some_and(|size| next_offset >= size) || read == 0;
+            Ok(ReadFileChunkSuccess {
+                bytes,
+                next_offset,
+                total_size,
+                eof,
+            })
+        })();
+
+        let result = match result {
+            Ok(success) => read_file_chunk_response::Result::Success(success),
+            Err(err) => read_file_chunk_response::Result::Error(FileOperationError {
+                message: format!("Failed to read file chunk {}: {err}", msg.path),
+            }),
+        };
+
+        HandlerOutcome::Sync(server_message::Message::ReadFileChunkResponse(
+            ReadFileChunkResponse {
+                result: Some(result),
+            },
+        ))
+    }
+
+    #[cfg(feature = "local_fs")]
+    fn handle_write_file_chunk(&self, msg: WriteFileChunk) -> HandlerOutcome {
+        use std::io::{Seek, SeekFrom, Write};
+
+        let path = expand_user_path(&msg.path);
+        let result = (|| -> std::io::Result<WriteFileChunkSuccess> {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut options = std::fs::OpenOptions::new();
+            options.create(true).write(true);
+            if msg.truncate {
+                options.truncate(true);
+            }
+            let mut file = options.open(&path)?;
+            file.seek(SeekFrom::Start(msg.offset))?;
+            file.write_all(&msg.bytes)?;
+            #[cfg(unix)]
+            if let Some(executable) = msg.executable {
+                use std::os::unix::fs::PermissionsExt;
+
+                let mode = if executable { 0o755 } else { 0o644 };
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode))?;
+            }
+            Ok(WriteFileChunkSuccess {
+                next_offset: msg.offset + msg.bytes.len() as u64,
+            })
+        })();
+
+        let result = match result {
+            Ok(success) => write_file_chunk_response::Result::Success(success),
+            Err(err) => write_file_chunk_response::Result::Error(FileOperationError {
+                message: format!("Failed to write file chunk {}: {err}", msg.path),
+            }),
+        };
+
+        HandlerOutcome::Sync(server_message::Message::WriteFileChunkResponse(
+            WriteFileChunkResponse {
                 result: Some(result),
             },
         ))
@@ -1529,6 +1714,45 @@ impl ServerModel {
         );
         self.buffers.close_buffer(&msg.path, conn_id, ctx);
     }
+}
+
+#[cfg(feature = "local_fs")]
+fn expand_user_path(path: &str) -> PathBuf {
+    if path == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home;
+        }
+    }
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(stripped);
+        }
+    }
+    PathBuf::from(path)
+}
+
+#[cfg(feature = "local_fs")]
+fn entry_kind(
+    file_type: Option<&std::fs::FileType>,
+    metadata: Option<&std::fs::Metadata>,
+) -> i32 {
+    if file_type.is_some_and(|ft| ft.is_symlink()) {
+        return FileSystemEntryKind::Symlink as i32;
+    }
+    if metadata.is_some_and(|metadata| metadata.is_dir()) {
+        return FileSystemEntryKind::Directory as i32;
+    }
+    if metadata.is_some_and(|metadata| metadata.is_file()) {
+        return FileSystemEntryKind::File as i32;
+    }
+    FileSystemEntryKind::Other as i32
+}
+
+#[cfg(feature = "local_fs")]
+fn system_time_to_epoch_millis(time: std::time::SystemTime) -> Option<u64> {
+    time.duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis() as u64)
 }
 
 /// Converts a [`ReadFileContextResult`] into its protobuf equivalent.

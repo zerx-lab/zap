@@ -29,6 +29,10 @@ message ClientMessage {
     SaveBuffer save_buffer = 16;
     ResolveConflict resolve_conflict = 17;
     ListDirectory list_directory = 18;
+    ResolvePath resolve_path = 19;
+    CreateDirectory create_directory = 20;
+    ReadFileChunk read_file_chunk = 21;
+    WriteFileChunk write_file_chunk = 22;
   }
 }
 // Top-level envelope for all server → client messages.
@@ -52,6 +56,10 @@ message ServerMessage {
     SaveBufferResponse save_buffer_response = 16;
     ResolveConflictResponse resolve_conflict_response = 17;
     ListDirectoryResponse list_directory_response = 18;
+    ResolvePathResponse resolve_path_response = 19;
+    CreateDirectoryResponse create_directory_response = 20;
+    ReadFileChunkResponse read_file_chunk_response = 21;
+    WriteFileChunkResponse write_file_chunk_response = 22;
   }
 }
 
@@ -429,21 +437,106 @@ message ListDirectory {
   string path = 1;
 }
 
+enum FileSystemEntryKind {
+  FILE_SYSTEM_ENTRY_KIND_UNSPECIFIED = 0;
+  FILE = 1;
+  DIRECTORY = 2;
+  SYMLINK = 3;
+  OTHER = 4;
+}
+
 // A single directory entry returned by ListDirectory.
 message DirEntry {
   string name = 1;
   bool is_dir = 2;
+  FileSystemEntryKind kind = 3;
+  optional uint64 size_bytes = 4;
+  optional uint64 modified_epoch_millis = 5;
 }
 
 // Server → client: the entries contained directly in the requested directory.
 message ListDirectorySuccess {
   repeated DirEntry entries = 1;
+  string canonical_path = 2;
 }
 
 // Server → client: result of a ListDirectory request.
 message ListDirectoryResponse {
   oneof result {
     ListDirectorySuccess success = 1;
+    FileOperationError error = 2;
+  }
+}
+
+// ── Server file browser operations ────────────────────────────────
+
+message ResolvePath {
+  string path = 1;
+}
+
+message ResolvePathSuccess {
+  string canonical_path = 1;
+  FileSystemEntryKind kind = 2;
+  optional uint64 size_bytes = 3;
+}
+
+message ResolvePathResponse {
+  oneof result {
+    ResolvePathSuccess success = 1;
+    FileOperationError error = 2;
+  }
+}
+
+message CreateDirectory {
+  string path = 1;
+}
+
+message CreateDirectorySuccess {
+  string canonical_path = 1;
+}
+
+message CreateDirectoryResponse {
+  oneof result {
+    CreateDirectorySuccess success = 1;
+    FileOperationError error = 2;
+  }
+}
+
+message ReadFileChunk {
+  string path = 1;
+  uint64 offset = 2;
+  uint64 max_bytes = 3;
+}
+
+message ReadFileChunkSuccess {
+  bytes bytes = 1;
+  uint64 next_offset = 2;
+  optional uint64 total_size = 3;
+  bool eof = 4;
+}
+
+message ReadFileChunkResponse {
+  oneof result {
+    ReadFileChunkSuccess success = 1;
+    FileOperationError error = 2;
+  }
+}
+
+message WriteFileChunk {
+  string path = 1;
+  uint64 offset = 2;
+  bytes bytes = 3;
+  bool truncate = 4;
+  optional bool executable = 5;
+}
+
+message WriteFileChunkSuccess {
+  uint64 next_offset = 1;
+}
+
+message WriteFileChunkResponse {
+  oneof result {
+    WriteFileChunkSuccess success = 1;
     FileOperationError error = 2;
   }
 }
