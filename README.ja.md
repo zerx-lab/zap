@@ -23,6 +23,13 @@ Zap はオープンでローカルファーストなターミナルで、AI と 
 - **多言語 UI** —— 英語 / 簡体字中国語 / 日本語をデフォルト同梱、コミュニティで拡張可能。
 - **プライバシー優先のデフォルト** —— Cloud Agent / Computer Use / Referral / テレメトリはデフォルトでオフ。
 
+## OpenWarp / Warp からの移行
+
+プロジェクトが Zap に改名される前から使っていた方(当時の名称は **OpenWarp**)、
+または上流 **Warp** から乗り換える方は、
+[docs/migrate-from-warp.ja.md](docs/migrate-from-warp.ja.md) を参照して設定を
+引き継いでください。
+
 ## ロードマップ
 
 [docs/roadmap.ja.md](docs/roadmap.ja.md) を参照してください。

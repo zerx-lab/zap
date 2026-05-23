@@ -103,7 +103,11 @@ if [ "${GITHUB_ACTIONS}" == "true" ]; then
   EXTRA_ARGS="--noconfirm"
 fi
 cd "$PKGDIR"
-PKGDEST="$OUT_DIR" CARCH="$ARCH" makepkg -cfrs --needed --skipchecksums "$EXTRA_ARGS"
+# 允许调用方通过 MAKEPKG_EXTRA_ARGS 追加 makepkg 参数(如 CI 容器里
+# 需要 --assume-installed opengl-driver 跳过不在官方仓库的虚拟包)。
+# 用数组展开避免空字符串当作多余参数传入。
+read -r -a _makepkg_extra <<< "${MAKEPKG_EXTRA_ARGS:-}"
+PKGDEST="$OUT_DIR" CARCH="$ARCH" makepkg -cfrs --needed --skipchecksums $EXTRA_ARGS "${_makepkg_extra[@]}"
 
 PACKAGE_PATH="$OUT_DIR/${PACKAGE_NAME}-${PKGVER}-${RELEASE}-${ARCH}.pkg.tar.zst"
 

@@ -320,8 +320,15 @@ jobs:
             -e HOST_UID="$HOST_UID" \
             -e HOST_GID="$HOST_GID" \
             archlinux:latest bash -euxc '
+              # 预装 PKGBUILD `depends` 里的运行时依赖,避免 makepkg -s
+              # 在容器内调 `sudo pacman -S` 装缺包(builder 没有免密 sudo,
+              # 会因为读不到密码退出 8,Arch 包就此漏掉,见 run 26267606877)。
+              # `opengl-driver` 在官方仓库里不存在(NixOS 概念 / AUR 虚拟包),
+              # 单独用 --assume-installed 让依赖检查跳过它。
               pacman -Sy --noconfirm --needed \
-                base-devel git sudo rust cargo-about &&
+                base-devel git sudo rust cargo-about \
+                curl default-cursors fontconfig libegl libx11 libxcb \
+                libxcursor libxi libxkbcommon-x11 xdg-utils zlib &&
               # 用 host uid/gid 建用户,挂进来的 /work 与 /cargo-home owner 就是它,
               # 不用 chown,直接 sudo -u 即可读写。
               groupadd -g "$HOST_GID" builder 2>/dev/null || true
@@ -335,7 +342,12 @@ jobs:
                 bash -c "
                   git config --global --add safe.directory /work
                   cd /work
-                  script/bundle --skip-build --channel oss --arch x86_64 --packages arch
+                  # 依赖已在外层 pacman 装好;告诉 makepkg `opengl-driver`
+                  # 视为已安装,避免它去 pacman -S 一个仓库里没有的包。
+                  # 另外带 --noconfirm:容器里没透传 GITHUB_ACTIONS,
+                  # bundle_arch 里原生的那个分支不会生效。
+                  MAKEPKG_EXTRA_ARGS='--noconfirm --assume-installed opengl-driver' \
+                    script/bundle --skip-build --channel oss --arch x86_64 --packages arch
                 "
             '
         shell: bash

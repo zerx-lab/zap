@@ -23,6 +23,13 @@ Zap is an open, local-first terminal with first-class AI and agent support. Plug
 - **Localized UI** — English / Simplified Chinese / Japanese out of the box, community-extensible.
 - **Privacy defaults** — Cloud Agent / Computer Use / Referral / telemetry off by default.
 
+## Migrating from OpenWarp or Warp
+
+If you used the project before it was renamed to Zap (formerly **OpenWarp**),
+or are coming from upstream **Warp**, see
+[docs/migrate-from-warp.md](docs/migrate-from-warp.md) to bring your settings
+across.
+
 ## Roadmap
 
 See [docs/roadmap.md](docs/roadmap.md).
