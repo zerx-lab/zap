@@ -189,6 +189,7 @@ struct PendingUploadStart {
 
 pub struct ServerFileBrowserView {
     host_id: Option<HostId>,
+    session_id: Option<SessionId>,
     /// Fallback session for executing remote commands when the
     /// remote server daemon is not yet installed / connected.
     session: Option<Arc<Session>>,
@@ -285,6 +286,7 @@ impl ServerFileBrowserView {
 
         Self {
             host_id: None,
+            session_id: None,
             session: None,
             current_path: String::new(),
             path_editor,
@@ -318,6 +320,7 @@ impl ServerFileBrowserView {
         &mut self,
         host_id: HostId,
         path: String,
+        session_id: Option<SessionId>,
         session: Option<Arc<Session>>,
         ctx: &mut ViewContext<Self>,
     ) {
@@ -326,10 +329,13 @@ impl ServerFileBrowserView {
             (None, None) => false,
             _ => true,
         };
+        let session_id_changed = self.session_id != session_id;
         let should_load = self.host_id.as_ref() != Some(&host_id)
             || self.current_path != path
-            || session_changed;
+            || session_changed
+            || session_id_changed;
         self.host_id = Some(host_id);
+        self.session_id = session_id;
         self.session = session;
         if should_load {
             self.current_path = path;
@@ -366,10 +372,10 @@ impl ServerFileBrowserView {
     }
 
     fn remote_session_id(&self, ctx: &AppContext) -> Option<SessionId> {
-        let host_id = self.host_id.as_ref()?;
-        RemoteServerManager::as_ref(ctx)
-            .sessions_for_host(host_id)
-            .and_then(|sessions| sessions.iter().next().copied())
+        let manager = RemoteServerManager::as_ref(ctx);
+        bound_remote_session_id(self.session_id, |session_id| {
+            manager.client_for_session(session_id).is_some()
+        })
     }
 
     fn set_error(&mut self, message: impl Into<String>, ctx: &mut ViewContext<Self>) {
@@ -4048,6 +4054,14 @@ fn format_file_size(size: u64) -> String {
     }
 }
 
+fn bound_remote_session_id(
+    session_id: Option<SessionId>,
+    is_session_connected: impl FnOnce(SessionId) -> bool,
+) -> Option<SessionId> {
+    let session_id = session_id?;
+    is_session_connected(session_id).then_some(session_id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4218,6 +4232,19 @@ mod tests {
         assert_eq!(format_modified_epoch_millis(0), None);
         let formatted = format_modified_epoch_millis(1_700_000_000_000).expect("valid timestamp");
         assert!(formatted.contains('-') && formatted.contains(':'));
+    }
+
+    #[test]
+    fn bound_remote_session_id_uses_bound_session_instead_of_host_fallback() {
+        let first_session = SessionId::from(1);
+        let second_session = SessionId::from(2);
+
+        assert_eq!(
+            bound_remote_session_id(Some(second_session), |session_id| {
+                session_id == first_session || session_id == second_session
+            }),
+            Some(second_session)
+        );
     }
 
     #[test]

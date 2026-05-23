@@ -12621,6 +12621,7 @@ impl Workspace {
                             host_id.clone(),
                             indexed_path.to_string(),
                             None,
+                            None,
                             ctx,
                         );
                     });
@@ -13532,6 +13533,7 @@ impl Workspace {
                         left_panel.set_server_file_browser_root(
                             host_id,
                             cwd,
+                            Some(sid),
                             Some(s),
                             ctx,
                         );

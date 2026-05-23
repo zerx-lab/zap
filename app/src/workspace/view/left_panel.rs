@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use warp_core::ui::theme::color::internal_colors;
-use warp_core::{send_telemetry_from_ctx, ui::Icon, HostId};
+use warp_core::{send_telemetry_from_ctx, ui::Icon, HostId, SessionId};
 use warp_util::path::LineAndColumnArg;
 use warpui::{
     elements::{
@@ -646,11 +646,12 @@ impl LeftPanelView {
         &mut self,
         host_id: HostId,
         path: String,
+        session_id: Option<SessionId>,
         session: Option<Arc<Session>>,
         ctx: &mut ViewContext<Self>,
     ) {
         self.server_file_browser_view.update(ctx, |view, ctx| {
-            view.set_remote_root(host_id, path, session, ctx);
+            view.set_remote_root(host_id, path, session_id, session, ctx);
         });
     }
 
