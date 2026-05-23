@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -180,6 +180,13 @@ struct PendingUploadFile {
     total_bytes: u64,
 }
 
+struct PendingUploadStart {
+    client: Arc<RemoteServerClient>,
+    remote_directory: String,
+    pending_files: Vec<PendingUploadFile>,
+    directory_roots: Vec<String>,
+}
+
 pub struct ServerFileBrowserView {
     host_id: Option<HostId>,
     /// Fallback session for executing remote commands when the
@@ -205,6 +212,9 @@ pub struct ServerFileBrowserView {
     context_menu_position: Option<Vector2F>,
     upload_batches: Vec<ServerFileUploadBatch>,
     active_upload_batch_index: Option<usize>,
+    /// Only one upload pipeline (staging + upload + promote) runs at a time.
+    upload_pipeline_claimed: bool,
+    pending_upload_starts: VecDeque<PendingUploadStart>,
     upload_progress_panel_open: bool,
     upload_progress_button: MouseStateHandle,
     clear_completed_uploads_button: MouseStateHandle,
@@ -296,6 +306,8 @@ impl ServerFileBrowserView {
             context_menu_position: None,
             upload_batches: Vec::new(),
             active_upload_batch_index: None,
+            upload_pipeline_claimed: false,
+            pending_upload_starts: VecDeque::new(),
             upload_progress_panel_open: false,
             upload_progress_button: Default::default(),
             clear_completed_uploads_button: Default::default(),
@@ -448,6 +460,9 @@ impl ServerFileBrowserView {
     }
 
     fn depth_for_directory(&self, path: &str) -> usize {
+        if self.directory_listing_matches_current(path) {
+            return 0;
+        }
         self.entries
             .iter()
             .find(|entry| entry.path == path)
@@ -1187,6 +1202,9 @@ impl ServerFileBrowserView {
     }
 
     fn depth_for_directory_path(&self, directory_path: &str) -> usize {
+        if self.directory_listing_matches_current(directory_path) {
+            return 0;
+        }
         self.entries
             .iter()
             .find(|entry| entry.path == directory_path)
@@ -1241,6 +1259,11 @@ impl ServerFileBrowserView {
         children: Vec<ServerFileBrowserEntry>,
         depth: usize,
     ) {
+        let depth = if self.directory_listing_matches_current(&canonical_path) {
+            0
+        } else {
+            depth
+        };
         let children = entries_with_depth(children, depth);
         if self.directory_listing_matches_current(&canonical_path) {
             self.entries = children;
@@ -1348,17 +1371,73 @@ impl ServerFileBrowserView {
     }
 
     fn has_active_upload(&self) -> bool {
-        self.active_upload_batch().is_some_and(|batch| {
-            matches!(
-                batch.phase,
-                UploadBatchPhase::Verifying | UploadBatchPhase::Promoting
-            ) || batch.tasks.iter().any(|task| {
+        self.upload_pipeline_claimed
+            || !self.pending_upload_starts.is_empty()
+            || self.active_upload_batch().is_some_and(|batch| {
                 matches!(
-                    task.status,
-                    UploadTaskStatus::Pending | UploadTaskStatus::Uploading
-                )
+                    batch.phase,
+                    UploadBatchPhase::Verifying | UploadBatchPhase::Promoting
+                ) || batch.tasks.iter().any(|task| {
+                    matches!(
+                        task.status,
+                        UploadTaskStatus::Pending | UploadTaskStatus::Uploading
+                    )
+                })
             })
-        })
+    }
+
+    fn release_upload_pipeline_and_continue(&mut self, ctx: &mut ViewContext<Self>) {
+        self.upload_pipeline_claimed = false;
+        self.start_next_pending_upload(ctx);
+    }
+
+    fn start_next_pending_upload(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(next) = self.pending_upload_starts.pop_front() else {
+            return;
+        };
+        self.start_upload_after_conflict_scan(
+            next.client,
+            next.remote_directory,
+            next.pending_files,
+            next.directory_roots,
+            ctx,
+        );
+    }
+
+    fn reserved_upload_destination_paths(&self) -> HashSet<String> {
+        let mut paths = HashSet::new();
+        if let Some(batch) = self.active_upload_batch() {
+            for task in &batch.tasks {
+                if !matches!(task.status, UploadTaskStatus::Failed(_)) {
+                    paths.insert(task.final_remote_path.clone());
+                }
+            }
+        }
+        for start in &self.pending_upload_starts {
+            for file in &start.pending_files {
+                paths.insert(file.final_remote_path.clone());
+            }
+        }
+        paths
+    }
+
+    fn enqueue_upload_start(
+        &mut self,
+        client: Arc<RemoteServerClient>,
+        remote_directory: String,
+        pending_files: Vec<PendingUploadFile>,
+        directory_roots: Vec<String>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.pending_upload_starts.push_back(PendingUploadStart {
+            client,
+            remote_directory,
+            pending_files,
+            directory_roots,
+        });
+        self.upload_progress_panel_open = true;
+        self.status = Some(crate::t!("server-file-browser-upload-queued"));
+        ctx.notify();
     }
 
     fn active_upload_count(&self) -> usize {
@@ -1427,10 +1506,42 @@ impl ServerFileBrowserView {
         client: Arc<RemoteServerClient>,
         remote_directory: String,
         pending_files: Vec<PendingUploadFile>,
+        directory_roots: Vec<String>,
         conflict_policy: UploadConflictPolicy,
         conflicts: Vec<UploadConflict>,
         ctx: &mut ViewContext<Self>,
     ) {
+        if self.upload_pipeline_claimed {
+            self.enqueue_upload_start(
+                client,
+                remote_directory,
+                pending_files,
+                directory_roots,
+                ctx,
+            );
+            return;
+        }
+        self.begin_upload_batch_impl(
+            client,
+            remote_directory,
+            pending_files,
+            conflict_policy,
+            conflicts,
+            ctx,
+        );
+    }
+
+    fn begin_upload_batch_impl(
+        &mut self,
+        client: Arc<RemoteServerClient>,
+        remote_directory: String,
+        pending_files: Vec<PendingUploadFile>,
+        conflict_policy: UploadConflictPolicy,
+        conflicts: Vec<UploadConflict>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.upload_pipeline_claimed = true;
+
         let conflict_paths: HashSet<String> = conflicts.iter().map(|c| c.path.clone()).collect();
         let directory_overwrite_roots: HashSet<String> = if conflict_policy
             == UploadConflictPolicy::OverwriteAll
@@ -1448,6 +1559,7 @@ impl ServerFileBrowserView {
             filter_upload_tasks_by_policy(pending_files, conflict_policy, &conflict_paths);
         if pending_files.is_empty() {
             self.status = Some(crate::t!("server-file-browser-upload-all-skipped"));
+            self.release_upload_pipeline_and_continue(ctx);
             ctx.notify();
             return;
         }
@@ -1496,7 +1608,10 @@ impl ServerFileBrowserView {
                         ctx,
                     );
                 }
-                Err(error) => me.set_error(error, ctx),
+                Err(error) => {
+                    me.release_upload_pipeline_and_continue(ctx);
+                    me.set_error(error, ctx);
+                }
             },
         );
     }
@@ -1513,7 +1628,14 @@ impl ServerFileBrowserView {
         ctx: &mut ViewContext<Self>,
     ) {
         if tasks.is_empty() {
+            self.release_upload_pipeline_and_continue(ctx);
             return;
+        }
+        if self.active_upload_batch_index.is_some() {
+            log::warn!(
+                "server file browser: upload batch ready while another batch is still active; \
+                 queueing is handled at begin_upload_batch"
+            );
         }
         self.upload_batches.push(ServerFileUploadBatch {
             staging_root,
@@ -1700,11 +1822,11 @@ impl ServerFileBrowserView {
                         me.finish_upload_batch_success(ctx);
                     }
                     Err(error) => {
-                        if let Some(root) = staging_root {
-                            me.spawn_cleanup_staging(cleanup_client, root, ctx);
-                        }
-                        me.reset_upload_batch_phase();
-                        me.set_error(error, ctx);
+                        me.fail_upload_batch_with_cleanup(
+                            cleanup_client,
+                            format_upload_promote_error(&error),
+                            ctx,
+                        );
                     }
                 }
             },
@@ -1741,6 +1863,7 @@ impl ServerFileBrowserView {
         self.reset_upload_batch_phase();
         let directories_to_reload = self.collect_directories_to_refresh_for_completed_uploads();
         self.finish_active_upload_batch();
+        self.release_upload_pipeline_and_continue(ctx);
         self.status = Some(crate::t!("server-file-browser-transfer-complete"));
         self.reload_directories_selective(directories_to_reload, ctx);
     }
@@ -1765,6 +1888,7 @@ impl ServerFileBrowserView {
         }
         self.reset_upload_batch_phase();
         self.finish_active_upload_batch();
+        self.release_upload_pipeline_and_continue(ctx);
         if let Some(error) = error {
             self.status = Some(crate::t!("server-file-browser-operation-failed", error = error));
         }
@@ -1785,6 +1909,7 @@ impl ServerFileBrowserView {
         }
         self.reset_upload_batch_phase();
         self.finish_active_upload_batch();
+        self.release_upload_pipeline_and_continue(ctx);
         self.status = Some(crate::t!("server-file-browser-operation-failed", error = error));
         ctx.notify();
     }
@@ -1794,12 +1919,15 @@ impl ServerFileBrowserView {
         client: Arc<RemoteServerClient>,
         remote_directory: String,
         pending_files: Vec<PendingUploadFile>,
+        directory_roots: Vec<String>,
         conflicts: Vec<UploadConflict>,
         ctx: &mut ViewContext<Self>,
     ) {
         let conflict_summary = format_upload_conflict_summary(&conflicts);
         let pending_files_for_skip = pending_files.clone();
         let pending_files_for_overwrite = pending_files;
+        let directory_roots_for_skip = directory_roots.clone();
+        let directory_roots_for_overwrite = directory_roots;
         let conflicts_for_skip = conflicts.clone();
         let conflicts_for_overwrite = conflicts;
         let client_for_overwrite = client.clone();
@@ -1818,6 +1946,7 @@ impl ServerFileBrowserView {
                             client_for_overwrite,
                             remote_directory_for_overwrite,
                             pending_files_for_overwrite,
+                            directory_roots_for_overwrite,
                             UploadConflictPolicy::OverwriteAll,
                             conflicts_for_overwrite,
                             ctx,
@@ -1831,6 +1960,7 @@ impl ServerFileBrowserView {
                             client_for_skip,
                             remote_directory_for_skip,
                             pending_files_for_skip,
+                            directory_roots_for_skip,
                             UploadConflictPolicy::SkipExisting,
                             conflicts_for_skip,
                             ctx,
@@ -1844,6 +1974,77 @@ impl ServerFileBrowserView {
         ctx.show_native_platform_modal(dialog);
     }
 
+    fn start_upload_after_conflict_scan(
+        &mut self,
+        client: Arc<RemoteServerClient>,
+        remote_directory: String,
+        pending_files: Vec<PendingUploadFile>,
+        directory_roots: Vec<String>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if pending_files.is_empty() {
+            return;
+        }
+        if self.upload_pipeline_claimed {
+            self.enqueue_upload_start(
+                client,
+                remote_directory,
+                pending_files,
+                directory_roots,
+                ctx,
+            );
+            return;
+        }
+        let reserved_paths = self.reserved_upload_destination_paths();
+        let client_for_scan = client.clone();
+        let pending_files_for_scan = pending_files.clone();
+        let directory_roots_for_scan = directory_roots.clone();
+        let directory_roots_for_begin = directory_roots.clone();
+        ctx.spawn(
+            async move {
+                let mut conflicts = scan_upload_conflicts(
+                    &client_for_scan,
+                    &pending_files_for_scan,
+                    &directory_roots_for_scan,
+                )
+                .await?;
+                append_reserved_path_conflicts(
+                    &mut conflicts,
+                    &pending_files_for_scan,
+                    &reserved_paths,
+                );
+                Ok::<_, String>((pending_files, conflicts))
+            },
+            move |me, scan_result, ctx| match scan_result {
+                Ok((files, conflicts)) if conflicts.is_empty() => {
+                    me.begin_upload_batch(
+                        client.clone(),
+                        remote_directory.clone(),
+                        files,
+                        directory_roots_for_begin,
+                        UploadConflictPolicy::Proceed,
+                        Vec::new(),
+                        ctx,
+                    );
+                }
+                Ok((files, conflicts)) => {
+                    me.confirm_upload_conflicts(
+                        client,
+                        remote_directory,
+                        files,
+                        directory_roots_for_begin,
+                        conflicts,
+                        ctx,
+                    );
+                }
+                Err(error) => {
+                    me.release_upload_pipeline_and_continue(ctx);
+                    me.set_error(error, ctx);
+                }
+            },
+        );
+    }
+
     fn handle_collected_upload_tasks(
         &mut self,
         client: Arc<RemoteServerClient>,
@@ -1854,39 +2055,12 @@ impl ServerFileBrowserView {
         match result {
             Ok((pending_files, _)) if pending_files.is_empty() => {}
             Ok((pending_files, directory_roots)) => {
-                let client_for_scan = client.clone();
-                ctx.spawn(
-                    async move {
-                        let conflicts: Vec<UploadConflict> = scan_upload_conflicts(
-                            &client_for_scan,
-                            &pending_files,
-                            &directory_roots,
-                        )
-                        .await?;
-                        Ok::<_, String>((pending_files, conflicts))
-                    },
-                    move |me, scan_result, ctx| match scan_result {
-                        Ok((files, conflicts)) if conflicts.is_empty() => {
-                            me.begin_upload_batch(
-                                client.clone(),
-                                remote_directory.clone(),
-                                files,
-                                UploadConflictPolicy::Proceed,
-                                Vec::new(),
-                                ctx,
-                            );
-                        }
-                        Ok((files, conflicts)) => {
-                            me.confirm_upload_conflicts(
-                                client,
-                                remote_directory,
-                                files,
-                                conflicts,
-                                ctx,
-                            );
-                        }
-                        Err(error) => me.set_error(error, ctx),
-                    },
+                self.start_upload_after_conflict_scan(
+                    client,
+                    remote_directory,
+                    pending_files,
+                    directory_roots,
+                    ctx,
                 );
             }
             Err(error) => self.set_error(error, ctx),
@@ -3207,7 +3381,13 @@ fn collect_upload_tasks(
             });
         }
     }
+    dedupe_pending_upload_files(&mut files);
     Ok((files, directory_roots))
+}
+
+fn dedupe_pending_upload_files(files: &mut Vec<PendingUploadFile>) {
+    let mut seen = HashSet::new();
+    files.retain(|file| seen.insert(file.final_remote_path.clone()));
 }
 
 async fn create_remote_directory(
@@ -3431,6 +3611,41 @@ fn format_upload_conflict_summary(conflicts: &[UploadConflict]) -> String {
         crate::t!("server-file-browser-upload-conflict-info"),
         lines.join("\n")
     )
+}
+
+fn append_reserved_path_conflicts(
+    conflicts: &mut Vec<UploadConflict>,
+    files: &[PendingUploadFile],
+    reserved_paths: &HashSet<String>,
+) {
+    let existing: HashSet<String> = conflicts.iter().map(|c| c.path.clone()).collect();
+    for file in files {
+        if !reserved_paths.contains(&file.final_remote_path) {
+            continue;
+        }
+        if existing.contains(&file.final_remote_path) {
+            continue;
+        }
+        conflicts.push(UploadConflict {
+            path: file.final_remote_path.clone(),
+            display_name: file.display_name.clone(),
+            kind: FileSystemEntryKind::File,
+        });
+    }
+}
+
+fn format_upload_promote_error(error: &str) -> String {
+    if error.contains("not replacing") {
+        if let Some(path) = error
+            .split('\'')
+            .nth(1)
+            .filter(|segment| segment.starts_with('/'))
+        {
+            return crate::t!("server-file-browser-upload-promote-not-replacing", path = path);
+        }
+        return crate::t!("server-file-browser-upload-promote-not-replacing-generic");
+    }
+    error.to_string()
 }
 
 async fn scan_upload_conflicts(
@@ -3900,6 +4115,34 @@ mod tests {
             remap_path_after_rename("/root/other", "/root/test/old", "/root/test/new"),
             "/root/other"
         );
+    }
+
+    #[test]
+    fn rebuild_entries_hides_listing_when_current_directory_uses_wrong_depth() {
+        let mislabeled = entry(
+            "/root/Lemon5.3.1.dmg",
+            "Lemon5.3.1.dmg",
+            FileSystemEntryKind::File,
+            1,
+        );
+        let roots = [mislabeled]
+            .into_iter()
+            .filter(|entry| entry.depth == 0)
+            .collect::<Vec<_>>();
+        assert!(roots.is_empty());
+
+        let fixed = entries_with_depth(
+            vec![entry(
+                "/root/Lemon5.3.1.dmg",
+                "Lemon5.3.1.dmg",
+                FileSystemEntryKind::File,
+                0,
+            )],
+            0,
+        );
+        let rebuilt = rebuild_entries_from(fixed, &HashSet::new(), &HashMap::new());
+        assert_eq!(rebuilt.len(), 1);
+        assert_eq!(rebuilt[0].depth, 0);
     }
 
     #[test]
