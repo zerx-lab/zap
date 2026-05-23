@@ -5,7 +5,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{Local, TimeZone};
-use pathfinder_geometry::vector::Vector2F;
+use pathfinder_geometry::rect::RectF;
+use pathfinder_geometry::vector::{vec2f, Vector2F};
 use remote_server::client::RemoteServerClient;
 use remote_server::proto::{
     create_directory_response, list_directory_response, read_file_chunk_response,
@@ -42,7 +43,10 @@ use crate::editor::{
     PropagateHorizontalNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
 use crate::appearance::Appearance;
-use crate::menu::{Menu, MenuItem, MenuItemFields, SubMenu, DEFAULT_WIDTH as MENU_DEFAULT_WIDTH};
+use crate::menu::{
+    Event as MenuEvent, Menu, MenuItem, MenuItemFields, SubMenu, DEFAULT_WIDTH as MENU_DEFAULT_WIDTH,
+    MENU_ITEM_VERTICAL_PADDING, SUBMENU_OVERLAP,
+};
 use crate::remote_server::manager::RemoteServerManager;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session};
 use crate::ui_components::icons::Icon;
@@ -213,6 +217,8 @@ impl ServerFileBrowserView {
                 .prevent_interaction_with_other_elements()
                 .with_drop_shadow()
                 .with_width(CONTEXT_MENU_WIDTH)
+                .with_safe_triangle()
+                .with_ignore_hover_when_covered()
         });
         ctx.subscribe_to_view(&context_menu, |me, _, event, ctx| {
             me.handle_menu_event(event, ctx);
@@ -715,11 +721,70 @@ impl ServerFileBrowserView {
         ctx.notify();
     }
 
-    fn handle_menu_event(&mut self, event: &crate::menu::Event, ctx: &mut ViewContext<Self>) {
-        if let crate::menu::Event::Close { .. } = event {
-            self.context_menu_position = None;
+    fn handle_menu_event(&mut self, event: &MenuEvent, ctx: &mut ViewContext<Self>) {
+        match event {
+            MenuEvent::ItemHovered | MenuEvent::ItemSelected => {
+                self.update_context_menu_safe_triangle(ctx);
+            }
+            MenuEvent::Close { .. } => {
+                self.context_menu_position = None;
+                self.context_menu.update(ctx, |menu, _| {
+                    menu.set_safe_zone_target(None);
+                    menu.set_submenu_being_shown_for_item_index(None);
+                });
+            }
         }
         ctx.notify();
+    }
+
+    fn update_context_menu_safe_triangle(&mut self, ctx: &mut ViewContext<Self>) {
+        let window_id = ctx.window_id();
+        let submenu_parent = self.context_menu.read(ctx, |menu, _| {
+            let index = menu.selected_index()?;
+            match menu.items().get(index)? {
+                MenuItem::Submenu { .. } => Some((index, menu.submenu_row_save_position_id(index))),
+                MenuItem::Item(_) => None,
+                MenuItem::Separator => None,
+                MenuItem::ItemsRow { .. } => None,
+                MenuItem::Header { .. } => None,
+            }
+        });
+
+        let Some((parent_index, anchor_id)) = submenu_parent else {
+            self.context_menu.update(ctx, |menu, _| {
+                menu.set_safe_zone_target(None);
+                menu.set_submenu_being_shown_for_item_index(None);
+            });
+            return;
+        };
+
+        let submenu_height = self.context_menu.read(ctx, |menu, _| {
+            let MenuItem::Submenu { menu: submenu, .. } = menu.items().get(parent_index)? else {
+                return None;
+            };
+            let row_count = submenu
+                .items()
+                .iter()
+                .filter(|item| matches!(item, MenuItem::Item(_)))
+                .count();
+            let row_height = MENU_ITEM_VERTICAL_PADDING * 2.0 + ITEM_FONT_SIZE;
+            Some(row_count as f32 * row_height + 18.0)
+        });
+        let submenu_rect = ctx
+            .element_position_by_id_at_last_frame(window_id, &anchor_id)
+            .map(|anchor_rect| {
+                let height = submenu_height
+                    .unwrap_or(anchor_rect.height())
+                    .max(anchor_rect.height());
+                RectF::new(
+                    vec2f(anchor_rect.max_x() - SUBMENU_OVERLAP, anchor_rect.min_y()),
+                    vec2f(CONTEXT_MENU_WIDTH + SUBMENU_OVERLAP, height),
+                )
+            });
+        self.context_menu.update(ctx, |menu, _| {
+            menu.set_safe_zone_target(submenu_rect);
+            menu.set_submenu_being_shown_for_item_index(Some(parent_index));
+        });
     }
 
     fn copy_path(&mut self, path: String, ctx: &mut ViewContext<Self>) {

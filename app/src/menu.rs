@@ -1,4 +1,5 @@
 use std::cell::OnceCell;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::{fmt, vec};
 
@@ -34,7 +35,7 @@ use warpui::{
 
 pub const CHEVRON_RIGHT_ALIGN_SVG_PATH: &str = "bundled/svg/chevron-right-align.svg";
 
-const SUBMENU_OVERLAP: f32 = 8.;
+pub const SUBMENU_OVERLAP: f32 = 8.;
 const MENU_VERTICAL_PADDING: f32 = 9.;
 pub const MENU_ITEM_VERTICAL_PADDING: f32 = 5.;
 pub const MENU_ITEM_HORIZONTAL_PADDING: f32 = 14.;
@@ -49,6 +50,11 @@ const DROP_SHADOW_COLOR: ColorU = ColorU {
     a: 48,
 };
 const SECONDARY_TEXT_RATIO: f32 = 0.9;
+static NEXT_SUBMENU_POSITION_NAMESPACE: AtomicU64 = AtomicU64::new(1);
+
+fn next_submenu_position_namespace() -> u64 {
+    NEXT_SUBMENU_POSITION_NAMESPACE.fetch_add(1, Ordering::Relaxed)
+}
 
 #[derive(Clone, Debug)]
 /// At the current time, its not recommended to have more than 1 nested submenu due to
@@ -126,6 +132,13 @@ pub struct Menu<A: Action + Clone = ()> {
     /// If false, selecting a menu item updates selection and emits menu events
     /// without dispatching the item's typed action directly from the menu.
     dispatch_item_actions: bool,
+
+    submenu_position_namespace: u64,
+}
+
+struct RenderedSubMenu {
+    element: Box<dyn Element>,
+    anchor_position_id: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -1173,7 +1186,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                         },
                     )
                 } else {
-                    MenuAction::UnhoverSubmenuParent(depth)
+                    MenuAction::UnhoverSubmenuParent(depth, row_index)
                 });
             } else if is_hovered {
                 // Only dispatch on hover-in, not hover-out. Dispatching on
@@ -1185,6 +1198,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                     depth,
                     row_index,
                     position,
+                    select: true,
                 });
             }
         });
@@ -1231,6 +1245,7 @@ impl<A: Action + Clone> MenuItemFields<A> {
                             depth,
                             row_index,
                             position: pos,
+                            select: false,
                         });
                         DispatchEventResult::PropagateToParent
                     },
@@ -1512,13 +1527,14 @@ pub enum MenuAction {
     Select(SelectAction),
     OpenSubmenu,
     /// Fires when the mouse leaves the Menu item containing a submenu.
-    UnhoverSubmenuParent(usize),
+    UnhoverSubmenuParent(usize, usize),
     HoverSubmenuWithChildren(usize, SelectAction),
     /// Fires when the mouse enters a submenu item with no children
     HoverSubmenuLeafNode {
         depth: usize,
         row_index: usize,
         position: Vector2F,
+        select: bool,
     },
     CloseSubmenu(usize),
     Close(bool),
@@ -1559,9 +1575,8 @@ pub enum Event {
 }
 
 impl<A: Action + Clone> SubMenu<A> {
-    pub fn new(mut items: Vec<MenuItem<A>>) -> Self {
-        Self::increment_depth(&mut items);
-        Self {
+    pub fn new(items: Vec<MenuItem<A>>) -> Self {
+        let mut submenu = Self {
             depth: 0,
             items,
             selected_row_index: None,
@@ -1570,14 +1585,20 @@ impl<A: Action + Clone> SubMenu<A> {
             last_selection_source: None,
             height: DEFAULT_HEIGHT,
             menu_variant: Default::default(),
-        }
+        };
+        submenu.assign_nested_depths();
+        submenu
     }
 
-    fn increment_depth(items: &mut [MenuItem<A>]) {
+    fn assign_nested_depths(&mut self) {
+        Self::assign_nested_depths_for_items(&mut self.items, self.depth);
+    }
+
+    fn assign_nested_depths_for_items(items: &mut [MenuItem<A>], parent_depth: usize) {
         for item in items.iter_mut() {
             if let MenuItem::Submenu { menu, .. } = item {
-                menu.depth += 1;
-                Self::increment_depth(&mut menu.items);
+                menu.depth = parent_depth + 1;
+                Self::assign_nested_depths_for_items(&mut menu.items, menu.depth);
             }
         }
     }
@@ -1595,8 +1616,22 @@ impl<A: Action + Clone> SubMenu<A> {
     pub fn reset_selection(&mut self, ctx: &mut ViewContext<Menu<A>>) {
         self.selected_row_index = None;
         self.selected_item_index = None;
+        self.hovered_row_index = None;
         self.last_selection_source = None;
+        self.clear_nested_submenu_selections();
         ctx.notify();
+    }
+
+    fn clear_nested_submenu_selections(&mut self) {
+        for item in self.items.iter_mut() {
+            if let MenuItem::Submenu { menu, .. } = item {
+                menu.selected_row_index = None;
+                menu.selected_item_index = None;
+                menu.hovered_row_index = None;
+                menu.last_selection_source = None;
+                menu.clear_nested_submenu_selections();
+            }
+        }
     }
 
     pub fn selected_item(&self) -> Option<MenuItem<A>> {
@@ -1629,13 +1664,19 @@ impl<A: Action + Clone> SubMenu<A> {
     }
 
     /// Select the menu item at the given index. If the index is out of bounds, this clears the selection.
-    pub fn set_selected_by_index(&mut self, selected_index: usize, ctx: &mut ViewContext<Menu<A>>) {
+    pub fn set_selected_by_index(
+        &mut self,
+        selected_index: usize,
+        position_namespace: u64,
+        ctx: &mut ViewContext<Menu<A>>,
+    ) {
         if selected_index < self.items.len() {
             self.select(
                 SelectAction::Index {
                     row: selected_index,
                     item: 0,
                 },
+                position_namespace,
                 ctx,
             );
         } else {
@@ -1644,6 +1685,7 @@ impl<A: Action + Clone> SubMenu<A> {
     }
 
     fn select_internal(&mut self, action: SelectAction) {
+        let previous_row = self.selected_row_index;
         let (selected_row_index, selected_item_index) =
             match (action, self.selected_row_index, self.selected_item_index) {
                 (SelectAction::Index { row, item }, _, _) => (row, item),
@@ -1709,15 +1751,20 @@ impl<A: Action + Clone> SubMenu<A> {
                 _ => (0, 0),
             };
 
+        let row_changed = previous_row != Some(selected_row_index);
         self.selected_row_index = Some(selected_row_index);
         self.selected_item_index = Some(selected_item_index);
         self.hovered_row_index = Some(selected_row_index);
+        if row_changed {
+            self.clear_nested_submenu_selections();
+        }
     }
 
     fn select_with_source(
         &mut self,
         action: SelectAction,
         selection_source: MenuSelectionSource,
+        position_namespace: u64,
         ctx: &mut ViewContext<Menu<A>>,
     ) {
         self.select_internal(action);
@@ -1728,7 +1775,12 @@ impl<A: Action + Clone> SubMenu<A> {
         ) {
             if let MenuVariant::Scrollable(scroll_state) = &self.menu_variant {
                 scroll_state.scroll_to_position(ScrollTarget {
-                    position_id: Self::save_position_id(self.depth),
+                    position_id: self
+                        .selected_row_index
+                        .map(|row| Self::save_position_id(position_namespace, self.depth, row))
+                        .unwrap_or_else(|| {
+                            Self::save_position_id(position_namespace, self.depth, 0)
+                        }),
                     mode: ScrollToPositionMode::FullyIntoView,
                 });
             }
@@ -1737,8 +1789,18 @@ impl<A: Action + Clone> SubMenu<A> {
         ctx.notify();
     }
 
-    fn select(&mut self, action: SelectAction, ctx: &mut ViewContext<Menu<A>>) {
-        self.select_with_source(action, MenuSelectionSource::KeyboardOrProgrammatic, ctx);
+    fn select(
+        &mut self,
+        action: SelectAction,
+        position_namespace: u64,
+        ctx: &mut ViewContext<Menu<A>>,
+    ) {
+        self.select_with_source(
+            action,
+            MenuSelectionSource::KeyboardOrProgrammatic,
+            position_namespace,
+            ctx,
+        );
     }
 
     #[cfg(test)]
@@ -1776,7 +1838,11 @@ impl<A: Action + Clone> SubMenu<A> {
         }
     }
 
-    fn select_first_selectable(&mut self, ctx: &mut ViewContext<Menu<A>>) -> bool {
+    fn select_first_selectable(
+        &mut self,
+        position_namespace: u64,
+        ctx: &mut ViewContext<Menu<A>>,
+    ) -> bool {
         let Some((row, _)) = self
             .items
             .iter()
@@ -1785,18 +1851,30 @@ impl<A: Action + Clone> SubMenu<A> {
         else {
             return false;
         };
-        self.select(SelectAction::Index { row, item: 0 }, ctx);
+        self.select(
+            SelectAction::Index { row, item: 0 },
+            position_namespace,
+            ctx,
+        );
         true
     }
 
-    fn open_selected_submenu(&mut self, ctx: &mut ViewContext<Menu<A>>) -> bool {
+    fn open_selected_submenu(
+        &mut self,
+        position_namespace: u64,
+        ctx: &mut ViewContext<Menu<A>>,
+    ) -> bool {
         let Some(submenu) = self.active_menu_mut().selected_submenu_mut() else {
             return false;
         };
-        submenu.select_first_selectable(ctx)
+        submenu.select_first_selectable(position_namespace, ctx)
     }
 
-    fn selected_action_for_enter(&mut self, ctx: &mut ViewContext<Menu<A>>) -> Option<A> {
+    fn selected_action_for_enter(
+        &mut self,
+        position_namespace: u64,
+        ctx: &mut ViewContext<Menu<A>>,
+    ) -> Option<A> {
         let active_menu = self.active_menu_mut();
         let selected_row_index = active_menu.selected_row_index?;
         let selected_item_index = active_menu.selected_item_index.unwrap_or_default();
@@ -1807,7 +1885,7 @@ impl<A: Action + Clone> SubMenu<A> {
                 .get(selected_item_index)
                 .and_then(|fields| fields.on_select_action.clone()),
             MenuItem::Submenu { menu, .. } => {
-                menu.select_first_selectable(ctx);
+                menu.select_first_selectable(position_namespace, ctx);
                 None
             }
             MenuItem::Header {
@@ -1827,6 +1905,7 @@ impl<A: Action + Clone> SubMenu<A> {
     pub fn set_selected_by_name<S>(
         &mut self,
         selected_item: S,
+        position_namespace: u64,
         ctx: &mut ViewContext<Menu<A>>,
     ) -> bool
     where
@@ -1845,6 +1924,7 @@ impl<A: Action + Clone> SubMenu<A> {
                     row: index,
                     item: 0,
                 },
+                position_namespace,
                 ctx,
             );
             true
@@ -1858,8 +1938,12 @@ impl<A: Action + Clone> SubMenu<A> {
     /// this clears the selection.
     ///
     /// This is primarily useful when items are dynamically generated and correspond to some backing data that's captured by the action.
-    pub fn set_selected_by_action(&mut self, action: &A, ctx: &mut ViewContext<Menu<A>>)
-    where
+    pub fn set_selected_by_action(
+        &mut self,
+        action: &A,
+        position_namespace: u64,
+        ctx: &mut ViewContext<Menu<A>>,
+    ) where
         A: PartialEq,
     {
         let selected_index = self.items.iter().position(|item| match item {
@@ -1876,6 +1960,7 @@ impl<A: Action + Clone> SubMenu<A> {
                         row: index,
                         item: 0,
                     },
+                    position_namespace,
                     ctx,
                 );
             }
@@ -1883,11 +1968,8 @@ impl<A: Action + Clone> SubMenu<A> {
         }
     }
 
-    /// Currently, this assumes only one Menu with any depth submenu can be open
-    /// at a time. We need a way to uniquely identify Menus.
-    /// TODO(asweet): Allow multiple submenus to be open at a time.
-    fn save_position_id(depth: usize) -> String {
-        format!("submenu_{depth}")
+    fn save_position_id(position_namespace: u64, depth: usize, row_index: usize) -> String {
+        format!("submenu_{position_namespace}_{depth}_{row_index}")
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1901,55 +1983,61 @@ impl<A: Action + Clone> SubMenu<A> {
         ignore_hover_when_covered: bool,
         safe_zone_anchor_row: Option<usize>,
         submenu_being_shown_for_item_index: Option<usize>,
+        position_namespace: u64,
+        anchor_position_id: Option<String>,
         appearance: &Appearance,
         app: &AppContext,
-    ) -> Vec<Box<dyn Element>> {
+    ) -> Vec<RenderedSubMenu> {
         let height = self.height;
         let depth = self.depth;
         match &self.menu_variant {
             MenuVariant::Fixed => {
-                let mut menus = vec![Flex::column()
-                    .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                    .with_children(self.items.iter().enumerate().map(
-                        |(index, item)| -> Box<dyn Element> {
-                            let is_selected = selected_row == Some(index);
-                            // When the safe zone is active, suppress hover highlighting on
-                            // non-anchor rows so intermediate items don't flash as the
-                            // mouse moves toward the sidecar.
-                            let safe_zone_suppresses_hover =
-                                safe_zone_anchor_row.is_some_and(|anchor| anchor != index);
-                            let submenu_being_shown_for_item =
-                                submenu_being_shown_for_item_index == Some(index);
-                            let item = item.render(
-                                menu_background_color,
-                                depth,
-                                index,
-                                selected_item,
-                                dispatch_item_actions,
-                                is_selected,
-                                ignore_hover_when_covered,
-                                safe_zone_suppresses_hover,
-                                submenu_being_shown_for_item,
-                                appearance,
-                                submenu_width,
-                                app,
-                            );
-                            let item = if is_selected {
-                                let save_position = Self::save_position_id(depth);
-                                SavePosition::new(item, &save_position).finish()
-                            } else {
-                                item
-                            };
-                            Container::new(item).finish()
-                        },
-                    ))
-                    .finish()];
-                let Some(selected_row) = self.selected_item() else {
+                let mut menus = vec![RenderedSubMenu {
+                    element: Flex::column()
+                        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                        .with_children(self.items.iter().enumerate().map(
+                            |(index, item)| -> Box<dyn Element> {
+                                let is_selected = selected_row == Some(index);
+                                // When the safe zone is active, suppress hover highlighting on
+                                // non-anchor rows so intermediate items don't flash as the
+                                // mouse moves toward the sidecar.
+                                let safe_zone_suppresses_hover =
+                                    safe_zone_anchor_row.is_some_and(|anchor| anchor != index);
+                                let selection_suppresses_hover =
+                                    selected_row.is_some_and(|selected| selected != index);
+                                let submenu_being_shown_for_item =
+                                    submenu_being_shown_for_item_index == Some(index);
+                                let item = item.render(
+                                    menu_background_color,
+                                    depth,
+                                    index,
+                                    selected_item,
+                                    dispatch_item_actions,
+                                    is_selected,
+                                    ignore_hover_when_covered,
+                                    safe_zone_suppresses_hover || selection_suppresses_hover,
+                                    submenu_being_shown_for_item,
+                                    appearance,
+                                    submenu_width,
+                                    app,
+                                );
+                                let save_position =
+                                    Self::save_position_id(position_namespace, depth, index);
+                                let item = SavePosition::new(item, &save_position).finish();
+                                Container::new(item).finish()
+                            },
+                        ))
+                        .finish(),
+                    anchor_position_id,
+                }];
+                let Some(selected_item_row) = self.selected_item() else {
                     return menus;
                 };
-                let MenuItem::Submenu { menu, .. } = selected_row else {
+                let MenuItem::Submenu { menu, .. } = selected_item_row else {
                     return menus;
                 };
+                let child_anchor_position_id =
+                    selected_row.map(|row| Self::save_position_id(position_namespace, depth, row));
 
                 menus.extend(menu.render_submenus(
                     submenu_width,
@@ -1960,6 +2048,8 @@ impl<A: Action + Clone> SubMenu<A> {
                     ignore_hover_when_covered,
                     None,
                     None,
+                    position_namespace,
+                    child_anchor_position_id,
                     appearance,
                     app,
                 ));
@@ -1974,6 +2064,8 @@ impl<A: Action + Clone> SubMenu<A> {
                         let is_selected = selected_row == Some(index);
                         let safe_zone_suppresses_hover =
                             safe_zone_anchor_row.is_some_and(|anchor| anchor != index);
+                        let selection_suppresses_hover =
+                            selected_row.is_some_and(|selected| selected != index);
                         let submenu_being_shown_for_item =
                             submenu_being_shown_for_item_index == Some(index);
                         let item = item.render(
@@ -1984,35 +2076,35 @@ impl<A: Action + Clone> SubMenu<A> {
                             dispatch_item_actions,
                             is_selected,
                             ignore_hover_when_covered,
-                            safe_zone_suppresses_hover,
+                            safe_zone_suppresses_hover || selection_suppresses_hover,
                             submenu_being_shown_for_item,
                             appearance,
                             submenu_width,
                             app,
                         );
-                        let item = if is_selected {
-                            let save_position = Self::save_position_id(depth);
-                            SavePosition::new(item, &save_position).finish()
-                        } else {
-                            item
-                        };
+                        let save_position =
+                            Self::save_position_id(position_namespace, depth, index);
+                        let item = SavePosition::new(item, &save_position).finish();
                         Container::new(item).finish()
                     }));
 
-                vec![ConstrainedBox::new(
-                    ClippedScrollable::vertical(
-                        scroll_state.clone(),
-                        column_of_items.finish(),
-                        ScrollbarWidth::Auto,
-                        appearance.theme().nonactive_ui_detail().into(),
-                        appearance.theme().active_ui_detail().into(),
-                        warpui::elements::Fill::None,
+                vec![RenderedSubMenu {
+                    element: ConstrainedBox::new(
+                        ClippedScrollable::vertical(
+                            scroll_state.clone(),
+                            column_of_items.finish(),
+                            ScrollbarWidth::Auto,
+                            appearance.theme().nonactive_ui_detail().into(),
+                            appearance.theme().active_ui_detail().into(),
+                            warpui::elements::Fill::None,
+                        )
+                        .with_overlayed_scrollbar()
+                        .finish(),
                     )
-                    .with_overlayed_scrollbar()
+                    .with_max_height(height)
                     .finish(),
-                )
-                .with_max_height(height)
-                .finish()]
+                    anchor_position_id,
+                }]
             }
         }
     }
@@ -2037,6 +2129,7 @@ impl<A: Action + Clone> Menu<A> {
             content_top_padding_override: None,
             content_bottom_padding_override: None,
             dispatch_item_actions: true,
+            submenu_position_namespace: next_submenu_position_namespace(),
         }
     }
 
@@ -2179,6 +2272,7 @@ impl<A: Action + Clone> Menu<A> {
         ctx: &mut ViewContext<Self>,
     ) {
         self.menu.items = items.into_iter().collect();
+        self.menu.assign_nested_depths();
         // No need to ctx.notify, since reset_selection will.
         self.reset_selection(ctx);
     }
@@ -2186,10 +2280,12 @@ impl<A: Action + Clone> Menu<A> {
     #[allow(dead_code)]
     pub fn add_item(&mut self, item: MenuItem<A>) {
         self.menu.items.push(item);
+        self.menu.assign_nested_depths();
     }
 
     pub fn add_items(&mut self, items: impl IntoIterator<Item = MenuItem<A>>) {
         self.menu.items.extend(items);
+        self.menu.assign_nested_depths();
     }
 
     pub fn reset_selection(&mut self, ctx: &mut ViewContext<Self>) {
@@ -2226,7 +2322,8 @@ impl<A: Action + Clone> Menu<A> {
 
     /// Select the menu item at the given index. If the index is out of bounds, this clears the selection.
     pub fn set_selected_by_index(&mut self, selected_index: usize, ctx: &mut ViewContext<Self>) {
-        self.menu.set_selected_by_index(selected_index, ctx);
+        self.menu
+            .set_selected_by_index(selected_index, self.submenu_position_namespace, ctx);
     }
 
     /// Select the menu item with the given name. If no such item exists, this clears the selection.
@@ -2235,7 +2332,8 @@ impl<A: Action + Clone> Menu<A> {
     where
         S: AsRef<str>,
     {
-        self.menu.set_selected_by_name(selected_item, ctx)
+        self.menu
+            .set_selected_by_name(selected_item, self.submenu_position_namespace, ctx)
     }
 
     /// Select the menu item whose on-select action equals the given action. If no such item exists,
@@ -2246,11 +2344,13 @@ impl<A: Action + Clone> Menu<A> {
     where
         A: PartialEq,
     {
-        self.menu.set_selected_by_action(action, ctx)
+        self.menu
+            .set_selected_by_action(action, self.submenu_position_namespace, ctx)
     }
 
     fn select(&mut self, action: SelectAction, ctx: &mut ViewContext<Self>) {
-        self.menu.select(action, ctx);
+        self.menu
+            .select(action, self.submenu_position_namespace, ctx);
     }
 
     pub fn select_previous(&mut self, ctx: &mut ViewContext<Self>) {
@@ -2372,47 +2472,103 @@ impl<A: Action + Clone> SubMenu<A> {
                 WarpA11yRole::TextRole,
             )),
             HoverSubmenuLeafNode { .. }
-            | UnhoverSubmenuParent(_)
+            | UnhoverSubmenuParent(_, _)
             | HoverSubmenuWithChildren(_, _) => ActionAccessibilityContent::Empty,
         }
+    }
+
+    fn delegate_pointer_action_to_selected_submenu(
+        &mut self,
+        action: &MenuAction,
+        dispatch_item_actions: bool,
+        position_namespace: u64,
+        ctx: &mut ViewContext<Menu<A>>,
+    ) -> bool {
+        let event_depth = match action {
+            MenuAction::HoverSubmenuWithChildren(depth, _)
+            | MenuAction::UnhoverSubmenuParent(depth, _)
+            | MenuAction::CloseSubmenu(depth) => *depth,
+            MenuAction::HoverSubmenuLeafNode { depth, .. } => *depth,
+            MenuAction::Select(_)
+            | MenuAction::OpenSubmenu
+            | MenuAction::Close(_)
+            | MenuAction::Enter => return false,
+        };
+        if event_depth == self.depth {
+            return false;
+        }
+        let Some(submenu) = self.selected_submenu_mut() else {
+            return false;
+        };
+        if submenu.depth != event_depth {
+            return false;
+        }
+        submenu.handle_action(action, dispatch_item_actions, position_namespace, ctx);
+        true
     }
 
     fn handle_action(
         &mut self,
         action: &MenuAction,
         dispatch_item_actions: bool,
+        position_namespace: u64,
         ctx: &mut ViewContext<Menu<A>>,
     ) {
+        if self.delegate_pointer_action_to_selected_submenu(
+            action,
+            dispatch_item_actions,
+            position_namespace,
+            ctx,
+        ) {
+            return;
+        }
         match action {
             MenuAction::HoverSubmenuWithChildren(depth, selection) => {
                 if *depth != self.depth {
                     return;
                 }
                 let selection = *selection;
-                self.select_with_source(selection, MenuSelectionSource::Pointer, ctx);
-            }
-            MenuAction::UnhoverSubmenuParent(depth) => {
-                if *depth != self.depth {
-                    return;
-                }
-                self.handle_action(
-                    &MenuAction::CloseSubmenu(self.depth),
-                    dispatch_item_actions,
+                self.select_with_source(
+                    selection,
+                    MenuSelectionSource::Pointer,
+                    position_namespace,
                     ctx,
                 );
             }
+            MenuAction::UnhoverSubmenuParent(depth, row_index) => {
+                if *depth != self.depth {
+                    return;
+                }
+                if self.hovered_row_index == Some(*row_index) {
+                    self.hovered_row_index = None;
+                }
+            }
             MenuAction::HoverSubmenuLeafNode {
-                depth, row_index, ..
+                depth,
+                row_index,
+                select,
+                ..
             } => {
                 if *depth != self.depth {
                     return;
                 }
                 self.hovered_row_index = Some(*row_index);
+                if *select && self.items.get(*row_index).is_some_and(MenuItem::selectable) {
+                    self.select_internal(SelectAction::Index {
+                        row: *row_index,
+                        item: 0,
+                    });
+                    self.last_selection_source = Some(MenuSelectionSource::Pointer);
+                    ctx.notify();
+                }
                 ctx.emit(Event::ItemHovered);
             }
-            MenuAction::Select(selection) => self.active_menu_mut().select(*selection, ctx),
+            MenuAction::Select(selection) => {
+                self.active_menu_mut()
+                    .select(*selection, position_namespace, ctx);
+            }
             MenuAction::OpenSubmenu => {
-                self.open_selected_submenu(ctx);
+                self.open_selected_submenu(position_namespace, ctx);
             }
             MenuAction::CloseSubmenu(depth) => {
                 if *depth != self.depth {
@@ -2424,7 +2580,7 @@ impl<A: Action + Clone> SubMenu<A> {
                 via_select_item: *via_select_item,
             }),
             MenuAction::Enter => {
-                if let Some(action) = self.selected_action_for_enter(ctx) {
+                if let Some(action) = self.selected_action_for_enter(position_namespace, ctx) {
                     if dispatch_item_actions {
                         ctx.dispatch_typed_action(&action);
                     } else {
@@ -2460,8 +2616,12 @@ impl<A: Action + Clone> TypedActionView for Menu<A> {
             }
         }
 
-        self.menu
-            .handle_action(action, self.dispatch_item_actions, ctx)
+        self.menu.handle_action(
+            action,
+            self.dispatch_item_actions,
+            self.submenu_position_namespace,
+            ctx,
+        )
     }
 }
 
@@ -2509,6 +2669,7 @@ impl<A: Action + Clone> SubMenu<A> {
         pinned_header_builder: Option<&PinnedHeaderBuilder>,
         content_top_padding_override: Option<f32>,
         content_bottom_padding_override: Option<f32>,
+        position_namespace: u64,
         app: &AppContext,
     ) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
@@ -2525,6 +2686,8 @@ impl<A: Action + Clone> SubMenu<A> {
             ignore_hover_when_covered,
             safe_zone_anchor_row,
             submenu_being_shown_for_item_index,
+            position_namespace,
+            None,
             appearance,
             app,
         );
@@ -2549,6 +2712,10 @@ impl<A: Action + Clone> SubMenu<A> {
 
                 // At depth 0, place pinned header/footer inside the styled container
                 // so they inherit the menu box background, border, and corner radius.
+                let RenderedSubMenu {
+                    element: submenu_element,
+                    anchor_position_id,
+                } = submenu;
                 let (content, top_padding, bottom_padding) = if depth == 0 {
                     let has_header = pinned_header_builder.is_some();
                     let has_footer = pinned_footer_builder.is_some();
@@ -2557,7 +2724,7 @@ impl<A: Action + Clone> SubMenu<A> {
                         if let Some(header_builder) = pinned_header_builder {
                             col.add_child(header_builder(app));
                         }
-                        col.add_child(submenu);
+                        col.add_child(submenu_element);
                         if let Some(footer_builder) = pinned_footer_builder {
                             col.add_child(footer_builder(app));
                         }
@@ -2579,13 +2746,17 @@ impl<A: Action + Clone> SubMenu<A> {
                         )
                     } else {
                         (
-                            submenu,
+                            submenu_element,
                             content_top_padding_override.unwrap_or(MENU_VERTICAL_PADDING),
                             content_bottom_padding_override.unwrap_or(MENU_VERTICAL_PADDING),
                         )
                     }
                 } else {
-                    (submenu, MENU_VERTICAL_PADDING, MENU_VERTICAL_PADDING)
+                    (
+                        submenu_element,
+                        MENU_VERTICAL_PADDING,
+                        MENU_VERTICAL_PADDING,
+                    )
                 };
 
                 let mut container = Container::new(content)
@@ -2613,7 +2784,9 @@ impl<A: Action + Clone> SubMenu<A> {
                 if depth == 0 {
                     row.add_child(menu.finish());
                 } else {
-                    let saved_position_id = Self::save_position_id(depth - 1);
+                    let Some(saved_position_id) = anchor_position_id else {
+                        return;
+                    };
 
                     stack.add_positioned_overlay_child(
                         menu.finish(),
@@ -2687,6 +2860,7 @@ impl<A: Action + Clone> View for Menu<A> {
             self.pinned_header_builder.as_deref(),
             self.content_top_padding_override,
             self.content_bottom_padding_override,
+            self.submenu_position_namespace,
             app,
         )
     }
@@ -2700,6 +2874,13 @@ impl<A: Action + Clone> MenuItem<A> {
         // It only returns the item fields for the single menu item.
         match self {
             MenuItem::Item(fields) => Some(fields),
+            _ => None,
+        }
+    }
+
+    pub fn submenu_fields(&self) -> Option<&MenuItemFields<A>> {
+        match self {
+            MenuItem::Submenu { fields, .. } => Some(fields),
             _ => None,
         }
     }
@@ -2732,6 +2913,19 @@ impl<A: Action + Clone> MenuItem<A> {
             }
             _ => false,
         }
+    }
+}
+
+impl<A: Action + Clone> Menu<A> {
+    pub fn submenu_row_save_position_id(&self, row_index: usize) -> String {
+        SubMenu::<A>::save_position_id(self.submenu_position_namespace, 0, row_index)
+    }
+}
+
+#[cfg(test)]
+impl<A: Action + Clone> Menu<A> {
+    pub fn submenu_save_position_id_for_tests(&self, depth: usize, row_index: usize) -> String {
+        SubMenu::<A>::save_position_id(self.submenu_position_namespace, depth, row_index)
     }
 }
 

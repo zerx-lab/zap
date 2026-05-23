@@ -510,7 +510,7 @@ impl Hoverable {
             is_synthetic,
         );
         if was_synthetic && is_synthetic {
-            log::warn!(
+            log::debug!(
                 "Not handling MouseMoved event in Hoverable due to back-to-back synthetic events."
             );
             return false;
