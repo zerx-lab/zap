@@ -33,8 +33,8 @@ use warpui::platform::{Cursor, FilePickerConfiguration, SaveFilePickerConfigurat
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::{
-    AppContext, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    AppContext, BlurContext, Entity, FocusContext, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle, WeakViewHandle,
 };
 
 use crate::code::buffer_location::RemotePath;
@@ -228,6 +228,7 @@ pub struct ServerFileBrowserView {
     upload_progress_panel_open: bool,
     upload_progress_button: MouseStateHandle,
     clear_completed_uploads_button: MouseStateHandle,
+    view_handle: WeakViewHandle<Self>,
 }
 
 impl ServerFileBrowserView {
@@ -323,6 +324,7 @@ impl ServerFileBrowserView {
             upload_progress_panel_open: false,
             upload_progress_button: Default::default(),
             clear_completed_uploads_button: Default::default(),
+            view_handle: ctx.handle(),
         }
     }
 
@@ -359,6 +361,16 @@ impl ServerFileBrowserView {
         if self.selected_index.is_none() && !self.entries.is_empty() {
             self.selected_index = Some(0);
         }
+        if self.entries.is_empty() && self.is_remote_unavailable(&*ctx) {
+            self.status = Some(crate::t!("server-file-browser-connection-lost"));
+        } else if self.entries.is_empty()
+            && self.status.is_some()
+            && self.client(&*ctx).is_some()
+            && !self.loading
+        {
+            self.status = None;
+            self.load_current_directory(ctx);
+        }
         ctx.notify();
     }
 
@@ -392,6 +404,40 @@ impl ServerFileBrowserView {
         self.loading = false;
         self.status = Some(message.into());
         ctx.notify();
+    }
+
+    fn clear_listing_state(&mut self, ctx: &mut ViewContext<Self>) {
+        self.reset_tree_state();
+        self.entries.clear();
+        self.pending_rename_index = None;
+        self.pending_rename_path_after_reload = None;
+        self.dismiss_context_menu(ctx);
+    }
+
+    fn set_listing_error(&mut self, message: impl Into<String>, ctx: &mut ViewContext<Self>) {
+        self.loading = false;
+        self.clear_listing_state(ctx);
+        let message = message.into();
+        if Self::is_remote_connection_error(&message) {
+            self.session = None;
+            self.session_id = None;
+            self.status = Some(crate::t!("server-file-browser-connection-lost"));
+        } else {
+            self.status = Some(message);
+        }
+        ctx.notify();
+    }
+
+    fn is_remote_connection_error(error: &str) -> bool {
+        error.contains("Connection was dropped")
+            || error.contains("channel closed")
+            || error.contains("Response channel closed")
+            || error.contains("connection reset")
+            || error.contains("broken pipe")
+    }
+
+    fn is_remote_unavailable(&self, app: &AppContext) -> bool {
+        self.host_id.is_some() && self.client(app).is_none() && self.session.is_none()
     }
 
     fn load_current_directory(&mut self, ctx: &mut ViewContext<Self>) {
@@ -467,7 +513,7 @@ impl ServerFileBrowserView {
                 },
             );
         } else {
-            self.set_error(crate::t!("server-file-browser-no-session"), ctx);
+            self.set_listing_error(crate::t!("server-file-browser-no-session"), ctx);
         }
     }
 
@@ -520,7 +566,8 @@ impl ServerFileBrowserView {
             }
             Err(error) => {
                 self.pending_rename_path_after_reload = None;
-                self.status = Some(error);
+                self.set_listing_error(error, ctx);
+                return;
             }
         }
         ctx.notify();
@@ -587,6 +634,10 @@ impl ServerFileBrowserView {
                 self.status = Some(crate::t!("server-file-browser-unsupported-path"));
             }
             Err(error) => {
+                if Self::is_remote_connection_error(&error) {
+                    self.set_listing_error(error, ctx);
+                    return;
+                }
                 self.status = Some(error);
             }
         }
@@ -645,7 +696,13 @@ impl ServerFileBrowserView {
                             me.loaded_directories.insert(path, entries);
                             me.rebuild_entries();
                         }
-                        Err(error) => me.status = Some(error),
+                        Err(error) => {
+                            if ServerFileBrowserView::is_remote_connection_error(&error) {
+                                me.set_listing_error(error, ctx);
+                                return;
+                            }
+                            me.status = Some(error);
+                        }
                     }
                     ctx.notify();
                 },
@@ -663,13 +720,19 @@ impl ServerFileBrowserView {
                             me.loaded_directories.insert(path, entries);
                             me.rebuild_entries();
                         }
-                        Err(error) => me.status = Some(error),
+                        Err(error) => {
+                            if ServerFileBrowserView::is_remote_connection_error(&error) {
+                                me.set_listing_error(error, ctx);
+                                return;
+                            }
+                            me.status = Some(error);
+                        }
                     }
                     ctx.notify();
                 },
             );
         } else {
-            self.set_error(crate::t!("server-file-browser-no-session"), ctx);
+            self.set_listing_error(crate::t!("server-file-browser-no-session"), ctx);
         }
     }
 
@@ -1417,7 +1480,13 @@ impl ServerFileBrowserView {
                             );
                             me.sync_row_states();
                         }
-                        Err(error) => me.status = Some(error),
+                        Err(error) => {
+                            if ServerFileBrowserView::is_remote_connection_error(&error) {
+                                me.set_listing_error(error, ctx);
+                                return;
+                            }
+                            me.status = Some(error);
+                        }
                     }
                     ctx.notify();
                 },
@@ -1449,7 +1518,13 @@ impl ServerFileBrowserView {
                             );
                             me.sync_row_states();
                         }
-                        Err(error) => me.status = Some(error),
+                        Err(error) => {
+                            if ServerFileBrowserView::is_remote_connection_error(&error) {
+                                me.set_listing_error(error, ctx);
+                                return;
+                            }
+                            me.status = Some(error);
+                        }
                     }
                     ctx.notify();
                 },
@@ -2689,13 +2764,22 @@ impl ServerFileBrowserView {
             .finish()
     }
 
-    fn render_entries(&self, appearance: &crate::appearance::Appearance) -> Box<dyn Element> {
+    fn render_entries(&self, app: &AppContext, appearance: &crate::appearance::Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         if self.host_id.is_none() {
             return self.render_status_text(crate::t!("server-file-browser-no-session"), appearance);
         } else if self.loading && self.entries.is_empty() {
             return self.render_status_text(crate::t!("server-file-browser-loading"), appearance);
         } else if self.entries.is_empty() {
+            if self.is_remote_unavailable(app) {
+                return self.render_status_text(
+                    crate::t!("server-file-browser-connection-lost"),
+                    appearance,
+                );
+            }
+            if let Some(status) = &self.status {
+                return self.render_status_text(status.clone(), appearance);
+            }
             return self.render_status_text(crate::t!("server-file-browser-empty-directory"), appearance);
         }
 
@@ -3003,8 +3087,14 @@ impl View for ServerFileBrowserView {
         if focus_ctx.is_self_focused() {
             if self.selected_index.is_none() && !self.entries.is_empty() {
                 self.selected_index = Some(0);
-                ctx.notify();
             }
+            ctx.notify();
+        }
+    }
+
+    fn on_blur(&mut self, blur_ctx: &BlurContext, ctx: &mut ViewContext<Self>) {
+        if blur_ctx.is_self_blurred() {
+            ctx.notify();
         }
     }
 
@@ -3013,7 +3103,7 @@ impl View for ServerFileBrowserView {
         let toolbar = Container::new(self.render_toolbar(appearance))
             .with_uniform_padding(8.0)
             .finish();
-        let entries = Shrinkable::new(1.0, self.render_entries(appearance)).finish();
+        let entries = Shrinkable::new(1.0, self.render_entries(app, appearance)).finish();
         let panel = SavePosition::new(
             Container::new(
                 Flex::column()
@@ -3057,8 +3147,15 @@ impl View for ServerFileBrowserView {
             );
         }
         let context_menu_open = self.context_menu_position.is_some();
-        EventHandler::new(stack.finish())
-            .on_keydown(move |ctx, _app, keystroke| {
+        let mut root = EventHandler::new(stack.finish());
+        // Non-keybound KeyDown events are dispatched on the full element tree. Only handle
+        // navigation keys when this panel has focus (e.g. not while typing in the terminal).
+        let is_focused = self
+            .view_handle
+            .upgrade(app)
+            .is_some_and(|handle| handle.is_focused(app));
+        if is_focused {
+            root = root.on_keydown(move |ctx, _app, keystroke| {
                 if context_menu_open {
                     return DispatchEventResult::PropagateToParent;
                 }
@@ -3089,8 +3186,9 @@ impl View for ServerFileBrowserView {
                     }
                     _ => DispatchEventResult::PropagateToParent,
                 }
-            })
-            .finish()
+            });
+        }
+        root.finish()
     }
 }
 

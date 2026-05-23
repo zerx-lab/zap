@@ -2717,6 +2717,7 @@ workspace-left-panel-ssh-manager-tree-empty = No SSH servers yet. Click 📁 to 
 server-file-browser-path-placeholder = Remote path
 server-file-browser-empty = Connect to an SSH session to browse server files.
 server-file-browser-no-session = No connected remote server session.
+server-file-browser-connection-lost = Connection to the remote server was lost. Reconnect your SSH session, then refresh or reopen this panel.
 server-file-browser-loading = Loading…
 server-file-browser-empty-directory = This directory is empty.
 server-file-browser-empty-response = Remote server returned an empty response.
