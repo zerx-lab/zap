@@ -1940,7 +1940,7 @@ impl NotebookView {
                             .ui_builder()
                             .span(text)
                             .with_style(UiComponentStyles {
-                                font_size: Some(appearance.ui_font_size() + 2.),
+                                font_size: Some(appearance.ui_font_subheading()),
                                 ..Default::default()
                             })
                             .build()
@@ -2064,7 +2064,7 @@ impl NotebookView {
                     true,
                 )
                 .with_style(UiComponentStyles {
-                    font_size: Some(appearance.ui_font_size() + 2.),
+                    font_size: Some(appearance.ui_font_subheading()),
                     ..Default::default()
                 })
                 .build()

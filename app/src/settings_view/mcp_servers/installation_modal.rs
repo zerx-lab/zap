@@ -299,7 +299,7 @@ impl InstallationModalBody {
             Text::new_inline(
                 "ESC".to_string(),
                 appearance.ui_font_family(),
-                appearance.ui_font_size() * 0.8,
+                appearance.ui_font_overline(),
             )
             .with_color(theme.active_ui_text_color().into())
             .finish(),

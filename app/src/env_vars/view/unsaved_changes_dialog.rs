@@ -17,7 +17,6 @@ use super::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView};
 const UNSAVED_CHANGES_TEXT: &str = "You have unsaved changes.";
 const KEEP_EDITING_TEXT: &str = "Keep editing";
 const DISCARD_CHANGES_TEXT: &str = "Discard changes";
-const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_PADDING: f32 = 12.;
 const MODAL_HORIZONTAL_MARGIN: f32 = 28.;
 const DIALOG_WIDTH: f32 = 460.;
@@ -34,7 +33,7 @@ impl EnvVarCollectionView {
             .ui_builder()
             .button(ButtonVariant::Secondary, button_mouse_state)
             .with_style(UiComponentStyles {
-                font_size: Some(BUTTON_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 font_weight: Some(Weight::Bold),
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()

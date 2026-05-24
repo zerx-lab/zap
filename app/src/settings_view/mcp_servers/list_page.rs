@@ -1082,7 +1082,7 @@ impl MCPServersListPageView {
             FormattedText::new([FormattedTextLine::Line(
                 file_based_mcp_description_fragments,
             )]),
-            style::CONTENT_FONT_SIZE,
+            appearance.ui_font_body(),
             appearance.ui_font_family(),
             appearance.ui_font_family(),
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
@@ -1120,7 +1120,7 @@ impl MCPServersListPageView {
 
         let description = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(description_fragments)]),
-            style::CONTENT_FONT_SIZE,
+            appearance.ui_font_body(),
             appearance.ui_font_family(),
             appearance.ui_font_family(),
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),

@@ -30,7 +30,7 @@ impl GlowingEditor {
     pub fn new(placeholder: impl Into<String>, ctx: &mut ViewContext<Self>) -> Self {
         let appearance = Appearance::as_ref(ctx);
         let font_family = appearance.ui_font_family();
-        let font_size = appearance.ui_font_size() + 2.;
+        let font_size = appearance.ui_font_subheading();
 
         let editor = ctx.add_typed_action_view(|ctx| {
             let options = EditorOptions {
@@ -153,7 +153,7 @@ impl View for GlowingEditor {
         )
         .finish();
 
-        let font_size = appearance.ui_font_size() + 2.;
+        let font_size = appearance.ui_font_subheading();
         let agent_icon = Container::new(
             ConstrainedBox::new(
                 Icon::AgentMode

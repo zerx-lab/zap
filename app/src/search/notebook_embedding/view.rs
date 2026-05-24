@@ -415,6 +415,6 @@ pub mod styles {
 
     /// The font size for the object name in search results.
     pub fn name_font_size(appearance: &Appearance) -> f32 {
-        appearance.ui_font_size() + 2.
+        appearance.ui_font_subheading()
     }
 }

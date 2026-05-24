@@ -157,7 +157,7 @@ where
                         Text::new(
                             title,
                             appearance.ui_font_family(),
-                            appearance.ui_font_size() + 1.,
+                            appearance.ui_font_body_large(),
                         )
                         .with_color(theme.main_text_color(background_color.into()).into_solid())
                         .finish(),

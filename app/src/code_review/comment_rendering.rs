@@ -88,7 +88,7 @@ fn render_comment_file_path_header(
     let file_path_text = Text::new(
         title.to_owned(),
         appearance.ui_font_family(),
-        appearance.ui_font_size() + 2.,
+        appearance.ui_font_subheading(),
     )
     .soft_wrap(false)
     .with_clip(ClipConfig::start())

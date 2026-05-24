@@ -15,7 +15,6 @@ use super::{
 };
 
 /// The font size for subpage items inside an umbrella.
-const SUBPAGE_FONT_SIZE: f32 = 10.;
 
 /// Left margin for subpage items inside an umbrella (top-level margin + indent).
 const SUBPAGE_LEFT_MARGIN: f32 = NAV_ITEM_LEFT_MARGIN + 12.;
@@ -123,7 +122,7 @@ impl SettingsUmbrella {
                     .set_border_width(0.)
                     .set_margin(Coords::default().left(SUBPAGE_LEFT_MARGIN))
                     .set_padding(Coords::uniform(8.))
-                    .set_font_size(SUBPAGE_FONT_SIZE),
+                    .set_font_size(appearance.ui_font_overline()),
             )
             .build();
 

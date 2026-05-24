@@ -36,7 +36,7 @@ use crate::{
 use super::settings_page::{
     render_body_item, render_dropdown_item, render_page_title, AdditionalInfo, Category,
     LocalOnlyIconState, MatchData, PageType, SettingsPageEvent, SettingsWidget, ToggleState,
-    HEADER_FONT_SIZE, HEADER_PADDING,
+    HEADER_PADDING,
 };
 use super::SettingsSection;
 use super::{
@@ -70,7 +70,6 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     ToggleSettingActionPair::add_toggle_setting_action_pairs_as_bindings(toggle_binding_pairs, app);
 }
 
-const CONTENT_FONT_SIZE: f32 = 12.;
 const ITEM_VERTICAL_SPACING: f32 = 24.;
 /// There's a built-in 10px margin below the text input.
 const BUILT_IN_TEXT_INPUT_MARGIN: f32 = 10.;
@@ -324,7 +323,7 @@ fn build_sub_sub_title(title: String, appearance: &Appearance) -> Container {
         .ui_builder()
         .span(title)
         .with_style(UiComponentStyles {
-            font_size: Some(CONTENT_FONT_SIZE),
+            font_size: Some(appearance.ui_font_body()),
             ..Default::default()
         })
         .build()
@@ -546,7 +545,7 @@ impl TitleWidget {
 
         let warpify_description = FormattedTextElement::new(
             FormattedText::new([FormattedTextLine::Line(warpify_description)]),
-            CONTENT_FONT_SIZE,
+            appearance.ui_font_body(),
             appearance.ui_font_family(),
             appearance.ui_font_family(),
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
@@ -561,7 +560,6 @@ impl TitleWidget {
         Flex::column()
             .with_child(render_page_title(
                 &crate::t!("settings-warpify-page-title"),
-                HEADER_FONT_SIZE,
                 appearance,
             ))
             .with_child(warpify_description)

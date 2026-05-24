@@ -58,6 +58,9 @@ pub fn load_saved_ssh_credentials() -> Result<Vec<OneKeyCredential>> {
                     let key_path = server.key_path.as_deref().unwrap_or("key");
                     format!("{key_path} for {target}")
                 }
+                SecretKind::RootPassword => {
+                    format!("root password for {target}")
+                }
             };
             credentials.push(OneKeyCredential {
                 label: node.name,

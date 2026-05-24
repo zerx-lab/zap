@@ -15,7 +15,7 @@ use crate::{
         local_tty::shell::is_valid_path_or_command_for_supported_shell,
         session_settings::{SessionSettings, SessionSettingsChangedEvent},
     },
-    view_components::{dropdown::TOP_MENU_BAR_HEIGHT, Dropdown, DropdownItem},
+    view_components::{Dropdown, DropdownItem},
 };
 
 /// A view for configuring the initial shell for new sessions. This can be the
@@ -233,7 +233,7 @@ impl View for StartupShellView {
                         .with_style(UiComponentStyles {
                             border_color,
                             // Make sure the editor is the same height as the dropdown it's next to.
-                            height: Some(TOP_MENU_BAR_HEIGHT),
+                            height: Some(appearance.dropdown_top_bar_height()),
                             padding: Some(Coords::uniform(7.)),
                             margin: Some(Coords::default().left(8.).right(8.)),
                             font_size: Some(appearance.ui_font_size()),

@@ -1914,6 +1914,8 @@ pub enum ContextMenuType {
     Input { position: Vector2F },
     /// 检测到 PTY 输出密码提示后自动打开。
     OneKeyPrompt,
+    /// 检测到 su root + 密码提示后弹出确认菜单。
+    SuRootPasswordConfirm,
 
     /// Lists the block(s) or text attached as context to the query represented in the AI block
     /// whose view id is the given [`EntityId`]. The menu is opened by clicking on the attached
@@ -1951,7 +1953,7 @@ impl ContextMenuType {
             ContextMenuType::AltScreen { position } => Some(*position),
             ContextMenuType::Prompt { position } => Some(*position),
             ContextMenuType::Input { position } => Some(*position),
-            ContextMenuType::OneKeyPrompt => None,
+            ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => None,
             ContextMenuType::AIBlockAttachedContext { .. } => None,
             ContextMenuType::AIBlockOverflowMenu { .. } => None,
         }
@@ -1970,7 +1972,7 @@ impl ContextMenuInfo {
             ContextMenuType::BlockList { .. } => "Block",
             ContextMenuType::Prompt { .. } => "Prompt",
             ContextMenuType::Input { .. } => "Input",
-            ContextMenuType::OneKeyPrompt => "OneKeyPrompt",
+            ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => "OneKeyPrompt",
             ContextMenuType::AltScreen { .. } => "AltScreen",
             ContextMenuType::AIBlockAttachedContext { .. } => "AIBlockContextList",
             ContextMenuType::AIBlockOverflowMenu { .. } => "AIBlockOverflowMenu",
@@ -1991,7 +1993,7 @@ impl ContextMenuInfo {
             },
             ContextMenuType::Prompt { .. } => "RightClick",
             ContextMenuType::Input { .. } => "RightClick",
-            ContextMenuType::OneKeyPrompt => "PasswordPrompt",
+            ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => "PasswordPrompt",
             ContextMenuType::AltScreen { .. } => "AltScreen",
             ContextMenuType::AIBlockAttachedContext { .. } => "AIBlockAttachedBlockChipLeftClick",
             ContextMenuType::AIBlockOverflowMenu { .. } => "AIBlockOverflowMenuClick",
@@ -2329,6 +2331,8 @@ pub struct TerminalView {
     /// `secret_injector` 起飞后到完成/超时之间为 true。OneKey listener 看到
     /// true 直接跳过,避免与自动注入同时弹菜单。
     ssh_secret_auto_injection_in_flight: bool,
+    /// 检测到 su root 密码提示时暂存 root 密码,等待用户确认后注入。
+    pub(crate) su_root_password: Option<zeroize::Zeroizing<String>>,
 
     /// The search bar at the top of the terminal view.
     find_bar: ViewHandle<Find<TerminalFindModel>>,
@@ -3276,7 +3280,8 @@ impl TerminalView {
                 | AppearanceEvent::LineHeightRatioChanged { .. }
                 | AppearanceEvent::MonospaceFontFamilyChanged { .. }
                 | AppearanceEvent::MonospaceFontWeightChanged { .. }
-                | AppearanceEvent::UiFontFamilyChanged { .. } => {
+                | AppearanceEvent::UiFontFamilyChanged { .. }
+                | AppearanceEvent::UiFontSizeChanged { .. } => {
                     me.refresh_size(ctx);
                 }
             },
@@ -3826,6 +3831,7 @@ impl TerminalView {
             onekey_search_editor,
             onekey_query: String::new(),
             ssh_secret_auto_injection_in_flight: false,
+            su_root_password: None,
             context_menu,
             hovered_secret: None,
             open_secret_tool_tip: None,
@@ -15267,7 +15273,7 @@ impl TerminalView {
         ctx.update_view(&self.context_menu, |context_menu, view_ctx| {
             context_menu.set_origin(menu_state.menu_type.origin());
             let width = match menu_state.menu_type {
-                ContextMenuType::OneKeyPrompt => ONEKEY_CONTEXT_MENU_WIDTH,
+                ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => ONEKEY_CONTEXT_MENU_WIDTH,
                 ContextMenuType::BlockList { .. }
                 | ContextMenuType::AltScreen { .. }
                 | ContextMenuType::Prompt { .. }
@@ -15555,6 +15561,43 @@ impl TerminalView {
     /// 仅由 `secret_injector` 在起飞/结束时调用。详见字段文档。
     pub(crate) fn set_ssh_secret_auto_injection_in_flight(&mut self, in_flight: bool) {
         self.ssh_secret_auto_injection_in_flight = in_flight;
+    }
+
+    /// 检测到 su root 密码提示后弹出确认菜单。
+    pub(crate) fn show_su_root_confirm_menu(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.context_menu_state.is_some() {
+            return;
+        }
+        let items = vec![
+            MenuItemFields::new_with_stacked_label(
+                crate::t!("terminal-su-root-password-confirm"),
+                crate::t!("terminal-su-root-password-confirm-subtitle"),
+            )
+            .with_icon(icons::Icon::Key)
+            .with_on_select_action(TerminalAction::SuRootFillRootPassword)
+            .into_item(),
+            MenuItemFields::new(crate::t!("terminal-su-root-password-cancel"))
+                .with_on_select_action(TerminalAction::CloseContextMenu)
+                .into_item(),
+        ];
+        self.show_context_menu(
+            ContextMenuState {
+                menu_type: ContextMenuType::SuRootPasswordConfirm,
+            },
+            items,
+            ctx,
+        );
+    }
+
+    /// 用户确认后注入暂存的 root 密码。
+    fn fill_su_root_password(&mut self, ctx: &mut ViewContext<Self>) {
+        if let Some(password) = self.su_root_password.take() {
+            let mut bytes: zeroize::Zeroizing<Vec<u8>> =
+                zeroize::Zeroizing::new(password.as_bytes().to_vec());
+            bytes.push(b'\n');
+            self.write_to_pty(bytes.to_vec(), ctx);
+        }
+        self.close_context_menu(ctx, true);
     }
 
     fn alt_mouse_action(&mut self, mouse_state: &MouseState, ctx: &mut ViewContext<Self>) {
@@ -18444,6 +18487,9 @@ impl TerminalView {
                     context_menu.set_menu_variant(MenuVariant::Fixed);
                     context_menu.clear_pinned_header_builder();
                 });
+            }
+            if matches!(state.menu_type, ContextMenuType::SuRootPasswordConfirm) {
+                self.su_root_password = None;
             }
             ctx.notify();
             if should_redetermine_focus {
@@ -23311,6 +23357,7 @@ impl TypedActionView for TerminalView {
             | RevealChildAgent { .. }
             | OpenCLIAgentRichInput
             | ToggleSessionRecording => Empty,
+            SuRootFillRootPassword => Empty,
         }
     }
 
@@ -23450,6 +23497,7 @@ impl TypedActionView for TerminalView {
             }
             CloseContextMenu => self.close_context_menu(ctx, true),
             OneKeyFillSecret { index } => self.fill_onekey_secret(*index, ctx),
+            SuRootFillRootPassword => self.fill_su_root_password(ctx),
             Paste => self.paste(false, ctx),
             Copy => self.copy(ctx),
             CopyOutputs => self.copy_outputs(ctx),
@@ -24489,7 +24537,7 @@ impl View for TerminalView {
                     }
                 },
             ),
-            Some(ContextMenuType::OneKeyPrompt) => stack.add_positioned_overlay_child(
+            Some(ContextMenuType::OneKeyPrompt) | Some(ContextMenuType::SuRootPasswordConfirm) => stack.add_positioned_overlay_child(
                 ChildView::new(&self.context_menu).finish(),
                 match input_mode {
                     InputMode::PinnedToBottom | InputMode::Waterfall => {

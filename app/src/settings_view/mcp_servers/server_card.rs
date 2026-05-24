@@ -467,7 +467,7 @@ impl ServerCardView {
                             right: 6.,
                         }),
                         font_family_id: Some(appearance.ui_font_family()),
-                        font_size: Some(style::TOOL_CHIP_TEXT_SIZE),
+                        font_size: Some(appearance.ui_font_body()),
                         font_color: Some(blended_colors::text_main(
                             appearance.theme(),
                             internal_colors::neutral_4(appearance.theme()),
@@ -550,10 +550,11 @@ impl ServerCardView {
             .sub_text_color(appearance.theme().surface_3())
             .into_solid();
 
+        let chip_font_size = appearance.ui_font_overline();
         let text_element = Text::new(
             chip.text.clone(),
             appearance.ui_font_family(),
-            style::TITLE_CHIP_FONT_SIZE,
+            chip_font_size,
         )
         .with_color(chip_color)
         .finish();
@@ -564,8 +565,8 @@ impl ServerCardView {
                 .with_spacing(2.)
                 .with_child(
                     ConstrainedBox::new(icon.to_warpui_icon(chip_color.into()).finish())
-                        .with_width(style::TITLE_CHIP_FONT_SIZE)
-                        .with_height(style::TITLE_CHIP_FONT_SIZE)
+                        .with_width(chip_font_size)
+                        .with_height(chip_font_size)
                         .finish(),
                 )
                 .with_child(text_element)

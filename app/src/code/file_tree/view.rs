@@ -173,7 +173,6 @@ pub fn init(app: &mut AppContext) {
 }
 
 // Constants matching the Drive panel styling
-const ITEM_FONT_SIZE: f32 = 14.;
 const FOLDER_INDENT: f32 = 16.; // Indentation per folder level
 const ITEM_PADDING: f32 = 4.;
 
@@ -653,7 +652,7 @@ impl FileTreeView {
                     soft_wrap: false,
                     single_line: true,
                     text: TextOptions {
-                        font_size_override: Some(ITEM_FONT_SIZE),
+                        font_size_override: Some(appearance.ui_font_subheading()),
                         font_family_override: Some(appearance.ui_font_family()),
                         ..Default::default()
                     },
@@ -1843,7 +1842,7 @@ impl FileTreeView {
                         Text::new_inline(
                             render_state.display_name,
                             appearance.ui_font_family(),
-                            ITEM_FONT_SIZE,
+                            appearance.ui_font_subheading(),
                         )
                         .with_color(text_color)
                         .with_style(text_style)
@@ -1899,7 +1898,7 @@ impl FileTreeView {
         let text = Text::new(
             render_state.display_name,
             appearance.ui_font_family(),
-            ITEM_FONT_SIZE,
+            appearance.ui_font_subheading(),
         )
         .with_color(text_color)
         .finish();
@@ -2678,7 +2677,7 @@ impl FileTreeView {
                 Text::new(
                     crate::t!("project-explorer-unavailable-title"),
                     appearance.ui_font_family(),
-                    appearance.ui_font_size() + 2.,
+                    appearance.ui_font_subheading(),
                 )
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(theme.sub_text_color(theme.background()).into())
@@ -2694,7 +2693,7 @@ impl FileTreeView {
                                 FormattedTextElement::from_str(
                                     text,
                                     appearance.ui_font_family(),
-                                    appearance.ui_font_size() + 2.,
+                                    appearance.ui_font_subheading(),
                                 )
                                 .with_alignment(TextAlignment::Center)
                                 .with_color(theme.disabled_text_color(theme.background()).into())

@@ -133,7 +133,7 @@ impl Alert {
                 ui_builder
                     .wrappable_text(config.message.clone(), true)
                     .with_style(UiComponentStyles {
-                        font_size: Some(appearance.ui_font_size() * 1.2),
+                        font_size: Some(appearance.ui_font_subheading()),
                         font_color: Some(config.flavor.text_color(appearance)),
                         ..Default::default()
                     })

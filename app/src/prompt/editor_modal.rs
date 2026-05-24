@@ -39,7 +39,6 @@ use warpui::elements::{
 
 const MODAL_WIDTH: f32 = 700.;
 const BORDER_WIDTH: f32 = 1.;
-const MODAL_TITLE_FONT_SIZE: f32 = 16.;
 const MODAL_UNIFORM_PADDING: f32 = 24.;
 const CORNER_RADIUS_PIXELS: f32 = 8.;
 const PRIMARY_BUTTON_HEIGHT: f32 = 40.;
@@ -53,7 +52,6 @@ const DROPDOWN_LABEL_MARGIN_LEFT: f32 = 24.;
 const DROPDOWN_LABEL_MARGIN_RIGHT: f32 = 4.;
 const DROPDOWN_WIDTH: f32 = 72.;
 
-const MODAL_CONTENT_FONT_SIZE: f32 = 14.;
 const CHECKBOX_SIZE: f32 = 16.;
 
 pub fn init(app: &mut AppContext) {
@@ -481,7 +479,7 @@ impl EditorModal {
             .ui_builder()
             .span(crate::t!("prompt-editor-title"))
             .with_style(UiComponentStyles {
-                font_size: Some(MODAL_TITLE_FONT_SIZE),
+                font_size: Some(appearance.ui_font_heading_3()),
                 font_weight: Some(warpui::fonts::Weight::Bold),
                 ..Default::default()
             })
@@ -572,7 +570,7 @@ impl EditorModal {
                     .ui_builder()
                     .span(crate::t!("prompt-editor-restore-default"))
                     .with_style(UiComponentStyles {
-                        font_size: Some(MODAL_CONTENT_FONT_SIZE),
+                        font_size: Some(appearance.ui_font_subheading()),
                         ..Default::default()
                     })
                     .build()
@@ -596,7 +594,7 @@ impl EditorModal {
             .ui_builder()
             .span(crate::t!("prompt-editor-same-line-prompt"))
             .with_style(UiComponentStyles {
-                font_size: Some(MODAL_CONTENT_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 ..Default::default()
             })
             .build()
@@ -634,7 +632,7 @@ impl EditorModal {
                         .ui_builder()
                         .span(crate::t!("prompt-editor-separator"))
                         .with_style(UiComponentStyles {
-                            font_size: Some(MODAL_CONTENT_FONT_SIZE),
+                            font_size: Some(appearance.ui_font_subheading()),
                             ..Default::default()
                         })
                         .build()
@@ -672,7 +670,7 @@ impl EditorModal {
                     .ui_builder()
                     .span(crate::t!("prompt-editor-warp-prompt-section"))
                     .with_style(UiComponentStyles {
-                        font_size: Some(MODAL_CONTENT_FONT_SIZE),
+                        font_size: Some(appearance.ui_font_subheading()),
                         font_weight: Some(warpui::fonts::Weight::Semibold),
                         ..Default::default()
                     })
@@ -721,7 +719,7 @@ impl EditorModal {
             .ui_builder()
             .span(crate::t!("prompt-editor-shell-prompt-section"))
             .with_style(UiComponentStyles {
-                font_size: Some(MODAL_CONTENT_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 font_weight: Some(warpui::fonts::Weight::Semibold),
                 ..Default::default()
             })
@@ -762,7 +760,7 @@ impl EditorModal {
             .with_text_label(label)
             .with_style(UiComponentStyles {
                 padding: Some(padding),
-                font_size: Some(MODAL_CONTENT_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 ..Default::default()
             });
 

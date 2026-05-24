@@ -126,7 +126,7 @@ impl ConversationUsageView {
 
     fn render_unified_layout(&self, appearance: &Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
-        let font_size = appearance.ui_font_size() + 2.;
+        let font_size = appearance.ui_font_subheading();
         let text_color = blended_colors::text_main(theme, theme.surface_2());
 
         let mut labels: Vec<Box<dyn Element>> = vec![];
@@ -512,7 +512,7 @@ fn format_value_text(value: i32, label: &str) -> String {
 /// Helper to build a text element with consistent styling for labels.
 fn render_label_text(text: &str, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let font_size = appearance.ui_font_size() + 2.;
+    let font_size = appearance.ui_font_subheading();
 
     Text::new(text.to_string(), appearance.ui_font_family(), font_size)
         .with_color(blended_colors::text_sub(theme, theme.surface_2()))
@@ -522,7 +522,7 @@ fn render_label_text(text: &str, appearance: &Appearance) -> Box<dyn Element> {
 /// Helper to build a text element with consistent styling for values.
 fn render_value_text(text: String, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let font_size = appearance.ui_font_size() + 2.;
+    let font_size = appearance.ui_font_subheading();
     let text_color = blended_colors::text_main(theme, theme.surface_2());
 
     Text::new(text, appearance.ui_font_family(), font_size)

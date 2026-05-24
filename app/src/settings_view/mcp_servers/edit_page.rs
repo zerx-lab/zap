@@ -354,7 +354,7 @@ impl MCPServersEditPageView {
                             appearance
                                 .ui_builder()
                                 .wrappable_text(title, true)
-                                .with_style(style::header_text())
+                                .with_style(style::header_text(appearance))
                                 .build()
                                 .finish(),
                         )

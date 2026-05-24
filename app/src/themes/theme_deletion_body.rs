@@ -22,7 +22,6 @@ use warpui::{
 };
 
 const BUTTON_PADDING: f32 = 12.;
-const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BORDER_WIDTH: f32 = 1.;
 
@@ -134,7 +133,7 @@ impl View for ThemeDeletionBody {
         let appearance = Appearance::as_ref(app);
 
         let default_button_styles = UiComponentStyles {
-            font_size: Some(BUTTON_FONT_SIZE),
+            font_size: Some(appearance.ui_font_subheading()),
             font_family_id: Some(appearance.ui_font_family()),
             font_color: Some(
                 appearance

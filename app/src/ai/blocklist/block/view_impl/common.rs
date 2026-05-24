@@ -914,11 +914,11 @@ fn render_auto_approve_button(props: ButtonProps, appearance: &Appearance) -> Bo
 }
 
 fn get_keybinding_font_size(appearance: &Appearance) -> f32 {
-    appearance.ui_font_size() - 1.
+    appearance.ui_font_footnote()
 }
 
 fn get_icon_size(appearance: &Appearance) -> f32 {
-    appearance.ui_font_size() + 1.
+    appearance.ui_font_body_large()
 }
 
 /// Renders the inline `Check now` affordance displayed alongside

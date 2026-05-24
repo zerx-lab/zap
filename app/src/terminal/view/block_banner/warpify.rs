@@ -253,7 +253,7 @@ fn render_yes_button(
             .with_style(UiComponentStyles {
                 background: Some(Fill::Solid(ColorU::transparent_black()).into()),
                 height: Some(36.),
-                font_size: Some(appearance.ui_font_size() + 2.),
+                font_size: Some(appearance.ui_font_subheading()),
                 font_weight: Some(Weight::Bold),
                 font_color: Some(blended_colors::text_main(
                     appearance.theme(),

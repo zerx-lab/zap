@@ -3858,7 +3858,7 @@ impl CodeReviewView {
                 Text::new(
                     "Error loading diffs",
                     appearance.ui_font_family(),
-                    appearance.ui_font_size() + 2.,
+                    appearance.ui_font_subheading(),
                 )
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(theme.sub_text_color(theme.background()).into())
@@ -3874,7 +3874,7 @@ impl CodeReviewView {
                                 Text::new(
                                     error.to_string(),
                                     appearance.ui_font_family(),
-                                    appearance.ui_font_size() + 2.,
+                                    appearance.ui_font_subheading(),
                                 )
                                 .with_color(theme.disabled_text_color(theme.background()).into())
                                 .finish(),
@@ -3968,7 +3968,7 @@ impl CodeReviewView {
                 Text::new(
                     "Cannot detect diffs for this folder",
                     appearance.ui_font_family(),
-                    appearance.ui_font_size() + 2.,
+                    appearance.ui_font_subheading(),
                 )
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(theme.sub_text_color(theme.background()).into())
@@ -3979,7 +3979,7 @@ impl CodeReviewView {
                     Text::new(
                         message,
                         appearance.ui_font_family(),
-                        appearance.ui_font_size() + 2.,
+                        appearance.ui_font_subheading(),
                     )
                     .with_color(theme.disabled_text_color(theme.background()).into())
                     .finish(),
@@ -4045,7 +4045,7 @@ impl CodeReviewView {
                 Text::new(
                     "Cannot detect diffs for this folder",
                     appearance.ui_font_family(),
-                    appearance.ui_font_size() + 2.,
+                    appearance.ui_font_subheading(),
                 )
                 .with_style(Properties::default().weight(Weight::Semibold))
                 .with_color(theme.sub_text_color(theme.background()).into())
@@ -4056,7 +4056,7 @@ impl CodeReviewView {
                     Text::new(
                         message,
                         appearance.ui_font_family(),
-                        appearance.ui_font_size() + 2.,
+                        appearance.ui_font_subheading(),
                     )
                     .with_color(theme.disabled_text_color(theme.background()).into())
                     .finish(),
@@ -5006,7 +5006,7 @@ impl CodeReviewView {
                     Text::new(
                         old_path.clone(),
                         appearance.ui_font_family(),
-                        appearance.ui_font_size() + 2.,
+                        appearance.ui_font_subheading(),
                     )
                     .with_color(theme.main_text_color(theme.surface_2()).into())
                     .with_clip(ClipConfig::start())
@@ -5017,7 +5017,7 @@ impl CodeReviewView {
                 Text::new(
                     " → ",
                     appearance.ui_font_family(),
-                    appearance.ui_font_size() + 2.,
+                    appearance.ui_font_subheading(),
                 )
                 .with_color(theme.main_text_color(theme.surface_2()).into())
                 .finish(),
@@ -5027,7 +5027,7 @@ impl CodeReviewView {
                         Text::new(
                             file_name,
                             appearance.ui_font_family(),
-                            appearance.ui_font_size() + 2.,
+                            appearance.ui_font_subheading(),
                         )
                         .with_color(theme.main_text_color(theme.surface_2()).into())
                         .with_clip(ClipConfig::start())
@@ -5049,7 +5049,7 @@ impl CodeReviewView {
                             Text::new(
                                 file_name,
                                 appearance.ui_font_family(),
-                                appearance.ui_font_size() + 2.,
+                                appearance.ui_font_subheading(),
                             )
                             .with_color(theme.main_text_color(theme.surface_2()).into())
                             .with_clip(ClipConfig::start())

@@ -9,7 +9,13 @@ use super::{builder::UiBuilder, theme::WarpTheme};
 const HEADER_FONT_SIZE: f32 = 18.;
 const OVERLINE_FONT_SIZE: f32 = 10.;
 
+/// 默认 UI 字号(基准值)。其他语义化字号方法都以此为标尺按比例缩放。
 pub const DEFAULT_UI_FONT_SIZE: f32 = 12.0;
+/// UI 字号合法下界(设置 UI / `set_ui_font_size` 调用方应在此与 `UI_FONT_SIZE_MAX` 间 clamp)。
+pub const UI_FONT_SIZE_MIN: f32 = 8.0;
+/// UI 字号合法上界。
+pub const UI_FONT_SIZE_MAX: f32 = 20.0;
+
 pub const DEFAULT_COMMAND_PALETTE_FONT_SIZE: f32 = 14.0;
 
 /// Holds visual settings that are so widely used that it's best
@@ -30,6 +36,7 @@ pub struct Appearance {
     ai_font_family: FamilyId,
     /// A font that is used for password fields.
     password_font_family: FamilyId,
+    ui_font_size: f32,
 }
 
 /// Defines appearance change events.
@@ -66,6 +73,10 @@ pub enum AppearanceEvent {
         previous_line_height_ratio: f32,
         current_line_height_ratio: f32,
     },
+    UiFontSizeChanged {
+        previous_font_size: f32,
+        current_font_size: f32,
+    },
 }
 
 impl Appearance {
@@ -79,6 +90,7 @@ impl Appearance {
         line_height_ratio: f32,
         ai_font_family: FamilyId,
         password_font_family: FamilyId,
+        ui_font_size: f32,
     ) -> Self {
         Self {
             theme: theme.clone(),
@@ -90,12 +102,13 @@ impl Appearance {
             ui_builder: UiBuilder::new(
                 theme,
                 ui_font_family,
-                DEFAULT_UI_FONT_SIZE,
+                ui_font_size,
                 DEFAULT_COMMAND_PALETTE_FONT_SIZE,
                 line_height_ratio,
             ),
             ai_font_family,
             password_font_family,
+            ui_font_size,
         }
     }
 
@@ -134,6 +147,7 @@ impl Appearance {
             ui_font_family,
             ai_font_family: FamilyId(0),
             password_font_family: FamilyId(0),
+            ui_font_size: DEFAULT_UI_FONT_SIZE,
         }
     }
 
@@ -241,9 +255,40 @@ impl Appearance {
         });
     }
 
+    pub fn set_ui_font_size(&mut self, new_font_size: f32, ctx: &mut ModelContext<Self>) {
+        let previous_font_size = self.ui_font_size;
+        self.ui_font_size = new_font_size;
+        self.ui_builder = UiBuilder::new(
+            self.theme.clone(),
+            self.ui_font_family,
+            self.ui_font_size,
+            DEFAULT_COMMAND_PALETTE_FONT_SIZE,
+            self.line_height_ratio,
+        );
+
+        ctx.invalidate_all_views();
+
+        ctx.emit(AppearanceEvent::UiFontSizeChanged {
+            current_font_size: self.ui_font_size,
+            previous_font_size,
+        });
+    }
+
     #[cfg(feature = "test-util")]
     pub fn set_monospace_font_size_test(&mut self, new_font_size: f32) {
         self.monospace_font_size = new_font_size;
+    }
+
+    #[cfg(test)]
+    pub fn set_ui_font_size_test(&mut self, new_font_size: f32) {
+        self.ui_font_size = new_font_size;
+        self.ui_builder = UiBuilder::new(
+            self.theme.clone(),
+            self.ui_font_family,
+            self.ui_font_size,
+            DEFAULT_COMMAND_PALETTE_FONT_SIZE,
+            self.line_height_ratio,
+        );
     }
 
     pub fn set_line_height_ratio(
@@ -256,7 +301,7 @@ impl Appearance {
         self.ui_builder = UiBuilder::new(
             self.theme.clone(),
             self.ui_font_family,
-            DEFAULT_UI_FONT_SIZE,
+            self.ui_font_size,
             DEFAULT_COMMAND_PALETTE_FONT_SIZE,
             self.line_height_ratio,
         );
@@ -303,7 +348,7 @@ impl Appearance {
     }
 
     pub fn ui_font_size(&self) -> f32 {
-        DEFAULT_UI_FONT_SIZE
+        self.ui_font_size
     }
 
     pub fn header_font_family(&self) -> FamilyId {
@@ -311,7 +356,7 @@ impl Appearance {
     }
 
     pub fn header_font_size(&self) -> f32 {
-        HEADER_FONT_SIZE
+        self.ui_font_size * HEADER_FONT_SIZE / DEFAULT_UI_FONT_SIZE
     }
 
     pub fn overline_font_family(&self) -> FamilyId {
@@ -319,7 +364,50 @@ impl Appearance {
     }
 
     pub fn overline_font_size(&self) -> f32 {
-        OVERLINE_FONT_SIZE
+        self.ui_font_size * OVERLINE_FONT_SIZE / DEFAULT_UI_FONT_SIZE
+    }
+
+    /// 语义化字号: overline。与 [`Self::overline_font_size`] 等价，
+    /// 但字面量不再被外部常量耦合，推荐新调用点使用本方法，
+    /// `overline_font_size` 逐步作为历史调用点保留。
+    pub fn ui_font_overline(&self) -> f32 {
+        self.ui_font_size * 10.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_footnote(&self) -> f32 {
+        self.ui_font_size * 11.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_body(&self) -> f32 {
+        self.ui_font_size
+    }
+
+    pub fn ui_font_body_large(&self) -> f32 {
+        self.ui_font_size * 13.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_subheading(&self) -> f32 {
+        self.ui_font_size * 14.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_heading_3(&self) -> f32 {
+        self.ui_font_size * 16.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_heading_2(&self) -> f32 {
+        self.ui_font_size * 18.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_heading_1(&self) -> f32 {
+        self.ui_font_size * 20.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_display(&self) -> f32 {
+        self.ui_font_size * 24.0 / DEFAULT_UI_FONT_SIZE
+    }
+
+    pub fn ui_font_hero(&self) -> f32 {
+        self.ui_font_size * 36.0 / DEFAULT_UI_FONT_SIZE
     }
 
     pub fn line_height_ratio(&self) -> f32 {
@@ -329,6 +417,11 @@ impl Appearance {
     pub fn password_font_family(&self) -> FamilyId {
         self.password_font_family
     }
+
+    /// 根据 UI 字体大小计算 dropdown 顶栏所需的最小高度
+    pub fn dropdown_top_bar_height(&self) -> f32 {
+        (self.ui_font_size * 2.5).max(30.0)
+    }
 }
 
 impl Entity for Appearance {
@@ -336,3 +429,7 @@ impl Entity for Appearance {
 }
 
 impl SingletonEntity for Appearance {}
+
+#[cfg(test)]
+#[path = "appearance_tests.rs"]
+mod tests;

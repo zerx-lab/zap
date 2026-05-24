@@ -5405,6 +5405,35 @@ impl Workspace {
             ctx,
         );
 
+        // 启动命令注入器 — 等待 shell ready 后自动执行 startup_command
+        if let Some(ref startup_cmd) = server.startup_command {
+            if !startup_cmd.is_empty() {
+                crate::ssh_manager::startup_command_injector::spawn_startup_command_injector(
+                    terminal_view.read(ctx, |v, c| v.inactive_pty_reads_rx(c)),
+                    terminal_view.downgrade(),
+                    startup_cmd.clone(),
+                    ctx,
+                );
+            }
+        }
+
+        // su 密码注入器 — 监听 su 密码提示,自动输入 root 密码
+        let root_secret = match KeychainSecretStore.get(&node_id, SecretKind::RootPassword) {
+            Ok(opt) => opt,
+            Err(e) => {
+                log::debug!("ssh root password keychain read failed: {e}");
+                None
+            }
+        };
+        if let Some(root_pw) = root_secret {
+            crate::ssh_manager::su_password_injector::spawn_su_password_injector(
+                terminal_view.read(ctx, |v, c| v.inactive_pty_reads_rx(c)),
+                terminal_view.downgrade(),
+                root_pw,
+                ctx,
+            );
+        }
+
         // 3. 排队 ssh 命令,等 bootstrap 完成自动 flush。
         terminal_view.update(ctx, |view, ctx| {
             view.execute_command_or_set_pending(&cmd, ctx);

@@ -43,7 +43,6 @@ use crate::{
 use super::config::{QuakeModeWindow, ThemeType};
 
 // UI does not scale, so we set a fixed size for all text.
-const FONT_SIZE: f32 = 14.;
 const DROPDOWN_BORDER_RADIUS: f32 = 8.;
 const DROPDOWN_HORIZONTAL_PADDING: f32 = 16.;
 const DROPDOWN_VERTICAL_PADDING: f32 = 12.;
@@ -224,7 +223,7 @@ impl SettingsImportView {
         Shrinkable::new(
             1.0,
             Container::new(
-                Text::new_inline(name, font_family, FONT_SIZE)
+                Text::new_inline(name, font_family, appearance.ui_font_subheading())
                     .with_color(font_color.into_solid())
                     .finish(),
             )
@@ -268,7 +267,7 @@ impl SettingsImportView {
                     font_weight: Some(Weight::Bold),
                     width: Some(IMPORT_BUTTON_WIDTH),
                     height: Some(IMPORT_BUTTON_HEIGHT),
-                    font_size: Some(FONT_SIZE),
+                    font_size: Some(appearance.ui_font_subheading()),
                     ..Default::default()
                 })
                 .with_centered_text_label(crate::t!("common-import"))
@@ -291,7 +290,7 @@ impl SettingsImportView {
                 font_weight: Some(Weight::Medium),
                 width: Some(RESET_BUTTON_WIDTH),
                 height: Some(RESET_BUTTON_HEIGHT),
-                font_size: Some(FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 ..Default::default()
             })
             .with_hovered_styles(UiComponentStyles {
@@ -317,7 +316,7 @@ impl SettingsImportView {
         let font_family = appearance.monospace_font_family();
         let font_color = blended_colors::text_sub(theme, theme.background());
         let description = Container::new(
-            Text::new_inline(setting.setting_type.get_name(), font_family, FONT_SIZE)
+            Text::new_inline(setting.setting_type.get_name(), font_family, appearance.ui_font_subheading())
                 .with_color(font_color)
                 .finish(),
         )
@@ -363,7 +362,7 @@ impl SettingsImportView {
         let font_color = theme.main_text_color(theme.background());
 
         let terminal_text = Container::new(
-            Text::new_inline(config_menu_item.config_name.clone(), font_family, FONT_SIZE)
+            Text::new_inline(config_menu_item.config_name.clone(), font_family, appearance.ui_font_subheading())
                 .with_color(font_color.into_solid())
                 .finish(),
         )
@@ -376,7 +375,7 @@ impl SettingsImportView {
             let description = Shrinkable::new(
                 1.0,
                 Container::new(
-                    Text::new_inline(description, font_family, FONT_SIZE)
+                    Text::new_inline(description, font_family, appearance.ui_font_subheading())
                         .with_color(theme.sub_text_color(theme.background()).into_solid())
                         .finish(),
                 )
@@ -967,7 +966,7 @@ impl View for SettingsImportView {
                 config_item_builders,
                 self.radio_button_state.clone(),
                 imported_config_idx,
-                FONT_SIZE,
+                appearance.ui_font_subheading(),
                 radio_buttons::RadioButtonLayout::Column,
             )
             .with_style(UiComponentStyles {

@@ -13,6 +13,7 @@ const SERVICE: &str = "zap.ssh";
 pub enum SecretKind {
     Password,
     Passphrase,
+    RootPassword,
 }
 
 impl SecretKind {
@@ -20,6 +21,7 @@ impl SecretKind {
         match self {
             SecretKind::Password => "password",
             SecretKind::Passphrase => "passphrase",
+            SecretKind::RootPassword => "root_password",
         }
     }
 }

@@ -47,7 +47,6 @@ use strum::IntoEnumIterator;
 use super::ai_page::{AISettingsPageAction, AISettingsPageView, ModelCapabilityKind};
 use super::settings_page::{build_sub_header, SettingsWidget, HEADER_PADDING};
 
-const CARD_BUTTON_FONT_SIZE: f32 = 12.0;
 const CARD_BUTTON_PADDING: f32 = 6.0;
 const FIELD_LABEL_MARGIN_TOP: f32 = 6.0;
 const FIELD_LABEL_MARGIN_BOTTOM: f32 = 2.0;
@@ -652,7 +651,7 @@ impl AgentProvidersWidget {
             .ui_builder()
             .button(ButtonVariant::Secondary, mouse_state)
             .with_style(UiComponentStyles {
-                font_size: Some(CARD_BUTTON_FONT_SIZE),
+                font_size: Some(appearance.ui_font_body()),
                 padding: Some(Coords::uniform(CARD_BUTTON_PADDING)),
                 ..Default::default()
             })
@@ -675,7 +674,7 @@ impl AgentProvidersWidget {
             .ui_builder()
             .button(ButtonVariant::Secondary, mouse_state)
             .with_style(UiComponentStyles {
-                font_size: Some(CARD_BUTTON_FONT_SIZE),
+                font_size: Some(appearance.ui_font_body()),
                 padding: Some(Coords::uniform(CARD_BUTTON_PADDING)),
                 ..Default::default()
             })
@@ -1249,7 +1248,7 @@ impl AgentProvidersWidget {
                 .ui_builder()
                 .button(ButtonVariant::Accent, row.save_button_state.clone())
                 .with_style(UiComponentStyles {
-                    font_size: Some(CARD_BUTTON_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_body()),
                     padding: Some(Coords::uniform(CARD_BUTTON_PADDING)),
                     ..Default::default()
                 })

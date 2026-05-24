@@ -274,7 +274,7 @@ impl CodeReviewHeader {
             warpui::elements::Text::new_inline(
                 header_text,
                 appearance.ui_font_family(),
-                appearance.ui_font_size() + 2.,
+                appearance.ui_font_subheading(),
             )
             .with_style(Properties::default().weight(Weight::Semibold))
             .with_color(theme.main_text_color(theme.background()).into())

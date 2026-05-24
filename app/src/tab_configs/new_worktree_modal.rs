@@ -50,7 +50,6 @@ const HEADER_PADDING_TOP: f32 = 24.;
 /// Header bottom padding (Figma: pb-12).
 const HEADER_PADDING_BOTTOM: f32 = 12.;
 /// Header title font size (Figma: 16px bold).
-const HEADER_TITLE_FONT_SIZE: f32 = 16.;
 /// Bottom padding of the form area above the footer.
 const BODY_BOTTOM_PADDING: f32 = 16.;
 /// Vertical padding of the footer bar.
@@ -67,12 +66,10 @@ const FOOTER_BUTTON_GAP: f32 = 8.;
 const FOOTER_BUTTON_RADIUS: Radius = Radius::Pixels(4.);
 /// Size of the ESC keyboard shortcut badge (Figma: 14px tall, 10px font).
 const ESC_BADGE_HEIGHT: f32 = 14.;
-const ESC_BADGE_FONT_SIZE: f32 = 10.;
 const ESC_BADGE_CORNER_RADIUS: Radius = Radius::Pixels(3.);
 /// Size of the close (X) icon in the header.
 const CLOSE_ICON_SIZE: f32 = 14.;
 /// Font size for inline validation error messages.
-const ERROR_FONT_SIZE: f32 = 12.;
 /// Error shown when the user-entered worktree branch name contains invalid characters.
 const INVALID_BRANCH_NAME_ERROR: &str =
     "Name can only contain letters, numbers, hyphens, and underscores";
@@ -327,7 +324,7 @@ impl View for NewWorktreeModal {
             let title = Text::new_inline(
                 "New worktree".to_string(),
                 appearance.ui_font_family(),
-                HEADER_TITLE_FONT_SIZE,
+                appearance.ui_font_heading_3(),
             )
             .with_color(theme.active_ui_text_color().into())
             .with_style(Properties::default().weight(Weight::Bold))
@@ -339,7 +336,7 @@ impl View for NewWorktreeModal {
                 let badge_text = Text::new_inline(
                     "ESC".to_string(),
                     appearance.ui_font_family(),
-                    ESC_BADGE_FONT_SIZE,
+                    appearance.ui_font_overline(),
                 )
                 .with_color(theme.foreground().into())
                 .finish();
@@ -497,7 +494,7 @@ impl View for NewWorktreeModal {
                         Text::new_inline(
                             INVALID_BRANCH_NAME_ERROR.to_string(),
                             appearance.ui_font_family(),
-                            ERROR_FONT_SIZE,
+                            appearance.ui_font_body(),
                         )
                         .with_color(theme.ui_error_color())
                         .finish(),
@@ -521,7 +518,7 @@ impl View for NewWorktreeModal {
         // Figma: text-only buttons, semibold 14px, h-32, px-12, no background.
         // Cancel uses main text color; Open uses disabled text color when no repo.
         let text_button_base = UiComponentStyles {
-            font_size: Some(appearance.ui_font_size() + 2.),
+            font_size: Some(appearance.ui_font_subheading()),
             font_weight: Some(Weight::Semibold),
             height: Some(FOOTER_BUTTON_HEIGHT),
             padding: Some(

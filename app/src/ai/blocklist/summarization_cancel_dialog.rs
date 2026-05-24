@@ -83,7 +83,7 @@ impl View for SummarizationCancelDialog {
             border_width: Some(0.),
             border_style: Some(BorderStyle::None),
             font_family_id: Some(appearance.ui_font_family()),
-            font_size: Some(appearance.ui_font_size() + 2.),
+            font_size: Some(appearance.ui_font_subheading()),
             font_weight: Some(Weight::Bold),
             font_color: dialog_styles.font_color,
             height: Some(BUTTON_HEIGHT),
@@ -148,7 +148,7 @@ impl View for SummarizationCancelDialog {
                     .ui_builder()
                     .keyboard_shortcut(&esc_keystroke)
                     .with_style(UiComponentStyles {
-                        font_size: Some(appearance.ui_font_size() - 2.),
+                        font_size: Some(appearance.ui_font_footnote()),
                         font_color: dialog_styles.font_color,
                         padding: Some(Coords {
                             top: 0.,

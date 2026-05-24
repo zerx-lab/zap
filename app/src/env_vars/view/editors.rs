@@ -24,7 +24,6 @@ use crate::{
 };
 
 // Metadata labels (name and description)
-const LABEL_FONT_SIZE: f32 = 12.;
 const METADATA_SPACING: f32 = 8.;
 const LAST_ROW_ELEMENT_SPACING: f32 = 2.;
 const TITLE_LABEL_TEXT: &str = "Title";
@@ -325,7 +324,7 @@ impl EnvVarCollectionView {
             .ui_builder()
             .span(text.into())
             .with_style(UiComponentStyles {
-                font_size: Some(LABEL_FONT_SIZE),
+                font_size: Some(appearance.ui_font_body()),
                 ..Default::default()
             })
             .build()

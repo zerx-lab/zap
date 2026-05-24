@@ -26,7 +26,6 @@ use warpui::{
 use super::modal_body::{ImportModalBody, ImportModalBodyAction, ImportModalBodyEvent};
 
 const CLOSE_BUTTON_SIZE: f32 = 24.;
-const HEADER_FONT_SIZE: f32 = 16.;
 const MODAL_CORNER_RADIUS: f32 = 8.;
 pub const BODY_HEIGHT: f32 = 244.;
 
@@ -233,7 +232,7 @@ impl ImportModal {
                         Text::new_inline(
                             crate::t!("drive-import-title"),
                             appearance.ui_font_family(),
-                            HEADER_FONT_SIZE,
+                            appearance.ui_font_heading_3(),
                         )
                         .with_color(appearance.theme().active_ui_text_color().into())
                         .finish(),

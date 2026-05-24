@@ -302,7 +302,7 @@ impl AgentToast {
 
         let mut row = Flex::row();
 
-        let icon_size = appearance.ui_font_size() * 1.2;
+        let icon_size = appearance.ui_font_subheading();
         row.add_child(
             Container::new(
                 ConstrainedBox::new(self.icon.finish())
@@ -321,7 +321,7 @@ impl AgentToast {
                 1.,
                 Flex::column()
                     .with_child({
-                        let font_size = appearance.ui_font_size() * 1.2;
+                        let font_size = appearance.ui_font_subheading();
                         let line_height = font_size * appearance.line_height_ratio();
                         let max_height_for_3_lines = line_height * 3.0;
 

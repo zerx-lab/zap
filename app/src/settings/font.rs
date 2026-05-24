@@ -1,4 +1,10 @@
 use warp_core::ui::builder::MIN_FONT_SIZE;
+
+// 重导出底层 warp_core 定义的 UI 字号常量,
+// 使 `crate::settings::DEFAULT_UI_FONT_SIZE` / `UI_FONT_SIZE_MIN` / `UI_FONT_SIZE_MAX` 仍可用。
+pub use warp_core::ui::appearance::{
+    DEFAULT_UI_FONT_SIZE, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
+};
 use warpui::{fonts::Weight, rendering::ThinStrokes, AppContext, SingletonEntity};
 
 use settings::{
@@ -11,6 +17,8 @@ use super::EnforceMinimumContrast as EnforceMinimumContrastEnum;
 pub const DEFAULT_MONOSPACE_FONT_NAME: &str = "Hack";
 pub const DEFAULT_MONOSPACE_FONT_SIZE: f32 = 13.0;
 pub const DEFAULT_MONOSPACE_FONT_WEIGHT: Weight = Weight::Normal;
+
+pub const DEFAULT_UI_FONT_NAME: &str = "";
 
 define_settings_group!(FontSettings,
     settings: [
@@ -108,6 +116,26 @@ define_settings_group!(FontSettings,
             private: false,
             toml_path: "appearance.text.use_thin_strokes",
             description: "Whether to use thin font strokes on macOS.",
+        },
+        ui_font_name: UiFontName {
+            type: String,
+            default: DEFAULT_UI_FONT_NAME.to_string(),
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            storage_key: "UiFontName",
+            toml_path: "appearance.text.ui_font_name",
+            description: "The font used for UI elements.",
+        },
+        ui_font_size: UiFontSize {
+            type: f32,
+            default: DEFAULT_UI_FONT_SIZE,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            storage_key: "UiFontSize",
+            toml_path: "appearance.text.ui_font_size",
+            description: "The base font size for UI elements.",
         },
     ]
 );

@@ -51,12 +51,9 @@ use warpui::{
 
 pub const TOGGLE_BUTTON_RIGHT_PADDING: f32 = 5.;
 pub const HEADER_PADDING: f32 = 15.;
-pub const CONTENT_FONT_SIZE: f32 = 12.;
 pub const SUBHEADER_MARGIN_BOTTOM: f32 = 4.;
 pub const PAGE_TITLE_MARGIN_BOTTOM: f32 = 4.;
 pub(super) const PAGE_PADDING: f32 = 28.;
-pub(super) const HEADER_FONT_SIZE: f32 = 23.;
-pub const SUBHEADER_FONT_SIZE: f32 = 16.;
 const ALTERNATING_LIST_CLOSE_BUTTON_DIAMETER: f32 = 20.0;
 const ALTERNATING_LIST_ITEM_PADDING: f32 = 8.0;
 const GREY_TEXT_OPACITY: u8 = 60;
@@ -271,7 +268,7 @@ pub fn build_sub_header(
     let color = color_override.unwrap_or(appearance.theme().active_ui_text_color());
     Container::new(
         Align::new(
-            Text::new_inline(text_name, appearance.ui_font_family(), SUBHEADER_FONT_SIZE)
+            Text::new_inline(text_name, appearance.ui_font_family(), appearance.ui_font_heading_3())
                 .with_style(Properties::default().weight(Weight::Bold))
                 .with_color(color.into())
                 .finish(),
@@ -292,7 +289,7 @@ pub fn render_sub_header_with_description(
             .with_child(build_sub_header(appearance, text_name, None).finish())
             .with_child(
                 Align::new(
-                    Text::new(description, appearance.ui_font_family(), CONTENT_FONT_SIZE)
+                    Text::new(description, appearance.ui_font_family(), appearance.ui_font_body())
                         .with_color(appearance.theme().nonactive_ui_text_color().into())
                         .finish(),
                 )
@@ -314,7 +311,7 @@ pub fn render_sub_sub_header(
     let mut sub_sub_header = Flex::row().with_child(
         Container::new(
             Align::new(
-                Text::new_inline(text_name, appearance.ui_font_family(), CONTENT_FONT_SIZE)
+                Text::new_inline(text_name, appearance.ui_font_family(), appearance.ui_font_body())
                     .with_style(Properties::default().weight(Weight::Semibold))
                     .with_color(appearance.theme().active_ui_text_color().into())
                     .finish(),
@@ -411,7 +408,7 @@ pub fn render_full_pane_width_ai_button(
                             .ui_builder()
                             .wrappable_text(text.to_string(), true)
                             .with_style(UiComponentStyles {
-                                font_size: Some(CONTENT_FONT_SIZE),
+                                font_size: Some(appearance.ui_font_body()),
                                 font_color: Some(text_color),
                                 ..Default::default()
                             })
@@ -638,7 +635,7 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
             ToggleState::Disabled => appearance.theme().disabled_ui_text_color(),
         },
     };
-    let label_text = Text::new_inline(label_text, appearance.ui_font_family(), CONTENT_FONT_SIZE)
+    let label_text = Text::new_inline(label_text, appearance.ui_font_family(), appearance.ui_font_body())
         .with_color(label_color.into());
     if let Some(icon) = label_icon {
         label.add_child(
@@ -722,7 +719,8 @@ pub fn render_body_item_label_internal<T: Clone + Action>(
     }
 }
 
-pub fn render_page_title(text: &str, size: f32, appearance: &Appearance) -> Box<dyn Element> {
+pub fn render_page_title(text: &str, appearance: &Appearance) -> Box<dyn Element> {
+    let size = appearance.ui_font_size() * 23.0 / 12.0;
     Container::new(
         Align::new(
             Text::new_inline(text.to_string(), appearance.ui_font_family(), size)
@@ -828,7 +826,7 @@ pub fn render_dropdown_item_label(
     color_override: Option<Fill>,
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let label = Text::new(label_text, appearance.ui_font_family(), CONTENT_FONT_SIZE)
+    let label = Text::new(label_text, appearance.ui_font_family(), appearance.ui_font_body())
         .with_color(
             color_override
                 .unwrap_or(appearance.theme().active_ui_text_color())
@@ -959,7 +957,7 @@ pub(crate) fn render_settings_info_banner(
                     Text::new(
                         subtext.to_string(),
                         appearance.ui_font_family(),
-                        appearance.ui_font_size() - 1.,
+                        appearance.ui_font_footnote(),
                     )
                     .with_color(
                         appearance
@@ -1014,7 +1012,7 @@ pub fn render_input_list<SettingsPageAction: Action + Clone>(
                 .ui_builder()
                 .span(title.to_string())
                 .with_style(UiComponentStyles {
-                    font_size: Some(CONTENT_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_body()),
                     ..Default::default()
                 })
                 .build()
@@ -1619,7 +1617,7 @@ impl<V: warpui::View> PageType<V> {
                     if widget.should_render(app) {
                         if let Some(title) = title {
                             let col = Flex::column()
-                                .with_child(render_page_title(title, HEADER_FONT_SIZE, appearance))
+                                .with_child(render_page_title(title, appearance))
                                 .with_child(widget.render_widget(view, false, appearance, app));
                             page = col.finish();
                         } else {
@@ -1637,7 +1635,7 @@ impl<V: warpui::View> PageType<V> {
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    page.add_child(render_page_title(title, appearance));
                 }
                 for widget in widgets {
                     let highlighted =
@@ -1656,7 +1654,7 @@ impl<V: warpui::View> PageType<V> {
             } => {
                 let mut page = Flex::column();
                 if let Some(title) = title {
-                    page.add_child(render_page_title(title, HEADER_FONT_SIZE, appearance));
+                    page.add_child(render_page_title(title, appearance));
                 }
                 let num_categories = categories.len();
                 for (i, category) in categories.into_iter().enumerate() {
@@ -1907,7 +1905,7 @@ pub(super) fn build_reset_button(
         )
         .with_style(UiComponentStyles {
             padding: Some(Coords::default().bottom(HEADER_PADDING).top(5.)),
-            font_size: Some(appearance.ui_font_size() * 0.8),
+            font_size: Some(appearance.ui_font_overline()),
             ..Default::default()
         })
         .with_text_label(crate::t!("settings-page-reset-to-default"))

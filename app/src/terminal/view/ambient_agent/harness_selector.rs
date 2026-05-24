@@ -27,10 +27,8 @@ use crate::terminal::view::ambient_agent::AmbientAgentViewModel;
 use crate::view_components::action_button::{ActionButton, ActionButtonTheme, ButtonSize};
 
 /// Font size for the header row (Figma: 12px).
-const HEADER_FONT_SIZE: f32 = 12.;
 
 /// Font size for harness item rows (Figma: 14px).
-const ITEM_FONT_SIZE: f32 = 14.;
 
 /// Horizontal padding inside menu rows (Figma: 16px).
 const MENU_HORIZONTAL_PADDING: f32 = 16.;
@@ -203,6 +201,12 @@ impl HarnessSelector {
 /// non-clickable header; the remaining items are the available harnesses.
 /// Item text colors are left as theme defaults; the header uses the theme's
 /// disabled-text color, and hovered/selected rows use `neutral_4`.
+/// Font size for the header row (Figma: 12px).
+const HEADER_FONT_SIZE: f32 = 12.;
+
+/// Font size for harness item rows (Figma: 14px).
+const ITEM_FONT_SIZE: f32 = 14.;
+
 fn build_menu_items(
     hover_background: Fill,
     header_text_color: pathfinder_color::ColorU,

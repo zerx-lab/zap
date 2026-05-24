@@ -115,7 +115,7 @@ pub fn render_open_settings_file_button(
         let label = Text::new_inline(
             crate::t!("settings-footer-open-file"),
             ui_font_family,
-            FOOTER_FONT_SIZE,
+            appearance.ui_font_body(),
         )
         .with_color(text_color)
         .with_style(Properties {
@@ -180,7 +180,7 @@ pub fn render_settings_error_alert(
     // Soft-wrap (the `Text::new` default) is appropriate here since the
     // alert's vertical space grows to fit the text.
     let mut text_widget =
-        Text::new(combined_text, ui_font_family, FOOTER_FONT_SIZE).with_color(text_color);
+        Text::new(combined_text, ui_font_family, appearance.ui_font_body()).with_color(text_color);
     if heading_char_count > 0 {
         text_widget = text_widget.with_single_highlight(
             Highlight::new().with_properties(Properties::default().weight(Weight::Semibold)),

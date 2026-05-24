@@ -177,7 +177,7 @@ impl View for ExecutionProfileView {
                         .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
                         .with_cross_axis_alignment(CrossAxisAlignment::Center)
                         .with_child(
-                            Text::new(profile.display_name(), appearance.ui_font_family(), 14.)
+                            Text::new(profile.display_name(), appearance.ui_font_family(), appearance.ui_font_subheading())
                                 .with_style(Properties::default().weight(Weight::Medium))
                                 .with_color(if is_any_ai_enabled {
                                     appearance.theme().active_ui_text_color().into()
@@ -196,7 +196,7 @@ impl View for ExecutionProfileView {
                             Text::new(
                                 crate::t!("settings-exec-profile-section-models"),
                                 appearance.ui_font_family(),
-                                10.,
+                                appearance.ui_font_overline(),
                             )
                             .with_color(appearance.theme().disabled_ui_text_color().into())
                             .finish(),
@@ -273,7 +273,7 @@ impl View for ExecutionProfileView {
                                     Text::new(
                                         crate::t!("settings-exec-profile-section-permissions"),
                                         appearance.ui_font_family(),
-                                        10.,
+                                        appearance.ui_font_overline(),
                                     )
                                     .with_color(appearance.theme().disabled_ui_text_color().into())
                                     .finish(),
@@ -484,7 +484,7 @@ where
             Text::new(
                 crate::t!("settings-exec-profile-chips-none"),
                 appearance.ui_font_family(),
-                12.,
+                appearance.ui_font_body(),
             )
             .with_color(appearance.theme().disabled_ui_text_color().into())
             .finish(),
@@ -499,7 +499,7 @@ where
                 .map(|item| {
                     Container::new(
                         Container::new(
-                            Text::new(item, appearance.ui_font_family(), 11.)
+                            Text::new(item, appearance.ui_font_family(), appearance.ui_font_footnote())
                                 .with_color(if is_ai_enabled {
                                     appearance.theme().active_ui_text_color().into()
                                 } else {
@@ -558,7 +558,7 @@ fn render_allowlist_denylist_row(
             )
             .with_child(
                 Container::new(
-                    Text::new(label, appearance.ui_font_family(), 12.)
+                    Text::new(label, appearance.ui_font_family(), appearance.ui_font_body())
                         .with_color(if is_ai_enabled {
                             appearance
                                 .theme()
@@ -661,7 +661,7 @@ fn render_model_line_with_icon(
             )
             .with_child(
                 Container::new(
-                    Text::new(label, appearance.ui_font_family(), 12.)
+                    Text::new(label, appearance.ui_font_family(), appearance.ui_font_body())
                         .with_color(if is_ai_enabled {
                             appearance
                                 .theme()
@@ -676,7 +676,7 @@ fn render_model_line_with_icon(
                 .finish(),
             )
             .with_child(
-                Text::new(model_name, appearance.ui_font_family(), 12.)
+                Text::new(model_name, appearance.ui_font_family(), appearance.ui_font_body())
                     .with_color(if is_ai_enabled {
                         appearance.theme().active_ui_text_color().into()
                     } else {
@@ -722,7 +722,7 @@ fn render_permission_line_with_icon(
         )
         .with_child(
             Container::new(
-                Text::new(label, appearance.ui_font_family(), 12.)
+                Text::new(label, appearance.ui_font_family(), appearance.ui_font_body())
                     .with_color(if is_ai_enabled {
                         appearance
                             .theme()
@@ -737,7 +737,7 @@ fn render_permission_line_with_icon(
             .finish(),
         )
         .with_child(
-            Text::new(permission_text, appearance.ui_font_family(), 12.)
+            Text::new(permission_text, appearance.ui_font_family(), appearance.ui_font_body())
                 .with_color(if is_ai_enabled {
                     appearance.theme().active_ui_text_color().into()
                 } else {

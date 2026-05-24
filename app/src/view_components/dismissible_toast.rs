@@ -397,7 +397,7 @@ impl<A: Action + Clone> DismissibleToast<A> {
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_main_axis_size(MainAxisSize::Min);
 
-        if let Some(icon) = self.render_icon(appearance.ui_font_size() * 1.2, appearance) {
+        if let Some(icon) = self.render_icon(appearance.ui_font_subheading(), appearance) {
             left_aligned.add_child(icon);
         }
 
@@ -407,7 +407,7 @@ impl<A: Action + Clone> DismissibleToast<A> {
                 ui_builder
                     .wrappable_text(self.main_text.clone(), true)
                     .with_style(UiComponentStyles {
-                        font_size: Some(appearance.ui_font_size() * 1.2),
+                        font_size: Some(appearance.ui_font_subheading()),
                         font_color: Some(self.flavor.text_color(appearance)),
                         ..Default::default()
                     })

@@ -222,7 +222,7 @@ pub(super) fn render_completed_todo_items(
             Text::new(
                 completed_text,
                 appearance.ui_font_family(),
-                (appearance.ui_font_size() - 2.) * appearance.monospace_ui_scalar(),
+                appearance.ui_font_footnote() * appearance.monospace_ui_scalar(),
             )
             .with_color(sub_text_color)
             .with_style(Properties::default().weight(appearance.monospace_font_weight()))

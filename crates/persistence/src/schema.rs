@@ -375,6 +375,8 @@ diesel::table! {
         username -> Text,
         auth_type -> Text,
         key_path -> Nullable<Text>,
+        startup_command -> Nullable<Text>,
+        notes -> Nullable<Text>,
         last_connected_at -> Nullable<Timestamp>,
     }
 }

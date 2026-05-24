@@ -617,7 +617,7 @@ impl View for TabConfigParamsModal {
                         Text::new_inline(
                             description.clone(),
                             appearance.ui_font_family(),
-                            appearance.ui_font_size() - 1.,
+                            appearance.ui_font_footnote(),
                         )
                         .with_color(sub_text.into())
                         .finish(),
@@ -635,7 +635,7 @@ impl View for TabConfigParamsModal {
                             Text::new_inline(
                                 format!("Default: {default_value}"),
                                 appearance.ui_font_family(),
-                                appearance.ui_font_size() - 1.,
+                                appearance.ui_font_footnote(),
                             )
                             .with_color(sub_text.into())
                             .finish(),

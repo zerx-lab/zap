@@ -91,6 +91,8 @@ impl SshRepository {
                     username: &info.username,
                     auth_type: info.auth_type.as_db_str(),
                     key_path: info.key_path.as_deref(),
+                    startup_command: info.startup_command.as_deref(),
+                    notes: info.notes.as_deref(),
                 })
                 .execute(conn)?;
             Ok(())
@@ -126,6 +128,8 @@ impl SshRepository {
                 ssh_servers::username.eq(&info.username),
                 ssh_servers::auth_type.eq(info.auth_type.as_db_str()),
                 ssh_servers::key_path.eq(info.key_path.as_deref()),
+                ssh_servers::startup_command.eq(info.startup_command.as_deref()),
+                ssh_servers::notes.eq(info.notes.as_deref()),
             ))
             .execute(conn)?;
         if n == 0 {
@@ -275,6 +279,8 @@ fn server_from_row(r: SshServerRow) -> Result<SshServerInfo, SshRepositoryError>
         username: r.username,
         auth_type: auth,
         key_path: r.key_path,
+        startup_command: r.startup_command,
+        notes: r.notes,
         last_connected_at: r.last_connected_at,
     })
 }
@@ -292,6 +298,9 @@ pub(crate) fn setup_in_memory() -> SqliteConnection {
         ),
         include_str!(
             "../../persistence/migrations/2026-05-04-130000_add_ssh_nodes_is_collapsed/up.sql"
+        ),
+        include_str!(
+            "../../persistence/migrations/2026-05-23-140000_add_startup_command_and_notes/up.sql"
         ),
     ] {
         conn.batch_execute(up).unwrap();
@@ -311,6 +320,8 @@ mod tests {
             username: "root".into(),
             auth_type: AuthType::Password,
             key_path: None,
+            startup_command: None,
+            notes: None,
             last_connected_at: None,
         }
     }

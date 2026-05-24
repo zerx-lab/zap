@@ -22,13 +22,11 @@ use crate::Appearance;
 
 const MODAL_WIDTH: f32 = 700.;
 const BORDER_WIDTH: f32 = 1.;
-const MODAL_TITLE_FONT_SIZE: f32 = 16.;
 const MODAL_UNIFORM_PADDING: f32 = 24.;
 const CORNER_RADIUS_PIXELS: f32 = 8.;
 const PRIMARY_BUTTON_HEIGHT: f32 = 40.;
 const SECTION_UNIFORM_PADDING: f32 = 16.;
 const MARGIN_BETWEEN_MODAL_SECTIONS: f32 = 16.;
-const MODAL_CONTENT_FONT_SIZE: f32 = 14.;
 const RESTORE_DEFAULT_LABEL: &str = "Restore default";
 
 /// Mouse state handles for interactive controls in chip editor sections and modals.
@@ -129,7 +127,7 @@ fn render_header(title: &str, appearance: &Appearance) -> Box<dyn Element> {
         .ui_builder()
         .span(title.to_string())
         .with_style(UiComponentStyles {
-            font_size: Some(MODAL_TITLE_FONT_SIZE),
+            font_size: Some(appearance.ui_font_heading_3()),
             font_weight: Some(warpui::fonts::Weight::Bold),
             ..Default::default()
         })
@@ -148,7 +146,7 @@ fn render_restore_default_button<A: Action + Clone + Copy + 'static>(
             .ui_builder()
             .span(RESTORE_DEFAULT_LABEL.to_string())
             .with_style(UiComponentStyles {
-                font_size: Some(MODAL_CONTENT_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 ..Default::default()
             })
             .build()
@@ -169,7 +167,7 @@ fn render_section_label(label: &str, appearance: &Appearance) -> Box<dyn Element
         .ui_builder()
         .span(label.to_string())
         .with_style(UiComponentStyles {
-            font_size: Some(MODAL_CONTENT_FONT_SIZE),
+            font_size: Some(appearance.ui_font_subheading()),
             font_weight: Some(warpui::fonts::Weight::Semibold),
             ..Default::default()
         })
@@ -273,7 +271,7 @@ fn render_primary_button<A: Action + Clone + Copy + 'static>(
         .with_text_label(label)
         .with_style(UiComponentStyles {
             padding: Some(padding),
-            font_size: Some(MODAL_CONTENT_FONT_SIZE),
+            font_size: Some(appearance.ui_font_subheading()),
             ..Default::default()
         });
 

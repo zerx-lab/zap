@@ -1,0 +1,2 @@
+ALTER TABLE ssh_servers ADD COLUMN startup_command TEXT DEFAULT NULL;
+ALTER TABLE ssh_servers ADD COLUMN notes TEXT DEFAULT NULL;

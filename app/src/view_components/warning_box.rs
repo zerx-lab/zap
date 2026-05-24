@@ -82,7 +82,7 @@ impl WarningBoxConfig {
 
 pub fn render_warning_box(config: WarningBoxConfig, appearance: &Appearance) -> Box<dyn Element> {
     let theme = appearance.theme();
-    let icon_size = appearance.ui_font_size() * 1.1;
+    let icon_size = appearance.ui_font_body_large();
 
     let warning_color = theme.ui_warning_color();
 
@@ -115,7 +115,7 @@ pub fn render_warning_box(config: WarningBoxConfig, appearance: &Appearance) -> 
             Text::new(
                 description,
                 appearance.ui_font_family(),
-                appearance.ui_font_size() * 0.9,
+                appearance.ui_font_footnote(),
             )
             .with_color(text_color)
             .soft_wrap(true)

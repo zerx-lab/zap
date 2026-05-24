@@ -28,7 +28,6 @@ const INPUT_PADDING_VERTICAL: f32 = 10.;
 const BORDER_RADIUS_SMALL: f32 = 4.;
 const BORDER_RADIUS_LARGE: f32 = 8.;
 const BORDER_WIDTH: f32 = 1.;
-const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_PADDING: f32 = 12.;
 const BUTTON_MARGIN_BETWEEN: f32 = 8.;
 
@@ -177,7 +176,7 @@ impl ObjectNamingDialog {
 
     fn render_action_buttons(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let default_button_styles = UiComponentStyles {
-            font_size: Some(BUTTON_FONT_SIZE),
+            font_size: Some(appearance.ui_font_subheading()),
             font_family_id: Some(appearance.ui_font_family()),
             font_color: Some(
                 appearance
@@ -252,7 +251,7 @@ impl ObjectNamingDialog {
                             .ui_builder()
                             .button(ButtonVariant::Secondary, self.cancel_mouse_state.clone())
                             .with_style(UiComponentStyles {
-                                font_size: Some(BUTTON_FONT_SIZE),
+                                font_size: Some(appearance.ui_font_subheading()),
                                 font_weight: Some(Weight::Bold),
                                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                                 ..Default::default()

@@ -148,7 +148,6 @@ const CORE_HORIZONATAL_MARGIN: f32 = 24.;
 const CORE_VERTICAL_MARGIN_IN_PANE: f32 = 36.;
 
 const SECTION_SPACING: f32 = 16.;
-const SECTION_FONT_SIZE: f32 = 16.;
 
 const DETAIL_TEXT_MARGIN_LEFT: f32 = 12.;
 const DETAIL_BOX_PADDING_TOP_AND_LEFT: f32 = 12.;
@@ -161,10 +160,9 @@ const COMMAND_MARGIN_TOP: f32 = 20.;
 const VERTICAL_TEXT_INPUT_PADDING: f32 = 5.;
 const HORIZONTAL_TEXT_INPUT_PADDING: f32 = 10.;
 
-const EDITOR_FONT_SIZE: f32 = 14.;
 
+pub(super) const EDITOR_FONT_SIZE: f32 = 14.;
 const BUTTON_PADDING: f32 = 12.;
-const BUTTON_FONT_SIZE: f32 = 14.;
 const BUTTON_BORDER_RADIUS: f32 = 4.;
 const BUTTON_HEIGHT: f32 = 32.;
 
@@ -352,6 +350,8 @@ impl WorkflowView {
         let header_font_size = appearance.header_font_size();
         let ui_font_family = appearance.ui_font_family();
         let monospace_font_family = appearance.monospace_font_family();
+        let description_font_size = appearance.ui_font_subheading();
+        let steps_font_size = appearance.ui_font_subheading();
 
         let name_editor = Self::create_editor_handle(
             ctx,
@@ -365,7 +365,7 @@ impl WorkflowView {
 
         let description_editor = Self::create_editor_handle(
             ctx,
-            Some(EDITOR_FONT_SIZE),
+            Some(description_font_size),
             Some(ui_font_family),
             Some(crate::t!("workflow-description-input-placeholder")),
             false,
@@ -375,7 +375,7 @@ impl WorkflowView {
 
         let content_editor = Self::create_editor_handle(
             ctx,
-            Some(EDITOR_FONT_SIZE),
+            Some(steps_font_size),
             Some(monospace_font_family),
             Some(COMMAND_PLACEHOLDER_TEXT),
             true,
@@ -385,7 +385,7 @@ impl WorkflowView {
 
         let view_only_content_editor = Self::create_editor_handle(
             ctx,
-            Some(EDITOR_FONT_SIZE),
+            Some(steps_font_size),
             Some(monospace_font_family),
             Some(COMMAND_PLACEHOLDER_TEXT),
             true,
@@ -2198,7 +2198,7 @@ impl WorkflowView {
                 .ui_builder()
                 .span(text.into())
                 .with_style(UiComponentStyles {
-                    font_size: Some(SECTION_FONT_SIZE),
+                    font_size: Some(appearance.ui_font_heading_3()),
                     font_weight: Some(Weight::Bold),
                     ..Default::default()
                 })
@@ -2282,7 +2282,7 @@ impl WorkflowView {
                 self.ui_state_handles.keep_editing_state.clone(),
             )
             .with_style(UiComponentStyles {
-                font_size: Some(BUTTON_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 font_weight: Some(Weight::Bold),
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
@@ -2302,7 +2302,7 @@ impl WorkflowView {
                 self.ui_state_handles.discard_changes_state.clone(),
             )
             .with_style(UiComponentStyles {
-                font_size: Some(BUTTON_FONT_SIZE),
+                font_size: Some(appearance.ui_font_subheading()),
                 font_weight: Some(Weight::Bold),
                 padding: Some(Coords::uniform(BUTTON_PADDING)),
                 ..Default::default()
@@ -2341,7 +2341,7 @@ impl WorkflowView {
         appearance: &Appearance,
     ) -> Button {
         let default_button_styles = UiComponentStyles {
-            font_size: Some(BUTTON_FONT_SIZE),
+            font_size: Some(appearance.ui_font_subheading()),
             border_radius: Some(CornerRadius::with_all(Radius::Pixels(BUTTON_BORDER_RADIUS))),
             ..Default::default()
         };
@@ -2803,7 +2803,7 @@ impl WorkflowView {
                             .ui_builder()
                             .span(text)
                             .with_style(UiComponentStyles {
-                                font_size: Some(appearance.ui_font_size() + 2.),
+                                font_size: Some(appearance.ui_font_subheading()),
                                 ..Default::default()
                             })
                             .build()
