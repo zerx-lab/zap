@@ -12,8 +12,8 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::types::{AuthType, NodeKind, SshNode, SshServerInfo};
-use persistence::model::{NewSshNode, NewSshServer, SshNodeRow, SshServerRow};
-use persistence::schema::{ssh_nodes, ssh_servers};
+use persistence::model::{NewSshNode, NewSshServer, NewSyncMeta, SshNodeRow, SshServerRow, SyncMetaRow};
+use persistence::schema::{ssh_nodes, ssh_servers, sync_meta};
 
 #[derive(Debug, Error)]
 pub enum SshRepositoryError {
@@ -62,6 +62,7 @@ impl SshRepository {
                 sort_order: sort,
             })
             .execute(conn)?;
+        let _ = Self::increment_sync_version(conn);
         Self::get_node(conn, &id)
     }
 
@@ -97,6 +98,7 @@ impl SshRepository {
                 .execute(conn)?;
             Ok(())
         })?;
+        let _ = Self::increment_sync_version(conn);
         Self::get_node(conn, &id)
     }
 
@@ -114,6 +116,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -138,6 +141,7 @@ impl SshRepository {
         diesel::update(ssh_nodes::table.find(&info.node_id))
             .set(ssh_nodes::updated_at.eq(Utc::now().naive_utc()))
             .execute(conn)?;
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -151,6 +155,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -171,6 +176,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -213,6 +219,74 @@ impl SshRepository {
                 ssh_nodes::is_collapsed.eq(collapsed),
                 ssh_nodes::updated_at.eq(Utc::now().naive_utc()),
             ))
+            .execute(conn)?;
+        Ok(())
+    }
+
+    /// 获取同步版本号
+    pub fn get_sync_version(conn: &mut SqliteConnection) -> Result<i64, SshRepositoryError> {
+        let row: Option<SyncMetaRow> = sync_meta::table
+            .find("sync_version")
+            .first(conn)
+            .optional()?;
+        Ok(row.and_then(|r| r.value.parse().ok()).unwrap_or(0))
+    }
+
+    /// 递增同步版本号并返回新值
+    pub fn increment_sync_version(conn: &mut SqliteConnection) -> Result<i64, SshRepositoryError> {
+        let current = Self::get_sync_version(conn)?;
+        let new_version = current + 1;
+        let val = new_version.to_string();
+        diesel::replace_into(sync_meta::table)
+            .values(NewSyncMeta {
+                key: "sync_version",
+                value: &val,
+            })
+            .execute(conn)?;
+        Ok(new_version)
+    }
+
+    /// 设置同步版本号
+    pub fn set_sync_version(conn: &mut SqliteConnection, version: i64) -> Result<(), SshRepositoryError> {
+        let val = version.to_string();
+        diesel::replace_into(sync_meta::table)
+            .values(NewSyncMeta {
+                key: "sync_version",
+                value: &val,
+            })
+            .execute(conn)?;
+        Ok(())
+    }
+
+    /// 获取上次同步时间
+    pub fn get_last_sync_time(conn: &mut SqliteConnection) -> Result<String, SshRepositoryError> {
+        let row: Option<SyncMetaRow> = sync_meta::table
+            .find("last_sync_time")
+            .first(conn)
+            .optional()?;
+        Ok(row.map(|r| r.value).unwrap_or_default())
+    }
+
+    /// 获取上次同步平台
+    pub fn get_last_sync_platform(conn: &mut SqliteConnection) -> Result<String, SshRepositoryError> {
+        let row: Option<SyncMetaRow> = sync_meta::table
+            .find("last_sync_platform")
+            .first(conn)
+            .optional()?;
+        Ok(row.map(|r| r.value).unwrap_or_default())
+    }
+
+    /// 更新同步元数据
+    pub fn update_sync_meta(
+        conn: &mut SqliteConnection,
+        last_time: &str,
+        last_platform: &str,
+    ) -> Result<(), SshRepositoryError> {
+        diesel::replace_into(sync_meta::table)
+            .values(&[
+                NewSyncMeta { key: "last_sync_time", value: last_time },
+                NewSyncMeta { key: "last_sync_platform", value: last_platform },
+            ])
             .execute(conn)?;
         Ok(())
     }
