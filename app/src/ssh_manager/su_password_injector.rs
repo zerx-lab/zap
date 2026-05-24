@@ -28,11 +28,12 @@ lazy_static! {
         Regex::new(r"(?im)(password|密码)[^\n]*[:\xef\xbc\x9a]?\s*$")
             .expect("su password prompt regex must compile");
 
-    /// su 命令正则 — 匹配目标为 root 的 su 命令:
-    /// `su` / `su -` / `su root` / `su - root` / `su -root` / `su -l root`
-    /// 不匹配: `su lg` / `sudo` / `su - lg`
+    /// su 命令正则 — 匹配目标为 root 的 su 命令(行尾):
+    /// `su` / `su -` / `su -l` / `su --login` / `su root` / `su - root` /
+    /// `su -l root` / `su --login root`。不匹配 `su lg` / `su - lg` 等切到
+    /// 其他用户的形式;`sudo su` 因 `\bsu` 单词边界仍能命中尾部的 `su`。
     static ref SU_ROOT_CMD_REGEX: Regex =
-        Regex::new(r"(?m)\bsu(?:\s+(?:-[l-]\s*)?root|\s+-[l-]?)?\s*$")
+        Regex::new(r"(?m)\bsu(?:\s+(?:-l?|--login|-))*(?:\s+root)?\s*$")
             .expect("su root cmd regex must compile");
 }
 
@@ -97,6 +98,10 @@ pub fn spawn_su_password_injector<O>(
         }
     };
 
+    // on_done 必须把 in_flight 复位:阶段 1(等 shell prompt)若超时/EOF 直接
+    // `return` 退出 stream,此时尚未走过 on_item,若不在 on_done 里复位,
+    // OneKey 在该终端会被永久挡住。
+    let terminal_view_done = terminal_view.clone();
     let _ = ctx.spawn_stream_local(
         prompt_stream,
         move |_owner, (), ctx| {
@@ -109,7 +114,13 @@ pub fn spawn_su_password_injector<O>(
                 view.set_ssh_secret_auto_injection_in_flight(false);
             });
         },
-        |_, _| {},
+        move |_owner, ctx| {
+            if let Some(view) = terminal_view_done.upgrade(ctx) {
+                view.update(ctx, |view, _| {
+                    view.set_ssh_secret_auto_injection_in_flight(false);
+                });
+            }
+        },
     );
 }
 

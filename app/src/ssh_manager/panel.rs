@@ -284,6 +284,7 @@ impl SshManagerPanel {
         let store = KeychainSecretStore;
         let _ = store.delete(&id, SecretKind::Password);
         let _ = store.delete(&id, SecretKind::Passphrase);
+        let _ = store.delete(&id, SecretKind::RootPassword);
 
         self.selected_id = None;
         self.refresh_tree(ctx);
