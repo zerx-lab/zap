@@ -9,7 +9,13 @@ use super::{builder::UiBuilder, theme::WarpTheme};
 const HEADER_FONT_SIZE: f32 = 18.;
 const OVERLINE_FONT_SIZE: f32 = 10.;
 
+/// 默认 UI 字号(基准值)。其他语义化字号方法都以此为标尺按比例缩放。
 pub const DEFAULT_UI_FONT_SIZE: f32 = 12.0;
+/// UI 字号合法下界(设置 UI / `set_ui_font_size` 调用方应在此与 `UI_FONT_SIZE_MAX` 间 clamp)。
+pub const UI_FONT_SIZE_MIN: f32 = 8.0;
+/// UI 字号合法上界。
+pub const UI_FONT_SIZE_MAX: f32 = 20.0;
+
 pub const DEFAULT_COMMAND_PALETTE_FONT_SIZE: f32 = 14.0;
 
 /// Holds visual settings that are so widely used that it's best
@@ -361,6 +367,9 @@ impl Appearance {
         self.ui_font_size * OVERLINE_FONT_SIZE / DEFAULT_UI_FONT_SIZE
     }
 
+    /// 语义化字号: overline。与 [`Self::overline_font_size`] 等价，
+    /// 但字面量不再被外部常量耦合，推荐新调用点使用本方法，
+    /// `overline_font_size` 逐步作为历史调用点保留。
     pub fn ui_font_overline(&self) -> f32 {
         self.ui_font_size * 10.0 / DEFAULT_UI_FONT_SIZE
     }

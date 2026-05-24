@@ -31,7 +31,8 @@ use crate::settings::{
     respect_system_theme, AIFontName, AppEditorSettings, CursorBlink, CursorBlinkEnabled,
     EnforceMinimumContrast, FocusPaneOnHover, FontSettings, FontSettingsChangedEvent, InputBoxType,
     InputModeSettings, InputModeState, MonospaceFontName, PaneSettings, ShouldDimInactivePanes,
-    ThemeSettings, UiFontName, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME,
+    ThemeSettings, UiFontName, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME, UI_FONT_SIZE_MAX,
+    UI_FONT_SIZE_MIN,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
 use crate::terminal::block_list_viewport::InputMode;
@@ -769,7 +770,7 @@ impl AppearanceSettingsPageView {
         );
 
         let ui_font_size_editor = Self::editor(
-            |_me, _event, _ctx| {},
+            |me, event, ctx| me.handle_ui_font_size_editor_event(event, ctx),
             &format!("{ui_font_size_setting}"),
             ui_font_size,
             ctx,
@@ -1795,6 +1796,18 @@ impl AppearanceSettingsPageView {
         }
     }
 
+    pub fn handle_ui_font_size_editor_event(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => self.set_ui_font_size_setting(ctx),
+            EditorEvent::Escape => ctx.emit(SettingsPageEvent::FocusModal),
+            _ => {}
+        }
+    }
+
     pub fn handle_line_editor_event(&mut self, event: &EditorEvent, ctx: &mut ViewContext<Self>) {
         match event {
             EditorEvent::Blurred | EditorEvent::Enter => self.set_line_height_ratio(ctx),
@@ -2280,7 +2293,7 @@ impl AppearanceSettingsPageView {
     fn set_ui_font_size_setting(&mut self, ctx: &mut ViewContext<Self>) {
         let user_input = self.ui_font_size_editor.as_ref(ctx).buffer_text(ctx);
         if let Ok(num) = user_input.parse::<f32>() {
-            let clamped = num.clamp(8.0, 20.0);
+            let clamped = num.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX);
             FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
                 report_if_error!(font_settings.ui_font_size.set_value(clamped, ctx));
             });

@@ -1,4 +1,10 @@
 use warp_core::ui::builder::MIN_FONT_SIZE;
+
+// 重导出底层 warp_core 定义的 UI 字号常量,
+// 使 `crate::settings::DEFAULT_UI_FONT_SIZE` / `UI_FONT_SIZE_MIN` / `UI_FONT_SIZE_MAX` 仍可用。
+pub use warp_core::ui::appearance::{
+    DEFAULT_UI_FONT_SIZE, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
+};
 use warpui::{fonts::Weight, rendering::ThinStrokes, AppContext, SingletonEntity};
 
 use settings::{
@@ -13,9 +19,6 @@ pub const DEFAULT_MONOSPACE_FONT_SIZE: f32 = 13.0;
 pub const DEFAULT_MONOSPACE_FONT_WEIGHT: Weight = Weight::Normal;
 
 pub const DEFAULT_UI_FONT_NAME: &str = "";
-pub const DEFAULT_UI_FONT_SIZE: f32 = 12.0;
-pub const UI_FONT_SIZE_MIN: f32 = 8.0;
-pub const UI_FONT_SIZE_MAX: f32 = 20.0;
 
 define_settings_group!(FontSettings,
     settings: [
