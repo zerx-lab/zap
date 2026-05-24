@@ -565,6 +565,7 @@ settings-section-shared-blocks = 共享命令块
 settings-section-warp-drive = Zap Drive
 settings-section-warpify = Warpify
 settings-section-network = 网络
+settings-section-cloud-sync = 云同步
 settings-section-ai = AI
 settings-section-warp-agent = Zap 智能体
 settings-section-agent-profiles = 配置

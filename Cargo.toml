@@ -80,6 +80,7 @@ warp_ripgrep = { path = "crates/warp_ripgrep" }
 warp_ssh_manager = { path = "crates/warp_ssh_manager" }
 warp_terminal = { path = "crates/warp_terminal" }
 warp_util = { path = "crates/warp_util" }
+zap_sync = { path = "crates/zap_sync" }
 warp_web_event_bus = { path = "crates/warp_web_event_bus" }
 warpui = { path = "crates/warpui" }
 warpui_core = { path = "crates/warpui_core" }

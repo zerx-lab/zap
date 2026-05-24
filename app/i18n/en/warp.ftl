@@ -575,6 +575,7 @@ settings-section-shared-blocks = Shared blocks
 settings-section-warp-drive = Zap Drive
 settings-section-warpify = Warpify
 settings-section-network = Network
+settings-section-cloud-sync = Cloud Sync
 settings-section-ai = AI
 settings-section-warp-agent = Zap Agent
 settings-section-agent-profiles = Profiles

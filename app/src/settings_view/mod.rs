@@ -68,6 +68,7 @@ mod agent_providers_widget;
 mod ai_page;
 mod appearance_page;
 mod code_page;
+mod cloud_sync_page;
 mod directory_color_add_picker;
 mod execution_profile_view;
 mod features;
@@ -189,6 +190,8 @@ pub enum SettingsSection {
     /// removed.
     Code,
     EditorAndCodeReview,
+    /// 云同步设置页。
+    CloudSync,
     // Zap Wave 3-1:`OzCloudAPIKeys` enum variant 随 Zap Inc API key 管理 UI
     // 一同物理删。
     // Zap Wave 7-3:`CloudEnvironments` 随 ambient-agent UI 子系统物理删。
@@ -220,6 +223,7 @@ impl Display for SettingsSection {
             SettingsSection::EditorAndCodeReview => {
                 crate::t!("settings-section-editor-and-code-review")
             }
+            SettingsSection::CloudSync => crate::t!("settings-section-cloud-sync"),
             // 代理设置页面。i18n key `settings-section-network` 已在 en / zh-CN / ja 三种语言中齐全。
             SettingsSection::Network => crate::t!("settings-section-network"),
             // Zap Wave 3-1:`OzCloudAPIKeys` Display arm 随 variant 一同物理删。
@@ -300,6 +304,7 @@ impl FromStr for SettingsSection {
             "Third party CLI agents" | "ThirdPartyCLIAgents" => Ok(Self::ThirdPartyCLIAgents),
             "Editor and Code Review" | "EditorAndCodeReview" => Ok(Self::EditorAndCodeReview),
             "Network" | "网络" => Ok(Self::Network),
+            "CloudSync" | "Cloud Sync" | "云同步" => Ok(Self::CloudSync),
             // Zap Wave 3-1:`OzCloudAPIKeys` 随 UI 一同物理删。
             // Zap Wave 7-3:`CloudEnvironments` FromStr arm 随 variant 物理删。
             _ => Err(()),
@@ -766,6 +771,7 @@ pub enum SettingsAction {
     AI(AISettingsPageAction),
     Code(CodeSettingsPageAction),
     ZapDrive(warp_drive_page::WarpDriveSettingsPageAction),
+    CloudSync(cloud_sync_page::CloudSyncPageAction),
     WarpifyPageToggle(WarpifyPageAction),
     Tab,
     Split(Direction),
@@ -920,6 +926,7 @@ macro_rules! update_page {
             SettingsPageViewHandle::ZapDrive(handle) => $ctx.update_view(handle, $update),
             // Issue #72: 全局 HTTP 代理设置页。
             SettingsPageViewHandle::Network(handle) => $ctx.update_view(handle, $update),
+            SettingsPageViewHandle::CloudSync(handle) => $ctx.update_view(handle, $update),
         }
     };
 }
@@ -1027,6 +1034,10 @@ impl SettingsView {
         // Network (HTTP 代理) 设置页。受 FeatureFlag::HttpProxySettings 门控。
         let network_page_handle = ctx.add_typed_action_view(network_page::NetworkPageView::new);
 
+        // Cloud Sync 设置页。
+        let cloud_sync_page_handle =
+            ctx.add_typed_action_view(cloud_sync_page::CloudSyncPageView::new);
+
         let font_family = Appearance::as_ref(ctx).ui_font_family();
         let search_editor = ctx.add_typed_action_view(|ctx| {
             let options = SingleLineEditorOptions {
@@ -1076,6 +1087,8 @@ impl SettingsView {
             settings_pages.push(SettingsPage::new(network_page_handle));
         }
 
+        settings_pages.push(SettingsPage::new(cloud_sync_page_handle));
+
         // 去中心化分支:本地模式下移除所有云端账号 / 计费 / 团队 / 同步 / 分享相关的
         // 设置入口。
         let mut nav_items = vec![
@@ -1088,6 +1101,7 @@ impl SettingsView {
             SettingsNavItem::Page(SettingsSection::Features),
             SettingsNavItem::Page(SettingsSection::Keybindings),
             SettingsNavItem::Page(SettingsSection::Warpify),
+            SettingsNavItem::Page(SettingsSection::CloudSync),
             SettingsNavItem::Page(SettingsSection::About),
         ];
 
@@ -1687,6 +1701,7 @@ impl SettingsView {
             SettingsPageViewHandle::ZapDrive(v) => v.as_ref(app).should_render(app),
             // Issue #72: 全局 HTTP 代理设置页。
             SettingsPageViewHandle::Network(v) => v.as_ref(app).should_render(app),
+            SettingsPageViewHandle::CloudSync(v) => v.as_ref(app).should_render(app),
         }
     }
 
@@ -2247,6 +2262,15 @@ impl TypedActionView for SettingsView {
                     if let SettingsPageViewHandle::ZapDrive(view) = &warp_drive_page.view_handle {
                         view.update(ctx, |view, ctx| {
                             view.handle_action(warp_drive_action, ctx);
+                        })
+                    }
+                }
+            }
+            SettingsAction::CloudSync(cloud_sync_action) => {
+                if let Some(cloud_sync_page) = self.settings_page(SettingsSection::CloudSync) {
+                    if let SettingsPageViewHandle::CloudSync(view) = &cloud_sync_page.view_handle {
+                        view.update(ctx, |view, ctx| {
+                            view.handle_action(cloud_sync_action, ctx);
                         })
                     }
                 }
