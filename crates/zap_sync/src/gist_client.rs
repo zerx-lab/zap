@@ -3,34 +3,188 @@
 // author: logic
 // date: 2026-05-24
 
+use crate::types::{GistDetail, GistEntry, SyncPlatform};
+use reqwest::Client;
+use serde_json::json;
+use thiserror::Error;
+
+const GIST_DESCRIPTION: &str = "ZAP_CONFIG";
+const GIST_FILENAME: &str = "zap_config.json";
+
 /// Gist API 客户端错误
-#[derive(Debug)]
-pub struct GistClientError {
-    pub message: String,
+#[derive(Debug, Error)]
+pub enum GistClientError {
+    #[error("网络请求失败: {0}")]
+    Request(#[from] reqwest::Error),
+    #[error("Gist 未找到")]
+    NotFound,
+    #[error("Token 未配置")]
+    NoToken,
+    #[error("API 错误: {status} {body}")]
+    Api { status: u16, body: String },
 }
 
-impl std::fmt::Display for GistClientError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.message)
-    }
-}
-
-impl std::error::Error for GistClientError {}
-
-/// Gist API 客户端（将在后续任务中实现）
+/// Gist API 客户端，支持 GitHub 和 Gitee
 pub struct GistClient {
-    _placeholder: (),
+    client: Client,
 }
 
 impl GistClient {
-    /// 占位构造函数
+    /// 创建新的 GistClient 实例
     pub fn new() -> Self {
-        Self { _placeholder: () }
+        Self {
+            client: Client::builder()
+                .user_agent("Zap-Terminal")
+                .build()
+                .unwrap_or_default(),
+        }
     }
-}
 
-impl Default for GistClient {
-    fn default() -> Self {
-        Self::new()
+    /// 构建 Bearer 认证头
+    fn auth_header(token: &str) -> String {
+        format!("Bearer {token}")
+    }
+
+    /// 查找 description 为 ZAP_CONFIG 的 Gist，返回其 ID
+    pub async fn find_gist(
+        &self,
+        platform: SyncPlatform,
+        token: &str,
+    ) -> Result<Option<String>, GistClientError> {
+        if token.is_empty() {
+            return Err(GistClientError::NoToken);
+        }
+        let url = format!("{}/gists", platform.base_url());
+        let resp = self
+            .client
+            .get(&url)
+            .header("Authorization", Self::auth_header(token))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(GistClientError::Api {
+                status: resp.status().as_u16(),
+                body: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        let gists: Vec<GistEntry> = resp.json().await?;
+        let found = gists
+            .iter()
+            .find(|g| g.description.as_deref() == Some(GIST_DESCRIPTION));
+        Ok(found.map(|g| g.id.clone()))
+    }
+
+    /// 创建新 Gist
+    pub async fn create_gist(
+        &self,
+        platform: SyncPlatform,
+        token: &str,
+        content: &str,
+    ) -> Result<String, GistClientError> {
+        if token.is_empty() {
+            return Err(GistClientError::NoToken);
+        }
+        let url = format!("{}/gists", platform.base_url());
+        let body = json!({
+            "description": GIST_DESCRIPTION,
+            "public": false,
+            "files": {
+                GIST_FILENAME: {
+                    "content": content
+                }
+            }
+        });
+        let resp = self
+            .client
+            .post(&url)
+            .header("Authorization", Self::auth_header(token))
+            .json(&body)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(GistClientError::Api {
+                status: resp.status().as_u16(),
+                body: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        let detail: GistDetail = resp.json().await?;
+        Ok(detail.id)
+    }
+
+    /// 更新已有 Gist
+    pub async fn update_gist(
+        &self,
+        platform: SyncPlatform,
+        token: &str,
+        gist_id: &str,
+        content: &str,
+    ) -> Result<(), GistClientError> {
+        if token.is_empty() {
+            return Err(GistClientError::NoToken);
+        }
+        let url = format!("{}/gists/{gist_id}", platform.base_url());
+        let body = json!({
+            "description": GIST_DESCRIPTION,
+            "files": {
+                GIST_FILENAME: {
+                    "content": content
+                }
+            }
+        });
+        let resp = self
+            .client
+            .patch(&url)
+            .header("Authorization", Self::auth_header(token))
+            .json(&body)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(GistClientError::Api {
+                status: resp.status().as_u16(),
+                body: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// 获取 Gist 文件内容
+    pub async fn get_gist_content(
+        &self,
+        platform: SyncPlatform,
+        token: &str,
+        gist_id: &str,
+    ) -> Result<String, GistClientError> {
+        if token.is_empty() {
+            return Err(GistClientError::NoToken);
+        }
+        let url = format!("{}/gists/{gist_id}", platform.base_url());
+        let resp = self
+            .client
+            .get(&url)
+            .header("Authorization", Self::auth_header(token))
+            .send()
+            .await?;
+
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(GistClientError::NotFound);
+        }
+        if !resp.status().is_success() {
+            return Err(GistClientError::Api {
+                status: resp.status().as_u16(),
+                body: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        let detail: serde_json::Value = resp.json().await?;
+        let content = detail["files"][GIST_FILENAME]["content"]
+            .as_str()
+            .ok_or(GistClientError::NotFound)?;
+        Ok(content.to_string())
     }
 }
