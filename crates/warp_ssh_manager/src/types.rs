@@ -72,6 +72,8 @@ pub struct SshServerInfo {
     pub auth_type: AuthType,
     /// auth_type=Key 时使用,绝对路径或 `~` 开头(由调用方 `shellexpand`)。
     pub key_path: Option<String>,
+    pub startup_command: Option<String>,
+    pub notes: Option<String>,
     pub last_connected_at: Option<NaiveDateTime>,
 }
 
@@ -84,6 +86,8 @@ impl SshServerInfo {
             username: String::new(),
             auth_type: AuthType::Password,
             key_path: None,
+            startup_command: None,
+            notes: None,
             last_connected_at: None,
         }
     }

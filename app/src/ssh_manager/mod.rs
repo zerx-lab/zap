@@ -9,6 +9,8 @@ pub mod panel;
 pub mod password_prompt;
 pub mod secret_injector;
 pub mod server_view;
+pub mod startup_command_injector;
+pub mod su_password_injector;
 
 pub use notifier::{SshTreeChangedEvent, SshTreeChangedNotifier};
 pub use panel::SshManagerPanel;

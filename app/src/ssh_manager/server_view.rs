@@ -74,6 +74,9 @@ pub struct SshServerView {
     user_editor: ViewHandle<EditorView>,
     password_editor: ViewHandle<EditorView>,
     key_path_editor: ViewHandle<EditorView>,
+    root_password_editor: ViewHandle<EditorView>,
+    startup_command_editor: ViewHandle<EditorView>,
+    notes_editor: ViewHandle<EditorView>,
 
     /// 当前选中的认证方式。Save 按钮提交此值到 DB。
     auth_type: AuthType,
@@ -97,6 +100,9 @@ impl SshServerView {
         let user_editor = make_editor(false, "root", ctx);
         let password_editor = make_editor(true, "•••••••", ctx);
         let key_path_editor = make_editor(false, "/home/user/.ssh/id_ed25519", ctx);
+        let root_password_editor = make_editor(true, &crate::t!("workspace-left-panel-ssh-manager-root-password-placeholder"), ctx);
+        let startup_command_editor = make_editor(false, &crate::t!("workspace-left-panel-ssh-manager-startup-command-placeholder"), ctx);
+        let notes_editor = make_editor(false, &crate::t!("workspace-left-panel-ssh-manager-notes-placeholder"), ctx);
 
         let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("SSH server"));
 
@@ -112,6 +118,9 @@ impl SshServerView {
             user_editor,
             password_editor,
             key_path_editor,
+            root_password_editor,
+            startup_command_editor,
+            notes_editor,
             auth_type: AuthType::Password,
             save_btn_state: MouseStateHandle::default(),
             connect_btn_state: MouseStateHandle::default(),
@@ -132,6 +141,9 @@ impl SshServerView {
             me.user_editor.clone(),
             me.password_editor.clone(),
             me.key_path_editor.clone(),
+            me.root_password_editor.clone(),
+            me.startup_command_editor.clone(),
+            me.notes_editor.clone(),
         ];
         for editor in editors {
             ctx.subscribe_to_view(&editor, |me, source, event, ctx| match event {
@@ -172,6 +184,9 @@ impl SshServerView {
             self.user_editor.clone(),
             self.password_editor.clone(),
             self.key_path_editor.clone(),
+            self.root_password_editor.clone(),
+            self.startup_command_editor.clone(),
+            self.notes_editor.clone(),
         ];
         for editor in all {
             if editor != *active {
@@ -238,6 +253,29 @@ impl SshServerView {
             // 这里直接清空 buffer,密码保留在 keychain 里;Save 时只在 buffer 非空才写。
             self.password_editor
                 .update(ctx, |e, ctx| e.set_buffer_text("", ctx));
+            let startup_command = srv.startup_command.clone().unwrap_or_default();
+            self.startup_command_editor
+                .update(ctx, |e, ctx| e.set_buffer_text(&startup_command, ctx));
+            let notes = srv.notes.clone().unwrap_or_default();
+            self.notes_editor
+                .update(ctx, |e, ctx| e.set_buffer_text(&notes, ctx));
+            // Root 密码:检测 keychain 是否已保存,已保存时显示占位提示。
+            let root_pw_saved = KeychainSecretStore
+                .get(&srv.node_id, SecretKind::RootPassword)
+                .unwrap_or(None)
+                .is_some();
+            self.root_password_editor
+                .update(ctx, |e, ctx| {
+                    e.set_buffer_text("", ctx);
+                    if root_pw_saved {
+                        e.set_placeholder_text("●●●●●●●", ctx);
+                    } else {
+                        e.set_placeholder_text(
+                            &crate::t!("workspace-left-panel-ssh-manager-root-password-placeholder"),
+                            ctx,
+                        );
+                    }
+                });
         }
 
         // `set_buffer_text` 默认让所有 editor 处于"全选"状态(buffer 替换 +
@@ -249,6 +287,9 @@ impl SshServerView {
             self.user_editor.clone(),
             self.password_editor.clone(),
             self.key_path_editor.clone(),
+            self.root_password_editor.clone(),
+            self.startup_command_editor.clone(),
+            self.notes_editor.clone(),
         ];
         for editor in editors {
             editor.update(ctx, |e, ctx| e.clear_selections(ctx));
@@ -269,6 +310,9 @@ impl SshServerView {
         let user = self.current_text(&self.user_editor.clone(), ctx);
         let password = self.current_text(&self.password_editor.clone(), ctx);
         let key_path_text = self.current_text(&self.key_path_editor.clone(), ctx);
+        let root_password = self.current_text(&self.root_password_editor.clone(), ctx);
+        let startup_command_text = self.current_text(&self.startup_command_editor.clone(), ctx);
+        let notes_text = self.current_text(&self.notes_editor.clone(), ctx);
 
         let name = name.trim().to_string();
         if name.is_empty() {
@@ -302,6 +346,8 @@ impl SshServerView {
             } else {
                 Some(key_path)
             },
+            startup_command: if startup_command_text.trim().is_empty() { None } else { Some(startup_command_text.trim().to_string()) },
+            notes: if notes_text.trim().is_empty() { None } else { Some(notes_text.trim().to_string()) },
             last_connected_at: self.server.as_ref().and_then(|s| s.last_connected_at),
         };
 
@@ -340,6 +386,18 @@ impl SshServerView {
                 .update(ctx, |e, ctx| e.set_buffer_text("", ctx));
         }
 
+        // Root password
+        if !root_password.is_empty() {
+            if let Err(e) = store.set(&self.node_id, SecretKind::RootPassword, &root_password) {
+                log::error!("ssh_server_view: root password keychain write failed: {e:?}");
+                self.status = Some(StatusBanner::Error(format!("keychain: {e}")));
+                ctx.notify();
+                return;
+            }
+            self.root_password_editor
+                .update(ctx, |e, ctx| e.set_buffer_text("", ctx));
+        }
+
         // 4. reload + 状态提示 + 通知所有 SshManagerPanel 刷新树
         self.reload(ctx);
         self.status = Some(StatusBanner::Saved);
@@ -358,6 +416,8 @@ impl SshServerView {
         let port_str = self.current_text(&self.port_editor.clone(), ctx);
         let user = self.current_text(&self.user_editor.clone(), ctx);
         let key_path_text = self.current_text(&self.key_path_editor.clone(), ctx);
+        let startup_command_text = self.current_text(&self.startup_command_editor.clone(), ctx);
+        let notes_text = self.current_text(&self.notes_editor.clone(), ctx);
 
         let port: u16 = port_str.trim().parse().unwrap_or(22);
         let host = host.trim().to_string();
@@ -380,6 +440,8 @@ impl SshServerView {
             } else {
                 Some(key_path)
             },
+            startup_command: if startup_command_text.trim().is_empty() { None } else { Some(startup_command_text.trim().to_string()) },
+            notes: if notes_text.trim().is_empty() { None } else { Some(notes_text.trim().to_string()) },
             last_connected_at: self.server.as_ref().and_then(|s| s.last_connected_at),
         };
         ctx.dispatch_typed_action(&crate::workspace::WorkspaceAction::OpenSshTerminal {
@@ -852,6 +914,25 @@ impl View for SshServerView {
                 ));
             }
         }
+
+        // 启动命令
+        col.add_child(self.render_text_field(
+            &crate::t!("workspace-left-panel-ssh-manager-startup-command"),
+            &self.startup_command_editor,
+            appearance,
+        ));
+        // Root 密码
+        col.add_child(self.render_text_field(
+            &crate::t!("workspace-left-panel-ssh-manager-root-password"),
+            &self.root_password_editor,
+            appearance,
+        ));
+        // 备注
+        col.add_child(self.render_text_field(
+            &crate::t!("workspace-left-panel-ssh-manager-notes"),
+            &self.notes_editor,
+            appearance,
+        ));
 
         let theme = appearance.theme();
         let inner = ConstrainedBox::new(

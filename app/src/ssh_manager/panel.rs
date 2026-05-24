@@ -242,6 +242,8 @@ impl SshManagerPanel {
             username: "user".into(),
             auth_type: AuthType::Password,
             key_path: None,
+            startup_command: None,
+            notes: None,
             last_connected_at: None,
         };
         let result = warp_ssh_manager::with_conn(|c| {

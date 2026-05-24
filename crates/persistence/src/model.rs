@@ -1446,6 +1446,8 @@ pub struct SshServerRow {
     pub username: String,
     pub auth_type: String,
     pub key_path: Option<String>,
+    pub startup_command: Option<String>,
+    pub notes: Option<String>,
     pub last_connected_at: Option<NaiveDateTime>,
 }
 
@@ -1458,4 +1460,6 @@ pub struct NewSshServer<'a> {
     pub username: &'a str,
     pub auth_type: &'a str,
     pub key_path: Option<&'a str>,
+    pub startup_command: Option<&'a str>,
+    pub notes: Option<&'a str>,
 }

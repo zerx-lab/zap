@@ -48,6 +48,8 @@ mod tests {
             username: "alice".into(),
             auth_type: AuthType::Password,
             key_path: None,
+            startup_command: None,
+            notes: None,
             last_connected_at: None,
         }
     }
