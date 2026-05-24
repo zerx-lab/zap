@@ -14,9 +14,9 @@ use super::schema::{
     generic_string_objects, ignored_suggestions, mcp_environment_variables,
     mcp_server_installations, mcp_server_panes, notebook_panes, notebooks, object_actions,
     object_metadata, object_permissions, pane_branches, pane_leaves, pane_nodes, panels,
-    project_rules, projects, server_experiments, settings_panes, ssh_nodes, ssh_servers, tabs,
-    team_members, team_settings, teams, terminal_panes, user_profiles, welcome_panes, windows,
-    workflow_panes, workflows, workspace_teams, workspaces,
+    project_rules, projects, server_experiments, settings_panes, ssh_nodes, ssh_servers,
+    sync_meta, tabs, team_members, team_settings, teams, terminal_panes, user_profiles,
+    welcome_panes, windows, workflow_panes, workflows, workspace_teams, workspaces,
 };
 
 #[derive(Insertable)]
@@ -1462,4 +1462,21 @@ pub struct NewSshServer<'a> {
     pub key_path: Option<&'a str>,
     pub startup_command: Option<&'a str>,
     pub notes: Option<&'a str>,
+}
+
+// --- Sync Meta ---------------------------------------------------------
+
+#[derive(Identifiable, Queryable, Selectable, Clone, Debug)]
+#[diesel(table_name = sync_meta)]
+#[diesel(primary_key(key))]
+pub struct SyncMetaRow {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Insertable, AsChangeset, Clone, Debug)]
+#[diesel(table_name = sync_meta)]
+pub struct NewSyncMeta<'a> {
+    pub key: &'a str,
+    pub value: &'a str,
 }
