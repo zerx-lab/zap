@@ -206,6 +206,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -220,6 +221,7 @@ impl SshRepository {
                 ssh_nodes::updated_at.eq(Utc::now().naive_utc()),
             ))
             .execute(conn)?;
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
