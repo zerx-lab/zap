@@ -29,7 +29,7 @@ use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
 use crate::ui_components::icons::Icon;
 use warp_ssh_manager::{with_conn, DbVersionStore, SshRepository, SshSyncProvider};
-use zap_sync::{GistClient, SyncEngine, SyncPlatform, SyncResult, SyncVersionStore};
+use zap_sync::{GistClient, SyncEngine, SyncPlatform, SyncResult};
 
 const INPUT_AREA_MAX_WIDTH: f32 = 420.0;
 const BUTTON_PADDING: f32 = 6.0;
@@ -100,6 +100,10 @@ pub enum CloudSyncPageAction {
     },
     /// 取消冲突弹窗
     CancelConflict,
+    /// 确认下载
+    ConfirmDownload { platform: SyncPlatform },
+    /// 取消下载确认
+    CancelDownloadConfirm,
 }
 
 /// 云同步设置页面视图
@@ -118,6 +122,10 @@ pub struct CloudSyncPageView {
     conflict_local_version: i64,
     conflict_remote_version: i64,
     conflict_platform: SyncPlatform,
+    download_confirm_visible: bool,
+    download_confirm_platform: SyncPlatform,
+    download_confirm_mouse: MouseStateHandle,
+    download_confirm_cancel_mouse: MouseStateHandle,
 }
 
 /// 构造 Token 密码编辑器
@@ -223,6 +231,10 @@ impl CloudSyncPageView {
             conflict_local_version: 0,
             conflict_remote_version: 0,
             conflict_platform: SyncPlatform::GitHub,
+            download_confirm_visible: false,
+            download_confirm_platform: SyncPlatform::GitHub,
+            download_confirm_mouse: MouseStateHandle::default(),
+            download_confirm_cancel_mouse: MouseStateHandle::default(),
         };
 
         sync_from_settings(&mut me, ctx);
@@ -303,6 +315,47 @@ impl CloudSyncPageView {
                     &CloudSyncPageAction::SyncComplete {
                         platform,
                         direction: SyncDirection::Download,
+                        result,
+                    },
+                    ctx,
+                );
+            },
+        );
+    }
+
+    /// 启动强制上传同步（覆盖远程）
+    fn spawn_force_upload(&mut self, platform: SyncPlatform, ctx: &mut ViewContext<Self>) {
+        let token = current_token(ctx);
+        if token.is_empty() {
+            let label = platform.label();
+            self.sync_state = SyncState::Failed {
+                message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+            };
+            ctx.notify();
+            return;
+        }
+
+        self.sync_state = SyncState::Syncing {
+            platform,
+            direction: SyncDirection::Upload,
+        };
+        ctx.notify();
+
+        ctx.spawn(
+            async move {
+                let engine = SyncEngine::new();
+                let provider = SshSyncProvider::new();
+                let version_store = DbVersionStore;
+                engine
+                    .force_upload(platform, &token, &[&provider], &version_store)
+                    .await
+                    .map_err(|e| e.to_string())
+            },
+            move |view, result, ctx| {
+                view.handle_action(
+                    &CloudSyncPageAction::SyncComplete {
+                        platform,
+                        direction: SyncDirection::Upload,
                         result,
                     },
                     ctx,
@@ -414,7 +467,9 @@ impl TypedActionView for CloudSyncPageView {
                     .sync_platform
                     .value()
                     .to_sync_platform();
-                self.spawn_download(platform, ctx);
+                self.download_confirm_visible = true;
+                self.download_confirm_platform = platform;
+                ctx.notify();
             }
             CloudSyncPageAction::SyncComplete {
                 platform,
@@ -474,18 +529,21 @@ impl TypedActionView for CloudSyncPageView {
             CloudSyncPageAction::ForceUpload { platform } => {
                 let platform = *platform;
                 self.conflict_visible = false;
-                let remote = self.conflict_remote_version;
-                let version_store = DbVersionStore;
-                if let Ok(local) = version_store.get_sync_version() {
-                    if local <= remote {
-                        let _ = version_store.set_sync_version(remote + 1);
-                    }
-                }
-                self.spawn_upload(platform, ctx);
+                self.spawn_force_upload(platform, ctx);
             }
             CloudSyncPageAction::CancelConflict => {
                 self.conflict_visible = false;
                 self.sync_state = SyncState::Idle;
+                ctx.notify();
+            }
+            CloudSyncPageAction::ConfirmDownload { platform } => {
+                let platform = *platform;
+                self.download_confirm_visible = false;
+                ctx.notify();
+                self.spawn_download(platform, ctx);
+            }
+            CloudSyncPageAction::CancelDownloadConfirm => {
+                self.download_confirm_visible = false;
                 ctx.notify();
             }
         }
@@ -905,6 +963,68 @@ impl SettingsWidget for CloudSyncPageWidget {
                     .prevent_interaction_with_other_elements()
                     .on_dismiss(|ctx, _app| {
                         ctx.dispatch_typed_action(CloudSyncPageAction::CancelConflict);
+                    })
+                    .finish(),
+            );
+        }
+
+        // 下载确认弹窗
+        if view.download_confirm_visible {
+            use crate::ui_components::dialog::{dialog_styles, Dialog};
+
+            let confirm_button = Container::new(
+                appearance
+                    .ui_builder()
+                    .button(ButtonVariant::Accent, view.download_confirm_mouse.clone())
+                    .with_style(UiComponentStyles {
+                        font_size: Some(appearance.ui_font_body()),
+                        padding: Some(Coords::uniform(BUTTON_PADDING)),
+                        ..Default::default()
+                    })
+                    .with_text_label(crate::t!("settings-cloud-sync-download-confirm-button"))
+                    .build()
+                    .on_click({
+                        let platform = view.download_confirm_platform;
+                        move |ctx, _, _| {
+                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmDownload { platform });
+                        }
+                    })
+                    .finish(),
+            )
+            .with_margin_left(12.)
+            .finish();
+
+            let cancel_button = appearance
+                .ui_builder()
+                .button(ButtonVariant::Secondary, view.download_confirm_cancel_mouse.clone())
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.ui_font_body()),
+                    padding: Some(Coords::uniform(BUTTON_PADDING)),
+                    ..Default::default()
+                })
+                .with_text_label(crate::t!("common-cancel"))
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(CloudSyncPageAction::CancelDownloadConfirm);
+                })
+                .finish();
+
+            let dialog = Dialog::new(
+                crate::t!("settings-cloud-sync-download-confirm-title"),
+                Some(crate::t!("settings-cloud-sync-download-confirm-description")),
+                dialog_styles(appearance),
+            )
+            .with_bottom_row_child(cancel_button)
+            .with_bottom_row_child(confirm_button)
+            .with_width(DIALOG_WIDTH)
+            .build()
+            .finish();
+
+            content.add_child(
+                Dismiss::new(dialog)
+                    .prevent_interaction_with_other_elements()
+                    .on_dismiss(|ctx, _app| {
+                        ctx.dispatch_typed_action(CloudSyncPageAction::CancelDownloadConfirm);
                     })
                     .finish(),
             );

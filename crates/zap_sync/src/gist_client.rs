@@ -40,9 +40,12 @@ impl GistClient {
         }
     }
 
-    /// 构建 Bearer 认证头
-    fn auth_header(token: &str) -> String {
-        format!("Bearer {token}")
+    /// 构建认证头，GitHub 用 Bearer，Gitee 用 token 前缀
+    fn auth_header(platform: SyncPlatform, token: &str) -> String {
+        match platform {
+            SyncPlatform::GitHub => format!("Bearer {token}"),
+            SyncPlatform::Gitee => format!("token {token}"),
+        }
     }
 
     /// 验证 Token 是否有效，返回用户名
@@ -58,7 +61,7 @@ impl GistClient {
         let resp = self
             .client
             .get(&url)
-            .header("Authorization", Self::auth_header(token))
+            .header("Authorization", Self::auth_header(platform, token))
             .send()
             .await?;
 
@@ -83,26 +86,40 @@ impl GistClient {
         if token.is_empty() {
             return Err(GistClientError::NoToken);
         }
-        let url = format!("{}/gists", platform.base_url());
-        let resp = self
-            .client
-            .get(&url)
-            .header("Authorization", Self::auth_header(token))
-            .send()
-            .await?;
+        let base_url = platform.base_url();
+        let mut page = 1;
 
-        if !resp.status().is_success() {
-            return Err(GistClientError::Api {
-                status: resp.status().as_u16(),
-                body: resp.text().await.unwrap_or_default(),
-            });
+        loop {
+            let url = format!("{base_url}/gists?page={page}&per_page=100");
+            let resp = self
+                .client
+                .get(&url)
+                .header("Authorization", Self::auth_header(platform, token))
+                .send()
+                .await?;
+
+            if !resp.status().is_success() {
+                return Err(GistClientError::Api {
+                    status: resp.status().as_u16(),
+                    body: resp.text().await.unwrap_or_default(),
+                });
+            }
+
+            let gists: Vec<GistEntry> = resp.json().await?;
+
+            if gists.is_empty() {
+                return Ok(None);
+            }
+
+            if let Some(found) = gists
+                .iter()
+                .find(|g| g.description.as_deref() == Some(GIST_DESCRIPTION))
+            {
+                return Ok(Some(found.id.clone()));
+            }
+
+            page += 1;
         }
-
-        let gists: Vec<GistEntry> = resp.json().await?;
-        let found = gists
-            .iter()
-            .find(|g| g.description.as_deref() == Some(GIST_DESCRIPTION));
-        Ok(found.map(|g| g.id.clone()))
     }
 
     /// 创建新 Gist
@@ -128,7 +145,7 @@ impl GistClient {
         let resp = self
             .client
             .post(&url)
-            .header("Authorization", Self::auth_header(token))
+            .header("Authorization", Self::auth_header(platform, token))
             .json(&body)
             .send()
             .await?;
@@ -167,7 +184,7 @@ impl GistClient {
         let resp = self
             .client
             .patch(&url)
-            .header("Authorization", Self::auth_header(token))
+            .header("Authorization", Self::auth_header(platform, token))
             .json(&body)
             .send()
             .await?;
@@ -196,7 +213,7 @@ impl GistClient {
         let resp = self
             .client
             .get(&url)
-            .header("Authorization", Self::auth_header(token))
+            .header("Authorization", Self::auth_header(platform, token))
             .send()
             .await?;
 

@@ -7,7 +7,7 @@ use crate::db::with_conn;
 use crate::repository::SshRepository;
 use crate::secrets::{KeychainSecretStore, SecretKind, SshSecretStore};
 use crate::types::NodeKind;
-use diesel::connection::SimpleConnection;
+use diesel::connection::{Connection, SimpleConnection};
 use diesel::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 use zap_sync::crypto;
@@ -162,72 +162,92 @@ impl SyncDataProvider for SshSyncProvider {
         let ssh_data: SshSyncData = serde_json::from_value(data.clone())
             .map_err(|e: serde_json::Error| SyncEngineError::Serialization(e.to_string()))?;
 
-        with_conn(|conn| {
-            conn.batch_execute("DELETE FROM ssh_servers; DELETE FROM ssh_nodes;")
-                .map_err(|e| anyhow::anyhow!("{}", e))?;
+        /// 待写入 keychain 的凭据
+        struct PendingSecret {
+            node_id: String,
+            kind: SecretKind,
+            value: String,
+        }
 
-            for node in &ssh_data.nodes {
-                let kind = NodeKind::parse(&node.kind)
-                    .ok_or_else(|| anyhow::anyhow!("无效的 kind: {}", node.kind))?;
+        // 阶段一：事务中执行数据库操作，收集解密后的凭据
+        let pending_secrets = with_conn(|conn| {
+            conn.transaction::<Vec<PendingSecret>, anyhow::Error, _>(|conn| {
+                conn.batch_execute("DELETE FROM ssh_servers; DELETE FROM ssh_nodes;")?;
 
-                diesel::insert_into(persistence::schema::ssh_nodes::table)
-                    .values(persistence::model::NewSshNode {
-                        id: &node.id,
-                        parent_id: node.parent_id.as_deref(),
-                        kind: kind.as_db_str(),
-                        name: &node.name,
-                        sort_order: node.sort_order,
-                    })
-                    .execute(conn)
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                let mut pending = Vec::new();
 
-                if node.is_collapsed {
-                    SshRepository::set_collapsed(conn, &node.id, true)
-                        .map_err(|e| anyhow::anyhow!("{}", e))?;
+                for node in &ssh_data.nodes {
+                    let kind = NodeKind::parse(&node.kind)
+                        .ok_or_else(|| anyhow::anyhow!("无效的 kind: {}", node.kind))?;
+
+                    diesel::insert_into(persistence::schema::ssh_nodes::table)
+                        .values(persistence::model::NewSshNode {
+                            id: &node.id,
+                            parent_id: node.parent_id.as_deref(),
+                            kind: kind.as_db_str(),
+                            name: &node.name,
+                            sort_order: node.sort_order,
+                        })
+                        .execute(conn)?;
+
+                    if node.is_collapsed {
+                        SshRepository::set_collapsed(conn, &node.id, true)?;
+                    }
                 }
-            }
 
-            for server in &ssh_data.servers {
-                diesel::insert_into(persistence::schema::ssh_servers::table)
-                    .values(persistence::model::NewSshServer {
-                        node_id: &server.node_id,
-                        host: &server.host,
-                        port: server.port as i32,
-                        username: &server.username,
-                        auth_type: &server.auth_type,
-                        key_path: server.key_path.as_deref(),
-                        startup_command: server.startup_command.as_deref(),
-                        notes: server.notes.as_deref(),
-                    })
-                    .execute(conn)
-                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                for server in &ssh_data.servers {
+                    diesel::insert_into(persistence::schema::ssh_servers::table)
+                        .values(persistence::model::NewSshServer {
+                            node_id: &server.node_id,
+                            host: &server.host,
+                            port: server.port as i32,
+                            username: &server.username,
+                            auth_type: &server.auth_type,
+                            key_path: server.key_path.as_deref(),
+                            startup_command: server.startup_command.as_deref(),
+                            notes: server.notes.as_deref(),
+                        })
+                        .execute(conn)?;
 
-                if let Some(ref enc) = server.password_encrypted {
-                    let password =
-                        crypto::decrypt(token, enc).map_err(|e| anyhow::anyhow!("{}", e))?;
-                    self.secret_store
-                        .set(&server.node_id, SecretKind::Password, &password)
-                        .map_err(|e| anyhow::anyhow!("{}", e))?;
+                    if let Some(ref enc) = server.password_encrypted {
+                        let password = crypto::decrypt(token, enc)?;
+                        pending.push(PendingSecret {
+                            node_id: server.node_id.clone(),
+                            kind: SecretKind::Password,
+                            value: password,
+                        });
+                    }
+                    if let Some(ref enc) = server.passphrase_encrypted {
+                        let passphrase = crypto::decrypt(token, enc)?;
+                        pending.push(PendingSecret {
+                            node_id: server.node_id.clone(),
+                            kind: SecretKind::Passphrase,
+                            value: passphrase,
+                        });
+                    }
+                    if let Some(ref enc) = server.root_password_encrypted {
+                        let root_password = crypto::decrypt(token, enc)?;
+                        pending.push(PendingSecret {
+                            node_id: server.node_id.clone(),
+                            kind: SecretKind::RootPassword,
+                            value: root_password,
+                        });
+                    }
                 }
-                if let Some(ref enc) = server.passphrase_encrypted {
-                    let passphrase =
-                        crypto::decrypt(token, enc).map_err(|e| anyhow::anyhow!("{}", e))?;
-                    self.secret_store
-                        .set(&server.node_id, SecretKind::Passphrase, &passphrase)
-                        .map_err(|e| anyhow::anyhow!("{}", e))?;
-                }
-                if let Some(ref enc) = server.root_password_encrypted {
-                    let root_password =
-                        crypto::decrypt(token, enc).map_err(|e| anyhow::anyhow!("{}", e))?;
-                    self.secret_store
-                        .set(&server.node_id, SecretKind::RootPassword, &root_password)
-                        .map_err(|e| anyhow::anyhow!("{}", e))?;
-                }
-            }
 
-            Ok(())
+                Ok(pending)
+            })
         })
-        .map_err(|e| SyncEngineError::Provider(e.to_string()))
+        .map_err(|e| SyncEngineError::Provider(e.to_string()))?;
+
+        // 阶段二：事务提交后写入 keychain
+        for secret in pending_secrets {
+            if let Err(e) = self.secret_store.set(&secret.node_id, secret.kind, &secret.value) {
+                log::warn!("写入 keychain 失败 {}: {e}", secret.node_id);
+            }
+        }
+
+        Ok(())
     }
 }
 
