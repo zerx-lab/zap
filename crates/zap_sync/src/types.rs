@@ -35,7 +35,7 @@ impl SyncPlatform {
 pub enum SyncResult {
     Success { version: i64, platform: SyncPlatform },
     Conflict { local_version: i64, remote_version: i64 },
-    AlreadyUpToDate,
+    AlreadyUpToDate { version: i64 },
 }
 
 /// Gist 列表条目（API 返回）

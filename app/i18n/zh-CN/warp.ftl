@@ -838,6 +838,42 @@ settings-network-test-success-http = ✅ 出网正常(耗时 {$latency} 毫秒)
 settings-network-test-failed-tcp = ❌ 代理不可达:{$error}
 settings-network-test-failed-http = ❌ 连接失败:{$error}
 
+# --- ANCHOR-SUB-CLOUD-SYNC (agent-settings-cloud-sync) ---
+# 云同步设置页面
+settings-cloud-sync-description = 通过 GitHub Gist 或 Gitee Gist 配置云同步。您的设置将被加密并存储为私密 Gist。
+settings-cloud-sync-scope-note = 当前仅同步 SSH 管理的服务器配置数据。
+settings-cloud-sync-platform-label = 同步平台
+settings-cloud-sync-platform-description = 选择用于同步的云服务
+settings-cloud-sync-token-label = 访问令牌
+settings-cloud-sync-token-description = 具有 gist 权限的个人访问令牌
+settings-cloud-sync-token-placeholder = 输入访问令牌...
+settings-cloud-sync-operations-header = 同步操作
+settings-cloud-sync-upload-label = 上传
+settings-cloud-sync-download-label = 下载
+settings-cloud-sync-status-header = 同步状态
+settings-cloud-sync-local-version-label = 本地版本
+settings-cloud-sync-last-time-label = 上次同步时间
+settings-cloud-sync-last-platform-label = 上次同步平台
+settings-cloud-sync-local-version = 本地版本：{$version}
+settings-cloud-sync-last-time = 上次同步时间：{$time}
+settings-cloud-sync-last-platform = 上次同步平台：{$platform}
+settings-cloud-sync-na = 不可用
+settings-cloud-sync-never = 从未同步
+settings-cloud-sync-direction-upload = 上传到
+settings-cloud-sync-direction-download = 从…下载
+settings-cloud-sync-syncing = 正在{$direction}{$platform}...
+settings-cloud-sync-success = {$direction}{$platform}成功（版本 {$version}）
+settings-cloud-sync-failed = 失败：{$error}
+settings-cloud-sync-conflict-status = 版本冲突：本地 v{$local} vs 远程 v{$remote}
+settings-cloud-sync-token-not-configured = {$platform} Token 未配置
+settings-cloud-sync-conflict-title = 版本冲突
+settings-cloud-sync-conflict-description = 远程版本（v{$remote}）比本地（v{$local}）更新。强制上传将覆盖远程数据。
+settings-cloud-sync-force-upload = 强制上传
+settings-cloud-sync-clear = 清除
+settings-cloud-sync-validating = 正在验证令牌...
+settings-cloud-sync-token-valid = 令牌有效（{$username}）
+settings-cloud-sync-token-invalid = 无效令牌：{$error}
+
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # 章节 / 副标题
 settings-ai-warp-agent-header = Zap 智能体

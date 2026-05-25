@@ -855,6 +855,42 @@ settings-network-test-success-http = ✅ Internet reachable ({$latency} ms)
 settings-network-test-failed-tcp = ❌ Cannot reach proxy: {$error}
 settings-network-test-failed-http = ❌ Connection failed: {$error}
 
+# --- ANCHOR-SUB-CLOUD-SYNC (agent-settings-cloud-sync) ---
+# Cloud Sync settings page
+settings-cloud-sync-description = Configure cloud synchronization via GitHub Gist or Gitee Gist. Your settings will be encrypted and stored as a secret Gist.
+settings-cloud-sync-scope-note = Currently syncing SSH managed server configurations only.
+settings-cloud-sync-platform-label = Sync Platform
+settings-cloud-sync-platform-description = Select the cloud service for synchronization
+settings-cloud-sync-token-label = Access Token
+settings-cloud-sync-token-description = Personal access token with gist scope
+settings-cloud-sync-token-placeholder = Enter access token...
+settings-cloud-sync-operations-header = Sync Operations
+settings-cloud-sync-upload-label = Upload
+settings-cloud-sync-download-label = Download
+settings-cloud-sync-status-header = Sync Status
+settings-cloud-sync-local-version-label = Local version
+settings-cloud-sync-last-time-label = Last sync time
+settings-cloud-sync-last-platform-label = Last sync platform
+settings-cloud-sync-local-version = Local version: {$version}
+settings-cloud-sync-last-time = Last sync time: {$time}
+settings-cloud-sync-last-platform = Last sync platform: {$platform}
+settings-cloud-sync-na = N/A
+settings-cloud-sync-never = Never
+settings-cloud-sync-direction-upload = Upload to
+settings-cloud-sync-direction-download = Download from
+settings-cloud-sync-syncing = {$direction} {$platform} in progress...
+settings-cloud-sync-success = {$direction} {$platform} successful (version {$version})
+settings-cloud-sync-failed = Failed: {$error}
+settings-cloud-sync-conflict-status = Conflict: local v{$local} vs remote v{$remote}
+settings-cloud-sync-token-not-configured = {$platform} Token not configured
+settings-cloud-sync-conflict-title = Version Conflict
+settings-cloud-sync-conflict-description = Remote version (v{$remote}) is newer than local (v{$local}). Forcing upload will overwrite the remote data.
+settings-cloud-sync-force-upload = Force Upload
+settings-cloud-sync-clear = Clear
+settings-cloud-sync-validating = Validating token...
+settings-cloud-sync-token-valid = Token valid ({$username})
+settings-cloud-sync-token-invalid = Invalid token: {$error}
+
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # Section / sub-headers
 settings-ai-warp-agent-header = Zap Agent

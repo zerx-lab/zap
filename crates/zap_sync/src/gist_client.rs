@@ -45,6 +45,35 @@ impl GistClient {
         format!("Bearer {token}")
     }
 
+    /// 验证 Token 是否有效，返回用户名
+    pub async fn validate_token(
+        &self,
+        platform: SyncPlatform,
+        token: &str,
+    ) -> Result<String, GistClientError> {
+        if token.is_empty() {
+            return Err(GistClientError::NoToken);
+        }
+        let url = format!("{}/user", platform.base_url());
+        let resp = self
+            .client
+            .get(&url)
+            .header("Authorization", Self::auth_header(token))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            return Err(GistClientError::Api {
+                status: resp.status().as_u16(),
+                body: resp.text().await.unwrap_or_default(),
+            });
+        }
+
+        let user: serde_json::Value = resp.json().await?;
+        let login = user["login"].as_str().unwrap_or("unknown");
+        Ok(login.to_string())
+    }
+
     /// 查找 description 为 ZAP_CONFIG 的 Gist，返回其 ID
     pub async fn find_gist(
         &self,

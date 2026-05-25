@@ -123,7 +123,9 @@ impl SyncEngine {
         let local_version = version_store.get_sync_version()?;
 
         if remote_data.version <= local_version {
-            return Ok(SyncResult::AlreadyUpToDate);
+            return Ok(SyncResult::AlreadyUpToDate {
+                version: remote_data.version,
+            });
         }
 
         for provider in providers {

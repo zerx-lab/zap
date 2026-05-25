@@ -32,7 +32,8 @@ use warp_core::semantic_selection::SemanticSelection;
 
 use super::{
     app_icon::AppIconSettings, app_installation_detection::UserAppInstallDetectionSettings,
-    cloud_preferences::PreferencesSettings, initializer::SettingsInitializer,
+    cloud_preferences::PreferencesSettings, cloud_sync::CloudSyncSettings,
+    initializer::SettingsInitializer,
     language::LanguageSettings, native_preference::NativePreferenceSettings,
     network::NetworkSettings, AISettings, AccessibilitySettings, AliasExpansionSettings,
     AppEditorSettings, AutoupdateSettings, BlockVisibilitySettings, CodeSettings, DebugSettings,
@@ -95,6 +96,7 @@ pub fn register_all_settings(ctx: &mut AppContext) {
     VimBannerSettings::register(ctx);
     SharedSessionSettings::register(ctx);
     WarpDriveSettings::register(ctx);
+    CloudSyncSettings::register(ctx);
     WorkflowAliases::register(ctx);
     EmacsBindingsSettings::register(ctx);
     SameLinePromptBlockSettings::register(ctx);

@@ -11,7 +11,7 @@ use diesel::connection::SimpleConnection;
 use diesel::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 use zap_sync::crypto;
-use zap_sync::{SyncDataProvider, SyncEngineError};
+use zap_sync::{SyncDataProvider, SyncEngineError, SyncVersionStore};
 
 /// SSH 同步用的节点数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,5 +228,25 @@ impl SyncDataProvider for SshSyncProvider {
             Ok(())
         })
         .map_err(|e| SyncEngineError::Provider(e.to_string()))
+    }
+}
+
+/// 数据库同步版本存储适配器
+pub struct DbVersionStore;
+
+impl SyncVersionStore for DbVersionStore {
+    fn get_sync_version(&self) -> Result<i64, SyncEngineError> {
+        with_conn(|c| Ok(SshRepository::get_sync_version(c)?))
+            .map_err(|e| SyncEngineError::VersionStore(e.to_string()))
+    }
+
+    fn set_sync_version(&self, version: i64) -> Result<(), SyncEngineError> {
+        with_conn(|c| Ok(SshRepository::set_sync_version(c, version)?))
+            .map_err(|e| SyncEngineError::VersionStore(e.to_string()))
+    }
+
+    fn update_sync_meta(&self, time: &str, platform: &str) -> Result<(), SyncEngineError> {
+        with_conn(|c| Ok(SshRepository::update_sync_meta(c, time, platform)?))
+            .map_err(|e| SyncEngineError::VersionStore(e.to_string()))
     }
 }

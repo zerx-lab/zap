@@ -13,5 +13,5 @@ pub use db::{set_database_path, with_conn};
 pub use repository::{SshRepository, SshRepositoryError};
 pub use secrets::{KeychainSecretStore, SecretKind, SshSecretStore, SshSecretStoreError};
 pub use ssh_command::{build_ssh_args, build_ssh_command_line};
-pub use sync_provider::{SshSyncData, SshSyncProvider, SyncNode, SyncServer};
+pub use sync_provider::{DbVersionStore, SshSyncData, SshSyncProvider, SyncNode, SyncServer};
 pub use types::{AuthType, NodeKind, SshNode, SshServerInfo};
