@@ -52,14 +52,13 @@ pub fn load_saved_ssh_credentials() -> Result<Vec<OneKeyCredential>> {
             } else {
                 format!("{}@{}:{}", server.username, server.host, server.port)
             };
-            let subtitle = match kind {
-                SecretKind::Password => target,
-                SecretKind::Passphrase => {
+            // kind 由 auth_type 推出,只能是 Password / Passphrase 两者,RootPassword
+            // 不在 OneKey 本身的范围内(走独立的 su 弹窗确认流程)。
+            let subtitle = match server.auth_type {
+                AuthType::Password => target,
+                AuthType::Key => {
                     let key_path = server.key_path.as_deref().unwrap_or("key");
                     format!("{key_path} for {target}")
-                }
-                SecretKind::RootPassword => {
-                    format!("root password for {target}")
                 }
             };
             credentials.push(OneKeyCredential {

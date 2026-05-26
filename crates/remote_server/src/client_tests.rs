@@ -2,8 +2,11 @@ use futures::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
 use crate::proto::{
-    client_message, run_command_response, server_message, ClientMessage, ErrorCode,
-    InitializeResponse, RunCommandResponse, RunCommandSuccess, ServerMessage,
+    client_message, read_file_chunk_response, resolve_path_response, run_command_response,
+    server_message, write_file_chunk_response, ClientMessage, ErrorCode, FileSystemEntryKind,
+    InitializeResponse, ReadFileChunkResponse, ReadFileChunkSuccess, ResolvePathResponse,
+    ResolvePathSuccess, RunCommandResponse, RunCommandSuccess, ServerMessage,
+    WriteFileChunkResponse, WriteFileChunkSuccess,
 };
 use crate::protocol;
 use warp_core::SessionId;
@@ -190,6 +193,95 @@ async fn run_command_round_trip() {
     assert_eq!(success.stdout, b"output of: echo hello");
     assert!(success.stderr.is_empty());
     assert_eq!(success.exit_code, Some(0));
+}
+
+#[tokio::test]
+async fn resolve_path_round_trip() {
+    let (client, _disconnect_rx, _executor) = setup_mock_client(|msg| {
+        match &msg.message {
+            Some(client_message::Message::ResolvePath(req)) => {
+                assert_eq!(req.path, "~/project");
+            }
+            other => panic!("Expected ResolvePath, got {other:?}"),
+        }
+        server_message::Message::ResolvePathResponse(ResolvePathResponse {
+            result: Some(resolve_path_response::Result::Success(ResolvePathSuccess {
+                canonical_path: "/home/me/project".to_string(),
+                kind: FileSystemEntryKind::Directory as i32,
+                size_bytes: None,
+            })),
+        })
+    });
+
+    let resp = client.resolve_path("~/project".to_string()).await.unwrap();
+    let Some(resolve_path_response::Result::Success(success)) = resp.result else {
+        panic!("expected resolve path success");
+    };
+    assert_eq!(success.canonical_path, "/home/me/project");
+    assert_eq!(success.kind, FileSystemEntryKind::Directory as i32);
+}
+
+#[tokio::test]
+async fn read_file_chunk_round_trip() {
+    let (client, _disconnect_rx, _executor) = setup_mock_client(|msg| {
+        match &msg.message {
+            Some(client_message::Message::ReadFileChunk(req)) => {
+                assert_eq!(req.path, "/tmp/blob.bin");
+                assert_eq!(req.offset, 4);
+                assert_eq!(req.max_bytes, 2);
+            }
+            other => panic!("Expected ReadFileChunk, got {other:?}"),
+        }
+        server_message::Message::ReadFileChunkResponse(ReadFileChunkResponse {
+            result: Some(read_file_chunk_response::Result::Success(
+                ReadFileChunkSuccess {
+                    bytes: vec![5, 6],
+                    next_offset: 6,
+                    total_size: Some(8),
+                    eof: false,
+                },
+            )),
+        })
+    });
+
+    let resp = client
+        .read_file_chunk("/tmp/blob.bin".to_string(), 4, 2)
+        .await
+        .unwrap();
+    let Some(read_file_chunk_response::Result::Success(success)) = resp.result else {
+        panic!("expected read chunk success");
+    };
+    assert_eq!(success.bytes, vec![5, 6]);
+    assert_eq!(success.next_offset, 6);
+}
+
+#[tokio::test]
+async fn write_file_chunk_round_trip() {
+    let (client, _disconnect_rx, _executor) = setup_mock_client(|msg| {
+        match &msg.message {
+            Some(client_message::Message::WriteFileChunk(req)) => {
+                assert_eq!(req.path, "/tmp/blob.bin");
+                assert_eq!(req.offset, 0);
+                assert_eq!(req.bytes, vec![1, 2, 3]);
+                assert!(req.truncate);
+            }
+            other => panic!("Expected WriteFileChunk, got {other:?}"),
+        }
+        server_message::Message::WriteFileChunkResponse(WriteFileChunkResponse {
+            result: Some(write_file_chunk_response::Result::Success(
+                WriteFileChunkSuccess { next_offset: 3 },
+            )),
+        })
+    });
+
+    let resp = client
+        .write_file_chunk("/tmp/blob.bin".to_string(), 0, vec![1, 2, 3], true, None)
+        .await
+        .unwrap();
+    let Some(write_file_chunk_response::Result::Success(success)) = resp.result else {
+        panic!("expected write chunk success");
+    };
+    assert_eq!(success.next_offset, 3);
 }
 
 #[tokio::test]

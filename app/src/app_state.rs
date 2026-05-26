@@ -305,6 +305,7 @@ pub enum LeftPanelDisplayedTab {
     ZapDrive,
     ConversationListView,
     SshManager,
+    ServerFileBrowser,
     SkillManager,
 }
 
@@ -316,6 +317,7 @@ impl From<ToolPanelView> for LeftPanelDisplayedTab {
             ToolPanelView::ZapDrive => LeftPanelDisplayedTab::ZapDrive,
             ToolPanelView::ConversationListView => LeftPanelDisplayedTab::ConversationListView,
             ToolPanelView::SshManager => LeftPanelDisplayedTab::SshManager,
+            ToolPanelView::ServerFileBrowser => LeftPanelDisplayedTab::ServerFileBrowser,
             ToolPanelView::SkillManager => LeftPanelDisplayedTab::SkillManager,
         }
     }

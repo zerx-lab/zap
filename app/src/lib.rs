@@ -2266,6 +2266,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
     // remote-server 二进制,与 RELEASE_FLAGS 的 cfg 保持一致排除掉。
     #[cfg(all(debug_assertions, not(windows)))]
     flags.insert(FeatureFlag::SshRemoteServer);
+    #[cfg(all(debug_assertions, not(windows)))]
+    flags.insert(FeatureFlag::ServerFileBrowser);
 
     // Issue #72: HTTP 代理设置页面。不走 channel 判断,所有 channel 含 zap-oss
     // 默认启用,作为企业 VPN / 公司代理场景的基本能力。
@@ -2492,6 +2494,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CodeReviewSaveChanges,
         #[cfg(feature = "file_tree")]
         FeatureFlag::FileTree,
+        #[cfg(feature = "server_file_browser")]
+        FeatureFlag::ServerFileBrowser,
         #[cfg(feature = "allow_ignoring_input_suggestions")]
         FeatureFlag::AllowIgnoringInputSuggestions,
         // Zap(本地化):ambient agent / agent management view 的云端入口已物理下线。

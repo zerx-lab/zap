@@ -16,17 +16,26 @@ use warpui::r#async::FutureExt;
 use warpui::{ViewContext, WeakViewHandle};
 use zeroize::Zeroizing;
 
+use crate::ssh_manager::shell_prompt::bytes_look_like_shell_prompt;
 use crate::terminal::TerminalView;
 
 const SLIDING_WINDOW_BYTES: usize = 8 * 1024;
 const BUFFER_HARD_LIMIT: usize = 16 * 1024;
+/// 阶段 1 等待 shell prompt 的最大时长。超时则放弃整个 stream(并在
+/// `on_done` 里把 in_flight 复位)。
+const SHELL_READY_TIMEOUT: Duration = Duration::from_secs(30);
 
 lazy_static! {
-    /// 密码提示符正则 — 匹配各种 su 密码提示格式:
-    /// `Password:` / `密码：` / `密码:` / `输入密码` (Kylin V10, 无冒号)
-    static ref PASSWORD_PROMPT_REGEX: Regex =
-        Regex::new(r"(?im)(password|密码)[^\n]*[:\xef\xbc\x9a]?\s*$")
-            .expect("su password prompt regex must compile");
+    /// 密码提示符正则 — 严格匹配两类:
+    /// 1. `password` / `passphrase` / `密码` 行尾带半角冒号 `:` 或全角冒号 `：`
+    /// 2. 银河麒麟 V10 的无冒号 `输入密码`
+    ///
+    /// 旧实现把冒号设为可选,任何含 "password" 的行尾(如
+    /// `Your password has expired`)都会假阳性。
+    static ref PASSWORD_PROMPT_REGEX: Regex = Regex::new(
+        r"(?im)(?:(?:password|passphrase|密码)[^\n]*(?::|：)\s*$|输入密码\s*$)"
+    )
+    .expect("su password prompt regex must compile");
 
     /// su 命令正则 — 匹配目标为 root 的 su 命令(行尾):
     /// `su` / `su -` / `su -l` / `su --login` / `su root` / `su - root` /
@@ -66,9 +75,9 @@ pub fn spawn_su_password_injector<O>(
         let mut active = rx.activate_cloned();
         let mut buf: Vec<u8> = Vec::with_capacity(SLIDING_WINDOW_BYTES);
 
-        // 阶段 1: 等待 shell prompt (30s 超时),表示登录完成
+        // 阶段 1: 等待 shell prompt(SHELL_READY_TIMEOUT 超时),表示登录完成
         loop {
-            match active.recv().with_timeout(Duration::from_secs(30)).await {
+            match active.recv().with_timeout(SHELL_READY_TIMEOUT).await {
                 Ok(Ok(chunk)) => {
                     buf.extend_from_slice(&chunk);
                     if buf.len() > BUFFER_HARD_LIMIT {
@@ -129,23 +138,6 @@ fn is_su_to_root(buf: &[u8]) -> bool {
     SU_ROOT_CMD_REGEX.is_match(buf)
 }
 
-/// 检查缓冲区末尾是否匹配 shell prompt 模式。
-fn bytes_look_like_shell_prompt(bytes: &[u8]) -> bool {
-    let tail = if bytes.len() > 256 {
-        &bytes[bytes.len() - 256..]
-    } else {
-        bytes
-    };
-    if tail.ends_with(b"$ ") || tail.ends_with(b"# ") || tail.ends_with(b"> ") {
-        return true;
-    }
-    if tail.ends_with(&[0xe2, 0x9d, 0xaf, 0x20])
-        || tail.ends_with(&[0xe2, 0x96, 0xb6, 0x20])
-        || tail.ends_with(&[0xc2, 0xbb, 0x20])
-        || tail.ends_with(&[0xce, 0xbb, 0x20])
-        || tail.ends_with(&[0xe2, 0x86, 0x92, 0x20])
-    {
-        return true;
-    }
-    false
-}
+#[cfg(test)]
+#[path = "su_password_injector_tests.rs"]
+mod tests;

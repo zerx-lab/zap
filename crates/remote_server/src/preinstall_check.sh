@@ -62,4 +62,6 @@ if [ "$libc_family" = "glibc" ] \
 fi
 
 echo "status=${status}"
-[ -n "$reason" ] && echo "reason=${reason}"
+if [ -n "$reason" ]; then
+    echo "reason=${reason}"
+fi

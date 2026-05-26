@@ -11,11 +11,13 @@ use warpui::r#async::{executor, FutureExt as _};
 
 use crate::proto::{
     client_message, server_message, Abort, Authenticate, BufferEdit, ClientMessage, CloseBuffer,
-    DeleteFile, ErrorCode, Initialize, InitializeResponse, ListDirectory, ListDirectoryResponse,
-    LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, OpenBuffer,
-    OpenBufferResponse, ReadFileContextRequest, ReadFileContextResponse, ResolveConflict,
-    ResolveConflictResponse, RunCommandRequest, RunCommandResponse, SaveBuffer, SaveBufferResponse,
-    ServerMessage, SessionBootstrapped, TextEdit, WriteFile,
+    CreateDirectory, CreateDirectoryResponse, DeleteFile, ErrorCode, Initialize,
+    InitializeResponse, ListDirectory, ListDirectoryResponse, LoadRepoMetadataDirectoryResponse,
+    NavigatedToDirectoryResponse, OpenBuffer, OpenBufferResponse, ReadFileChunk,
+    ReadFileChunkResponse, ReadFileContextRequest, ReadFileContextResponse, ResolveConflict,
+    ResolveConflictResponse, ResolvePath, ResolvePathResponse, RunCommandRequest,
+    RunCommandResponse, SaveBuffer, SaveBufferResponse, ServerMessage, SessionBootstrapped,
+    TextEdit, WriteFile, WriteFileChunk, WriteFileChunkResponse,
 };
 
 use crate::protocol::{self, ProtocolError, RequestId};
@@ -389,6 +391,101 @@ impl RemoteServerClient {
             Some(server_message::Message::ListDirectoryResponse(resp)) => Ok(resp),
             other => {
                 log::error!("Unexpected response variant for ListDirectory: {other:?}");
+                Err(ClientError::UnexpectedResponse)
+            }
+        }
+    }
+
+    /// Resolves a path on the remote host for the server file browser.
+    pub async fn resolve_path(&self, path: String) -> Result<ResolvePathResponse, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::ResolvePath(ResolvePath { path })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::ResolvePathResponse(resp)) => Ok(resp),
+            other => {
+                log::error!("Unexpected response variant for ResolvePath: {other:?}");
+                Err(ClientError::UnexpectedResponse)
+            }
+        }
+    }
+
+    /// Creates a directory on the remote host, including missing parents.
+    pub async fn create_directory(
+        &self,
+        path: String,
+    ) -> Result<CreateDirectoryResponse, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::CreateDirectory(CreateDirectory {
+                path,
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::CreateDirectoryResponse(resp)) => Ok(resp),
+            other => {
+                log::error!("Unexpected response variant for CreateDirectory: {other:?}");
+                Err(ClientError::UnexpectedResponse)
+            }
+        }
+    }
+
+    /// Reads a byte range from a remote file.
+    pub async fn read_file_chunk(
+        &self,
+        path: String,
+        offset: u64,
+        max_bytes: u64,
+    ) -> Result<ReadFileChunkResponse, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::ReadFileChunk(ReadFileChunk {
+                path,
+                offset,
+                max_bytes,
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::ReadFileChunkResponse(resp)) => Ok(resp),
+            other => {
+                log::error!("Unexpected response variant for ReadFileChunk: {other:?}");
+                Err(ClientError::UnexpectedResponse)
+            }
+        }
+    }
+
+    /// Writes a byte range to a remote file.
+    pub async fn write_file_chunk(
+        &self,
+        path: String,
+        offset: u64,
+        bytes: Vec<u8>,
+        truncate: bool,
+        executable: Option<bool>,
+    ) -> Result<WriteFileChunkResponse, ClientError> {
+        let request_id = RequestId::new();
+        let msg = ClientMessage {
+            request_id: request_id.to_string(),
+            message: Some(client_message::Message::WriteFileChunk(WriteFileChunk {
+                path,
+                offset,
+                bytes,
+                truncate,
+                executable,
+            })),
+        };
+        let response = self.send_request(request_id, msg).await?;
+        match response.message {
+            Some(server_message::Message::WriteFileChunkResponse(resp)) => Ok(resp),
+            other => {
+                log::error!("Unexpected response variant for WriteFileChunk: {other:?}");
                 Err(ClientError::UnexpectedResponse)
             }
         }
