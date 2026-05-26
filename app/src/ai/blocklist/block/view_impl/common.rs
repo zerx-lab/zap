@@ -26,7 +26,7 @@ use warpui::{
         new_scrollable::{ScrollableAppearance, SingleAxisConfig},
         Align, Axis, Border, ChildAnchor, ChildView, Clipped, ClippedScrollStateHandle,
         ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DispatchEventResult, Empty,
-        EventHandler, Expanded, Fill, Flex, FormattedTextElement, HeadingFontSizeMultipliers,
+        EventHandler, Expanded, Fill, Flex, FormattedTextElement,
         Hoverable, Image as WarpImage, MainAxisAlignment, MainAxisSize, MouseStateHandle,
         NewScrollable, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
         SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Stack, Table,
@@ -111,7 +111,7 @@ use crate::{
 };
 use crate::{
     search::slash_command_menu::static_commands::commands,
-    settings::{FontSettings, InputSettings},
+    settings::{heading_font_size_multipliers_from_settings, FontSettings, InputSettings},
 };
 use warp_core::channel::ChannelState;
 use warp_editor::content::{
@@ -1537,14 +1537,10 @@ pub(super) fn render_rich_text_output_text_section(
     } else {
         theme.text_selection_color().into_solid()
     })
-    // Lower line height ratio than default (1.4) and smaller header font size multipliers for AI blocks.
     .with_line_height_ratio(1.2)
-    .with_heading_to_font_size_multipliers(HeadingFontSizeMultipliers {
-        h1: 1.55,
-        h2: 1.4,
-        h3: 1.2,
-        ..Default::default()
-    })
+    .with_heading_to_font_size_multipliers(heading_font_size_multipliers_from_settings(
+        FontSettings::as_ref(app),
+    ))
     .with_inline_code_properties(Some(inline_code_text_color), Some(inline_code_bg_color))
     .set_selectable(props.selectable);
 
