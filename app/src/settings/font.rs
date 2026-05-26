@@ -137,6 +137,60 @@ define_settings_group!(FontSettings,
             toml_path: "appearance.text.ui_font_size",
             description: "The base font size for UI elements.",
         },
+        markdown_heading_h1_scale: MarkdownHeadingH1Scale {
+            type: f32,
+            default: 2.25,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h1_scale",
+            description: "The font size multiplication ratio for markdown heading level 1.",
+        },
+        markdown_heading_h2_scale: MarkdownHeadingH2Scale {
+            type: f32,
+            default: 1.8,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h2_scale",
+            description: "The font size multiplication ratio for markdown heading level 2.",
+        },
+        markdown_heading_h3_scale: MarkdownHeadingH3Scale {
+            type: f32,
+            default: 1.5,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h3_scale",
+            description: "The font size multiplication ratio for markdown heading level 3.",
+        },
+        markdown_heading_h4_scale: MarkdownHeadingH4Scale {
+            type: f32,
+            default: 1.0,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h4_scale",
+            description: "The font size multiplication ratio for markdown heading level 4.",
+        },
+        markdown_heading_h5_scale: MarkdownHeadingH5Scale {
+            type: f32,
+            default: 0.83,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h5_scale",
+            description: "The font size multiplication ratio for markdown heading level 5.",
+        },
+        markdown_heading_h6_scale: MarkdownHeadingH6Scale {
+            type: f32,
+            default: 0.67,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h6_scale",
+            description: "The font size multiplication ratio for markdown heading level 6.",
+        },
     ]
 );
 
@@ -167,4 +221,20 @@ pub fn derived_notebook_font_size(font_settings: &FontSettings) -> f32 {
     } else {
         *font_settings.notebook_font_size
     }
+}
+
+pub use warpui_core::elements::formatted_text_element::HeadingFontSizeMultipliers;
+
+/// 从 FontSettings 构建 HeadingFontSizeMultipliers
+pub fn heading_font_size_multipliers_from_settings(
+    font_settings: &FontSettings,
+) -> HeadingFontSizeMultipliers {
+    HeadingFontSizeMultipliers::from_values(
+        *font_settings.markdown_heading_h1_scale,
+        *font_settings.markdown_heading_h2_scale,
+        *font_settings.markdown_heading_h3_scale,
+        *font_settings.markdown_heading_h4_scale,
+        *font_settings.markdown_heading_h5_scale,
+        *font_settings.markdown_heading_h6_scale,
+    )
 }
