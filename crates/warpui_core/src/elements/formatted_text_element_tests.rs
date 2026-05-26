@@ -98,6 +98,68 @@ fn test_custom_heading_font_size_multipliers() {
     );
 }
 
+#[test]
+fn test_from_values_creates_correct_multipliers() {
+    let multipliers = HeadingFontSizeMultipliers::from_values(1.1, 1.2, 1.3, 1.4, 1.5, 1.6);
+
+    assert_eq!(multipliers.h1, 1.1);
+    assert_eq!(multipliers.h2, 1.2);
+    assert_eq!(multipliers.h3, 1.3);
+    assert_eq!(multipliers.h4, 1.4);
+    assert_eq!(multipliers.h5, 1.5);
+    assert_eq!(multipliers.h6, 1.6);
+}
+
+#[test]
+fn test_from_values_matches_direct_construction() {
+    let from_values = HeadingFontSizeMultipliers::from_values(2.0, 1.5, 1.2, 1.0, 0.8, 0.6);
+    let direct = HeadingFontSizeMultipliers {
+        h1: 2.0,
+        h2: 1.5,
+        h3: 1.2,
+        h4: 1.0,
+        h5: 0.8,
+        h6: 0.6,
+    };
+
+    assert_eq!(from_values, direct);
+}
+
+#[test]
+fn test_from_values_differs_from_default() {
+    let from_values = HeadingFontSizeMultipliers::from_values(1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+    let default = HeadingFontSizeMultipliers::default();
+
+    assert_ne!(from_values, default);
+}
+
+#[test]
+fn test_from_values_get_multiplier_integration() {
+    let multipliers = HeadingFontSizeMultipliers::from_values(1.55, 1.4, 1.2, 1.0, 0.83, 0.67);
+
+    assert_eq!(multipliers.get_multiplier(1), 1.55);
+    assert_eq!(multipliers.get_multiplier(2), 1.4);
+    assert_eq!(multipliers.get_multiplier(3), 1.2);
+    assert_eq!(multipliers.get_multiplier(4), 1.0);
+    assert_eq!(multipliers.get_multiplier(5), 0.83);
+    assert_eq!(multipliers.get_multiplier(6), 0.67);
+    assert_eq!(multipliers.get_multiplier(0), 1.0);
+    assert_eq!(multipliers.get_multiplier(7), 1.0);
+}
+
+#[test]
+fn test_from_values_boundary_values() {
+    let zeros = HeadingFontSizeMultipliers::from_values(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+    assert_eq!(zeros.h1, 0.0);
+
+    let negatives = HeadingFontSizeMultipliers::from_values(-1.0, -0.5, 0.0, 0.5, 1.0, 1.5);
+    assert_eq!(negatives.h1, -1.0);
+    assert_eq!(negatives.h2, -0.5);
+
+    let large = HeadingFontSizeMultipliers::from_values(10.0, 10.0, 10.0, 10.0, 10.0, 10.0);
+    assert_eq!(large.h1, 10.0);
+}
+
 fn sr(char_start: usize, char_end: usize, byte_start: usize, byte_end: usize) -> SecretRange {
     SecretRange {
         char_range: char_start..char_end,
