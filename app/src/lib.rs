@@ -1204,6 +1204,9 @@ fn initialize_app(
 
     ctx.add_singleton_model(AntivirusInfo::new);
 
+    // 云同步 Token 走 OS 密钥库，不落 TOML。
+    ctx.add_singleton_model(crate::settings::CloudSyncTokenStore::new);
+
     cfg_if::cfg_if! {
         if #[cfg(feature = "crash_reporting")] {
             let is_crash_reporting_enabled = crash_reporting::init(ctx);

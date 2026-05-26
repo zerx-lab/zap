@@ -66,7 +66,7 @@ impl SyncDataProvider for SshSyncProvider {
         "ssh"
     }
 
-    fn collect_data(&self, token: &str) -> Result<serde_json::Value, SyncEngineError> {
+    fn collect_data(&self, _token: &str) -> Result<serde_json::Value, SyncEngineError> {
         let nodes =
             with_conn(|conn| Ok(SshRepository::list_nodes(conn)?))
                 .map_err(|e| SyncEngineError::Provider(e.to_string()))?;
@@ -124,7 +124,7 @@ impl SyncDataProvider for SshSyncProvider {
                             None
                         } else {
                             Some(
-                                crypto::encrypt(token, &password)
+                                crypto::encrypt(&password)
                                     .map_err(|e| SyncEngineError::Crypto(e.to_string()))?,
                             )
                         },
@@ -132,7 +132,7 @@ impl SyncDataProvider for SshSyncProvider {
                             None
                         } else {
                             Some(
-                                crypto::encrypt(token, &passphrase)
+                                crypto::encrypt(&passphrase)
                                     .map_err(|e| SyncEngineError::Crypto(e.to_string()))?,
                             )
                         },
@@ -140,7 +140,7 @@ impl SyncDataProvider for SshSyncProvider {
                             None
                         } else {
                             Some(
-                                crypto::encrypt(token, &root_password)
+                                crypto::encrypt(&root_password)
                                     .map_err(|e| SyncEngineError::Crypto(e.to_string()))?,
                             )
                         },
@@ -158,7 +158,7 @@ impl SyncDataProvider for SshSyncProvider {
             .map_err(|e: serde_json::Error| SyncEngineError::Serialization(e.to_string()))
     }
 
-    fn apply_data(&self, token: &str, data: &serde_json::Value) -> Result<(), SyncEngineError> {
+    fn apply_data(&self, _token: &str, data: &serde_json::Value) -> Result<(), SyncEngineError> {
         let ssh_data: SshSyncData = serde_json::from_value(data.clone())
             .map_err(|e: serde_json::Error| SyncEngineError::Serialization(e.to_string()))?;
 
@@ -210,7 +210,7 @@ impl SyncDataProvider for SshSyncProvider {
                         .execute(conn)?;
 
                     if let Some(ref enc) = server.password_encrypted {
-                        let password = crypto::decrypt(token, enc)?;
+                        let password = crypto::decrypt(enc)?;
                         pending.push(PendingSecret {
                             node_id: server.node_id.clone(),
                             kind: SecretKind::Password,
@@ -218,7 +218,7 @@ impl SyncDataProvider for SshSyncProvider {
                         });
                     }
                     if let Some(ref enc) = server.passphrase_encrypted {
-                        let passphrase = crypto::decrypt(token, enc)?;
+                        let passphrase = crypto::decrypt(enc)?;
                         pending.push(PendingSecret {
                             node_id: server.node_id.clone(),
                             kind: SecretKind::Passphrase,
@@ -226,7 +226,7 @@ impl SyncDataProvider for SshSyncProvider {
                         });
                     }
                     if let Some(ref enc) = server.root_password_encrypted {
-                        let root_password = crypto::decrypt(token, enc)?;
+                        let root_password = crypto::decrypt(enc)?;
                         pending.push(PendingSecret {
                             node_id: server.node_id.clone(),
                             kind: SecretKind::RootPassword,
@@ -268,5 +268,16 @@ impl SyncVersionStore for DbVersionStore {
     fn update_sync_meta(&self, time: &str, platform: &str) -> Result<(), SyncEngineError> {
         with_conn(|c| Ok(SshRepository::update_sync_meta(c, time, platform)?))
             .map_err(|e| SyncEngineError::VersionStore(e.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_section_key() {
+        let provider = SshSyncProvider::new();
+        assert_eq!(provider.section_key(), "ssh");
     }
 }

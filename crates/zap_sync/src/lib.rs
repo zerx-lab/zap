@@ -9,6 +9,6 @@ pub mod sync_engine;
 pub mod types;
 
 pub use crypto::CryptoError;
-pub use gist_client::{GistClient, GistClientError};
+pub use gist_client::{GistClient, GistClientError, GistOps};
 pub use sync_engine::{SyncDataProvider, SyncEngine};
 pub use types::*;

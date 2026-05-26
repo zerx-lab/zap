@@ -20,16 +20,19 @@ pub enum CryptoError {
     Decrypt(String),
 }
 
-/// 从 Token 派生 32 字节密钥
-fn derive_key(token: &str) -> [u8; 32] {
+/// 密钥派生固定盐值，与 token 解耦
+const KEY_SALT: &[u8] = b"ZAP_SYNC_MASTER_KEY_V1";
+
+/// 派生 32 字节密钥
+fn derive_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(token.as_bytes());
+    hasher.update(KEY_SALT);
     hasher.finalize().into()
 }
 
 /// 使用 AES-256-GCM 加密明文，返回 Base64 编码的 nonce+ciphertext
-pub fn encrypt(token: &str, plaintext: &str) -> Result<String, CryptoError> {
-    let key = derive_key(token);
+pub fn encrypt(plaintext: &str) -> Result<String, CryptoError> {
+    let key = derive_key();
     let cipher = Aes256Gcm::new_from_slice(&key)
         .map_err(|e| CryptoError::Encrypt(e.to_string()))?;
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
@@ -43,8 +46,8 @@ pub fn encrypt(token: &str, plaintext: &str) -> Result<String, CryptoError> {
 }
 
 /// 解密 Base64 编码的 nonce+ciphertext
-pub fn decrypt(token: &str, encoded: &str) -> Result<String, CryptoError> {
-    let key = derive_key(token);
+pub fn decrypt(encoded: &str) -> Result<String, CryptoError> {
+    let key = derive_key();
     let combined = BASE64
         .decode(encoded)
         .map_err(|e| CryptoError::Decrypt(e.to_string()))?;
@@ -67,30 +70,74 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {
-        let token = "ghp_test_token_12345";
         let plaintext = "my_secret_password";
-        let encrypted = encrypt(token, plaintext).unwrap();
-        let decrypted = decrypt(token, &encrypted).unwrap();
+        let encrypted = encrypt(plaintext).unwrap();
+        let decrypted = decrypt(&encrypted).unwrap();
         assert_eq!(decrypted, plaintext);
     }
 
     #[test]
-    fn test_different_tokens_produce_different_ciphertext() {
-        let encrypted1 = encrypt("token_a", "secret").unwrap();
-        let encrypted2 = encrypt("token_b", "secret").unwrap();
-        assert_ne!(encrypted1, encrypted2);
-    }
-
-    #[test]
-    fn test_wrong_token_fails_to_decrypt() {
-        let encrypted = encrypt("correct_token", "secret").unwrap();
-        assert!(decrypt("wrong_token", &encrypted).is_err());
+    fn test_deterministic_key_derivation() {
+        let encrypted1 = encrypt("secret").unwrap();
+        let decrypted1 = decrypt(&encrypted1).unwrap();
+        assert_eq!(decrypted1, "secret");
     }
 
     #[test]
     fn test_empty_string() {
-        let encrypted = encrypt("token", "").unwrap();
-        let decrypted = decrypt("token", &encrypted).unwrap();
+        let encrypted = encrypt("").unwrap();
+        let decrypted = decrypt(&encrypted).unwrap();
         assert_eq!(decrypted, "");
+    }
+
+    #[test]
+    fn test_decrypt_invalid_base64() {
+        let result = decrypt("!!!not-base64!!!");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_data_too_short() {
+        // 8 bytes < 12 bytes (nonce size)
+        let short = BASE64.encode(&[0u8; 8]);
+        let result = decrypt(&short);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_decrypt_wrong_ciphertext() {
+        // 12 bytes nonce + 1 byte garbage
+        let data = vec![0u8; 13];
+        let encoded = BASE64.encode(&data);
+        let result = decrypt(&encoded);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_encrypt_produces_different_ciphertexts() {
+        let plaintext = "same_input";
+        let e1 = encrypt(plaintext).unwrap();
+        let e2 = encrypt(plaintext).unwrap();
+        // 不同 nonce 应产生不同密文
+        assert_ne!(e1, e2);
+        // 但都能正确解密
+        assert_eq!(decrypt(&e1).unwrap(), plaintext);
+        assert_eq!(decrypt(&e2).unwrap(), plaintext);
+    }
+
+    #[test]
+    fn test_encrypt_unicode() {
+        let plaintext = "你好世界🌍";
+        let encrypted = encrypt(plaintext).unwrap();
+        let decrypted = decrypt(&encrypted).unwrap();
+        assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn test_encrypt_long_string() {
+        let plaintext = "a".repeat(10_000);
+        let encrypted = encrypt(&plaintext).unwrap();
+        let decrypted = decrypt(&encrypted).unwrap();
+        assert_eq!(decrypted, plaintext);
     }
 }

@@ -24,6 +24,24 @@ pub enum GistClientError {
     Api { status: u16, body: String },
 }
 
+/// Gist 操作 trait，支持真实客户端和测试 mock
+pub trait GistOps: Send + Sync {
+    /// 验证 Token 是否有效，返回用户名
+    fn validate_token(&self, platform: SyncPlatform, token: String) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
+
+    /// 查找 description 为 ZAP_CONFIG 的 Gist
+    fn find_gist(&self, platform: SyncPlatform, token: String) -> impl std::future::Future<Output = Result<Option<String>, GistClientError>> + Send;
+
+    /// 创建新 Gist
+    fn create_gist(&self, platform: SyncPlatform, token: String, content: String) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
+
+    /// 更新已有 Gist
+    fn update_gist(&self, platform: SyncPlatform, token: String, gist_id: String, content: String) -> impl std::future::Future<Output = Result<(), GistClientError>> + Send;
+
+    /// 获取 Gist 文件内容
+    fn get_gist_content(&self, platform: SyncPlatform, token: String, gist_id: String) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
+}
+
 /// Gist API 客户端，支持 GitHub 和 Gitee
 pub struct GistClient {
     client: Client,
@@ -199,7 +217,7 @@ impl GistClient {
         Ok(())
     }
 
-    /// 获取 Gist 文件内容
+    /// 获取 Gist 文件内容，自动处理截断
     pub async fn get_gist_content(
         &self,
         platform: SyncPlatform,
@@ -228,9 +246,75 @@ impl GistClient {
         }
 
         let detail: serde_json::Value = resp.json().await?;
-        let content = detail["files"][GIST_FILENAME]["content"]
-            .as_str()
-            .ok_or(GistClientError::NotFound)?;
-        Ok(content.to_string())
+        let file_obj = &detail["files"][GIST_FILENAME];
+
+        if file_obj["truncated"].as_bool() == Some(true) {
+            let raw_url = file_obj["raw_url"]
+                .as_str()
+                .ok_or(GistClientError::NotFound)?;
+            let raw_resp = self
+                .client
+                .get(raw_url)
+                .header("Authorization", Self::auth_header(platform, token))
+                .send()
+                .await?;
+            if !raw_resp.status().is_success() {
+                return Err(GistClientError::Api {
+                    status: raw_resp.status().as_u16(),
+                    body: raw_resp.text().await.unwrap_or_default(),
+                });
+            }
+            Ok(raw_resp.text().await?)
+        } else {
+            let content = file_obj["content"]
+                .as_str()
+                .ok_or(GistClientError::NotFound)?;
+            Ok(content.to_string())
+        }
+    }
+}
+
+impl GistOps for GistClient {
+    async fn validate_token(&self, platform: SyncPlatform, token: String) -> Result<String, GistClientError> {
+        self.validate_token(platform, &token).await
+    }
+
+    async fn find_gist(&self, platform: SyncPlatform, token: String) -> Result<Option<String>, GistClientError> {
+        self.find_gist(platform, &token).await
+    }
+
+    async fn create_gist(&self, platform: SyncPlatform, token: String, content: String) -> Result<String, GistClientError> {
+        self.create_gist(platform, &token, &content).await
+    }
+
+    async fn update_gist(&self, platform: SyncPlatform, token: String, gist_id: String, content: String) -> Result<(), GistClientError> {
+        self.update_gist(platform, &token, &gist_id, &content).await
+    }
+
+    async fn get_gist_content(&self, platform: SyncPlatform, token: String, gist_id: String) -> Result<String, GistClientError> {
+        self.get_gist_content(platform, &token, &gist_id).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_auth_header_github() {
+        let header = GistClient::auth_header(SyncPlatform::GitHub, "mytoken");
+        assert_eq!(header, "Bearer mytoken");
+    }
+
+    #[test]
+    fn test_auth_header_gitee() {
+        let header = GistClient::auth_header(SyncPlatform::Gitee, "mytoken");
+        assert_eq!(header, "token mytoken");
+    }
+
+    #[test]
+    fn test_empty_token_returns_early() {
+        assert!(GistClient::auth_header(SyncPlatform::GitHub, "").ends_with(""));
+        assert!(GistClient::auth_header(SyncPlatform::Gitee, "").ends_with(""));
     }
 }
