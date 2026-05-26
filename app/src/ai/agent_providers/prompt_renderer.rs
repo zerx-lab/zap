@@ -191,6 +191,9 @@ struct GitCtx {
 struct SkillCtx {
     name: String,
     description: String,
+    /// Absolute path to SKILL.md (or `@warp-skill:<id>` for bundled skills).
+    /// Exposed so the model can pass the correct value to `read_skill(skill_path=...)`.
+    path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -300,6 +303,7 @@ fn collect_prompt_context(model_id: &str, ctx: &[AIAgentContext]) -> PromptConte
                     out.skills.push(SkillCtx {
                         name: s.name.clone(),
                         description: s.description.clone(),
+                        path: s.reference.to_string(),
                     });
                 }
             }
@@ -563,6 +567,32 @@ mod tests {
         assert!(
             !out.contains("Skills provide specialized instructions"),
             "{out}"
+        );
+    }
+
+    /// Issue #169 回归:系统 prompt 中的 skill 区块必须包含 skill_path(绝对路径),
+    /// 而非仅 name/description,否则模型无法正确调用 read_skill 工具。
+    #[test]
+    fn render_includes_skill_path_for_read_skill_tool() {
+        use crate::ai::skills::SkillDescriptor;
+        use ai::skills::{SkillProvider, SkillReference, SkillScope};
+
+        let skill_path = "/home/user/.agents/skills/open-browser-use/SKILL.md";
+        let skill = SkillDescriptor {
+            reference: SkillReference::Path(skill_path.into()),
+            name: "open-browser-use".into(),
+            description: "Automates Chrome browser operations.".into(),
+            scope: SkillScope::Project,
+            provider: SkillProvider::Agents,
+            icon_override: None,
+        };
+        let ctx = vec![AIAgentContext::Skills {
+            skills: vec![skill],
+        }];
+        let out = render_system(&LLMId::from("byop:p:deepseek-chat"), &ctx, &[], false, &[]);
+        assert!(
+            out.contains(skill_path),
+            "system prompt must expose the skill_path so the model can pass it to read_skill; got: {out}"
         );
     }
 

@@ -2,4 +2,4 @@ Load a specialized skill when the task at hand matches one of the skills listed 
 
 Use this tool to inject the skill's instructions and resources into the current conversation. The output may contain detailed workflow guidance as well as references to scripts, files, etc. in the same directory as the skill.
 
-The skill `name` must match one of the skills listed in your system prompt. If the system prompt does not currently list any skills, this tool is a no-op — do not call it.
+Set `skill_path` to the `<skill_path>` value shown for that skill in your system prompt. If the system prompt does not currently list any skills, this tool is a no-op — do not call it.
