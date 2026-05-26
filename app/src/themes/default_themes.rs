@@ -265,7 +265,7 @@ const WEZTERM_CLASSIC_NORMAL_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xCC5555FF),
     AnsiColor::from_u32(0x55CC55FF),
     AnsiColor::from_u32(0xCDCD55FF),
-    AnsiColor::from_u32(0x5455CBFF),
+    AnsiColor::from_u32(0x5555CCFF),
     AnsiColor::from_u32(0xCC55CCFF),
     AnsiColor::from_u32(0x7ACACAFF),
     AnsiColor::from_u32(0xCCCCCCFF),
@@ -715,10 +715,11 @@ pub(super) fn adeberry() -> WarpTheme {
     )
 }
 
+// 16 色 ANSI 与背景/前景对齐 WezTerm 默认配色；强调色 #52AD70 为本项目自选，非 WezTerm 规范色。
 pub(super) fn wezterm_classic() -> WarpTheme {
     WarpTheme::new(
         Fill::Solid(ColorU::from_u32(0x000000FF)),
-        ColorU::from_u32(0xB2B2B2FF),
+        ColorU::from_u32(0xB3B3B3FF),
         Fill::Solid(ColorU::from_u32(0x52AD70FF)),
         None,
         Some(Details::Darker),
