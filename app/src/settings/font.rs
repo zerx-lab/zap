@@ -223,7 +223,7 @@ pub fn derived_notebook_font_size(font_settings: &FontSettings) -> f32 {
     }
 }
 
-pub use warpui_core::elements::formatted_text_element::HeadingFontSizeMultipliers;
+pub use warpui::elements::HeadingFontSizeMultipliers;
 
 /// 从 FontSettings 构建 HeadingFontSizeMultipliers
 pub fn heading_font_size_multipliers_from_settings(

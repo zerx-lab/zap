@@ -430,6 +430,7 @@ pub enum AppearancePageAction {
     SetFontSize,
     SetFontWeight(Weight),
     SetNotebookFontSize,
+    SetMarkdownHeadingScale,
     SetLineHeight,
     SetOpacity(f32),
     SetBlur(f32),
@@ -494,6 +495,12 @@ pub struct AppearanceSettingsPageView {
     font_size_editor: ViewHandle<EditorView>,
     line_height_editor: ViewHandle<EditorView>,
     notebook_font_size_editor: ViewHandle<EditorView>,
+    markdown_heading_h1_scale_editor: ViewHandle<EditorView>,
+    markdown_heading_h2_scale_editor: ViewHandle<EditorView>,
+    markdown_heading_h3_scale_editor: ViewHandle<EditorView>,
+    markdown_heading_h4_scale_editor: ViewHandle<EditorView>,
+    markdown_heading_h5_scale_editor: ViewHandle<EditorView>,
+    markdown_heading_h6_scale_editor: ViewHandle<EditorView>,
     ai_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
     ui_font_family_dropdown: ViewHandle<FilterableDropdown<AppearancePageAction>>,
     ui_font_size_editor: ViewHandle<EditorView>,
@@ -557,6 +564,7 @@ impl TypedActionView for AppearanceSettingsPageView {
             }
             ToggleMatchAIToTerminalFontFamily => self.toggle_match_ai_font_to_terminal_font(ctx),
             SetNotebookFontSize => self.set_notebook_font_size(ctx),
+            SetMarkdownHeadingScale => self.set_markdown_heading_scale(ctx),
             SetLineHeight => self.set_line_height_ratio(ctx),
             SetOpacity(value) => self.set_opacity(*value, true, ctx),
             SetBlur(value) => self.set_blur(*value, true, ctx),
@@ -748,6 +756,12 @@ impl AppearanceSettingsPageView {
             notebook_font_size,
             match_notebook_to_monospace_font_size,
             ui_font_size_setting,
+            markdown_heading_h1_scale,
+            markdown_heading_h2_scale,
+            markdown_heading_h3_scale,
+            markdown_heading_h4_scale,
+            markdown_heading_h5_scale,
+            markdown_heading_h6_scale,
         ) = {
             let appearance = Appearance::as_ref(ctx);
             let font_settings = FontSettings::as_ref(ctx);
@@ -759,6 +773,12 @@ impl AppearanceSettingsPageView {
                 *font_settings.notebook_font_size,
                 *font_settings.match_notebook_to_monospace_font_size,
                 *font_settings.ui_font_size,
+                *font_settings.markdown_heading_h1_scale,
+                *font_settings.markdown_heading_h2_scale,
+                *font_settings.markdown_heading_h3_scale,
+                *font_settings.markdown_heading_h4_scale,
+                *font_settings.markdown_heading_h5_scale,
+                *font_settings.markdown_heading_h6_scale,
             )
         };
 
@@ -779,6 +799,43 @@ impl AppearanceSettingsPageView {
         let notebook_font_size_editor = Self::editor(
             |me, event, ctx| me.handle_notebook_font_size_editor_event(event, ctx),
             &format!("{notebook_font_size}"),
+            ui_font_size,
+            ctx,
+        );
+
+        let markdown_heading_h1_scale_editor = Self::editor(
+            |me, event, ctx| me.handle_markdown_heading_scale_editor_event(event, ctx),
+            &format!("{markdown_heading_h1_scale}"),
+            ui_font_size,
+            ctx,
+        );
+        let markdown_heading_h2_scale_editor = Self::editor(
+            |me, event, ctx| me.handle_markdown_heading_scale_editor_event(event, ctx),
+            &format!("{markdown_heading_h2_scale}"),
+            ui_font_size,
+            ctx,
+        );
+        let markdown_heading_h3_scale_editor = Self::editor(
+            |me, event, ctx| me.handle_markdown_heading_scale_editor_event(event, ctx),
+            &format!("{markdown_heading_h3_scale}"),
+            ui_font_size,
+            ctx,
+        );
+        let markdown_heading_h4_scale_editor = Self::editor(
+            |me, event, ctx| me.handle_markdown_heading_scale_editor_event(event, ctx),
+            &format!("{markdown_heading_h4_scale}"),
+            ui_font_size,
+            ctx,
+        );
+        let markdown_heading_h5_scale_editor = Self::editor(
+            |me, event, ctx| me.handle_markdown_heading_scale_editor_event(event, ctx),
+            &format!("{markdown_heading_h5_scale}"),
+            ui_font_size,
+            ctx,
+        );
+        let markdown_heading_h6_scale_editor = Self::editor(
+            |me, event, ctx| me.handle_markdown_heading_scale_editor_event(event, ctx),
+            &format!("{markdown_heading_h6_scale}"),
             ui_font_size,
             ctx,
         );
@@ -1278,6 +1335,12 @@ impl AppearanceSettingsPageView {
             ui_font_family_dropdown,
             ui_font_size_editor,
             notebook_font_size_editor,
+            markdown_heading_h1_scale_editor,
+            markdown_heading_h2_scale_editor,
+            markdown_heading_h3_scale_editor,
+            markdown_heading_h4_scale_editor,
+            markdown_heading_h5_scale_editor,
+            markdown_heading_h6_scale_editor,
             font_size_editor,
             line_height_editor,
             new_window_columns_editor,
@@ -1423,6 +1486,7 @@ impl AppearanceSettingsPageView {
             Box::new(AIFontWidget::default()),
             Box::new(UIFontWidget::default()),
             Box::new(NotebookFontSizeWidget::default()),
+            Box::new(MarkdownHeadingScaleWidget::default()),
         ];
         if font_settings
             .use_thin_strokes
@@ -1796,6 +1860,23 @@ impl AppearanceSettingsPageView {
         }
     }
 
+    /// 处理 markdown 标题字号系数编辑器事件
+    fn handle_markdown_heading_scale_editor_event(
+        &mut self,
+        event: &EditorEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            EditorEvent::Blurred | EditorEvent::Enter => {
+                self.set_markdown_heading_scale(ctx);
+            }
+            EditorEvent::Escape => {
+                ctx.emit(SettingsPageEvent::FocusModal);
+            }
+            _ => {}
+        }
+    }
+
     pub fn handle_ui_font_size_editor_event(
         &mut self,
         event: &EditorEvent,
@@ -1912,6 +1993,24 @@ impl AppearanceSettingsPageView {
                 });
             }
         }
+    }
+
+    /// 设置 markdown 标题字号系数
+    fn set_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
+        let h1 = self.markdown_heading_h1_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
+        let h2 = self.markdown_heading_h2_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
+        let h3 = self.markdown_heading_h3_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
+        let h4 = self.markdown_heading_h4_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
+        let h5 = self.markdown_heading_h5_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
+        let h6 = self.markdown_heading_h6_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            if let Some(v) = h1 { report_if_error!(font_settings.markdown_heading_h1_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
+            if let Some(v) = h2 { report_if_error!(font_settings.markdown_heading_h2_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
+            if let Some(v) = h3 { report_if_error!(font_settings.markdown_heading_h3_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
+            if let Some(v) = h4 { report_if_error!(font_settings.markdown_heading_h4_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
+            if let Some(v) = h5 { report_if_error!(font_settings.markdown_heading_h5_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
+            if let Some(v) = h6 { report_if_error!(font_settings.markdown_heading_h6_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
+        });
     }
 
     fn set_opacity(
@@ -4550,6 +4649,177 @@ impl SettingsWidget for NotebookFontSizeWidget {
         )
         .with_margin_bottom(10.)
         .finish()
+    }
+}
+
+#[derive(Default)]
+struct MarkdownHeadingScaleWidget {}
+
+const MARKDOWN_SCALE_INPUT_BOX_WIDTH: f32 = 64.0;
+
+impl MarkdownHeadingScaleWidget {
+    /// 渲染单个系数输入框
+    fn render_scale_input(
+        editor: &ViewHandle<EditorView>,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        Container::new(
+            Dismiss::new(
+                appearance
+                    .ui_builder()
+                    .text_input(editor.clone())
+                    .with_style(UiComponentStyles {
+                        width: Some(MARKDOWN_SCALE_INPUT_BOX_WIDTH),
+                        padding: Some(Coords {
+                            top: 7.,
+                            bottom: 7.,
+                            left: 16.,
+                            right: 16.,
+                        }),
+                        background: Some(appearance.theme().surface_2().into()),
+                        ..Default::default()
+                    })
+                    .build()
+                    .finish(),
+            )
+            .on_dismiss(|ctx, _app| {
+                ctx.dispatch_typed_action(AppearancePageAction::SetMarkdownHeadingScale);
+            })
+            .finish(),
+        )
+        .finish()
+    }
+}
+
+/// Markdown 标题字号系数设置组件
+impl SettingsWidget for MarkdownHeadingScaleWidget {
+    type View = AppearanceSettingsPageView;
+
+    fn search_terms(&self) -> &str {
+        "markdown heading font size scale"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let font_settings = FontSettings::as_ref(app);
+        let editors_and_values: [(&ViewHandle<EditorView>, f32); 6] = [
+            (&view.markdown_heading_h1_scale_editor, *font_settings.markdown_heading_h1_scale),
+            (&view.markdown_heading_h2_scale_editor, *font_settings.markdown_heading_h2_scale),
+            (&view.markdown_heading_h3_scale_editor, *font_settings.markdown_heading_h3_scale),
+            (&view.markdown_heading_h4_scale_editor, *font_settings.markdown_heading_h4_scale),
+            (&view.markdown_heading_h5_scale_editor, *font_settings.markdown_heading_h5_scale),
+            (&view.markdown_heading_h6_scale_editor, *font_settings.markdown_heading_h6_scale),
+        ];
+
+        let mut rows = Flex::column().with_spacing(4.);
+
+        // 标题行
+        rows.add_child(
+            appearance
+                .ui_builder()
+                .span(crate::t!("settings-appearance-markdown-heading-scale-label"))
+                .build()
+                .finish(),
+        );
+
+        // H1
+        rows.add_child(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(
+                    appearance
+                        .ui_builder()
+                        .span(crate::t!("settings-appearance-markdown-heading-h1-label"))
+                        .build()
+                        .with_margin_right(8.)
+                        .finish(),
+                )
+                .with_child(Self::render_scale_input(&editors_and_values[0].0, appearance))
+                .finish(),
+        );
+        // H2
+        rows.add_child(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(
+                    appearance
+                        .ui_builder()
+                        .span(crate::t!("settings-appearance-markdown-heading-h2-label"))
+                        .build()
+                        .with_margin_right(8.)
+                        .finish(),
+                )
+                .with_child(Self::render_scale_input(&editors_and_values[1].0, appearance))
+                .finish(),
+        );
+        // H3
+        rows.add_child(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(
+                    appearance
+                        .ui_builder()
+                        .span(crate::t!("settings-appearance-markdown-heading-h3-label"))
+                        .build()
+                        .with_margin_right(8.)
+                        .finish(),
+                )
+                .with_child(Self::render_scale_input(&editors_and_values[2].0, appearance))
+                .finish(),
+        );
+        // H4
+        rows.add_child(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(
+                    appearance
+                        .ui_builder()
+                        .span(crate::t!("settings-appearance-markdown-heading-h4-label"))
+                        .build()
+                        .with_margin_right(8.)
+                        .finish(),
+                )
+                .with_child(Self::render_scale_input(&editors_and_values[3].0, appearance))
+                .finish(),
+        );
+        // H5
+        rows.add_child(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(
+                    appearance
+                        .ui_builder()
+                        .span(crate::t!("settings-appearance-markdown-heading-h5-label"))
+                        .build()
+                        .with_margin_right(8.)
+                        .finish(),
+                )
+                .with_child(Self::render_scale_input(&editors_and_values[4].0, appearance))
+                .finish(),
+        );
+        // H6
+        rows.add_child(
+            Flex::row()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(
+                    appearance
+                        .ui_builder()
+                        .span(crate::t!("settings-appearance-markdown-heading-h6-label"))
+                        .build()
+                        .with_margin_right(8.)
+                        .finish(),
+                )
+                .with_child(Self::render_scale_input(&editors_and_values[5].0, appearance))
+                .finish(),
+        );
+
+        Container::new(rows.finish())
+            .with_margin_bottom(10.)
+            .finish()
     }
 }
 
