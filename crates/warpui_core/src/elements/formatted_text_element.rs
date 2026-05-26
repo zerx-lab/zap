@@ -63,6 +63,11 @@ impl Default for HeadingFontSizeMultipliers {
 }
 
 impl HeadingFontSizeMultipliers {
+    /// 使用指定的字体大小倍率值构造 HeadingFontSizeMultipliers 实例
+    pub fn from_values(h1: f32, h2: f32, h3: f32, h4: f32, h5: f32, h6: f32) -> Self {
+        Self { h1, h2, h3, h4, h5, h6 }
+    }
+
     pub fn get_multiplier(&self, heading_level: usize) -> f32 {
         match heading_level {
             1 => self.h1,
