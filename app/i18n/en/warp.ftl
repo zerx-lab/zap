@@ -883,9 +883,11 @@ settings-cloud-sync-success-download = Download from {$platform} successful (ver
 settings-cloud-sync-already-up-to-date = Already up to date (v{$version}), no sync needed
 settings-cloud-sync-failed = Failed: {$error}
 settings-cloud-sync-conflict-status = Conflict: local v{$local} vs remote v{$remote}
+settings-cloud-sync-conflict-status-equal = Versions are equal: local v{$local} = remote v{$remote}
 settings-cloud-sync-token-not-configured = {$platform} Token not configured
 settings-cloud-sync-conflict-title = Version Conflict
 settings-cloud-sync-conflict-description = Remote version (v{$remote}) is newer than local (v{$local}). Forcing upload will overwrite the remote data.
+settings-cloud-sync-conflict-description-equal = Remote and local versions are identical. Forcing upload will overwrite the remote data.
 settings-cloud-sync-force-upload = Force Upload
 settings-cloud-sync-download-confirm-title = Confirm Download
 settings-cloud-sync-download-confirm-description = Downloading will replace all local SSH server configurations with the remote version. This action cannot be undone.

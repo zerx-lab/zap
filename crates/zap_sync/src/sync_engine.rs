@@ -356,34 +356,119 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_upload_creates_new_gist() {
+        do_test_upload_creates_new_gist(SyncPlatform::GitHub).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_upload_creates_new_gist_gitee() {
+        do_test_upload_creates_new_gist(SyncPlatform::Gitee).await;
+    }
+
+    async fn do_test_upload_creates_new_gist(platform: SyncPlatform) {
         let mock = MockGistOps::new(None, "");
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
+        let result = engine.upload(platform, "token", &[&provider], &store).await.unwrap();
         assert!(matches!(result, SyncResult::Success { version: 1, .. }));
         assert!(*engine.client.create_called.lock().unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_upload_updates_existing_gist() {
+        do_test_upload_updates_existing_gist(SyncPlatform::GitHub).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_upload_updates_existing_gist_gitee() {
+        do_test_upload_updates_existing_gist(SyncPlatform::Gitee).await;
+    }
+
+    async fn do_test_upload_updates_existing_gist(platform: SyncPlatform) {
         let mock = MockGistOps::new(Some("gist123".to_string()), &make_sync_data_json(0));
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
+        let result = engine.upload(platform, "token", &[&provider], &store).await.unwrap();
         assert!(matches!(result, SyncResult::Success { version: 1, .. }));
         assert!(*engine.client.update_called.lock().unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_upload_detects_conflict() {
+        do_test_upload_detects_conflict(SyncPlatform::GitHub).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_upload_detects_conflict_gitee() {
+        do_test_upload_detects_conflict(SyncPlatform::Gitee).await;
+    }
+
+    async fn do_test_upload_detects_conflict(platform: SyncPlatform) {
         let mock = MockGistOps::new(Some("gist123".to_string()), &make_sync_data_json(5));
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
+        let result = engine.upload(platform, "token", &[&provider], &store).await.unwrap();
         assert!(matches!(result, SyncResult::Conflict { local_version: 1, remote_version: 5 }));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_download_already_up_to_date() {
+        do_test_download_already_up_to_date(SyncPlatform::GitHub).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_download_already_up_to_date_gitee() {
+        do_test_download_already_up_to_date(SyncPlatform::Gitee).await;
+    }
+
+    async fn do_test_download_already_up_to_date(platform: SyncPlatform) {
+        let mock = MockGistOps::new(Some("gist123".to_string()), &make_sync_data_json(1));
+        let engine = SyncEngine::with_client(mock);
+        let provider = MockProvider;
+        let store = MockVersionStore::new(5);
+        let result = engine.download(platform, "token", &[&provider], &store).await.unwrap();
+        assert!(matches!(result, SyncResult::AlreadyUpToDate { version: 1 }));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_download_succeeds() {
+        do_test_download_succeeds(SyncPlatform::GitHub).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_download_succeeds_gitee() {
+        do_test_download_succeeds(SyncPlatform::Gitee).await;
+    }
+
+    async fn do_test_download_succeeds(platform: SyncPlatform) {
+        let mock = MockGistOps::new(Some("gist123".to_string()), &make_sync_data_json(10));
+        let engine = SyncEngine::with_client(mock);
+        let provider = MockProvider;
+        let store = MockVersionStore::new(1);
+        let result = engine.download(platform, "token", &[&provider], &store).await.unwrap();
+        assert!(matches!(result, SyncResult::Success { version: 10, .. }));
+        assert_eq!(store.get_sync_version().unwrap(), 10);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_download_gist_not_found() {
+        do_test_download_gist_not_found(SyncPlatform::GitHub).await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_download_gist_not_found_gitee() {
+        do_test_download_gist_not_found(SyncPlatform::Gitee).await;
+    }
+
+    async fn do_test_download_gist_not_found(platform: SyncPlatform) {
+        let mock = MockGistOps::new(None, "");
+        let engine = SyncEngine::with_client(mock);
+        let provider = MockProvider;
+        let store = MockVersionStore::new(1);
+        let result = engine.download(platform, "token", &[&provider], &store).await;
+        assert!(result.is_err());
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -394,37 +479,6 @@ mod tests {
         let store = MockVersionStore::new(3);
         let result = engine.upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
         assert!(matches!(result, SyncResult::Conflict { local_version: 3, remote_version: 3 }));
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_download_already_up_to_date() {
-        let mock = MockGistOps::new(Some("gist123".to_string()), &make_sync_data_json(1));
-        let engine = SyncEngine::with_client(mock);
-        let provider = MockProvider;
-        let store = MockVersionStore::new(5);
-        let result = engine.download(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
-        assert!(matches!(result, SyncResult::AlreadyUpToDate { version: 1 }));
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_download_succeeds() {
-        let mock = MockGistOps::new(Some("gist123".to_string()), &make_sync_data_json(10));
-        let engine = SyncEngine::with_client(mock);
-        let provider = MockProvider;
-        let store = MockVersionStore::new(1);
-        let result = engine.download(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
-        assert!(matches!(result, SyncResult::Success { version: 10, .. }));
-        assert_eq!(store.get_sync_version().unwrap(), 10);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_download_gist_not_found() {
-        let mock = MockGistOps::new(None, "");
-        let engine = SyncEngine::with_client(mock);
-        let provider = MockProvider;
-        let store = MockVersionStore::new(1);
-        let result = engine.download(SyncPlatform::GitHub, "token", &[&provider], &store).await;
-        assert!(result.is_err());
     }
 
     #[tokio::test(flavor = "multi_thread")]

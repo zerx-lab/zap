@@ -6,7 +6,7 @@
 use settings::Setting;
 use warpui::{
     elements::{
-        ConstrainedBox, Container, CrossAxisAlignment, Dismiss, Element, Flex,
+        Container, CrossAxisAlignment, Dismiss, Element, Flex,
         MainAxisSize, MouseStateHandle, ParentElement, Text,
     },
     ui_components::{
@@ -29,7 +29,7 @@ use crate::settings::{CloudSyncTokenStore, GITHUB_TOKEN_KEY, GITEE_TOKEN_KEY};
 use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
 
-use warp_ssh_manager::{with_conn, DbVersionStore, SshRepository, SshSyncProvider};
+use warp_ssh_manager::{with_conn, DbVersionStore, SyncMetaRepository, SshSyncProvider};
 use zap_sync::{GistClient, SyncEngine, SyncPlatform, SyncResult};
 
 const INPUT_AREA_MAX_WIDTH: f32 = 420.0;
@@ -132,6 +132,7 @@ pub struct CloudSyncPageView {
     cached_version: String,
     cached_last_sync_time: String,
     cached_last_sync_platform: String,
+    has_valid_token: bool,
 }
 
 /// 构造 Token 密码编辑器
@@ -177,6 +178,7 @@ fn load_token_from_store(me: &mut CloudSyncPageView, ctx: &mut ViewContext<Cloud
         .get(key)
         .unwrap_or("")
         .to_string();
+    me.has_valid_token = !token.is_empty();
     me.token_editor.update(ctx, |editor, ctx| {
         if editor.buffer_text(ctx) != token {
             editor.set_buffer_text(&token, ctx);
@@ -249,6 +251,7 @@ impl CloudSyncPageView {
             cached_version: String::new(),
             cached_last_sync_time: String::new(),
             cached_last_sync_platform: String::new(),
+            has_valid_token: false,
         };
 
         me.refresh_sync_cache();
@@ -259,15 +262,15 @@ impl CloudSyncPageView {
 
     /// 刷新同步状态缓存
     fn refresh_sync_cache(&mut self) {
-        self.cached_version = with_conn(|c| Ok(SshRepository::get_sync_version(c)?))
+        self.cached_version = with_conn(|c| Ok(SyncMetaRepository::get_sync_version(c)?))
             .map(|v| v.to_string())
             .unwrap_or_else(|_| crate::t!("settings-cloud-sync-na"));
-        self.cached_last_sync_time = with_conn(|c| Ok(SshRepository::get_last_sync_time(c)?))
+        self.cached_last_sync_time = with_conn(|c| Ok(SyncMetaRepository::get_last_sync_time(c)?))
             .unwrap_or_else(|e| {
                 log::debug!("Failed to get last sync time: {e}");
                 crate::t!("settings-cloud-sync-never")
             });
-        self.cached_last_sync_platform = with_conn(|c| Ok(SshRepository::get_last_sync_platform(c)?))
+        self.cached_last_sync_platform = with_conn(|c| Ok(SyncMetaRepository::get_last_sync_platform(c)?))
             .unwrap_or_else(|e| {
                 log::debug!("Failed to get last sync platform: {e}");
                 crate::t!("settings-cloud-sync-na")
@@ -460,9 +463,11 @@ impl TypedActionView for CloudSyncPageView {
                         CloudSyncTokenStore::handle(ctx).update(ctx, |store: &mut CloudSyncTokenStore, ctx| {
                             store.set(key, value, ctx);
                         });
+                        self.has_valid_token = true;
                         self.sync_state = SyncState::TokenValid { username };
                     }
                     Err(e) => {
+                        self.has_valid_token = false;
                         self.sync_state = SyncState::Failed {
                             message: e.clone(),
                         };
@@ -482,6 +487,7 @@ impl TypedActionView for CloudSyncPageView {
                 self.token_editor.update(ctx, |editor, ctx| {
                     editor.set_buffer_text("", ctx);
                 });
+                self.has_valid_token = false;
                 ctx.notify();
             }
             CloudSyncPageAction::Upload => {
@@ -659,9 +665,22 @@ impl SettingsWidget for CloudSyncPageWidget {
             Some(crate::t!("settings-cloud-sync-platform-description")),
         ));
 
-        // Token 编辑器
-        let editor_element = warpui::elements::ChildView::new(&view.token_editor).finish();
+        // Token 编辑器 — 使用 text_input 组件获得一致的边框和布局约束
+        let editor_element = appearance
+            .ui_builder()
+            .text_input(view.token_editor.clone())
+            .with_style(
+                UiComponentStyles::default()
+                    .set_width(INPUT_AREA_MAX_WIDTH - 120.0),
+            )
+            .build()
+            .finish();
         let is_validating = matches!(view.sync_state, SyncState::Validating);
+        let save_label = if is_validating {
+            crate::t!("settings-cloud-sync-validating")
+        } else {
+            crate::t!("common-save")
+        };
         let save_button = Container::new(
             {
                 let mut btn = appearance
@@ -672,7 +691,7 @@ impl SettingsWidget for CloudSyncPageWidget {
                         padding: Some(Coords::uniform(BUTTON_PADDING)),
                         ..Default::default()
                     })
-                    .with_text_label(crate::t!("common-save"))
+                    .with_text_label(save_label)
                     .build()
                     .on_click(move |ctx, _, _| {
                         ctx.dispatch_typed_action(CloudSyncPageAction::SaveToken);
@@ -704,21 +723,13 @@ impl SettingsWidget for CloudSyncPageWidget {
         .with_margin_left(8.)
         .finish();
 
-        let input_area = ConstrainedBox::new(
-            Flex::row()
-                .with_main_axis_size(MainAxisSize::Min)
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    ConstrainedBox::new(editor_element)
-                        .with_max_width(INPUT_AREA_MAX_WIDTH - 120.0)
-                        .finish(),
-                )
-                .with_child(save_button)
-                .with_child(clear_button)
-                .finish(),
-        )
-        .with_max_width(INPUT_AREA_MAX_WIDTH)
-        .finish();
+        let input_area = Flex::row()
+            .with_main_axis_size(MainAxisSize::Min)
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_child(editor_element)
+            .with_child(save_button)
+            .with_child(clear_button)
+            .finish();
 
         content.add_child(render_body_item::<CloudSyncPageAction>(
             crate::t!("settings-cloud-sync-token-label"),
@@ -743,6 +754,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             .finish(),
         );
         let is_syncing = matches!(view.sync_state, SyncState::Syncing { .. } | SyncState::Validating);
+        let can_sync = view.has_valid_token && !is_syncing;
 
         let render_sync_button = |label: &str,
                                   mouse: &MouseStateHandle,
@@ -772,13 +784,13 @@ impl SettingsWidget for CloudSyncPageWidget {
             &crate::t!("settings-cloud-sync-upload-label"),
             &view.upload_mouse,
             CloudSyncPageAction::Upload,
-            is_syncing,
+            !can_sync,
         );
         let download_btn = render_sync_button(
             &crate::t!("settings-cloud-sync-download-label"),
             &view.download_mouse,
             CloudSyncPageAction::Download,
-            is_syncing,
+            !can_sync,
         );
 
         let buttons_row = Flex::row()
@@ -881,7 +893,13 @@ impl SettingsWidget for CloudSyncPageWidget {
                 remote_version,
                 ..
             } => {
-                Some(crate::t!("settings-cloud-sync-conflict-status", local = (*local_version).to_string(), remote = (*remote_version).to_string()))
+                let local = *local_version;
+                let remote = *remote_version;
+                if local == remote {
+                    Some(crate::t!("settings-cloud-sync-conflict-status-equal", local = local.to_string(), remote = remote.to_string()))
+                } else {
+                    Some(crate::t!("settings-cloud-sync-conflict-status", local = local.to_string(), remote = remote.to_string()))
+                }
             }
         };
 
@@ -900,11 +918,15 @@ impl SettingsWidget for CloudSyncPageWidget {
 
         // 冲突弹窗
         if view.conflict_visible {
-            let description_text = crate::t!(
-                "settings-cloud-sync-conflict-description",
-                remote = view.conflict_remote_version,
-                local = view.conflict_local_version
-            );
+            let description_text = if view.conflict_local_version == view.conflict_remote_version {
+                crate::t!("settings-cloud-sync-conflict-description-equal")
+            } else {
+                crate::t!(
+                    "settings-cloud-sync-conflict-description",
+                    remote = view.conflict_remote_version,
+                    local = view.conflict_local_version
+                )
+            };
 
             let force_button = Container::new(
                 appearance

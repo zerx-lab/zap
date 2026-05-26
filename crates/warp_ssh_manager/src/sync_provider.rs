@@ -1,10 +1,10 @@
 //! SSH 数据同步提供者，实现 SyncDataProvider trait
 //!
 // author: logic
-// date: 2026-05-24
+// date: 2026-05-26
 
 use crate::db::with_conn;
-use crate::repository::SshRepository;
+use crate::repository::{SshRepository, SyncMetaRepository};
 use crate::secrets::{KeychainSecretStore, SecretKind, SshSecretStore};
 use crate::types::NodeKind;
 use diesel::connection::{Connection, SimpleConnection};
@@ -66,7 +66,7 @@ impl SyncDataProvider for SshSyncProvider {
         "ssh"
     }
 
-    fn collect_data(&self, _token: &str) -> Result<serde_json::Value, SyncEngineError> {
+    fn collect_data(&self, token: &str) -> Result<serde_json::Value, SyncEngineError> {
         let nodes =
             with_conn(|conn| Ok(SshRepository::list_nodes(conn)?))
                 .map_err(|e| SyncEngineError::Provider(e.to_string()))?;
@@ -124,7 +124,7 @@ impl SyncDataProvider for SshSyncProvider {
                             None
                         } else {
                             Some(
-                                crypto::encrypt(&password)
+                                crypto::encrypt(token, &password)
                                     .map_err(|e| SyncEngineError::Crypto(e.to_string()))?,
                             )
                         },
@@ -132,7 +132,7 @@ impl SyncDataProvider for SshSyncProvider {
                             None
                         } else {
                             Some(
-                                crypto::encrypt(&passphrase)
+                                crypto::encrypt(token, &passphrase)
                                     .map_err(|e| SyncEngineError::Crypto(e.to_string()))?,
                             )
                         },
@@ -140,7 +140,7 @@ impl SyncDataProvider for SshSyncProvider {
                             None
                         } else {
                             Some(
-                                crypto::encrypt(&root_password)
+                                crypto::encrypt(token, &root_password)
                                     .map_err(|e| SyncEngineError::Crypto(e.to_string()))?,
                             )
                         },
@@ -158,7 +158,7 @@ impl SyncDataProvider for SshSyncProvider {
             .map_err(|e: serde_json::Error| SyncEngineError::Serialization(e.to_string()))
     }
 
-    fn apply_data(&self, _token: &str, data: &serde_json::Value) -> Result<(), SyncEngineError> {
+    fn apply_data(&self, token: &str, data: &serde_json::Value) -> Result<(), SyncEngineError> {
         let ssh_data: SshSyncData = serde_json::from_value(data.clone())
             .map_err(|e: serde_json::Error| SyncEngineError::Serialization(e.to_string()))?;
 
@@ -210,7 +210,7 @@ impl SyncDataProvider for SshSyncProvider {
                         .execute(conn)?;
 
                     if let Some(ref enc) = server.password_encrypted {
-                        let password = crypto::decrypt(enc)?;
+                        let password = crypto::decrypt(token, enc)?;
                         pending.push(PendingSecret {
                             node_id: server.node_id.clone(),
                             kind: SecretKind::Password,
@@ -218,7 +218,7 @@ impl SyncDataProvider for SshSyncProvider {
                         });
                     }
                     if let Some(ref enc) = server.passphrase_encrypted {
-                        let passphrase = crypto::decrypt(enc)?;
+                        let passphrase = crypto::decrypt(token, enc)?;
                         pending.push(PendingSecret {
                             node_id: server.node_id.clone(),
                             kind: SecretKind::Passphrase,
@@ -226,7 +226,7 @@ impl SyncDataProvider for SshSyncProvider {
                         });
                     }
                     if let Some(ref enc) = server.root_password_encrypted {
-                        let root_password = crypto::decrypt(enc)?;
+                        let root_password = crypto::decrypt(token, enc)?;
                         pending.push(PendingSecret {
                             node_id: server.node_id.clone(),
                             kind: SecretKind::RootPassword,
@@ -240,11 +240,19 @@ impl SyncDataProvider for SshSyncProvider {
         })
         .map_err(|e| SyncEngineError::Provider(e.to_string()))?;
 
-        // 阶段二：事务提交后写入 keychain
+        // 阶段二：事务提交后写入 keychain，收集失败项
+        let mut failed_count = 0;
         for secret in pending_secrets {
             if let Err(e) = self.secret_store.set(&secret.node_id, secret.kind, &secret.value) {
                 log::warn!("写入 keychain 失败 {}: {e}", secret.node_id);
+                failed_count += 1;
             }
+        }
+
+        if failed_count > 0 {
+            return Err(SyncEngineError::Provider(
+                format!("{failed_count} 个凭据写入系统密钥库失败，请检查密钥库权限后重新下载"),
+            ));
         }
 
         Ok(())
@@ -256,17 +264,17 @@ pub struct DbVersionStore;
 
 impl SyncVersionStore for DbVersionStore {
     fn get_sync_version(&self) -> Result<i64, SyncEngineError> {
-        with_conn(|c| Ok(SshRepository::get_sync_version(c)?))
+        with_conn(|c| Ok(SyncMetaRepository::get_sync_version(c)?))
             .map_err(|e| SyncEngineError::VersionStore(e.to_string()))
     }
 
     fn set_sync_version(&self, version: i64) -> Result<(), SyncEngineError> {
-        with_conn(|c| Ok(SshRepository::set_sync_version(c, version)?))
+        with_conn(|c| Ok(SyncMetaRepository::set_sync_version(c, version)?))
             .map_err(|e| SyncEngineError::VersionStore(e.to_string()))
     }
 
     fn update_sync_meta(&self, time: &str, platform: &str) -> Result<(), SyncEngineError> {
-        with_conn(|c| Ok(SshRepository::update_sync_meta(c, time, platform)?))
+        with_conn(|c| Ok(SyncMetaRepository::update_sync_meta(c, time, platform)?))
             .map_err(|e| SyncEngineError::VersionStore(e.to_string()))
     }
 }
@@ -279,5 +287,131 @@ mod tests {
     fn test_section_key() {
         let provider = SshSyncProvider::new();
         assert_eq!(provider.section_key(), "ssh");
+    }
+
+    #[test]
+    fn test_sync_node_serialization_roundtrip() {
+        let node = SyncNode {
+            id: "n1".to_string(),
+            parent_id: Some("p1".to_string()),
+            kind: "folder".to_string(),
+            name: "Prod".to_string(),
+            sort_order: 0,
+            is_collapsed: true,
+        };
+        let json = serde_json::to_string(&node).unwrap();
+        let parsed: SyncNode = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.id, "n1");
+        assert_eq!(parsed.parent_id, Some("p1".to_string()));
+        assert_eq!(parsed.kind, "folder");
+        assert_eq!(parsed.name, "Prod");
+        assert_eq!(parsed.sort_order, 0);
+        assert!(parsed.is_collapsed);
+    }
+
+    #[test]
+    fn test_sync_server_serialization_with_secrets() {
+        let server = SyncServer {
+            node_id: "s1".to_string(),
+            host: "example.com".to_string(),
+            port: 22,
+            username: "root".to_string(),
+            auth_type: "password".to_string(),
+            key_path: Some("/key".to_string()),
+            startup_command: None,
+            notes: Some("test".to_string()),
+            password_encrypted: Some("enc123".to_string()),
+            passphrase_encrypted: None,
+            root_password_encrypted: Some("enc456".to_string()),
+        };
+        let json = serde_json::to_string(&server).unwrap();
+        let parsed: SyncServer = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.node_id, "s1");
+        assert_eq!(parsed.port, 22);
+        assert_eq!(parsed.password_encrypted, Some("enc123".to_string()));
+        assert_eq!(parsed.passphrase_encrypted, None);
+        assert_eq!(parsed.root_password_encrypted, Some("enc456".to_string()));
+    }
+
+    #[test]
+    fn test_sync_server_no_secrets() {
+        let server = SyncServer {
+            node_id: "s2".to_string(),
+            host: "host".to_string(),
+            port: 2222,
+            username: "admin".to_string(),
+            auth_type: "key".to_string(),
+            key_path: None,
+            startup_command: None,
+            notes: None,
+            password_encrypted: None,
+            passphrase_encrypted: None,
+            root_password_encrypted: None,
+        };
+        let json = serde_json::to_string(&server).unwrap();
+        let parsed: SyncServer = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.password_encrypted, None);
+        assert_eq!(parsed.passphrase_encrypted, None);
+        assert_eq!(parsed.root_password_encrypted, None);
+    }
+
+    #[test]
+    fn test_ssh_sync_data_roundtrip() {
+        let data = SshSyncData {
+            nodes: vec![
+                SyncNode {
+                    id: "n1".to_string(),
+                    parent_id: None,
+                    kind: "folder".to_string(),
+                    name: "Root".to_string(),
+                    sort_order: 0,
+                    is_collapsed: false,
+                },
+            ],
+            servers: vec![
+                SyncServer {
+                    node_id: "s1".to_string(),
+                    host: "h".to_string(),
+                    port: 22,
+                    username: "u".to_string(),
+                    auth_type: "password".to_string(),
+                    key_path: None,
+                    startup_command: None,
+                    notes: None,
+                    password_encrypted: Some("enc".to_string()),
+                    passphrase_encrypted: None,
+                    root_password_encrypted: None,
+                },
+            ],
+        };
+        let json = serde_json::to_string(&data).unwrap();
+        let parsed: SshSyncData = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.nodes.len(), 1);
+        assert_eq!(parsed.servers.len(), 1);
+        assert_eq!(parsed.nodes[0].id, "n1");
+        assert_eq!(parsed.servers[0].password_encrypted, Some("enc".to_string()));
+    }
+
+    #[test]
+    fn test_ssh_sync_data_default_empty() {
+        let data = SshSyncData::default();
+        assert!(data.nodes.is_empty());
+        assert!(data.servers.is_empty());
+    }
+
+    #[test]
+    fn test_sync_node_null_parent() {
+        let node = SyncNode {
+            id: "root".to_string(),
+            parent_id: None,
+            kind: "folder".to_string(),
+            name: "R".to_string(),
+            sort_order: 0,
+            is_collapsed: false,
+        };
+        let json = serde_json::to_string(&node).unwrap();
+        assert!(json.contains("\"parent_id\":null"), "parent_id=None 应序列化为 null");
+        let parsed: SyncNode = serde_json::from_str(&json).unwrap();
+        assert!(parsed.parent_id.is_none());
     }
 }

@@ -10,7 +10,7 @@ pub mod sync_provider;
 pub mod types;
 
 pub use db::{set_database_path, with_conn};
-pub use repository::{SshRepository, SshRepositoryError};
+pub use repository::{SshRepository, SshRepositoryError, SyncMetaRepository};
 pub use secrets::{KeychainSecretStore, SecretKind, SshSecretStore, SshSecretStoreError};
 pub use ssh_command::{build_ssh_args, build_ssh_command_line};
 pub use sync_provider::{DbVersionStore, SshSyncData, SshSyncProvider, SyncNode, SyncServer};

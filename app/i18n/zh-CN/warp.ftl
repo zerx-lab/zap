@@ -866,9 +866,11 @@ settings-cloud-sync-success-download = 从 {$platform} 下载成功（版本 v{$
 settings-cloud-sync-already-up-to-date = 已是最新版本（v{$version}），无需同步
 settings-cloud-sync-failed = 失败：{$error}
 settings-cloud-sync-conflict-status = 版本冲突：本地 v{$local} vs 远程 v{$remote}
+settings-cloud-sync-conflict-status-equal = 版本相同：本地 v{$local} = 远程 v{$remote}
 settings-cloud-sync-token-not-configured = {$platform} Token 未配置
 settings-cloud-sync-conflict-title = 版本冲突
 settings-cloud-sync-conflict-description = 远程版本（v{$remote}）比本地（v{$local}）更新。强制上传将覆盖远程数据。
+settings-cloud-sync-conflict-description-equal = 远程版本与本地版本相同。强制上传将覆盖远程数据。
 settings-cloud-sync-force-upload = 强制上传
 settings-cloud-sync-download-confirm-title = 确认下载
 settings-cloud-sync-download-confirm-description = 下载将用远程版本替换所有本地 SSH 服务器配置。此操作无法撤销。
