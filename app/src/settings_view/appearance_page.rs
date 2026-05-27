@@ -30,9 +30,10 @@ use crate::settings::{
     language::{Language, LanguageSettings},
     respect_system_theme, AIFontName, AppEditorSettings, CursorBlink, CursorBlinkEnabled,
     EnforceMinimumContrast, FocusPaneOnHover, FontSettings, FontSettingsChangedEvent, InputBoxType,
-    InputModeSettings, InputModeState, MonospaceFontName, PaneSettings, ShouldDimInactivePanes,
-    ThemeSettings, UiFontName, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME, UI_FONT_SIZE_MAX,
-    UI_FONT_SIZE_MIN,
+    InputModeSettings, InputModeState, MarkdownHeadingH1Scale, MarkdownHeadingH2Scale,
+    MarkdownHeadingH3Scale, MarkdownHeadingH4Scale, MarkdownHeadingH5Scale, MarkdownHeadingH6Scale,
+    MonospaceFontName, PaneSettings, ShouldDimInactivePanes, ThemeSettings, UiFontName,
+    UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
 use crate::terminal::block_list_viewport::InputMode;
@@ -4736,8 +4737,16 @@ const MARKDOWN_SCALE_INPUT_BOX_WIDTH: f32 = 80.0;
 const MARKDOWN_HEADING_SCALE_MIN: f32 = 0.1;
 const MARKDOWN_HEADING_SCALE_MAX: f32 = 5.0;
 
-/// Markdown 标题字号系数默认值
-const DEFAULT_MARKDOWN_HEADING_SCALES: [f32; 6] = [1.55, 1.4, 1.2, 1.0, 0.83, 0.67];
+fn markdown_heading_scale_defaults() -> [f32; 6] {
+    [
+        MarkdownHeadingH1Scale::default_value(),
+        MarkdownHeadingH2Scale::default_value(),
+        MarkdownHeadingH3Scale::default_value(),
+        MarkdownHeadingH4Scale::default_value(),
+        MarkdownHeadingH5Scale::default_value(),
+        MarkdownHeadingH6Scale::default_value(),
+    ]
+}
 
 impl MarkdownHeadingScaleWidget {
     /// 渲染单个系数输入框
@@ -4806,8 +4815,8 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
 
         let changed_from_default = values
             .iter()
-            .zip(DEFAULT_MARKDOWN_HEADING_SCALES.iter())
-            .any(|(v, d)| (*v - *d).abs() > f32::EPSILON);
+            .zip(markdown_heading_scale_defaults().iter())
+            .any(|(v, d)| v != d);
 
         let mut rows = Flex::column().with_spacing(4.);
 
