@@ -10,7 +10,7 @@ use warpui::{fonts::Weight, rendering::ThinStrokes, AppContext, SingletonEntity}
 use settings::{
     macros::define_settings_group, RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud,
 };
-use warpui::elements::DEFAULT_UI_LINE_HEIGHT_RATIO;
+use warpui::elements::{HeadingFontSizeMultipliers, DEFAULT_UI_LINE_HEIGHT_RATIO};
 
 use super::EnforceMinimumContrast as EnforceMinimumContrastEnum;
 
@@ -223,18 +223,15 @@ pub fn derived_notebook_font_size(font_settings: &FontSettings) -> f32 {
     }
 }
 
-pub use warpui::elements::HeadingFontSizeMultipliers;
-
-/// 从 FontSettings 构建 HeadingFontSizeMultipliers
 pub fn heading_font_size_multipliers_from_settings(
     font_settings: &FontSettings,
 ) -> HeadingFontSizeMultipliers {
-    HeadingFontSizeMultipliers::from_values(
-        *font_settings.markdown_heading_h1_scale,
-        *font_settings.markdown_heading_h2_scale,
-        *font_settings.markdown_heading_h3_scale,
-        *font_settings.markdown_heading_h4_scale,
-        *font_settings.markdown_heading_h5_scale,
-        *font_settings.markdown_heading_h6_scale,
-    )
+    HeadingFontSizeMultipliers {
+        h1: *font_settings.markdown_heading_h1_scale,
+        h2: *font_settings.markdown_heading_h2_scale,
+        h3: *font_settings.markdown_heading_h3_scale,
+        h4: *font_settings.markdown_heading_h4_scale,
+        h5: *font_settings.markdown_heading_h5_scale,
+        h6: *font_settings.markdown_heading_h6_scale,
+    }
 }
