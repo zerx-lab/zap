@@ -30,9 +30,10 @@ use crate::settings::{
     language::{Language, LanguageSettings},
     respect_system_theme, AIFontName, AppEditorSettings, CursorBlink, CursorBlinkEnabled,
     EnforceMinimumContrast, FocusPaneOnHover, FontSettings, FontSettingsChangedEvent, InputBoxType,
-    InputModeSettings, InputModeState, MonospaceFontName, PaneSettings, ShouldDimInactivePanes,
-    ThemeSettings, UiFontName, UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME, UI_FONT_SIZE_MAX,
-    UI_FONT_SIZE_MIN,
+    InputModeSettings, InputModeState, MarkdownHeadingH1Scale, MarkdownHeadingH2Scale,
+    MarkdownHeadingH3Scale, MarkdownHeadingH4Scale, MarkdownHeadingH5Scale, MarkdownHeadingH6Scale,
+    MonospaceFontName, PaneSettings, ShouldDimInactivePanes, ThemeSettings, UiFontName,
+    UseSystemTheme, DEFAULT_MONOSPACE_FONT_NAME, UI_FONT_SIZE_MAX, UI_FONT_SIZE_MIN,
 };
 use crate::settings::{CursorDisplayType, GPUSettings, InputSettings, InputSettingsChangedEvent};
 use crate::terminal::block_list_viewport::InputMode;
@@ -909,6 +910,15 @@ impl AppearanceSettingsPageView {
                             ctx,
                         );
                     });
+                    ctx.notify();
+                }
+                FontSettingsChangedEvent::MarkdownHeadingH1Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH2Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH3Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH4Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH5Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH6Scale { .. } => {
+                    me.refresh_markdown_heading_scale_editors(ctx);
                     ctx.notify();
                 }
                 _ => {}
@@ -1997,47 +2007,86 @@ impl AppearanceSettingsPageView {
         }
     }
 
-    /// 设置 markdown 标题字号系数
-    fn set_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
-        let h1 = self.markdown_heading_h1_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
-        let h2 = self.markdown_heading_h2_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
-        let h3 = self.markdown_heading_h3_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
-        let h4 = self.markdown_heading_h4_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
-        let h5 = self.markdown_heading_h5_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
-        let h6 = self.markdown_heading_h6_scale_editor.as_ref(ctx).buffer_text(ctx).parse::<f32>().ok();
-        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
-            if let Some(v) = h1 { report_if_error!(font_settings.markdown_heading_h1_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
-            if let Some(v) = h2 { report_if_error!(font_settings.markdown_heading_h2_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
-            if let Some(v) = h3 { report_if_error!(font_settings.markdown_heading_h3_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
-            if let Some(v) = h4 { report_if_error!(font_settings.markdown_heading_h4_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
-            if let Some(v) = h5 { report_if_error!(font_settings.markdown_heading_h5_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
-            if let Some(v) = h6 { report_if_error!(font_settings.markdown_heading_h6_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
-        });
-    }
-
-    /// 还原 markdown 标题字号系数为默认值
-    fn reset_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
-        let editors: [&ViewHandle<EditorView>; 6] = [
+    fn markdown_heading_scale_editors(&self) -> [&ViewHandle<EditorView>; 6] {
+        [
             &self.markdown_heading_h1_scale_editor,
             &self.markdown_heading_h2_scale_editor,
             &self.markdown_heading_h3_scale_editor,
             &self.markdown_heading_h4_scale_editor,
             &self.markdown_heading_h5_scale_editor,
             &self.markdown_heading_h6_scale_editor,
-        ];
-        for (editor, default) in editors.iter().zip(DEFAULT_MARKDOWN_HEADING_SCALES.iter()) {
+        ]
+    }
+
+    fn markdown_heading_scale_values(font_settings: &FontSettings) -> [f32; 6] {
+        [
+            *font_settings.markdown_heading_h1_scale,
+            *font_settings.markdown_heading_h2_scale,
+            *font_settings.markdown_heading_h3_scale,
+            *font_settings.markdown_heading_h4_scale,
+            *font_settings.markdown_heading_h5_scale,
+            *font_settings.markdown_heading_h6_scale,
+        ]
+    }
+
+    fn refresh_markdown_heading_scale_editors(&mut self, ctx: &mut ViewContext<Self>) {
+        let values = Self::markdown_heading_scale_values(FontSettings::as_ref(ctx));
+        let editors = self.markdown_heading_scale_editors();
+        for (editor, value) in editors.iter().zip(values.iter()) {
+            let value = *value;
             editor.update(ctx, |e, ctx| {
-                e.set_buffer_text(&format!("{default}"), ctx);
+                e.set_buffer_text(&format!("{value}"), ctx);
             });
         }
+    }
+
+    fn set_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
+        let parsed: [Option<f32>; 6] = {
+            let editors = self.markdown_heading_scale_editors();
+            std::array::from_fn(|i| {
+                editors[i]
+                    .as_ref(ctx)
+                    .buffer_text(ctx)
+                    .parse::<f32>()
+                    .ok()
+            })
+        };
         FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
-            report_if_error!(font_settings.markdown_heading_h1_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[0], ctx));
-            report_if_error!(font_settings.markdown_heading_h2_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[1], ctx));
-            report_if_error!(font_settings.markdown_heading_h3_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[2], ctx));
-            report_if_error!(font_settings.markdown_heading_h4_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[3], ctx));
-            report_if_error!(font_settings.markdown_heading_h5_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[4], ctx));
-            report_if_error!(font_settings.markdown_heading_h6_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[5], ctx));
+            let clamp = |v: f32| v.clamp(MARKDOWN_HEADING_SCALE_MIN, MARKDOWN_HEADING_SCALE_MAX);
+            if let Some(v) = parsed[0] {
+                report_if_error!(font_settings.markdown_heading_h1_scale.set_value(clamp(v), ctx));
+            }
+            if let Some(v) = parsed[1] {
+                report_if_error!(font_settings.markdown_heading_h2_scale.set_value(clamp(v), ctx));
+            }
+            if let Some(v) = parsed[2] {
+                report_if_error!(font_settings.markdown_heading_h3_scale.set_value(clamp(v), ctx));
+            }
+            if let Some(v) = parsed[3] {
+                report_if_error!(font_settings.markdown_heading_h4_scale.set_value(clamp(v), ctx));
+            }
+            if let Some(v) = parsed[4] {
+                report_if_error!(font_settings.markdown_heading_h5_scale.set_value(clamp(v), ctx));
+            }
+            if let Some(v) = parsed[5] {
+                report_if_error!(font_settings.markdown_heading_h6_scale.set_value(clamp(v), ctx));
+            }
         });
+        // 兜底:对任何 parse 失败、或 parse 成功但 clamp 后等于当前值(set_value 不发事件)的格子,
+        // 编辑框需要回到 setting 真值,避免停留在非法或越界的用户输入上。
+        self.refresh_markdown_heading_scale_editors(ctx);
+    }
+
+    fn reset_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            report_if_error!(font_settings.markdown_heading_h1_scale.clear_value(ctx));
+            report_if_error!(font_settings.markdown_heading_h2_scale.clear_value(ctx));
+            report_if_error!(font_settings.markdown_heading_h3_scale.clear_value(ctx));
+            report_if_error!(font_settings.markdown_heading_h4_scale.clear_value(ctx));
+            report_if_error!(font_settings.markdown_heading_h5_scale.clear_value(ctx));
+            report_if_error!(font_settings.markdown_heading_h6_scale.clear_value(ctx));
+        });
+        // clear_value 一定发事件,订阅会回写编辑框。
     }
 
     fn set_opacity(
@@ -4685,9 +4734,19 @@ struct MarkdownHeadingScaleWidget {
 }
 
 const MARKDOWN_SCALE_INPUT_BOX_WIDTH: f32 = 80.0;
+const MARKDOWN_HEADING_SCALE_MIN: f32 = 0.1;
+const MARKDOWN_HEADING_SCALE_MAX: f32 = 5.0;
 
-/// Markdown 标题字号系数默认值
-const DEFAULT_MARKDOWN_HEADING_SCALES: [f32; 6] = [1.55, 1.4, 1.2, 1.0, 0.83, 0.67];
+fn markdown_heading_scale_defaults() -> [f32; 6] {
+    [
+        MarkdownHeadingH1Scale::default_value(),
+        MarkdownHeadingH2Scale::default_value(),
+        MarkdownHeadingH3Scale::default_value(),
+        MarkdownHeadingH4Scale::default_value(),
+        MarkdownHeadingH5Scale::default_value(),
+        MarkdownHeadingH6Scale::default_value(),
+    ]
+}
 
 impl MarkdownHeadingScaleWidget {
     /// 渲染单个系数输入框
@@ -4741,20 +4800,23 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
         appearance: &Appearance,
         app: &AppContext,
     ) -> Box<dyn Element> {
-        let font_settings = FontSettings::as_ref(app);
-        let editors_and_values: [(&ViewHandle<EditorView>, f32); 6] = [
-            (&view.markdown_heading_h1_scale_editor, *font_settings.markdown_heading_h1_scale),
-            (&view.markdown_heading_h2_scale_editor, *font_settings.markdown_heading_h2_scale),
-            (&view.markdown_heading_h3_scale_editor, *font_settings.markdown_heading_h3_scale),
-            (&view.markdown_heading_h4_scale_editor, *font_settings.markdown_heading_h4_scale),
-            (&view.markdown_heading_h5_scale_editor, *font_settings.markdown_heading_h5_scale),
-            (&view.markdown_heading_h6_scale_editor, *font_settings.markdown_heading_h6_scale),
+        let editors = view.markdown_heading_scale_editors();
+        let values = AppearanceSettingsPageView::markdown_heading_scale_values(
+            FontSettings::as_ref(app),
+        );
+        let row_labels = [
+            crate::t!("settings-appearance-markdown-heading-h1-label"),
+            crate::t!("settings-appearance-markdown-heading-h2-label"),
+            crate::t!("settings-appearance-markdown-heading-h3-label"),
+            crate::t!("settings-appearance-markdown-heading-h4-label"),
+            crate::t!("settings-appearance-markdown-heading-h5-label"),
+            crate::t!("settings-appearance-markdown-heading-h6-label"),
         ];
 
-        let changed_from_default = editors_and_values
+        let changed_from_default = values
             .iter()
-            .zip(DEFAULT_MARKDOWN_HEADING_SCALES.iter())
-            .any(|((_, v), d)| (*v - *d).abs() > f32::EPSILON);
+            .zip(markdown_heading_scale_defaults().iter())
+            .any(|(v, d)| v != d);
 
         let mut rows = Flex::column().with_spacing(4.);
 
@@ -4774,103 +4836,34 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
                 .span(crate::t!("settings-appearance-markdown-heading-scale-description"))
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.ui_font_overline()),
-                    font_color: Some(appearance.theme().hint_text_color(appearance.theme().surface_2()).into()),
+                    font_color: Some(
+                        appearance
+                            .theme()
+                            .hint_text_color(appearance.theme().surface_2())
+                            .into(),
+                    ),
                     ..Default::default()
                 })
                 .build()
                 .finish(),
         );
 
-        // H1
-        rows.add_child(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    appearance
-                        .ui_builder()
-                        .span(crate::t!("settings-appearance-markdown-heading-h1-label"))
-                        .build()
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-                .with_child(Self::render_scale_input(&editors_and_values[0].0, appearance))
-                .finish(),
-        );
-        // H2
-        rows.add_child(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    appearance
-                        .ui_builder()
-                        .span(crate::t!("settings-appearance-markdown-heading-h2-label"))
-                        .build()
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-                .with_child(Self::render_scale_input(&editors_and_values[1].0, appearance))
-                .finish(),
-        );
-        // H3
-        rows.add_child(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    appearance
-                        .ui_builder()
-                        .span(crate::t!("settings-appearance-markdown-heading-h3-label"))
-                        .build()
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-                .with_child(Self::render_scale_input(&editors_and_values[2].0, appearance))
-                .finish(),
-        );
-        // H4
-        rows.add_child(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    appearance
-                        .ui_builder()
-                        .span(crate::t!("settings-appearance-markdown-heading-h4-label"))
-                        .build()
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-                .with_child(Self::render_scale_input(&editors_and_values[3].0, appearance))
-                .finish(),
-        );
-        // H5
-        rows.add_child(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    appearance
-                        .ui_builder()
-                        .span(crate::t!("settings-appearance-markdown-heading-h5-label"))
-                        .build()
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-                .with_child(Self::render_scale_input(&editors_and_values[4].0, appearance))
-                .finish(),
-        );
-        // H6
-        rows.add_child(
-            Flex::row()
-                .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                .with_child(
-                    appearance
-                        .ui_builder()
-                        .span(crate::t!("settings-appearance-markdown-heading-h6-label"))
-                        .build()
-                        .with_margin_right(8.)
-                        .finish(),
-                )
-                .with_child(Self::render_scale_input(&editors_and_values[5].0, appearance))
-                .finish(),
-        );
+        for (editor, label) in editors.iter().zip(row_labels.into_iter()) {
+            rows.add_child(
+                Flex::row()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_child(
+                        appearance
+                            .ui_builder()
+                            .span(label)
+                            .build()
+                            .with_margin_right(8.)
+                            .finish(),
+                    )
+                    .with_child(Self::render_scale_input(editor, appearance))
+                    .finish(),
+            );
+        }
 
         // 还原默认值按钮
         rows.add_child({
