@@ -10,6 +10,7 @@ license.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 diesel = { workspace = true, features = ["chrono", "sqlite"] }
+dirs.workspace = true
 keyring.workspace = true
 log.workspace = true
 persistence.workspace = true

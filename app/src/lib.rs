@@ -2269,6 +2269,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
     // remote-server 二进制,与 RELEASE_FLAGS 的 cfg 保持一致排除掉。
     #[cfg(all(debug_assertions, not(windows)))]
     flags.insert(FeatureFlag::SshRemoteServer);
+    #[cfg(all(debug_assertions, not(windows)))]
+    flags.insert(FeatureFlag::ServerFileBrowser);
 
     // Issue #72: HTTP 代理设置页面。不走 channel 判断,所有 channel 含 zap-oss
     // 默认启用,作为企业 VPN / 公司代理场景的基本能力。
@@ -2495,6 +2497,8 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::CodeReviewSaveChanges,
         #[cfg(feature = "file_tree")]
         FeatureFlag::FileTree,
+        #[cfg(feature = "server_file_browser")]
+        FeatureFlag::ServerFileBrowser,
         #[cfg(feature = "allow_ignoring_input_suggestions")]
         FeatureFlag::AllowIgnoringInputSuggestions,
         // Zap(本地化):ambient agent / agent management view 的云端入口已物理下线。
@@ -2650,5 +2654,30 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
     ];
     flags.extend(extra_flags.iter().copied());
 
+    // 不稳定功能开关:统一通过 `ZAP_UNSTABLE_FEATURES` 环境变量在 release 构建里
+    // 显式启用尚未正式发布的功能。值为逗号分隔的不稳定功能名(snake_case),
+    // 或 `all` / `*` 表示一次性全开;dev 构建已经在 debug_assertions 路径上自动
+    // 启用所有当前不稳定功能,因此此处主要服务于 release 用户。
+    if let Ok(raw) = std::env::var("ZAP_UNSTABLE_FEATURES") {
+        let normalized = raw.trim().to_ascii_lowercase();
+        let enable_all = matches!(normalized.as_str(), "all" | "*");
+        let requested: HashSet<&str> = normalized
+            .split(|c: char| c == ',' || c.is_whitespace())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .collect();
+        for (name, flag) in UNSTABLE_FEATURES {
+            if enable_all || requested.contains(name) {
+                flags.insert(*flag);
+            }
+        }
+    }
+
     flags
 }
+
+/// `ZAP_UNSTABLE_FEATURES` 接受的不稳定功能名 -> FeatureFlag 映射。
+/// 这里登记的功能在 release 构建下默认隐藏,设置对应 token 后才会出现;
+/// dev 构建走 debug_assertions 分支默认启用,无需该变量。
+const UNSTABLE_FEATURES: &[(&str, FeatureFlag)] =
+    &[("server_file_browser", FeatureFlag::ServerFileBrowser)];

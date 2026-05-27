@@ -376,7 +376,7 @@ impl From<Icon> for &'static str {
             Icon::CreateTeam => "bundled/svg/create-team.svg",
             Icon::ZapDrive => "bundled/svg/warp.svg",
             Icon::Zap => "bundled/svg/warp-drive.svg",
-            Icon::WarpLogoLight => "bundled/svg/warp-logo-light.svg",
+            Icon::WarpLogoLight => "bundled/svg/warp-drive.svg",
             Icon::ArrowLeft => "bundled/svg/arrow-left.svg",
             Icon::ArrowBlockLeft => "bundled/svg/arrow-block-left.svg",
             Icon::ArrowBlockUp => "bundled/svg/arrow-block-up.svg",

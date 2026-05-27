@@ -260,6 +260,27 @@ const ADEBERRY_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xFFFFFFFF),
 );
 
+const WEZTERM_CLASSIC_NORMAL_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x000000FF),
+    AnsiColor::from_u32(0xCC5555FF),
+    AnsiColor::from_u32(0x55CC55FF),
+    AnsiColor::from_u32(0xCDCD55FF),
+    AnsiColor::from_u32(0x5555CCFF),
+    AnsiColor::from_u32(0xCC55CCFF),
+    AnsiColor::from_u32(0x7ACACAFF),
+    AnsiColor::from_u32(0xCCCCCCFF),
+);
+const WEZTERM_CLASSIC_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x555555FF),
+    AnsiColor::from_u32(0xFF5555FF),
+    AnsiColor::from_u32(0x55FF55FF),
+    AnsiColor::from_u32(0xFFFF55FF),
+    AnsiColor::from_u32(0x5555FFFF),
+    AnsiColor::from_u32(0xFF55FFFF),
+    AnsiColor::from_u32(0x55FFFFFF),
+    AnsiColor::from_u32(0xFFFFFFFF),
+);
+
 pub(super) fn light_mode_colors() -> TerminalColors {
     TerminalColors::new(LIGHT_MODE_NORMAL_COLORS, LIGHT_MODE_BRIGHT_COLORS)
 }
@@ -306,6 +327,10 @@ pub(super) fn tokyo_night_colors() -> TerminalColors {
 
 pub(super) fn one_dark_colors() -> TerminalColors {
     TerminalColors::new(ONE_DARK_NORMAL_COLORS, ONE_DARK_BRIGHT_COLORS)
+}
+
+pub(super) fn wezterm_classic_colors() -> TerminalColors {
+    TerminalColors::new(WEZTERM_CLASSIC_NORMAL_COLORS, WEZTERM_CLASSIC_BRIGHT_COLORS)
 }
 
 /// Default bundled themes
@@ -687,6 +712,20 @@ pub(super) fn adeberry() -> WarpTheme {
         adeberry_colors(),
         None,
         Some("Adeberry".to_string()),
+    )
+}
+
+// 16 色 ANSI 与背景/前景对齐 WezTerm 默认配色；强调色 #52AD70 为本项目自选，非 WezTerm 规范色。
+pub(super) fn wezterm_classic() -> WarpTheme {
+    WarpTheme::new(
+        Fill::Solid(ColorU::from_u32(0x000000FF)),
+        ColorU::from_u32(0xB3B3B3FF),
+        Fill::Solid(ColorU::from_u32(0x52AD70FF)),
+        None,
+        Some(Details::Darker),
+        wezterm_classic_colors(),
+        None,
+        Some("WezTerm Classic".to_string()),
     )
 }
 

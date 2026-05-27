@@ -8,6 +8,7 @@ use async_broadcast::InactiveReceiver;
 use warpui::r#async::FutureExt;
 use warpui::{ViewContext, WeakViewHandle};
 
+use crate::ssh_manager::shell_prompt::bytes_look_like_shell_prompt;
 use crate::terminal::TerminalView;
 
 const INJECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -67,26 +68,6 @@ async fn wait_for_shell_prompt(rx: InactiveReceiver<Arc<Vec<u8>>>) -> bool {
         if bytes_look_like_shell_prompt(&buf) {
             return true;
         }
-    }
-    false
-}
-
-fn bytes_look_like_shell_prompt(bytes: &[u8]) -> bool {
-    let tail = if bytes.len() > 256 {
-        &bytes[bytes.len() - 256..]
-    } else {
-        bytes
-    };
-    if tail.ends_with(b"$ ") || tail.ends_with(b"# ") || tail.ends_with(b"> ") {
-        return true;
-    }
-    if tail.ends_with(&[0xe2, 0x9d, 0xaf, 0x20])
-        || tail.ends_with(&[0xe2, 0x96, 0xb6, 0x20])
-        || tail.ends_with(&[0xc2, 0xbb, 0x20])
-        || tail.ends_with(&[0xce, 0xbb, 0x20])
-        || tail.ends_with(&[0xe2, 0x86, 0x92, 0x20])
-    {
-        return true;
     }
     false
 }

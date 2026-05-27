@@ -15,8 +15,7 @@ app/frameworks/**/*.xcframework
 app/src/server/graphql/schema/generated
 crates/command-signatures-v2/js/build
 crates/command-signatures-v2/js/node_modules
-.worktree
-.worktrees
+.worktrees/
 /target-check
 # For testing changes to the channel versions file
 channel_versions_test.json

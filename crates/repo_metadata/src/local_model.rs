@@ -58,6 +58,22 @@ const MAX_TREE_DEPTH: usize = 200;
 /// Maximum number of files to index per repository to guard against really large codebases
 const MAX_FILES_PER_REPO: usize = 100_000;
 
+/// Returns true when `path` is too broad to be a recursive file-watch root.
+///
+/// Rejects the user's home directory itself and any of its ancestors
+/// (e.g. `/Users`, `/home`, `/`). Registering such a path as a repository
+/// root makes the OS push fsevents from unrelated areas (`~/Library/*`,
+/// `~/Pictures/Photos Library.photoslibrary/*`, IM caches, …) into the
+/// indexer, leaking user data and producing endless `PermissionDenied`
+/// build_tree noise.
+#[cfg(feature = "local_fs")]
+fn is_unsafe_watch_root(path: &Path) -> bool {
+    let Some(home) = dirs::home_dir() else {
+        return false;
+    };
+    path == home.as_path() || home.starts_with(path)
+}
+
 #[derive(Debug)]
 /// Events emitted by the LocalRepoMetadataModel.
 pub enum RepositoryMetadataEvent {
@@ -367,6 +383,15 @@ impl LocalRepoMetadataModel {
             ));
         }
 
+        #[cfg(feature = "local_fs")]
+        if is_unsafe_watch_root(&local_path) {
+            return Err(RepoMetadataError::InvalidPath(format!(
+                "Refusing to register {} as a repository root: path is the home directory \
+                 or one of its ancestors, which would recursively watch unrelated user data",
+                local_path.display(),
+            )));
+        }
+
         // Register this path with the watcher if we have one
         #[cfg(feature = "local_fs")]
         {
@@ -606,7 +631,10 @@ impl LocalRepoMetadataModel {
                         });
                     }
                     Err(e) => {
-                        log::warn!("Failed to build subtree for directory {path_to_add:?}: {e:?}");
+                        // Permission-denied / unreadable subdirs are expected when
+                        // the watcher fires events for legitimate root paths (TCC-protected
+                        // areas, symlinks, transient files); keep at debug to avoid noise.
+                        log::debug!("Failed to build subtree for directory {path_to_add:?}: {e:?}");
                         mutations.push(FileTreeMutation::AddEmptyDirectory {
                             path: path_to_add.clone(),
                             is_ignored,
@@ -1030,3 +1058,68 @@ impl LocalRepoMetadataModel {
 #[cfg(test)]
 #[path = "local_model_test.rs"]
 mod tests;
+
+#[cfg(all(test, feature = "local_fs"))]
+mod is_unsafe_watch_root_tests {
+    use super::is_unsafe_watch_root;
+    use std::path::Path;
+
+    #[test]
+    fn rejects_home_and_its_ancestors() {
+        let Some(home) = dirs::home_dir() else {
+            // No $HOME (sandboxed CI etc.) — guard is a no-op there by design.
+            return;
+        };
+
+        assert!(
+            is_unsafe_watch_root(&home),
+            "home directory itself ({}) must be rejected",
+            home.display()
+        );
+
+        assert!(
+            is_unsafe_watch_root(Path::new("/")),
+            "filesystem root must be rejected",
+        );
+
+        if let Some(parent) = home.parent() {
+            assert!(
+                is_unsafe_watch_root(parent),
+                "home's parent ({}) must be rejected",
+                parent.display(),
+            );
+        }
+    }
+
+    #[test]
+    fn allows_directories_inside_home() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+
+        let repo_inside_home = home.join("__zap_test_repo_path__");
+        assert!(
+            !is_unsafe_watch_root(&repo_inside_home),
+            "{} (a directory inside home) must NOT be rejected",
+            repo_inside_home.display(),
+        );
+    }
+
+    #[test]
+    fn allows_unrelated_paths() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+
+        let tmp_path = std::env::temp_dir().join("__zap_test_unsafe_watch_root__");
+        // Skip the case where tmp_path happens to be an ancestor of home
+        // (vanishingly unlikely, but keeps the assertion meaningful).
+        if !home.starts_with(&tmp_path) {
+            assert!(
+                !is_unsafe_watch_root(&tmp_path),
+                "{} (unrelated tmp path) must NOT be rejected",
+                tmp_path.display(),
+            );
+        }
+    }
+}

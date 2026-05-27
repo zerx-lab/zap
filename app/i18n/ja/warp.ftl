@@ -2655,11 +2655,22 @@ workspace-left-panel-ssh-manager-startup-command = 起動コマンド
 workspace-left-panel-ssh-manager-startup-command-placeholder = 接続成功後に自動実行するコマンド
 workspace-left-panel-ssh-manager-notes = メモ
 workspace-left-panel-ssh-manager-notes-placeholder = メモ情報
-workspace-left-panel-ssh-manager-su-password-prompt = su パスワードプロンプトを検出しました。Root パスワードを自動入力しますか？
-workspace-left-panel-ssh-manager-su-password-auto-fill = 自動入力
-workspace-left-panel-ssh-manager-su-password-cancel = キャンセル
-terminal-su-root-password-confirm = Rootパスワードを自動入力
-terminal-su-root-password-confirm-subtitle = クリックして保存されたRootパスワードを入力
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-header = { $path } から
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-empty = { $path } にインポート可能なホストがありません
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-not-found = SSH 設定ファイルが見つかりません: { $path }
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-error = SSH 設定の読み込みに失敗しました { $path }: { $error }
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-add = SSH マネージャーに追加
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-added = 追加済み
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-refresh = ~/.ssh/config から再読み込み
+terminal-su-root-password-confirm = Root パスワードを自動入力
+terminal-su-root-password-confirm-subtitle = クリックして保存された Root パスワードを入力
 terminal-su-root-password-cancel = キャンセル
 workspace-left-panel-close-panel = パネルを閉じる
 workspace-tabs-panel-tooltip = タブパネル
