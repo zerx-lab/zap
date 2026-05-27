@@ -1892,6 +1892,8 @@ impl SettingsView {
             SettingsPageViewHandle::MCPServers(view) => {
                 view.read(app, |view, _| view.get_modal_content(app))
             }
+            // CloudSync 模态在页面内通过 Stack 自渲染居中,这里不接管
+            // (因为 SettingsView 路径无法把 CloudSyncPageAction 路由回 CloudSyncPageView)
             _ => None,
         }
     }

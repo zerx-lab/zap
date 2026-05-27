@@ -3,11 +3,13 @@
 // author: logic
 // date: 2026-05-25
 
+use pathfinder_geometry::vector::vec2f;
 use settings::Setting;
 use warpui::{
     elements::{
-        Container, CrossAxisAlignment, Dismiss, Element, Flex,
-        MainAxisSize, MouseStateHandle, ParentElement, Text,
+        ChildAnchor, Container, CrossAxisAlignment, Dismiss, Element, Flex, MainAxisSize,
+        MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds,
+        Stack, Text,
     },
     ui_components::{
         button::ButtonVariant,
@@ -83,11 +85,13 @@ pub enum CloudSyncPageAction {
     SaveToken,
     /// 清除当前平台的 Token
     ClearToken,
-    /// Token 验证完成
+    /// Token 验证完成。platform/token 由 SaveToken 时捕获,避免与 SetPlatform 竞态
     TokenValidated {
+        platform_setting: SyncPlatformSetting,
+        token: String,
         result: Result<String, String>,
     },
-    /// 上传同步（使用当前选中平台）
+    /// 请求上传同步（弹出确认弹窗,避免误覆盖云端历史）
     Upload,
     /// 下载同步（使用当前选中平台）
     Download,
@@ -107,6 +111,10 @@ pub enum CloudSyncPageAction {
     ConfirmDownload { platform: SyncPlatform },
     /// 取消下载确认
     CancelDownloadConfirm,
+    /// 确认上传 — token 在 View 字段中捕获,无需通过 action 传递(避免 String clone 开销)
+    ConfirmUpload { platform: SyncPlatform },
+    /// 取消上传确认
+    CancelUploadConfirm,
 }
 
 /// 云同步设置页面视图
@@ -125,10 +133,20 @@ pub struct CloudSyncPageView {
     conflict_local_version: i64,
     conflict_remote_version: i64,
     conflict_platform: SyncPlatform,
+    /// 进入 Conflict 状态时捕获的 token,Force Upload 时使用,避免确认期间用户切平台
+    conflict_token: String,
     download_confirm_visible: bool,
     download_confirm_platform: SyncPlatform,
+    /// 打开下载确认弹窗时捕获的 token 快照,Confirm 时直接使用,
+    /// 避免确认过程中用户切平台或 ClearToken 导致 spawn 用错凭据
+    download_confirm_token: String,
     download_confirm_mouse: MouseStateHandle,
     download_confirm_cancel_mouse: MouseStateHandle,
+    upload_confirm_visible: bool,
+    upload_confirm_platform: SyncPlatform,
+    upload_confirm_token: String,
+    upload_confirm_mouse: MouseStateHandle,
+    upload_confirm_cancel_mouse: MouseStateHandle,
     cached_version: String,
     cached_last_sync_time: String,
     cached_last_sync_platform: String,
@@ -189,9 +207,16 @@ fn load_token_from_store(me: &mut CloudSyncPageView, ctx: &mut ViewContext<Cloud
 /// 获取当前选中平台对应的 Token（从 OS 密钥库读取）
 fn current_token(ctx: &AppContext) -> String {
     let platform = *CloudSyncSettings::as_ref(ctx).sync_platform.value();
+    token_for_platform(ctx, platform.to_sync_platform())
+}
+
+/// 获取指定 SyncPlatform 对应的 Token,不依赖当前 dropdown 选中状态。
+/// 用于 force_upload 重新捕获场景:必须读取冲突所属 platform 的 token,
+/// 而非用户在冲突期间可能切换到的新 platform。
+fn token_for_platform(ctx: &AppContext, platform: SyncPlatform) -> String {
     let key = match platform {
-        SyncPlatformSetting::GitHub => GITHUB_TOKEN_KEY,
-        SyncPlatformSetting::Gitee => GITEE_TOKEN_KEY,
+        SyncPlatform::GitHub => GITHUB_TOKEN_KEY,
+        SyncPlatform::Gitee => GITEE_TOKEN_KEY,
     };
     CloudSyncTokenStore::as_ref(ctx)
         .get(key)
@@ -244,10 +269,17 @@ impl CloudSyncPageView {
             conflict_local_version: 0,
             conflict_remote_version: 0,
             conflict_platform: SyncPlatform::GitHub,
+            conflict_token: String::new(),
             download_confirm_visible: false,
             download_confirm_platform: SyncPlatform::GitHub,
+            download_confirm_token: String::new(),
             download_confirm_mouse: MouseStateHandle::default(),
             download_confirm_cancel_mouse: MouseStateHandle::default(),
+            upload_confirm_visible: false,
+            upload_confirm_platform: SyncPlatform::GitHub,
+            upload_confirm_token: String::new(),
+            upload_confirm_mouse: MouseStateHandle::default(),
+            upload_confirm_cancel_mouse: MouseStateHandle::default(),
             cached_version: String::new(),
             cached_last_sync_time: String::new(),
             cached_last_sync_platform: String::new(),
@@ -258,6 +290,203 @@ impl CloudSyncPageView {
         sync_from_settings(&mut me, ctx);
         load_token_from_store(&mut me, ctx);
         me
+    }
+
+    /// 构造当前应作为 overlay 渲染的模态(冲突 / 下载确认 / 上传确认)。
+    /// 由 CloudSyncPageWidget::render 内的 Stack 用 ParentOffsetBounds::WindowByPosition 居中,
+    /// 必须从本 View 的 render 路径调用,以保证点击事件可路由回 handle_action
+    /// (overlay 由 SettingsView 渲染会丢失 view chain)。
+    fn build_modal_element(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
+        use crate::ui_components::dialog::{dialog_styles, Dialog};
+        if self.conflict_visible {
+            let description_text = if self.conflict_local_version == self.conflict_remote_version {
+                crate::t!("settings-cloud-sync-conflict-description-equal")
+            } else {
+                crate::t!(
+                    "settings-cloud-sync-conflict-description",
+                    remote = self.conflict_remote_version.to_string(),
+                    local = self.conflict_local_version.to_string()
+                )
+            };
+
+            let force_button = Container::new(
+                appearance
+                    .ui_builder()
+                    .button(ButtonVariant::Warn, self.conflict_force_mouse.clone())
+                    .with_style(UiComponentStyles {
+                        font_size: Some(appearance.ui_font_body()),
+                        padding: Some(Coords::uniform(BUTTON_PADDING)),
+                        ..Default::default()
+                    })
+                    .with_text_label(crate::t!("settings-cloud-sync-force-upload"))
+                    .build()
+                    .on_click({
+                        let platform = self.conflict_platform;
+                        move |ctx, _, _| {
+                            ctx.dispatch_typed_action(CloudSyncPageAction::ForceUpload { platform });
+                        }
+                    })
+                    .finish(),
+            )
+            .with_margin_left(12.)
+            .finish();
+
+            let cancel_button = appearance
+                .ui_builder()
+                .button(ButtonVariant::Secondary, self.conflict_cancel_mouse.clone())
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.ui_font_body()),
+                    padding: Some(Coords::uniform(BUTTON_PADDING)),
+                    ..Default::default()
+                })
+                .with_text_label(crate::t!("common-cancel"))
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(CloudSyncPageAction::CancelConflict);
+                })
+                .finish();
+
+            let dialog = Dialog::new(
+                crate::t!("settings-cloud-sync-conflict-title"),
+                Some(description_text),
+                dialog_styles(appearance),
+            )
+            .with_bottom_row_child(cancel_button)
+            .with_bottom_row_child(force_button)
+            .with_width(DIALOG_WIDTH)
+            .build()
+            .finish();
+
+            return Some(
+                Dismiss::new(dialog)
+                    .prevent_interaction_with_other_elements()
+                    .on_dismiss(|ctx, _app| {
+                        ctx.dispatch_typed_action(CloudSyncPageAction::CancelConflict);
+                    })
+                    .finish(),
+            );
+        }
+
+        if self.download_confirm_visible {
+            let confirm_button = Container::new(
+                appearance
+                    .ui_builder()
+                    .button(ButtonVariant::Accent, self.download_confirm_mouse.clone())
+                    .with_style(UiComponentStyles {
+                        font_size: Some(appearance.ui_font_body()),
+                        padding: Some(Coords::uniform(BUTTON_PADDING)),
+                        ..Default::default()
+                    })
+                    .with_text_label(crate::t!("settings-cloud-sync-download-confirm-button"))
+                    .build()
+                    .on_click({
+                        let platform = self.download_confirm_platform;
+                        move |ctx, _, _| {
+                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmDownload { platform });
+                        }
+                    })
+                    .finish(),
+            )
+            .with_margin_left(12.)
+            .finish();
+
+            let cancel_button = appearance
+                .ui_builder()
+                .button(ButtonVariant::Secondary, self.download_confirm_cancel_mouse.clone())
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.ui_font_body()),
+                    padding: Some(Coords::uniform(BUTTON_PADDING)),
+                    ..Default::default()
+                })
+                .with_text_label(crate::t!("common-cancel"))
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(CloudSyncPageAction::CancelDownloadConfirm);
+                })
+                .finish();
+
+            let dialog = Dialog::new(
+                crate::t!("settings-cloud-sync-download-confirm-title"),
+                Some(crate::t!("settings-cloud-sync-download-confirm-description")),
+                dialog_styles(appearance),
+            )
+            .with_bottom_row_child(cancel_button)
+            .with_bottom_row_child(confirm_button)
+            .with_width(DIALOG_WIDTH)
+            .build()
+            .finish();
+
+            return Some(
+                Dismiss::new(dialog)
+                    .prevent_interaction_with_other_elements()
+                    .on_dismiss(|ctx, _app| {
+                        ctx.dispatch_typed_action(CloudSyncPageAction::CancelDownloadConfirm);
+                    })
+                    .finish(),
+            );
+        }
+
+        if self.upload_confirm_visible {
+            // 用 Accent(主题主色)而非 Warn(黄色警告色);Force Upload 才用 Warn
+            let confirm_button = Container::new(
+                appearance
+                    .ui_builder()
+                    .button(ButtonVariant::Accent, self.upload_confirm_mouse.clone())
+                    .with_style(UiComponentStyles {
+                        font_size: Some(appearance.ui_font_body()),
+                        padding: Some(Coords::uniform(BUTTON_PADDING)),
+                        ..Default::default()
+                    })
+                    .with_text_label(crate::t!("settings-cloud-sync-upload-confirm-button"))
+                    .build()
+                    .on_click({
+                        let platform = self.upload_confirm_platform;
+                        move |ctx, _, _| {
+                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmUpload { platform });
+                        }
+                    })
+                    .finish(),
+            )
+            .with_margin_left(12.)
+            .finish();
+
+            let cancel_button = appearance
+                .ui_builder()
+                .button(ButtonVariant::Secondary, self.upload_confirm_cancel_mouse.clone())
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.ui_font_body()),
+                    padding: Some(Coords::uniform(BUTTON_PADDING)),
+                    ..Default::default()
+                })
+                .with_text_label(crate::t!("common-cancel"))
+                .build()
+                .on_click(|ctx, _, _| {
+                    ctx.dispatch_typed_action(CloudSyncPageAction::CancelUploadConfirm);
+                })
+                .finish();
+
+            let dialog = Dialog::new(
+                crate::t!("settings-cloud-sync-upload-confirm-title"),
+                Some(crate::t!("settings-cloud-sync-upload-confirm-description")),
+                dialog_styles(appearance),
+            )
+            .with_bottom_row_child(cancel_button)
+            .with_bottom_row_child(confirm_button)
+            .with_width(DIALOG_WIDTH)
+            .build()
+            .finish();
+
+            return Some(
+                Dismiss::new(dialog)
+                    .prevent_interaction_with_other_elements()
+                    .on_dismiss(|ctx, _app| {
+                        ctx.dispatch_typed_action(CloudSyncPageAction::CancelUploadConfirm);
+                    })
+                    .finish(),
+            );
+        }
+
+        None
     }
 
     /// 刷新同步状态缓存
@@ -277,9 +506,8 @@ impl CloudSyncPageView {
             });
     }
 
-    /// 启动上传同步
-    fn spawn_upload(&mut self, platform: SyncPlatform, ctx: &mut ViewContext<Self>) {
-        let token = current_token(ctx);
+    /// 启动上传同步。token 由调用方在弹窗打开时捕获,保证与 platform 配对。
+    fn spawn_upload(&mut self, platform: SyncPlatform, token: String, ctx: &mut ViewContext<Self>) {
         if token.is_empty() {
             let label = platform.label();
             self.sync_state = SyncState::Failed {
@@ -289,19 +517,23 @@ impl CloudSyncPageView {
             return;
         }
 
+        // 把当前 token 保存为 conflict_token,若上传返回 Conflict → Force Upload 重试时复用
+        self.conflict_token = token.clone();
+
         self.sync_state = SyncState::Syncing {
             platform,
             direction: SyncDirection::Upload,
         };
         ctx.notify();
 
+        let spawn_token = token;
         ctx.spawn(
             async move {
                 let engine = SyncEngine::new();
                 let provider = SshSyncProvider::new();
                 let version_store = DbVersionStore;
                 engine
-                    .upload(platform, &token, &[&provider], &version_store)
+                    .upload(platform, &spawn_token, &[&provider], &version_store)
                     .await
                     .map_err(|e| e.to_string())
             },
@@ -318,9 +550,9 @@ impl CloudSyncPageView {
         );
     }
 
-    /// 启动下载同步
-    fn spawn_download(&mut self, platform: SyncPlatform, ctx: &mut ViewContext<Self>) {
-        let token = current_token(ctx);
+    /// 启动下载同步。token 由调用方在弹窗打开时捕获。
+    fn spawn_download(&mut self, platform: SyncPlatform, spawn_token: String, ctx: &mut ViewContext<Self>) {
+        let token = spawn_token;
         if token.is_empty() {
             let label = platform.label();
             self.sync_state = SyncState::Failed {
@@ -359,9 +591,8 @@ impl CloudSyncPageView {
         );
     }
 
-    /// 启动强制上传同步（覆盖远程）
-    fn spawn_force_upload(&mut self, platform: SyncPlatform, ctx: &mut ViewContext<Self>) {
-        let token = current_token(ctx);
+    /// 启动强制上传同步（覆盖远程）。token 来自冲突弹出时的快照。
+    fn spawn_force_upload(&mut self, platform: SyncPlatform, token: String, ctx: &mut ViewContext<Self>) {
         if token.is_empty() {
             let label = platform.label();
             self.sync_state = SyncState::Failed {
@@ -421,10 +652,8 @@ impl TypedActionView for CloudSyncPageView {
             }
             CloudSyncPageAction::SaveToken => {
                 let value = self.token_editor.as_ref(ctx).buffer_text(ctx);
-                let platform = CloudSyncSettings::as_ref(ctx)
-                    .sync_platform
-                    .value()
-                    .to_sync_platform();
+                let platform_setting = *CloudSyncSettings::as_ref(ctx).sync_platform.value();
+                let platform = platform_setting.to_sync_platform();
                 if value.is_empty() {
                     ctx.notify();
                     return;
@@ -432,7 +661,9 @@ impl TypedActionView for CloudSyncPageView {
                 self.sync_state = SyncState::Validating;
                 ctx.notify();
 
+                // 派发时捕获 platform + token,避免异步期间用户切平台导致写错 keychain key
                 let token = value.clone();
+                let captured_token = token.clone();
                 ctx.spawn(
                     async move {
                         let client = GistClient::new();
@@ -443,34 +674,50 @@ impl TypedActionView for CloudSyncPageView {
                     },
                     move |view, result, ctx| {
                         view.handle_action(
-                            &CloudSyncPageAction::TokenValidated { result },
+                            &CloudSyncPageAction::TokenValidated {
+                                platform_setting,
+                                token: captured_token.clone(),
+                                result,
+                            },
                             ctx,
                         );
                     },
                 );
             }
-            CloudSyncPageAction::TokenValidated { result } => {
+            CloudSyncPageAction::TokenValidated {
+                platform_setting,
+                token,
+                result,
+            } => {
+                let current_platform = *CloudSyncSettings::as_ref(ctx).sync_platform.value();
                 match result {
                     Ok(username) => {
                         let username = username.clone();
-                        // 验证成功，保存 Token 到 OS 密钥库
-                        let value = self.token_editor.as_ref(ctx).buffer_text(ctx);
-                        let platform = *CloudSyncSettings::as_ref(ctx).sync_platform.value();
-                        let key = match platform {
+                        // 用派发时捕获的 platform / token 写 keychain,而非当前 context
+                        let key = match platform_setting {
                             SyncPlatformSetting::GitHub => GITHUB_TOKEN_KEY,
                             SyncPlatformSetting::Gitee => GITEE_TOKEN_KEY,
                         };
-                        CloudSyncTokenStore::handle(ctx).update(ctx, |store: &mut CloudSyncTokenStore, ctx| {
-                            store.set(key, value, ctx);
-                        });
-                        self.has_valid_token = true;
-                        self.sync_state = SyncState::TokenValid { username };
+                        CloudSyncTokenStore::handle(ctx).update(
+                            ctx,
+                            |store: &mut CloudSyncTokenStore, ctx| {
+                                store.set(key, token.clone(), ctx);
+                            },
+                        );
+                        // 只有当前显示的平台与被验证的平台一致时,才更新 UI 状态;
+                        // 否则用户已切到别的平台,验证结果不应覆盖当前 UI
+                        if *platform_setting == current_platform {
+                            self.has_valid_token = true;
+                            self.sync_state = SyncState::TokenValid { username };
+                        }
                     }
                     Err(e) => {
-                        self.has_valid_token = false;
-                        self.sync_state = SyncState::Failed {
-                            message: e.clone(),
-                        };
+                        if *platform_setting == current_platform {
+                            self.has_valid_token = false;
+                            self.sync_state = SyncState::Failed {
+                                message: e.clone(),
+                            };
+                        }
                     }
                 }
                 ctx.notify();
@@ -495,15 +742,41 @@ impl TypedActionView for CloudSyncPageView {
                     .sync_platform
                     .value()
                     .to_sync_platform();
-                self.spawn_upload(platform, ctx);
+                let token = current_token(ctx);
+                // 早返回:token 为空时直接置 Failed,不弹只能失败的确认框 (PR #161 三轮 review)
+                if token.is_empty() {
+                    let label = platform.label();
+                    self.sync_state = SyncState::Failed {
+                        message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+                    };
+                    ctx.notify();
+                    return;
+                }
+                // 上传具备覆盖云端历史的破坏性,与下载对称弹出二次确认。
+                // 在弹窗打开时立刻捕获 token 快照,避免确认期间用户切平台 / ClearToken 导致
+                // spawn_upload 用错凭据 (PR #161 二轮 review)
+                self.upload_confirm_visible = true;
+                self.upload_confirm_platform = platform;
+                self.upload_confirm_token = token;
+                ctx.notify();
             }
             CloudSyncPageAction::Download => {
                 let platform = CloudSyncSettings::as_ref(ctx)
                     .sync_platform
                     .value()
                     .to_sync_platform();
+                let token = current_token(ctx);
+                if token.is_empty() {
+                    let label = platform.label();
+                    self.sync_state = SyncState::Failed {
+                        message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+                    };
+                    ctx.notify();
+                    return;
+                }
                 self.download_confirm_visible = true;
                 self.download_confirm_platform = platform;
+                self.download_confirm_token = token;
                 ctx.notify();
             }
             CloudSyncPageAction::SyncComplete {
@@ -520,6 +793,8 @@ impl TypedActionView for CloudSyncPageView {
                             direction,
                             version: *version,
                         };
+                        // 非冲突结局:清掉 conflict_token,避免 PAT 长期驻留在 view 内存
+                        self.conflict_token.clear();
                         if direction == SyncDirection::Download {
                             SshTreeChangedNotifier::handle(ctx).update(ctx, |_, ctx| {
                                 ctx.emit(SshTreeChangedEvent::TreeChanged);
@@ -539,16 +814,26 @@ impl TypedActionView for CloudSyncPageView {
                         self.conflict_local_version = *local_version;
                         self.conflict_remote_version = *remote_version;
                         self.conflict_platform = platform;
+                        // 进入 Conflict 时刷新 conflict_token,避免后续 Force Upload 用空 token:
+                        // - 首次冲突:spawn_upload 已把 token 写入 conflict_token,这里再次覆盖也无害
+                        // - force_upload 又返回 Conflict:之前 mem::take 已清空 conflict_token,
+                        //   必须根据冲突所属 platform 重新捕获(而不是当前 dropdown 平台,
+                        //   用户可能在冲突期间切换;PR #161 四轮 review)
+                        if self.conflict_token.is_empty() {
+                            self.conflict_token = token_for_platform(ctx, platform);
+                        }
                     }
                     Ok(SyncResult::AlreadyUpToDate { version }) => {
                         self.sync_state = SyncState::AlreadyUpToDate {
                             version: *version,
                         };
+                        self.conflict_token.clear();
                     }
                     Err(e) => {
                         self.sync_state = SyncState::Failed {
                             message: e.clone(),
                         };
+                        self.conflict_token.clear();
                     }
                 }
                 self.refresh_sync_cache();
@@ -556,22 +841,39 @@ impl TypedActionView for CloudSyncPageView {
             }
             CloudSyncPageAction::ForceUpload { platform } => {
                 let platform = *platform;
+                let token = std::mem::take(&mut self.conflict_token);
                 self.conflict_visible = false;
-                self.spawn_force_upload(platform, ctx);
+                self.spawn_force_upload(platform, token, ctx);
             }
             CloudSyncPageAction::CancelConflict => {
                 self.conflict_visible = false;
                 self.sync_state = SyncState::Idle;
+                // 与 CancelUploadConfirm / CancelDownloadConfirm 保持对称,清掉残留 PAT
+                self.conflict_token.clear();
                 ctx.notify();
             }
             CloudSyncPageAction::ConfirmDownload { platform } => {
                 let platform = *platform;
+                let token = std::mem::take(&mut self.download_confirm_token);
                 self.download_confirm_visible = false;
                 ctx.notify();
-                self.spawn_download(platform, ctx);
+                self.spawn_download(platform, token, ctx);
             }
             CloudSyncPageAction::CancelDownloadConfirm => {
                 self.download_confirm_visible = false;
+                self.download_confirm_token.clear();
+                ctx.notify();
+            }
+            CloudSyncPageAction::ConfirmUpload { platform } => {
+                let platform = *platform;
+                let token = std::mem::take(&mut self.upload_confirm_token);
+                self.upload_confirm_visible = false;
+                ctx.notify();
+                self.spawn_upload(platform, token, ctx);
+            }
+            CloudSyncPageAction::CancelUploadConfirm => {
+                self.upload_confirm_visible = false;
+                self.upload_confirm_token.clear();
                 ctx.notify();
             }
         }
@@ -628,9 +930,17 @@ impl SettingsWidget for CloudSyncPageWidget {
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
 
+        // 同步范围说明 — 放在页面顶部,作为首要提示
         let mut content = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Start)
-            .with_child(
+            .with_child(super::settings_page::render_settings_info_banner(
+                &crate::t!("settings-cloud-sync-scope-note"),
+                None,
+                appearance,
+            ));
+
+        content.add_child(
+            Container::new(
                 Text::new(
                     crate::t!("settings-cloud-sync-description"),
                     appearance.ui_font_family(),
@@ -638,16 +948,6 @@ impl SettingsWidget for CloudSyncPageWidget {
                 )
                 .with_color(theme.nonactive_ui_text_color().into())
                 .finish(),
-            );
-
-        // 同步范围说明
-        content.add_child(
-            Container::new(
-                super::settings_page::render_settings_info_banner(
-                    &crate::t!("settings-cloud-sync-scope-note"),
-                    None,
-                    appearance,
-                ),
             )
             .with_margin_top(8.)
             .finish(),
@@ -798,7 +1098,12 @@ impl SettingsWidget for CloudSyncPageWidget {
             .with_child(Container::new(download_btn).with_margin_left(8.).finish())
             .finish();
 
-        content.add_child(buttons_row);
+        // 与下方版本信息列表保持 12px 间距,避免按钮贴着 本地版本 标签
+        content.add_child(
+            Container::new(buttons_row)
+                .with_margin_bottom(12.)
+                .finish(),
+        );
 
         // 同步状态区域（使用缓存）
         let version = &view.cached_version;
@@ -916,140 +1221,24 @@ impl SettingsWidget for CloudSyncPageWidget {
             );
         }
 
-        // 冲突弹窗
-        if view.conflict_visible {
-            let description_text = if view.conflict_local_version == view.conflict_remote_version {
-                crate::t!("settings-cloud-sync-conflict-description-equal")
-            } else {
-                crate::t!(
-                    "settings-cloud-sync-conflict-description",
-                    remote = view.conflict_remote_version,
-                    local = view.conflict_local_version
-                )
-            };
-
-            let force_button = Container::new(
-                appearance
-                    .ui_builder()
-                    .button(ButtonVariant::Warn, view.conflict_force_mouse.clone())
-                    .with_style(UiComponentStyles {
-                        font_size: Some(appearance.ui_font_body()),
-                        padding: Some(Coords::uniform(BUTTON_PADDING)),
-                        ..Default::default()
-                    })
-                    .with_text_label(crate::t!("settings-cloud-sync-force-upload"))
-                    .build()
-                    .on_click({
-                        let platform = view.conflict_platform;
-                        move |ctx, _, _| {
-                            ctx.dispatch_typed_action(CloudSyncPageAction::ForceUpload { platform });
-                        }
-                    })
-                    .finish(),
-            )
-            .with_margin_left(12.)
-            .finish();
-
-            let cancel_button = appearance
-                .ui_builder()
-                .button(ButtonVariant::Secondary, view.conflict_cancel_mouse.clone())
-                .with_style(UiComponentStyles {
-                    font_size: Some(appearance.ui_font_body()),
-                    padding: Some(Coords::uniform(BUTTON_PADDING)),
-                    ..Default::default()
-                })
-                .with_text_label(crate::t!("common-cancel"))
-                .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(CloudSyncPageAction::CancelConflict);
-                })
-                .finish();
-
-            use crate::ui_components::dialog::{dialog_styles, Dialog};
-
-            let dialog = Dialog::new(
-                crate::t!("settings-cloud-sync-conflict-title"),
-                Some(description_text),
-                dialog_styles(appearance),
-            )
-            .with_bottom_row_child(cancel_button)
-            .with_bottom_row_child(force_button)
-            .with_width(DIALOG_WIDTH)
-            .build()
-            .finish();
-
-            content.add_child(
-                Dismiss::new(dialog)
-                    .prevent_interaction_with_other_elements()
-                    .on_dismiss(|ctx, _app| {
-                        ctx.dispatch_typed_action(CloudSyncPageAction::CancelConflict);
-                    })
-                    .finish(),
+        // 冲突 / 下载确认 / 上传确认弹窗 — 在本 View 的 render 路径构造,
+        // 用 Stack overlay child(WindowByPosition + Center)实现窗口居中,
+        // 同时保证点击事件能路由回 CloudSyncPageView::handle_action。
+        if let Some(modal) = view.build_modal_element(appearance) {
+            let mut stack = Stack::new();
+            stack.add_child(content.finish());
+            stack.add_positioned_overlay_child(
+                modal,
+                OffsetPositioning::offset_from_parent(
+                    vec2f(0., 0.),
+                    ParentOffsetBounds::WindowByPosition,
+                    ParentAnchor::Center,
+                    ChildAnchor::Center,
+                ),
             );
+            stack.finish()
+        } else {
+            content.finish()
         }
-
-        // 下载确认弹窗
-        if view.download_confirm_visible {
-            use crate::ui_components::dialog::{dialog_styles, Dialog};
-
-            let confirm_button = Container::new(
-                appearance
-                    .ui_builder()
-                    .button(ButtonVariant::Accent, view.download_confirm_mouse.clone())
-                    .with_style(UiComponentStyles {
-                        font_size: Some(appearance.ui_font_body()),
-                        padding: Some(Coords::uniform(BUTTON_PADDING)),
-                        ..Default::default()
-                    })
-                    .with_text_label(crate::t!("settings-cloud-sync-download-confirm-button"))
-                    .build()
-                    .on_click({
-                        let platform = view.download_confirm_platform;
-                        move |ctx, _, _| {
-                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmDownload { platform });
-                        }
-                    })
-                    .finish(),
-            )
-            .with_margin_left(12.)
-            .finish();
-
-            let cancel_button = appearance
-                .ui_builder()
-                .button(ButtonVariant::Secondary, view.download_confirm_cancel_mouse.clone())
-                .with_style(UiComponentStyles {
-                    font_size: Some(appearance.ui_font_body()),
-                    padding: Some(Coords::uniform(BUTTON_PADDING)),
-                    ..Default::default()
-                })
-                .with_text_label(crate::t!("common-cancel"))
-                .build()
-                .on_click(|ctx, _, _| {
-                    ctx.dispatch_typed_action(CloudSyncPageAction::CancelDownloadConfirm);
-                })
-                .finish();
-
-            let dialog = Dialog::new(
-                crate::t!("settings-cloud-sync-download-confirm-title"),
-                Some(crate::t!("settings-cloud-sync-download-confirm-description")),
-                dialog_styles(appearance),
-            )
-            .with_bottom_row_child(cancel_button)
-            .with_bottom_row_child(confirm_button)
-            .with_width(DIALOG_WIDTH)
-            .build()
-            .finish();
-
-            content.add_child(
-                Dismiss::new(dialog)
-                    .prevent_interaction_with_other_elements()
-                    .on_dismiss(|ctx, _app| {
-                        ctx.dispatch_typed_action(CloudSyncPageAction::CancelDownloadConfirm);
-                    })
-                    .finish(),
-            );
-        }
-
-        content.finish()
     }
 }

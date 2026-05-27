@@ -80,10 +80,16 @@ impl<C: GistOps> SyncEngine<C> {
             let remote_data: SyncData = serde_json::from_str(&remote_content)
                 .map_err(|e| SyncEngineError::Serialization(e.to_string()))?;
 
-            if remote_data.version >= local_version {
+            // 严格 > 才算冲突;== 表示本地与远程同处一个版本,无需重复上传
+            if remote_data.version > local_version {
                 return Ok(SyncResult::Conflict {
                     local_version,
                     remote_version: remote_data.version,
+                });
+            }
+            if remote_data.version == local_version {
+                return Ok(SyncResult::AlreadyUpToDate {
+                    version: local_version,
                 });
             }
 
@@ -219,10 +225,21 @@ impl<C: GistOps> SyncEngine<C> {
         };
 
         if let Err(e) = upload_result {
-            if let Err(rollback_err) = tokio::task::block_in_place(|| version_store.set_sync_version(local_version)) {
-                log::error!("强制上传失败后回滚版本号失败: {rollback_err}");
-            }
-            return Err(SyncEngineError::Gist(e.to_string()));
+            // 把上传错误与回滚错误聚合后返回,而不是吞掉回滚错误。
+            // 回滚失败时本地 sync_version 卡在 new_version,后续上传会
+            // 用本地状态意外覆盖远程,必须让调用方看到。
+            let rollback_msg = match tokio::task::block_in_place(|| {
+                version_store.set_sync_version(local_version)
+            }) {
+                Ok(()) => String::new(),
+                Err(rollback_err) => {
+                    log::error!("强制上传失败后回滚版本号失败: {rollback_err}");
+                    format!(
+                        " (回滚 sync_version 也失败: {rollback_err},本地版本卡在 {new_version},请手动改回 {local_version})"
+                    )
+                }
+            };
+            return Err(SyncEngineError::Gist(format!("{e}{rollback_msg}")));
         }
 
         tokio::task::block_in_place(|| version_store.update_sync_meta(&Utc::now().to_rfc3339(), platform.to_db_str()))?;
@@ -296,6 +313,8 @@ mod tests {
         content: String,
         create_called: Mutex<bool>,
         update_called: Mutex<bool>,
+        /// 记录最近一次调用经过的 platform,便于测试断言 platform-specific 路径
+        last_platform: Mutex<Option<SyncPlatform>>,
     }
 
     impl MockGistOps {
@@ -305,26 +324,32 @@ mod tests {
                 content: content.to_string(),
                 create_called: Mutex::new(false),
                 update_called: Mutex::new(false),
+                last_platform: Mutex::new(None),
             }
         }
     }
 
     impl GistOps for MockGistOps {
-        async fn validate_token(&self, _platform: SyncPlatform, _token: String) -> Result<String, GistClientError> {
+        async fn validate_token(&self, platform: SyncPlatform, _token: String) -> Result<String, GistClientError> {
+            *self.last_platform.lock().unwrap() = Some(platform);
             Ok("testuser".to_string())
         }
-        async fn find_gist(&self, _platform: SyncPlatform, _token: String) -> Result<Option<String>, GistClientError> {
+        async fn find_gist(&self, platform: SyncPlatform, _token: String) -> Result<Option<String>, GistClientError> {
+            *self.last_platform.lock().unwrap() = Some(platform);
             Ok(self.find_result.lock().unwrap().clone())
         }
-        async fn create_gist(&self, _platform: SyncPlatform, _token: String, _content: String) -> Result<String, GistClientError> {
+        async fn create_gist(&self, platform: SyncPlatform, _token: String, _content: String) -> Result<String, GistClientError> {
+            *self.last_platform.lock().unwrap() = Some(platform);
             *self.create_called.lock().unwrap() = true;
             Ok("new_gist_id".to_string())
         }
-        async fn update_gist(&self, _platform: SyncPlatform, _token: String, _gist_id: String, _content: String) -> Result<(), GistClientError> {
+        async fn update_gist(&self, platform: SyncPlatform, _token: String, _gist_id: String, _content: String) -> Result<(), GistClientError> {
+            *self.last_platform.lock().unwrap() = Some(platform);
             *self.update_called.lock().unwrap() = true;
             Ok(())
         }
-        async fn get_gist_content(&self, _platform: SyncPlatform, _token: String, _gist_id: String) -> Result<String, GistClientError> {
+        async fn get_gist_content(&self, platform: SyncPlatform, _token: String, _gist_id: String) -> Result<String, GistClientError> {
+            *self.last_platform.lock().unwrap() = Some(platform);
             Ok(self.content.clone())
         }
     }
@@ -372,6 +397,8 @@ mod tests {
         let result = engine.upload(platform, "token", &[&provider], &store).await.unwrap();
         assert!(matches!(result, SyncResult::Success { version: 1, .. }));
         assert!(*engine.client.create_called.lock().unwrap());
+        // 断言 platform 真的传到 GistOps,避免 mock 吞参数
+        assert_eq!(*engine.client.last_platform.lock().unwrap(), Some(platform));
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -472,13 +499,18 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_upload_conflict_on_equal_version() {
+    async fn test_upload_equal_version_is_no_op() {
+        // 本地与远程同版本时,上传应当返回 AlreadyUpToDate 而非 Conflict
+        // (修复:此前会陷入虚假冲突循环,见 PR #161 review)
         let mock = MockGistOps::new(Some("gist123".to_string()), &make_sync_data_json(3));
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(3);
         let result = engine.upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
-        assert!(matches!(result, SyncResult::Conflict { local_version: 3, remote_version: 3 }));
+        assert!(matches!(result, SyncResult::AlreadyUpToDate { version: 3 }));
+        // 远程版本未变,不应触发任何写操作
+        assert!(!*engine.client.update_called.lock().unwrap());
+        assert!(!*engine.client.create_called.lock().unwrap());
     }
 
     #[tokio::test(flavor = "multi_thread")]

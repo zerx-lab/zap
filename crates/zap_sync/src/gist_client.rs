@@ -6,10 +6,17 @@
 use crate::types::{GistDetail, GistEntry, SyncPlatform};
 use reqwest::Client;
 use serde_json::json;
+use std::time::Duration;
 use thiserror::Error;
 
 const GIST_DESCRIPTION: &str = "ZAP_CONFIG";
 const GIST_FILENAME: &str = "zap_config.json";
+/// HTTP 整体请求超时（含 connect + read），避免网络挂起让 UI 永远卡在 Syncing
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// find_gist 翻页上限。100/page,上限 20 页 = 2000 个 gist 已远超任何正常用户需要;
+/// 超过则提早返回 None,避免 API 分页 quirk 引起死循环 / 触发 rate limit
+const FIND_GIST_MAX_PAGES: u32 = 20;
 
 /// Gist API 客户端错误
 #[derive(Debug, Error)]
@@ -48,14 +55,17 @@ pub struct GistClient {
 }
 
 impl GistClient {
-    /// 创建新的 GistClient 实例
+    /// 创建新的 GistClient 实例。
+    /// build 失败属于不可恢复的运行时错误（TLS backend 初始化失败等),宁可 panic
+    /// 也不要静默回退到无 user-agent 的 Client::default() — GitHub 强制要求 UA。
     pub fn new() -> Self {
-        Self {
-            client: Client::builder()
-                .user_agent("Zap-Terminal")
-                .build()
-                .unwrap_or_default(),
-        }
+        let client = Client::builder()
+            .user_agent("Zap-Terminal")
+            .timeout(REQUEST_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .build()
+            .expect("failed to build reqwest client for GistClient");
+        Self { client }
     }
 
     /// 构建认证头，GitHub 用 Bearer，Gitee 用 token 前缀
@@ -91,7 +101,12 @@ impl GistClient {
         }
 
         let user: serde_json::Value = resp.json().await?;
-        let login = user["login"].as_str().unwrap_or("unknown");
+        // 真实成功响应必须含 login 字段;若不含说明响应不是预期的 GitHub/Gitee
+        // /user(可能是 SSO 拦截页 / 代理伪造 200),不能误判为验证通过
+        let login = user["login"].as_str().ok_or_else(|| GistClientError::Api {
+            status: 200,
+            body: "响应缺少 login 字段,Token 未真正通过验证".to_string(),
+        })?;
         Ok(login.to_string())
     }
 
@@ -105,9 +120,8 @@ impl GistClient {
             return Err(GistClientError::NoToken);
         }
         let base_url = platform.base_url();
-        let mut page = 1;
 
-        loop {
+        for page in 1..=FIND_GIST_MAX_PAGES {
             let url = format!("{base_url}/gists?page={page}&per_page=100");
             let resp = self
                 .client
@@ -135,9 +149,13 @@ impl GistClient {
             {
                 return Ok(Some(found.id.clone()));
             }
-
-            page += 1;
         }
+
+        // 超过 MAX_PAGES 仍未找到,视作不存在 — 上层会触发 create_gist
+        log::warn!(
+            "find_gist: 已翻 {FIND_GIST_MAX_PAGES} 页仍未找到 {GIST_DESCRIPTION},放弃以避免死循环 / rate limit"
+        );
+        Ok(None)
     }
 
     /// 创建新 Gist
@@ -312,9 +330,23 @@ mod tests {
         assert_eq!(header, "token mytoken");
     }
 
-    #[test]
-    fn test_empty_token_returns_early() {
-        assert!(GistClient::auth_header(SyncPlatform::GitHub, "").ends_with(""));
-        assert!(GistClient::auth_header(SyncPlatform::Gitee, "").ends_with(""));
+    #[tokio::test]
+    async fn test_empty_token_returns_no_token_error() {
+        // 测试环境下 rustls 默认 provider 未安装,先安装(忽略重复安装失败)
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let client = GistClient::new();
+        // validate_token / find_gist / create_gist / update_gist / get_gist_content 应当在 token 为空时立即返回 NoToken,不发起任何 HTTP 请求
+        for platform in [SyncPlatform::GitHub, SyncPlatform::Gitee] {
+            let r = client.validate_token(platform, "").await;
+            assert!(matches!(r, Err(GistClientError::NoToken)), "validate_token 空 token");
+            let r = client.find_gist(platform, "").await;
+            assert!(matches!(r, Err(GistClientError::NoToken)), "find_gist 空 token");
+            let r = client.create_gist(platform, "", "{}").await;
+            assert!(matches!(r, Err(GistClientError::NoToken)), "create_gist 空 token");
+            let r = client.update_gist(platform, "", "x", "{}").await;
+            assert!(matches!(r, Err(GistClientError::NoToken)), "update_gist 空 token");
+            let r = client.get_gist_content(platform, "", "x").await;
+            assert!(matches!(r, Err(GistClientError::NoToken)), "get_gist_content 空 token");
+        }
     }
 }
