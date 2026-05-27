@@ -1339,6 +1339,7 @@ settings-appearance-font-line-height-label = Line height
 settings-appearance-font-reset-default = Reset to default
 settings-appearance-font-notebook-size-label = Notebook font size
 settings-appearance-markdown-heading-scale-label = Markdown heading font scale
+settings-appearance-markdown-heading-scale-description = Scale is relative to the terminal font size. Actual size = terminal font size × scale
 settings-appearance-markdown-heading-h1-label = H1 scale
 settings-appearance-markdown-heading-h2-label = H2 scale
 settings-appearance-markdown-heading-h3-label = H3 scale

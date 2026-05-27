@@ -1316,6 +1316,7 @@ settings-appearance-font-line-height-label = 行高
 settings-appearance-font-reset-default = 恢复默认
 settings-appearance-font-notebook-size-label = 笔记本字号
 settings-appearance-markdown-heading-scale-label = Markdown 标题字号系数
+settings-appearance-markdown-heading-scale-description = 此系数以终端字体字号为基准，实际字号 = 终端字体字号 × 系数
 settings-appearance-markdown-heading-h1-label = H1 系数
 settings-appearance-markdown-heading-h2-label = H2 系数
 settings-appearance-markdown-heading-h3-label = H3 系数

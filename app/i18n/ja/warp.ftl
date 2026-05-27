@@ -1282,6 +1282,7 @@ settings-appearance-font-line-height-label = 行の高さ
 settings-appearance-font-reset-default = 既定にリセット
 settings-appearance-font-notebook-size-label = ノートブックフォントサイズ
 settings-appearance-markdown-heading-scale-label = Markdown 見出しフォントスケール
+settings-appearance-markdown-heading-scale-description = スケールはターミナルフォントサイズが基準です。実際のサイズ = ターミナルフォントサイズ × スケール
 settings-appearance-markdown-heading-h1-label = H1 スケール
 settings-appearance-markdown-heading-h2-label = H2 スケール
 settings-appearance-markdown-heading-h3-label = H3 スケール

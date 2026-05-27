@@ -431,6 +431,7 @@ pub enum AppearancePageAction {
     SetFontWeight(Weight),
     SetNotebookFontSize,
     SetMarkdownHeadingScale,
+    ResetMarkdownHeadingScale,
     SetLineHeight,
     SetOpacity(f32),
     SetBlur(f32),
@@ -565,6 +566,7 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleMatchAIToTerminalFontFamily => self.toggle_match_ai_font_to_terminal_font(ctx),
             SetNotebookFontSize => self.set_notebook_font_size(ctx),
             SetMarkdownHeadingScale => self.set_markdown_heading_scale(ctx),
+            ResetMarkdownHeadingScale => self.reset_markdown_heading_scale(ctx),
             SetLineHeight => self.set_line_height_ratio(ctx),
             SetOpacity(value) => self.set_opacity(*value, true, ctx),
             SetBlur(value) => self.set_blur(*value, true, ctx),
@@ -2010,6 +2012,31 @@ impl AppearanceSettingsPageView {
             if let Some(v) = h4 { report_if_error!(font_settings.markdown_heading_h4_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
             if let Some(v) = h5 { report_if_error!(font_settings.markdown_heading_h5_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
             if let Some(v) = h6 { report_if_error!(font_settings.markdown_heading_h6_scale.set_value(v.clamp(0.1, 5.0), ctx)); }
+        });
+    }
+
+    /// 还原 markdown 标题字号系数为默认值
+    fn reset_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
+        let editors: [&ViewHandle<EditorView>; 6] = [
+            &self.markdown_heading_h1_scale_editor,
+            &self.markdown_heading_h2_scale_editor,
+            &self.markdown_heading_h3_scale_editor,
+            &self.markdown_heading_h4_scale_editor,
+            &self.markdown_heading_h5_scale_editor,
+            &self.markdown_heading_h6_scale_editor,
+        ];
+        for (editor, default) in editors.iter().zip(DEFAULT_MARKDOWN_HEADING_SCALES.iter()) {
+            editor.update(ctx, |e, ctx| {
+                e.set_buffer_text(&format!("{default}"), ctx);
+            });
+        }
+        FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
+            report_if_error!(font_settings.markdown_heading_h1_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[0], ctx));
+            report_if_error!(font_settings.markdown_heading_h2_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[1], ctx));
+            report_if_error!(font_settings.markdown_heading_h3_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[2], ctx));
+            report_if_error!(font_settings.markdown_heading_h4_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[3], ctx));
+            report_if_error!(font_settings.markdown_heading_h5_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[4], ctx));
+            report_if_error!(font_settings.markdown_heading_h6_scale.set_value(DEFAULT_MARKDOWN_HEADING_SCALES[5], ctx));
         });
     }
 
@@ -4653,9 +4680,14 @@ impl SettingsWidget for NotebookFontSizeWidget {
 }
 
 #[derive(Default)]
-struct MarkdownHeadingScaleWidget {}
+struct MarkdownHeadingScaleWidget {
+    reset_button_state: MouseStateHandle,
+}
 
-const MARKDOWN_SCALE_INPUT_BOX_WIDTH: f32 = 64.0;
+const MARKDOWN_SCALE_INPUT_BOX_WIDTH: f32 = 80.0;
+
+/// Markdown 标题字号系数默认值
+const DEFAULT_MARKDOWN_HEADING_SCALES: [f32; 6] = [1.55, 1.4, 1.2, 1.0, 0.83, 0.67];
 
 impl MarkdownHeadingScaleWidget {
     /// 渲染单个系数输入框
@@ -4671,10 +4703,14 @@ impl MarkdownHeadingScaleWidget {
                     .with_style(UiComponentStyles {
                         width: Some(MARKDOWN_SCALE_INPUT_BOX_WIDTH),
                         padding: Some(Coords {
-                            top: 7.,
-                            bottom: 7.,
-                            left: 16.,
-                            right: 16.,
+                            top: appearance.ui_font_size() * 7. / 12.,
+                            bottom: appearance.ui_font_size() * 7. / 12.,
+                            left: appearance.ui_font_size(),
+                            right: appearance.ui_font_size(),
+                        }),
+                        margin: Some(Coords {
+                            top: 2.,
+                            ..Default::default()
                         }),
                         background: Some(appearance.theme().surface_2().into()),
                         ..Default::default()
@@ -4715,6 +4751,11 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
             (&view.markdown_heading_h6_scale_editor, *font_settings.markdown_heading_h6_scale),
         ];
 
+        let changed_from_default = editors_and_values
+            .iter()
+            .zip(DEFAULT_MARKDOWN_HEADING_SCALES.iter())
+            .any(|((_, v), d)| (*v - *d).abs() > f32::EPSILON);
+
         let mut rows = Flex::column().with_spacing(4.);
 
         // 标题行
@@ -4722,6 +4763,20 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
             appearance
                 .ui_builder()
                 .span(crate::t!("settings-appearance-markdown-heading-scale-label"))
+                .build()
+                .finish(),
+        );
+
+        // 说明文字
+        rows.add_child(
+            appearance
+                .ui_builder()
+                .span(crate::t!("settings-appearance-markdown-heading-scale-description"))
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.ui_font_overline()),
+                    font_color: Some(appearance.theme().hint_text_color(appearance.theme().surface_2()).into()),
+                    ..Default::default()
+                })
                 .build()
                 .finish(),
         );
@@ -4816,6 +4871,38 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
                 .with_child(Self::render_scale_input(&editors_and_values[5].0, appearance))
                 .finish(),
         );
+
+        // 还原默认值按钮
+        rows.add_child({
+            let button = appearance
+                .ui_builder()
+                .reset_button(
+                    ButtonVariant::Text,
+                    self.reset_button_state.clone(),
+                    changed_from_default,
+                    appearance
+                        .theme()
+                        .disabled_text_color(appearance.theme().surface_2())
+                        .into(),
+                )
+                .with_style(UiComponentStyles {
+                    padding: Some(Coords::default().top(4.)),
+                    margin: Some(Coords {
+                        top: 4.,
+                        ..Default::default()
+                    }),
+                    font_size: Some(appearance.ui_font_overline()),
+                    ..Default::default()
+                })
+                .with_text_label(crate::t!("settings-appearance-font-reset-default"));
+
+            button
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(AppearancePageAction::ResetMarkdownHeadingScale);
+                })
+                .finish()
+        });
 
         Container::new(rows.finish())
             .with_margin_bottom(10.)
