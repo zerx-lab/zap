@@ -191,6 +191,11 @@ struct GitCtx {
 struct SkillCtx {
     name: String,
     description: String,
+    /// Absolute path to SKILL.md for filesystem skills; `None` for bundled skills.
+    /// Bundled skills are loaded via `AIAgentInput::InvokeSkill`, not `read_skill`,
+    /// so exposing `@warp-skill:<id>` here would mislead the model into calling a
+    /// path that always fails the BYOP `skill_by_reference` lookup.
+    path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -297,9 +302,19 @@ fn collect_prompt_context(model_id: &str, ctx: &[AIAgentContext]) -> PromptConte
             }
             AIAgentContext::Skills { skills } => {
                 for s in skills {
+                    let path = match &s.reference {
+                        ai::skills::SkillReference::Path(p) => {
+                            Some(p.to_string_lossy().into_owned())
+                        }
+                        // Bundled skills load via InvokeSkill, not read_skill.
+                        // Omit skill_path to avoid guiding the model toward a
+                        // value that will always fail BYOP's skill_by_reference.
+                        ai::skills::SkillReference::BundledSkillId(_) => None,
+                    };
                     out.skills.push(SkillCtx {
                         name: s.name.clone(),
                         description: s.description.clone(),
+                        path,
                     });
                 }
             }
@@ -563,6 +578,67 @@ mod tests {
         assert!(
             !out.contains("Skills provide specialized instructions"),
             "{out}"
+        );
+    }
+
+    /// Issue #169 回归:系统 prompt 中的 skill 区块必须包含 skill_path(绝对路径),
+    /// 而非仅 name/description,否则模型无法正确调用 read_skill 工具。
+    #[test]
+    fn render_includes_skill_path_for_read_skill_tool() {
+        use crate::ai::skills::SkillDescriptor;
+        use ai::skills::{SkillProvider, SkillReference, SkillScope};
+
+        let skill_path = "/home/user/.agents/skills/open-browser-use/SKILL.md";
+        let skill = SkillDescriptor {
+            reference: SkillReference::Path(skill_path.into()),
+            name: "open-browser-use".into(),
+            description: "Automates Chrome browser operations.".into(),
+            scope: SkillScope::Project,
+            provider: SkillProvider::Agents,
+            icon_override: None,
+        };
+        let ctx = vec![AIAgentContext::Skills {
+            skills: vec![skill],
+        }];
+        let out = render_system(&LLMId::from("byop:p:deepseek-chat"), &ctx, &[], false, &[]);
+        assert!(
+            out.contains(skill_path),
+            "system prompt must expose the skill_path so the model can pass it to read_skill; got: {out}"
+        );
+    }
+
+    /// Issue #169 后续:bundled skill 的 BundledSkillId 变体在 BYOP 路径下不可通过
+    /// read_skill 加载(走 InvokeSkill),因此 system prompt 中不应输出 <skill_path>
+    /// 以避免模型使用必然失败的 @warp-skill:{id} 值。
+    #[test]
+    fn render_omits_skill_path_for_bundled_skill() {
+        use crate::ai::skills::SkillDescriptor;
+        use ai::skills::{SkillProvider, SkillReference, SkillScope};
+        use warp_core::ui::icons::Icon;
+
+        let skill = SkillDescriptor {
+            reference: SkillReference::BundledSkillId("find-skills".into()),
+            name: "find-skills".into(),
+            description: "Help discover and install new agent skills.".into(),
+            scope: SkillScope::Bundled,
+            provider: SkillProvider::Zap,
+            icon_override: Some(Icon::WarpLogoLight),
+        };
+        let ctx = vec![AIAgentContext::Skills {
+            skills: vec![skill],
+        }];
+        let out = render_system(&LLMId::from("byop:p:deepseek-chat"), &ctx, &[], false, &[]);
+        assert!(
+            out.contains("find-skills"),
+            "bundled skill name should still appear in prompt: {out}"
+        );
+        assert!(
+            !out.contains("@warp-skill:"),
+            "bundled skill must NOT emit <skill_path> to avoid misleading the model: {out}"
+        );
+        assert!(
+            !out.contains("<skill_path>"),
+            "no <skill_path> tag should be rendered for bundled skills: {out}"
         );
     }
 

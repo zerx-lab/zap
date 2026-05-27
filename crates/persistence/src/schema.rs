@@ -509,6 +509,13 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    sync_meta (key) {
+        key -> Text,
+        value -> Text,
+    }
+}
+
 diesel::joinable!(ambient_agent_panes -> pane_nodes (id));
 diesel::joinable!(app -> windows (active_window_id));
 diesel::joinable!(code_pane_tabs -> code_panes (code_pane_id));
@@ -535,3 +542,4 @@ diesel::allow_tables_to_appear_in_same_query!(
 diesel::allow_tables_to_appear_in_same_query!(code_pane_tabs, code_panes,);
 diesel::allow_tables_to_appear_in_same_query!(object_metadata, object_permissions,);
 diesel::allow_tables_to_appear_in_same_query!(team_members, team_settings, teams,);
+diesel::allow_tables_to_appear_in_same_query!(sync_meta,);

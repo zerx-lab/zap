@@ -346,7 +346,7 @@ jobs:
                   # 视为已安装,避免它去 pacman -S 一个仓库里没有的包。
                   # 另外带 --noconfirm:容器里没透传 GITHUB_ACTIONS,
                   # bundle_arch 里原生的那个分支不会生效。
-                  MAKEPKG_EXTRA_ARGS='--noconfirm --assume-installed opengl-driver' \
+                  MAKEPKG_EXTRA_ARGS='\''--noconfirm --assume-installed opengl-driver'\'' \
                     script/bundle --skip-build --channel oss --arch x86_64 --packages arch
                 "
             '

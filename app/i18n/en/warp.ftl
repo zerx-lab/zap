@@ -575,6 +575,7 @@ settings-section-shared-blocks = Shared blocks
 settings-section-warp-drive = Zap Drive
 settings-section-warpify = Warpify
 settings-section-network = Network
+settings-section-cloud-sync = Cloud Sync
 settings-section-ai = AI
 settings-section-warp-agent = Zap Agent
 settings-section-agent-profiles = Profiles
@@ -853,6 +854,51 @@ settings-network-test-success-tcp = ✅ Proxy reachable ({$latency} ms)
 settings-network-test-success-http = ✅ Internet reachable ({$latency} ms)
 settings-network-test-failed-tcp = ❌ Cannot reach proxy: {$error}
 settings-network-test-failed-http = ❌ Connection failed: {$error}
+
+# --- ANCHOR-SUB-CLOUD-SYNC (agent-settings-cloud-sync) ---
+# Cloud Sync settings page
+settings-cloud-sync-description = Configure cloud synchronization via GitHub Gist or Gitee Gist. Your settings will be encrypted and stored as a secret Gist.
+settings-cloud-sync-scope-note = Currently syncing SSH managed server configurations only.
+settings-cloud-sync-platform-label = Sync Platform
+settings-cloud-sync-platform-description = Select the cloud service for synchronization
+settings-cloud-sync-token-label = Access Token
+settings-cloud-sync-token-description = Personal access token with gist scope
+settings-cloud-sync-token-placeholder = Enter access token...
+settings-cloud-sync-operations-header = Sync Operations
+settings-cloud-sync-upload-label = Upload
+settings-cloud-sync-download-label = Download
+settings-cloud-sync-status-header = Sync Status
+settings-cloud-sync-local-version-label = Local version
+settings-cloud-sync-last-time-label = Last sync time
+settings-cloud-sync-last-platform-label = Last sync platform
+settings-cloud-sync-local-version = Local version: {$version}
+settings-cloud-sync-last-time = Last sync time: {$time}
+settings-cloud-sync-last-platform = Last sync platform: {$platform}
+settings-cloud-sync-na = N/A
+settings-cloud-sync-never = Never
+settings-cloud-sync-syncing-upload = Uploading to {$platform}...
+settings-cloud-sync-syncing-download = Downloading from {$platform}...
+settings-cloud-sync-success-upload = Upload to {$platform} successful (version v{$version})
+settings-cloud-sync-success-download = Download from {$platform} successful (version v{$version})
+settings-cloud-sync-already-up-to-date = Already up to date (v{$version}), no sync needed
+settings-cloud-sync-failed = Failed: {$error}
+settings-cloud-sync-conflict-status = Conflict: local v{$local} vs remote v{$remote}
+settings-cloud-sync-conflict-status-equal = Versions are equal: local v{$local} = remote v{$remote}
+settings-cloud-sync-token-not-configured = {$platform} Token not configured
+settings-cloud-sync-conflict-title = Version Conflict
+settings-cloud-sync-conflict-description = Remote version (v{$remote}) is newer than local (v{$local}). Forcing upload will overwrite the remote data.
+settings-cloud-sync-conflict-description-equal = Remote and local versions are identical. Forcing upload will overwrite the remote data.
+settings-cloud-sync-force-upload = Force Upload
+settings-cloud-sync-download-confirm-title = Confirm Download
+settings-cloud-sync-download-confirm-description = Downloading will replace all local SSH server configurations with the remote version. This action cannot be undone.
+settings-cloud-sync-download-confirm-button = Confirm Download
+settings-cloud-sync-upload-confirm-title = Confirm Upload
+settings-cloud-sync-upload-confirm-description = Uploading will overwrite all remote SSH server configurations with the local version. Gists do not keep history, so this action cannot be undone.
+settings-cloud-sync-upload-confirm-button = Confirm Upload
+settings-cloud-sync-clear = Clear
+settings-cloud-sync-validating = Validating token...
+settings-cloud-sync-token-valid = Token valid ({$username})
+settings-cloud-sync-token-invalid = Invalid token: {$error}
 
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # Section / sub-headers
@@ -2729,6 +2775,13 @@ workspace-left-panel-ssh-manager-startup-command = Startup Command
 workspace-left-panel-ssh-manager-startup-command-placeholder = Command to run after connection
 workspace-left-panel-ssh-manager-notes = Notes
 workspace-left-panel-ssh-manager-notes-placeholder = Notes
+workspace-left-panel-ssh-manager-candidates-header = From { $path }
+workspace-left-panel-ssh-manager-candidates-empty = No importable hosts in { $path }
+workspace-left-panel-ssh-manager-candidates-not-found = No SSH config found at { $path }
+workspace-left-panel-ssh-manager-candidates-error = Could not read SSH config at { $path }: { $error }
+workspace-left-panel-ssh-manager-candidates-add = Add to SSH Manager
+workspace-left-panel-ssh-manager-candidates-added = Added
+workspace-left-panel-ssh-manager-candidates-refresh = Refresh from ~/.ssh/config
 terminal-su-root-password-confirm = Auto-fill Root Password
 terminal-su-root-password-confirm-subtitle = Click to confirm and inject the saved Root password
 terminal-su-root-password-cancel = Cancel

@@ -19,14 +19,14 @@ use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     AcceptedByDropTarget, Border, ChildAnchor, ConstrainedBox, Container, CornerRadius,
     CrossAxisAlignment, Dismiss, Draggable, DraggableState, DropTarget, DropTargetData, Element,
-    Empty, Flex, Hoverable, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
-    ParentElement, ParentOffsetBounds, Radius, SavePosition, Stack, Text,
+    Empty, Flex, Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning,
+    ParentAnchor, ParentElement, ParentOffsetBounds, Radius, SavePosition, Stack, Text,
 };
 use warpui::platform::Cursor;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
-    AppContext, Entity, FocusContext, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 use warp_ssh_manager::{
@@ -37,6 +37,7 @@ use warp_ssh_manager::{
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
+use crate::ssh_manager::candidates::{CandidateRow, CandidatesViewModel};
 use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 
 // ---- 视觉常量(参考 Drive) ----
@@ -86,6 +87,14 @@ pub enum SshManagerPanelAction {
     ToggleAllFolders,
     /// 双击 server 行 = 连接(开新 tab)。Folder 双击 = 两次 toggle 抵消 no-op。
     DoubleClick(String),
+    /// "Candidates" 区段:把 `~/.ssh/config` 的一条候选拷贝进保存树。
+    ImportCandidate {
+        alias: String,
+    },
+    /// 重新读 `~/.ssh/config`(用户改完 config 后点 Refresh 按钮)。
+    RefreshCandidates,
+    /// 折叠/展开 "Candidates" 区段(列表长时手动收起)。
+    ToggleCandidatesSection,
 }
 
 #[derive(Clone, Debug)]
@@ -107,6 +116,23 @@ pub enum SshManagerPanelEvent {
 struct RenameState {
     node_id: String,
     editor: ViewHandle<EditorView>,
+}
+
+/// 单条 candidate 行的内容字段 —— 把渲染时关心的几个 Option 装一个 struct,
+/// 避免 `render_candidate_row` 的参数列表过长(clippy::too_many_arguments)。
+struct CandidateRowFields<'a> {
+    alias: &'a str,
+    hostname: Option<&'a str>,
+    user: Option<&'a str>,
+    port: Option<u16>,
+    added: bool,
+}
+
+/// 主题色配对 —— 已导入行用 muted,普通行用 main。
+#[derive(Copy, Clone)]
+struct CandidateRowColors {
+    main: warp_core::ui::theme::Fill,
+    muted: warp_core::ui::theme::Fill,
 }
 
 /// 拖拽落点 metadata。`parent_id = None` 表示拖到 panel 空白处(放回 root);
@@ -142,10 +168,22 @@ pub struct SshManagerPanel {
 
     /// 当前正在重命名的节点(编辑器 + node_id)。
     rename_state: Option<RenameState>,
+
+    /// `~/.ssh/config` 候选视图模型 —— PRODUCT.md decision A/B/C/D/E。
+    candidates: ModelHandle<CandidatesViewModel>,
+    /// 每条 candidate 行的 hover state(key = alias)。
+    candidate_row_states: HashMap<String, MouseStateHandle>,
+    /// 每条 candidate 行 "+" / "Added" 按钮的 hover state(key = alias)。
+    candidate_add_states: HashMap<String, MouseStateHandle>,
+    /// 区段头的 Refresh / Toggle 按钮 hover state。
+    candidates_refresh_btn: MouseStateHandle,
+    candidates_toggle_btn: MouseStateHandle,
 }
 
 impl SshManagerPanel {
     pub fn new(ctx: &mut ViewContext<Self>) -> Self {
+        let candidates = ctx.add_model(|_| CandidatesViewModel::new());
+
         let mut me = Self {
             nodes: Vec::new(),
             depths: HashMap::new(),
@@ -161,7 +199,14 @@ impl SshManagerPanel {
                 .map(|_| MouseStateHandle::default())
                 .collect(),
             rename_state: None,
+            candidates,
+            candidate_row_states: HashMap::new(),
+            candidate_add_states: HashMap::new(),
+            candidates_refresh_btn: MouseStateHandle::default(),
+            candidates_toggle_btn: MouseStateHandle::default(),
         };
+        // 面板首次打开 → 立刻读一次 ssh_config(PRODUCT.md decision A)。
+        me.candidates.update(ctx, |vm, ctx| vm.refresh(ctx));
         me.refresh_tree(ctx);
 
         ctx.subscribe_to_model(
@@ -208,7 +253,44 @@ impl SshManagerPanel {
             self.row_drag_states.entry(n.id.clone()).or_default();
         }
 
+        // 树变化 → 重算 "Added" 集合(PRODUCT.md decision E)。"已导入"按
+        // `server.host == candidate.alias` 判定 —— 与 ImportCandidate 的写入
+        // 语义对齐(decision I:导入时 `server.host = alias`)。
+        let hosts = list_server_hosts();
+        self.candidates
+            .update(ctx, |vm, ctx| vm.on_tree_changed(hosts, ctx));
+        self.sync_candidate_row_states(ctx);
+
         ctx.notify();
+    }
+
+    /// 让 `candidate_row_states` / `candidate_add_states` 的 key 集合与当前
+    /// candidates view-model 的 alias 一致。多余的 hover state 删掉(释放内存),
+    /// 缺的别名补一个默认 state(行被新加进来后第一次 hover 不会丢状态)。
+    fn sync_candidate_row_states(&mut self, ctx: &mut ViewContext<Self>) {
+        let aliases: Vec<String> = self
+            .candidates
+            .as_ref(ctx)
+            .rows()
+            .into_iter()
+            .filter_map(|r| match r {
+                CandidateRow::Candidate { alias, .. } => Some(alias),
+                CandidateRow::Header { .. }
+                | CandidateRow::NotFound { .. }
+                | CandidateRow::Empty { .. }
+                | CandidateRow::Error { .. } => None,
+            })
+            .collect();
+        let alias_set: std::collections::HashSet<&str> =
+            aliases.iter().map(|s| s.as_str()).collect();
+        self.candidate_row_states
+            .retain(|k, _| alias_set.contains(k.as_str()));
+        self.candidate_add_states
+            .retain(|k, _| alias_set.contains(k.as_str()));
+        for a in aliases {
+            self.candidate_row_states.entry(a.clone()).or_default();
+            self.candidate_add_states.entry(a).or_default();
+        }
     }
 
     fn on_add_folder(&mut self, ctx: &mut ViewContext<Self>) {
@@ -227,6 +309,84 @@ impl SshManagerPanel {
             }
             Err(e) => {
                 log::error!("ssh_manager: create folder failed: {e:?}");
+                ctx.emit(SshManagerPanelEvent::PersistenceError(e.to_string()));
+            }
+        }
+    }
+
+    /// 把 `~/.ssh/config` 中一条候选导入为新的 saved server。
+    ///
+    /// 字段映射严格按 TECH.md §3.3 / PRODUCT.md decision I/J/K:
+    /// - `server.host = alias`(保留 OpenSSH 别名语义,启动 `ssh` 时仍能套
+    ///   上 `~/.ssh/config` 里的 `ProxyJump` 等指令);
+    /// - `port = candidate.port.unwrap_or(22)`(decision K 的"port=None → 22");
+    /// - `auth_type = Key if identity_file.is_some() else Password`(decision J);
+    /// - `notes = "Imported from <resolved path>"`(供用户日后回溯来源)。
+    ///
+    /// 通过 `SshRepository::create_server` 写入,与手动 "New server" 走同一条
+    /// 持久化路径 —— 任何对该 SQLite 行的 schema 变更,导入路径自动跟上。
+    /// 完成后 emit `OpenServerEditor`(与手动新建一致)+ 广播
+    /// `SshTreeChangedEvent::TreeChanged` 让 `Added` 徽章立刻翻牌。
+    fn on_import_candidate(&mut self, alias: String, ctx: &mut ViewContext<Self>) {
+        let candidate = self
+            .candidates
+            .read(ctx, |vm, _| vm.find_candidate(&alias).cloned());
+        let Some(c) = candidate else {
+            log::warn!("ssh_manager: ImportCandidate alias not found: {alias}");
+            return;
+        };
+        let path_display = self
+            .candidates
+            .read(ctx, |vm, _| vm.path_display())
+            .unwrap_or_default();
+
+        let auth_type = if c.identity_file.is_some() {
+            AuthType::Key
+        } else {
+            AuthType::Password
+        };
+        let info = SshServerInfo {
+            node_id: String::new(),
+            // PRODUCT.md decision I:存别名而不是解析后的 HostName。
+            host: c.alias.clone(),
+            port: c.port.unwrap_or(22),
+            username: c.user.clone().unwrap_or_default(),
+            auth_type,
+            key_path: c
+                .identity_file
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned()),
+            startup_command: None,
+            notes: Some(format!("Imported from {path_display}")),
+            last_connected_at: None,
+        };
+
+        let parent = self.parent_for_new_node();
+        let result = warp_ssh_manager::with_conn(|conn| {
+            // 名字与手动 "New server" 相同的"自动避重"逻辑(unique_name);
+            // 第一条候选用别名当名字,撞名追加 " 2"、" 3" …
+            let name = unique_name(conn, parent.as_deref(), &c.alias)?;
+            Ok(SshRepository::create_server(
+                conn,
+                parent.as_deref(),
+                &name,
+                &info,
+            )?)
+        });
+        match result {
+            Ok(node) => {
+                let new_id = node.id.clone();
+                self.selected_id = Some(new_id.clone());
+                self.refresh_tree(ctx);
+                // 与手动新建保持一致:打开中央编辑 pane,让用户填密码/微调字段。
+                ctx.emit(SshManagerPanelEvent::OpenServerEditor { node_id: new_id });
+                // 广播树变更 —— Candidates 区段的 added_aliases 据此刷新。
+                SshTreeChangedNotifier::handle(ctx).update(ctx, |_, ctx| {
+                    ctx.emit(SshTreeChangedEvent::TreeChanged);
+                });
+            }
+            Err(e) => {
+                log::error!("ssh_manager: import candidate failed: {e:?}");
                 ctx.emit(SshManagerPanelEvent::PersistenceError(e.to_string()));
             }
         }
@@ -697,6 +857,413 @@ impl SshManagerPanel {
             .finish()
     }
 
+    /// "Candidates" 区段 —— 从 `~/.ssh/config` 解析出的可导入主机列表。
+    ///
+    /// 区段在已保存树**上方**展示;布局风格(行高、缩进、字号)与树保持一致,
+    /// 仅在区段头多一个 Refresh 按钮 + 折叠 chevron。每条候选行尾跟一个
+    /// "+" 或 "Added" 徽章(PRODUCT.md decision E)。
+    fn render_candidates(
+        &self,
+        appearance: &warp_core::ui::appearance::Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let rows = self.candidates.as_ref(app).rows();
+        if rows.is_empty() {
+            // 还没调过 refresh —— 完全不渲染区段(panel 还没 mount 时不应该发生,
+            // 因为 new() 里立刻调一次,但保险起见兜底)。
+            return Empty::new().finish();
+        }
+
+        let muted = theme.sub_text_color(theme.background());
+        let main = theme.main_text_color(theme.background());
+
+        let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+
+        for row in rows {
+            match row {
+                CandidateRow::Header {
+                    path_display,
+                    count,
+                    can_refresh,
+                } => {
+                    col.add_child(self.render_candidates_header(
+                        &path_display,
+                        count,
+                        can_refresh,
+                        appearance,
+                        app,
+                    ));
+                }
+                CandidateRow::NotFound { path_display } => {
+                    col.add_child(self.render_candidates_message(
+                        &crate::t!(
+                            "workspace-left-panel-ssh-manager-candidates-not-found",
+                            path = path_display
+                        ),
+                        muted,
+                        appearance,
+                    ));
+                }
+                CandidateRow::Empty { path_display } => {
+                    col.add_child(self.render_candidates_message(
+                        &crate::t!(
+                            "workspace-left-panel-ssh-manager-candidates-empty",
+                            path = path_display
+                        ),
+                        muted,
+                        appearance,
+                    ));
+                }
+                CandidateRow::Error {
+                    path_display,
+                    message,
+                } => {
+                    // 错误行用 error 红色 —— `ui_error_color` 直接返回 ColorU,
+                    // 跟 `ai_assistant/panel.rs` 里"超字数计数器"用同样套路。
+                    let err_color: pathfinder_color::ColorU = theme.ui_error_color();
+                    col.add_child(self.render_candidates_message_color(
+                        &crate::t!(
+                            "workspace-left-panel-ssh-manager-candidates-error",
+                            path = path_display,
+                            error = message
+                        ),
+                        err_color,
+                        appearance,
+                    ));
+                }
+                CandidateRow::Candidate {
+                    alias,
+                    hostname,
+                    user,
+                    port,
+                    identity_file: _,
+                    added,
+                } => {
+                    col.add_child(self.render_candidate_row(
+                        CandidateRowFields {
+                            alias: &alias,
+                            hostname: hostname.as_deref(),
+                            user: user.as_deref(),
+                            port,
+                            added,
+                        },
+                        CandidateRowColors { main, muted },
+                        appearance,
+                    ));
+                }
+            }
+        }
+
+        col.with_main_axis_size(MainAxisSize::Min).finish()
+    }
+
+    fn render_candidates_header(
+        &self,
+        path_display: &str,
+        count: usize,
+        can_refresh: bool,
+        appearance: &warp_core::ui::appearance::Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let icon_color = theme.sub_text_color(theme.background());
+        let muted = theme.sub_text_color(theme.background());
+
+        // 折叠态 chevron(▶) vs 展开态(▼) —— is_expanded 直接从 view-model 取。
+        let expanded = self.candidates.as_ref(app).is_expanded();
+        let chevron_icon = if expanded {
+            crate::ui_components::icons::Icon::ChevronDown
+        } else {
+            crate::ui_components::icons::Icon::ChevronRight
+        };
+        let chevron_el = ConstrainedBox::new(chevron_icon.to_warpui_icon(icon_color).finish())
+            .with_width(ITEM_ICON_SIZE)
+            .with_height(ITEM_ICON_SIZE)
+            .finish();
+
+        let header_text = crate::t!(
+            "workspace-left-panel-ssh-manager-candidates-header",
+            path = path_display
+        );
+        let label = Text::new_inline(
+            header_text,
+            appearance.ui_font_family(),
+            appearance.ui_font_subheading(),
+        )
+        .with_color(muted.into())
+        .finish();
+
+        let count_label = Text::new_inline(
+            format!("({count})"),
+            appearance.ui_font_family(),
+            appearance.ui_font_body(),
+        )
+        .with_color(muted.into())
+        .finish();
+
+        // 右侧 Refresh 按钮 —— 任何状态(NotFound / Error / Loaded)都允许刷新。
+        let refresh_state = self.candidates_refresh_btn.clone();
+        let refresh_icon = ConstrainedBox::new(
+            crate::ui_components::icons::Icon::Refresh
+                .to_warpui_icon(icon_color)
+                .finish(),
+        )
+        .with_width(ITEM_ICON_SIZE)
+        .with_height(ITEM_ICON_SIZE)
+        .finish();
+        let refresh_btn = if can_refresh {
+            Hoverable::new(refresh_state, move |_| {
+                Container::new(refresh_icon)
+                    .with_uniform_padding(2.0)
+                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(3.0)))
+                    .finish()
+            })
+            .with_cursor(Cursor::PointingHand)
+            .on_click(|ctx, _, _| {
+                ctx.dispatch_typed_action(SshManagerPanelAction::RefreshCandidates);
+            })
+            .finish()
+        } else {
+            refresh_icon
+        };
+
+        // 整行:chevron + 标签(吃中间空间)+ count + Refresh 按钮。
+        let row = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_spacing(ITEM_ICON_TEXT_SPACING)
+            .with_child(chevron_el)
+            .with_child(label)
+            .with_child(count_label)
+            .with_child(
+                ConstrainedBox::new(Empty::new().finish())
+                    .with_width(8.0)
+                    .finish(),
+            )
+            .with_child(refresh_btn)
+            .with_main_axis_size(MainAxisSize::Min)
+            .with_main_axis_alignment(MainAxisAlignment::Start)
+            .finish();
+
+        // 整个 header 点击 = toggle(类似 folder 行的 single-click)。
+        let toggle_state = self.candidates_toggle_btn.clone();
+        Hoverable::new(toggle_state, move |_| {
+            Container::new(row)
+                .with_padding_top(ITEM_PADDING_VERTICAL)
+                .with_padding_bottom(ITEM_PADDING_VERTICAL)
+                .with_padding_left(ITEM_PADDING_HORIZONTAL)
+                .with_padding_right(ITEM_PADDING_HORIZONTAL)
+                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
+                .finish()
+        })
+        .with_cursor(Cursor::PointingHand)
+        .on_click(|ctx, _, _| {
+            ctx.dispatch_typed_action(SshManagerPanelAction::ToggleCandidatesSection);
+        })
+        .finish()
+    }
+
+    fn render_candidates_message(
+        &self,
+        text: &str,
+        color: warp_core::ui::theme::Fill,
+        appearance: &warp_core::ui::appearance::Appearance,
+    ) -> Box<dyn Element> {
+        Container::new(
+            Text::new_inline(
+                text.to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_body(),
+            )
+            .with_color(color.into())
+            .finish(),
+        )
+        .with_padding_top(ITEM_PADDING_VERTICAL)
+        .with_padding_bottom(ITEM_PADDING_VERTICAL)
+        .with_padding_left(ITEM_PADDING_HORIZONTAL + FOLDER_DEPTH_INDENT)
+        .with_padding_right(ITEM_PADDING_HORIZONTAL)
+        .finish()
+    }
+
+    /// 同 `render_candidates_message`,但接收 `ColorU` —— Error 行用主题的
+    /// `ui_error_color()` 直接返回的红色,避免再走一次 Fill 包装。
+    fn render_candidates_message_color(
+        &self,
+        text: &str,
+        color: pathfinder_color::ColorU,
+        appearance: &warp_core::ui::appearance::Appearance,
+    ) -> Box<dyn Element> {
+        Container::new(
+            Text::new_inline(
+                text.to_string(),
+                appearance.ui_font_family(),
+                appearance.ui_font_body(),
+            )
+            .with_color(color)
+            .finish(),
+        )
+        .with_padding_top(ITEM_PADDING_VERTICAL)
+        .with_padding_bottom(ITEM_PADDING_VERTICAL)
+        .with_padding_left(ITEM_PADDING_HORIZONTAL + FOLDER_DEPTH_INDENT)
+        .with_padding_right(ITEM_PADDING_HORIZONTAL)
+        .finish()
+    }
+
+    fn render_candidate_row(
+        &self,
+        fields: CandidateRowFields<'_>,
+        colors: CandidateRowColors,
+        appearance: &warp_core::ui::appearance::Appearance,
+    ) -> Box<dyn Element> {
+        let CandidateRowFields {
+            alias,
+            hostname,
+            user,
+            port,
+            added,
+        } = fields;
+        let CandidateRowColors { main, muted } = colors;
+        let theme = appearance.theme();
+        let icon = crate::ui_components::icons::Icon::Key
+            .to_warpui_icon(theme.sub_text_color(theme.background()))
+            .finish();
+        let icon_el = ConstrainedBox::new(icon)
+            .with_width(ITEM_ICON_SIZE)
+            .with_height(ITEM_ICON_SIZE)
+            .finish();
+
+        // 主标签 = alias;副标签 = "user@hostname:port" 简写,均按可选拼。
+        // 已导入时整行字体颜色调淡(decision E:dimmed)。
+        let label_color = if added { muted } else { main };
+        let alias_text = Text::new_inline(
+            alias.to_string(),
+            appearance.ui_font_family(),
+            appearance.ui_font_subheading(),
+        )
+        .with_color(label_color.into())
+        .finish();
+
+        let mut subtitle_parts: Vec<String> = Vec::new();
+        if let Some(u) = user {
+            subtitle_parts.push(u.to_string());
+        }
+        if let Some(h) = hostname {
+            // user@host;无 user 时只显示 host
+            let last = subtitle_parts.last_mut();
+            match last {
+                Some(s) => *s = format!("{s}@{h}"),
+                None => subtitle_parts.push(h.to_string()),
+            }
+        }
+        if let Some(p) = port {
+            // 拼到最后一个段末尾的 :port;若 user/hostname 都缺,单独 :port。
+            if let Some(last) = subtitle_parts.last_mut() {
+                *last = format!("{last}:{p}");
+            } else {
+                subtitle_parts.push(format!(":{p}"));
+            }
+        }
+        let subtitle: Option<Box<dyn Element>> = if subtitle_parts.is_empty() {
+            None
+        } else {
+            Some(
+                Text::new_inline(
+                    subtitle_parts.join(" "),
+                    appearance.ui_font_family(),
+                    appearance.ui_font_body(),
+                )
+                .with_color(muted.into())
+                .finish(),
+            )
+        };
+
+        let mut label_col = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Start)
+            .with_child(alias_text);
+        if let Some(s) = subtitle {
+            label_col.add_child(s);
+        }
+        let label_block = label_col.with_main_axis_size(MainAxisSize::Min).finish();
+
+        // 行尾的 "+" 按钮或 "Added" 徽章。
+        let add_state = self
+            .candidate_add_states
+            .get(alias)
+            .cloned()
+            .unwrap_or_default();
+        let alias_for_click = alias.to_string();
+        let trailing: Box<dyn Element> = if added {
+            // PRODUCT.md decision E:已导入 → 显示 "Added"(无点击交互)。
+            Text::new_inline(
+                crate::t!("workspace-left-panel-ssh-manager-candidates-added"),
+                appearance.ui_font_family(),
+                appearance.ui_font_body(),
+            )
+            .with_color(muted.into())
+            .finish()
+        } else {
+            let plus_icon = ConstrainedBox::new(
+                crate::ui_components::icons::Icon::Plus
+                    .to_warpui_icon(theme.sub_text_color(theme.background()))
+                    .finish(),
+            )
+            .with_width(ITEM_ICON_SIZE)
+            .with_height(ITEM_ICON_SIZE)
+            .finish();
+            Hoverable::new(add_state, move |_| {
+                Container::new(plus_icon)
+                    .with_uniform_padding(2.0)
+                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(3.0)))
+                    .finish()
+            })
+            .with_cursor(Cursor::PointingHand)
+            .on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(SshManagerPanelAction::ImportCandidate {
+                    alias: alias_for_click.clone(),
+                });
+            })
+            .finish()
+        };
+
+        let row = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_spacing(ITEM_ICON_TEXT_SPACING)
+            .with_child(
+                ConstrainedBox::new(Empty::new().finish())
+                    .with_width(FOLDER_DEPTH_INDENT)
+                    .finish(),
+            )
+            .with_child(icon_el)
+            .with_child(label_block)
+            .with_child(
+                ConstrainedBox::new(Empty::new().finish())
+                    .with_width(8.0)
+                    .finish(),
+            )
+            .with_child(trailing)
+            .with_main_axis_size(MainAxisSize::Min)
+            .finish();
+
+        let row_state = self
+            .candidate_row_states
+            .get(alias)
+            .cloned()
+            .unwrap_or_default();
+        Hoverable::new(row_state, move |mouse| {
+            let mut c = Container::new(row)
+                .with_padding_top(ITEM_PADDING_VERTICAL)
+                .with_padding_bottom(ITEM_PADDING_VERTICAL)
+                .with_padding_left(ITEM_PADDING_HORIZONTAL)
+                .with_padding_right(ITEM_PADDING_HORIZONTAL)
+                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)));
+            if mouse.is_hovered() {
+                c = c.with_background(internal_colors::fg_overlay_3(theme));
+            }
+            c.finish()
+        })
+        .finish()
+    }
+
     fn render_tree(&self, appearance: &warp_core::ui::appearance::Appearance) -> Box<dyn Element> {
         let mut col = Flex::column();
 
@@ -1011,9 +1578,13 @@ impl SshManagerPanel {
                 .get(i)
                 .cloned()
                 .unwrap_or_default();
-            let label_el = Text::new_inline(label, appearance.ui_font_family(), appearance.ui_font_subheading())
-                .with_color(theme.main_text_color(theme.background()).into())
-                .finish();
+            let label_el = Text::new_inline(
+                label,
+                appearance.ui_font_family(),
+                appearance.ui_font_subheading(),
+            )
+            .with_color(theme.main_text_color(theme.background()).into())
+            .finish();
             let row_action = action.clone();
             let item = Hoverable::new(state, move |mouse| {
                 let mut c = Container::new(label_el)
@@ -1085,6 +1656,19 @@ impl TypedActionView for SshManagerPanel {
             }
             SshManagerPanelAction::ToggleAllFolders => self.on_toggle_all_folders(ctx),
             SshManagerPanelAction::DoubleClick(id) => self.on_double_click(id.clone(), ctx),
+            SshManagerPanelAction::ImportCandidate { alias } => {
+                self.on_import_candidate(alias.clone(), ctx)
+            }
+            SshManagerPanelAction::RefreshCandidates => {
+                self.candidates.update(ctx, |vm, ctx| vm.refresh(ctx));
+                self.sync_candidate_row_states(ctx);
+                ctx.notify();
+            }
+            SshManagerPanelAction::ToggleCandidatesSection => {
+                self.candidates
+                    .update(ctx, |vm, ctx| vm.toggle_expanded(ctx));
+                ctx.notify();
+            }
         }
     }
 }
@@ -1103,6 +1687,14 @@ impl View for SshManagerPanel {
             .with_uniform_padding(8.0)
             .finish();
 
+        // PRODUCT.md §2:Candidates 区段在已保存树**上方**,共享同一面板
+        // 水平内边距。区段在 view-model 还没 refresh 时返回 Empty,不会占
+        // 高度。
+        let candidates_section = Container::new(self.render_candidates(appearance, app))
+            .with_padding_left(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
+            .with_padding_right(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
+            .finish();
+
         let tree = Container::new(self.render_tree(appearance))
             .with_padding_left(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
             .with_padding_right(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
@@ -1117,6 +1709,7 @@ impl View for SshManagerPanel {
                 .with_main_axis_size(MainAxisSize::Max)
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                 .with_child(toolbar)
+                .with_child(candidates_section)
                 .with_child(tree_filled)
                 .finish(),
         )
@@ -1187,6 +1780,22 @@ fn compute_depths(nodes: &[SshNode]) -> HashMap<String, usize> {
         depths.insert(n.id.clone(), d);
     }
     depths
+}
+
+/// 一次性拉所有 ssh_servers 行的 `host` 字段。失败时返回空 Vec —— 候选区段的
+/// "Added" 徽章在 SQLite 临时挂掉时就当成"没有任何已导入项"渲染,不至于让
+/// 整个面板崩。
+fn list_server_hosts() -> Vec<String> {
+    use diesel::prelude::*;
+    use persistence::schema::ssh_servers;
+    warp_ssh_manager::with_conn(|conn| {
+        let hosts: Vec<String> = ssh_servers::table.select(ssh_servers::host).load(conn)?;
+        Ok(hosts)
+    })
+    .unwrap_or_else(|e| {
+        log::warn!("ssh_manager: failed to list server hosts for candidates: {e:?}");
+        Vec::new()
+    })
 }
 
 fn unique_name(

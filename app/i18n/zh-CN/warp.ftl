@@ -565,6 +565,7 @@ settings-section-shared-blocks = 共享命令块
 settings-section-warp-drive = Zap Drive
 settings-section-warpify = Warpify
 settings-section-network = 网络
+settings-section-cloud-sync = 云同步
 settings-section-ai = AI
 settings-section-warp-agent = Zap 智能体
 settings-section-agent-profiles = 配置
@@ -836,6 +837,51 @@ settings-network-test-success-tcp = ✅ 代理可达(耗时 {$latency} 毫秒)
 settings-network-test-success-http = ✅ 出网正常(耗时 {$latency} 毫秒)
 settings-network-test-failed-tcp = ❌ 代理不可达:{$error}
 settings-network-test-failed-http = ❌ 连接失败:{$error}
+
+# --- ANCHOR-SUB-CLOUD-SYNC (agent-settings-cloud-sync) ---
+# 云同步设置页面
+settings-cloud-sync-description = 通过 GitHub Gist 或 Gitee Gist 配置云同步。您的设置将被加密并存储为私密 Gist。
+settings-cloud-sync-scope-note = 当前仅同步 SSH 管理的服务器配置数据。
+settings-cloud-sync-platform-label = 同步平台
+settings-cloud-sync-platform-description = 选择用于同步的云服务
+settings-cloud-sync-token-label = 访问令牌
+settings-cloud-sync-token-description = 具有 gist 权限的个人访问令牌
+settings-cloud-sync-token-placeholder = 输入访问令牌...
+settings-cloud-sync-operations-header = 同步操作
+settings-cloud-sync-upload-label = 上传
+settings-cloud-sync-download-label = 下载
+settings-cloud-sync-status-header = 同步状态
+settings-cloud-sync-local-version-label = 本地版本
+settings-cloud-sync-last-time-label = 上次同步时间
+settings-cloud-sync-last-platform-label = 上次同步平台
+settings-cloud-sync-local-version = 本地版本：{$version}
+settings-cloud-sync-last-time = 上次同步时间：{$time}
+settings-cloud-sync-last-platform = 上次同步平台：{$platform}
+settings-cloud-sync-na = 不可用
+settings-cloud-sync-never = 从未同步
+settings-cloud-sync-syncing-upload = 正在上传到 {$platform}...
+settings-cloud-sync-syncing-download = 正在从 {$platform} 下载...
+settings-cloud-sync-success-upload = 上传到 {$platform} 成功（版本 v{$version}）
+settings-cloud-sync-success-download = 从 {$platform} 下载成功（版本 v{$version}）
+settings-cloud-sync-already-up-to-date = 已是最新版本（v{$version}），无需同步
+settings-cloud-sync-failed = 失败：{$error}
+settings-cloud-sync-conflict-status = 版本冲突：本地 v{$local} vs 远程 v{$remote}
+settings-cloud-sync-conflict-status-equal = 版本相同：本地 v{$local} = 远程 v{$remote}
+settings-cloud-sync-token-not-configured = {$platform} Token 未配置
+settings-cloud-sync-conflict-title = 版本冲突
+settings-cloud-sync-conflict-description = 远程版本（v{$remote}）比本地（v{$local}）更新。强制上传将覆盖远程数据。
+settings-cloud-sync-conflict-description-equal = 远程版本与本地版本相同。强制上传将覆盖远程数据。
+settings-cloud-sync-force-upload = 强制上传
+settings-cloud-sync-download-confirm-title = 确认下载
+settings-cloud-sync-download-confirm-description = 下载将用远程版本替换所有本地 SSH 服务器配置。此操作无法撤销。
+settings-cloud-sync-download-confirm-button = 确认下载
+settings-cloud-sync-upload-confirm-title = 确认上传
+settings-cloud-sync-upload-confirm-description = 上传将用本地版本覆盖远程的所有 SSH 服务器配置。Gist 不保留历史版本,此操作无法撤销。
+settings-cloud-sync-upload-confirm-button = 确认上传
+settings-cloud-sync-clear = 清除
+settings-cloud-sync-validating = 正在验证令牌...
+settings-cloud-sync-token-valid = 令牌有效（{$username}）
+settings-cloud-sync-token-invalid = 无效令牌：{$error}
 
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # 章节 / 副标题
@@ -2646,6 +2692,13 @@ workspace-left-panel-ssh-manager-startup-command = 启动命令
 workspace-left-panel-ssh-manager-startup-command-placeholder = 连接成功后自动执行的命令
 workspace-left-panel-ssh-manager-notes = 备注
 workspace-left-panel-ssh-manager-notes-placeholder = 备注信息
+workspace-left-panel-ssh-manager-candidates-header = 来自 { $path }
+workspace-left-panel-ssh-manager-candidates-empty = { $path } 中没有可导入的主机
+workspace-left-panel-ssh-manager-candidates-not-found = 未找到 SSH 配置文件:{ $path }
+workspace-left-panel-ssh-manager-candidates-error = 读取 SSH 配置失败 { $path }:{ $error }
+workspace-left-panel-ssh-manager-candidates-add = 添加到 SSH 管理器
+workspace-left-panel-ssh-manager-candidates-added = 已添加
+workspace-left-panel-ssh-manager-candidates-refresh = 从 ~/.ssh/config 重新加载
 terminal-su-root-password-confirm = 自动输入 Root 密码
 terminal-su-root-password-confirm-subtitle = 点击确认后自动填入保存的 Root 密码
 terminal-su-root-password-cancel = 取消
