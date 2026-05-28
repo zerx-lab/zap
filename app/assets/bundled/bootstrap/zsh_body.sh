@@ -366,6 +366,16 @@ if [[ -z $WARP_BOOTSTRAPPED ]]; then
       bindkey -r '\ew'
       bindkey '\ew' warp_change_prompt_modes_to_warp_prompt
 
+      # Reset the bracketed-paste ZLE widget to the built-in default (.bracketed-paste).
+      # Plugins like bracketed-paste-magic (e.g. from Oh My Zsh) override this widget to
+      # escape URL-adjacent characters such as ')'. Since Warp submits commands via bracketed
+      # paste sequences, these plugins incorrectly mutate command text on submission — for
+      # example, turning `(echo "https://example.com")` into `(echo "https://example.com"\)`,
+      # which causes ZSH to enter a continuation prompt instead of executing the command.
+      # Since Warp manages all editing via its own input layer (not ZSH ZLE), resetting this
+      # widget has no user-visible impact.
+      zle -A .bracketed-paste bracketed-paste 2>/dev/null || true
+
       local escaped_pwd
       if [ -n "${WSL_DISTRO_NAME:-}" ]; then
         # In WSL, avoid symlinks b/c on Windows `std::fs` is unable to resolve symlink inside WSL containers.
