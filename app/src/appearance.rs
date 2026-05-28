@@ -22,8 +22,9 @@ use macos_app_icon::*;
 
 use crate::{
     settings::{
-        active_theme_kind, FontSettings, FontSettingsChangedEvent, MonospaceFontSize, Settings,
-        ThemeSettings, UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX,
+        active_theme_kind, font::heading_font_size_multipliers_from_settings, FontSettings,
+        FontSettingsChangedEvent, MonospaceFontSize, Settings, ThemeSettings, UI_FONT_SIZE_MIN,
+        UI_FONT_SIZE_MAX,
     },
     themes::theme::{ThemeKind, WarpTheme},
     ASSETS,
@@ -145,6 +146,18 @@ impl AppearanceManager {
                     let clamped = new_font_size.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX);
                     Appearance::handle(ctx).update(ctx, |appearance, ctx| {
                         appearance.set_ui_font_size(clamped, ctx);
+                    });
+                }
+                FontSettingsChangedEvent::MarkdownHeadingH1Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH2Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH3Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH4Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH5Scale { .. }
+                | FontSettingsChangedEvent::MarkdownHeadingH6Scale { .. } => {
+                    let new_multipliers =
+                        heading_font_size_multipliers_from_settings(FontSettings::as_ref(ctx));
+                    Appearance::handle(ctx).update(ctx, |appearance, ctx| {
+                        appearance.set_heading_font_size_multipliers(new_multipliers, ctx);
                     });
                 }
                 _ => {}
@@ -440,6 +453,9 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
 
     let line_height_ratio = *FontSettings::as_ref(ctx).line_height_ratio.value();
 
+    let heading_multipliers =
+        heading_font_size_multipliers_from_settings(FontSettings::as_ref(ctx));
+
     let theme_kind = active_theme_kind(ThemeSettings::as_ref(ctx), ctx);
     let theme = Settings::theme_for_theme_kind(&theme_kind, ctx);
     #[cfg(target_family = "wasm")]
@@ -455,6 +471,7 @@ fn build_appearance(ctx: &mut AppContext) -> Appearance {
         am_font_family_from_settings.unwrap_or(default_monospace_font_family),
         password_font_family,
         ui_font_size.clamp(UI_FONT_SIZE_MIN, UI_FONT_SIZE_MAX),
+        heading_multipliers,
     )
 }
 

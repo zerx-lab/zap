@@ -111,7 +111,7 @@ use crate::{
 };
 use crate::{
     search::slash_command_menu::static_commands::commands,
-    settings::{heading_font_size_multipliers_from_settings, FontSettings, InputSettings},
+    settings::{FontSettings, InputSettings},
 };
 use warp_core::channel::ChannelState;
 use warp_editor::content::{
@@ -1538,9 +1538,7 @@ pub(super) fn render_rich_text_output_text_section(
         theme.text_selection_color().into_solid()
     })
     .with_line_height_ratio(1.2)
-    .with_heading_to_font_size_multipliers(heading_font_size_multipliers_from_settings(
-        FontSettings::as_ref(app),
-    ))
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
     .with_inline_code_properties(Some(inline_code_text_color), Some(inline_code_bg_color))
     .set_selectable(props.selectable);
 
@@ -2518,6 +2516,7 @@ fn render_table_cell(props: TableCellProps, app: &AppContext) -> Box<dyn Element
         props.text_color,
         Default::default(),
     )
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
     .with_alignment(match props.alignment {
         TableAlignment::Left => TextAlignment::Left,
         TableAlignment::Center => TextAlignment::Center,

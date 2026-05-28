@@ -284,6 +284,7 @@ impl ZapLaunchModal {
             PhenomenonStyle::modal_feature_description_text(),
             HighlightedHyperlink::default(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_line_height_ratio(1.2)
         // Render the inline link in the same color as the description text so it
         // blends in; the underline (applied via FormattedTextStyles) still signals it's a link.

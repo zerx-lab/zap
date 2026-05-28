@@ -65,6 +65,7 @@ pub fn render_ambient_agent_loading_screen(
             blended_colors::text_sub(theme, theme.surface_1()),
             Default::default(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_alignment(TextAlignment::Center)
         .with_hyperlink_font_color(theme.accent().into())
         .set_selectable(true)

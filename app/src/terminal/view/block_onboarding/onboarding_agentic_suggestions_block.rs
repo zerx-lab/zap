@@ -617,6 +617,7 @@ impl OnboardingAgenticSuggestionsBlock {
                     font_color.into(),
                     Default::default(),
                 )
+                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                 .finish(),
             ])
             .finish()

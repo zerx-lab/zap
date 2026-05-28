@@ -3284,6 +3284,7 @@ impl TerminalView {
                 | AppearanceEvent::UiFontSizeChanged { .. } => {
                     me.refresh_size(ctx);
                 }
+                AppearanceEvent::HeadingFontSizeMultipliersChanged => {}
             },
         );
 

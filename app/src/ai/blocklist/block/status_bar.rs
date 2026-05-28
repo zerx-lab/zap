@@ -923,6 +923,7 @@ fn render_agent_tip(tip: &AgentTip, app: &AppContext) -> Box<dyn Element> {
         theme.disabled_ui_text_color().into_solid(),
         Default::default(),
     )
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
     .with_hyperlink_font_color(theme.accent().into())
     .set_selectable(true)
     .with_clip(ClipConfig::ellipsis())

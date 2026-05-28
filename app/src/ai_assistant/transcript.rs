@@ -632,6 +632,7 @@ impl Transcript {
                         theme.main_text_color(theme.surface_2()).into_solid(),
                         highlighted_hyperlink.clone(),
                     )
+                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                     .with_inline_code_properties(
                         Some(theme.nonactive_ui_text_color().into()),
                         Some(inline_code_bg_color),

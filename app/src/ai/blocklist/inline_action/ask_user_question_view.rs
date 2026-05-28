@@ -1696,6 +1696,7 @@ pub(crate) fn render_text_with_markdown_support(
             text_color,
             Default::default(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_line_height_ratio(DEFAULT_UI_LINE_HEIGHT_RATIO)
         .finish()
     } else {

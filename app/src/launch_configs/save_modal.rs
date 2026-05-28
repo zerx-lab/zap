@@ -423,6 +423,7 @@ impl LaunchConfigSaveModal {
                 appearance.theme().active_ui_text_color().into(),
                 Default::default(),
             )
+            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
             .finish(),
         )
         .with_padding_left(SIDE_PADDING)

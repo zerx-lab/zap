@@ -148,6 +148,7 @@ pub fn build_description_row(
         font_color,
         highlight_index.clone(),
     )
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
 }
 
 pub fn description_row(text: &str, theme: &WarpTheme, appearance: &Appearance) -> Box<dyn Element> {

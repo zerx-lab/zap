@@ -5032,6 +5032,7 @@ impl AgentsWidget {
                     styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
                     HighlightedHyperlink::default(),
                 )
+                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                 .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                 .register_default_click_handlers_with_action_support(|hyperlink_lens, ctx, _app| {
                     match hyperlink_lens {
@@ -5362,6 +5363,7 @@ impl AIInputWidget {
                         styles::description_font_color(is_toggleable, app).into(),
                         incorrect_autodetection_highlight_index,
                     )
+                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                     .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                     .register_default_click_handlers(|url, ctx, _| {
                         ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5412,6 +5414,7 @@ impl AIInputWidget {
                         styles::description_font_color(is_toggleable, app).into(),
                         incorrect_autodetection_highlight_index,
                     )
+                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                     .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                     .register_default_click_handlers(|url, ctx, _| {
                         ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5508,6 +5511,7 @@ impl SettingsWidget for MCPServersWidget {
                 styles::description_font_color(is_any_ai_enabled, app).into(),
                 self.mcp_docs_link_index.clone(),
             )
+            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
             .register_default_click_handlers(|url, ctx, _| {
                 ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5556,6 +5560,7 @@ impl SettingsWidget for MCPServersWidget {
                                 styles::description_font_color(is_any_ai_enabled, app).into(),
                                 self.file_based_mcp_docs_link_index.clone(),
                             )
+                            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                             .register_default_click_handlers(|url, ctx, _| {
                                 ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5638,6 +5643,7 @@ impl AIFactWidget {
                 styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
                 self.rules_link_index.clone(),
             )
+            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
             .register_default_click_handlers(|url, ctx, _| {
                 ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5778,6 +5784,7 @@ impl VoiceWidget {
             styles::description_font_color(is_toggleable, app).into(),
             self.wispr_highlight_index.clone(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, ctx, _| {
             ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -6046,7 +6053,8 @@ impl SettingsWidget for CLIAgentWidget {
             appearance.monospace_font_family(),
             styles::description_font_color(true, app).into(),
             HighlightedHyperlink::default(),
-        );
+        )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone());
 
         let is_footer_enabled = *ai_settings.should_render_cli_agent_footer;
 

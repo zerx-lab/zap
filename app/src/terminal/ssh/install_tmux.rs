@@ -401,6 +401,7 @@ impl View for SshInstallTmuxBlock {
             text_color,
             self.why_install_tmux_highlight_index.clone(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, _, ctx| {
             ctx.open_url(&url.url);
