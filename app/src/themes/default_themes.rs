@@ -719,7 +719,7 @@ pub(super) fn adeberry() -> WarpTheme {
 pub(super) fn wezterm_classic() -> WarpTheme {
     WarpTheme::new(
         Fill::Solid(ColorU::from_u32(0x000000FF)),
-        ColorU::from_u32(0xB3B3B3FF),
+        ColorU::from_u32(0xE0E0E0FF),
         Fill::Solid(ColorU::from_u32(0x52AD70FF)),
         None,
         Some(Details::Darker),
