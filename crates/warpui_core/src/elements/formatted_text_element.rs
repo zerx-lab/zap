@@ -63,7 +63,7 @@ impl Default for HeadingFontSizeMultipliers {
 }
 
 impl HeadingFontSizeMultipliers {
-    pub fn get_multiplier(&self, heading_level: usize) -> f32 {
+    pub const fn get_multiplier(&self, heading_level: usize) -> f32 {
         match heading_level {
             1 => self.h1,
             2 => self.h2,

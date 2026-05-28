@@ -567,7 +567,9 @@ impl TypedActionView for AppearanceSettingsPageView {
             ToggleMatchAIToTerminalFontFamily => self.toggle_match_ai_font_to_terminal_font(ctx),
             SetNotebookFontSize => self.set_notebook_font_size(ctx),
             SetMarkdownHeadingScale => self.set_markdown_heading_scale(ctx),
-            ResetMarkdownHeadingScale => self.reset_markdown_heading_scale(ctx),
+            ResetMarkdownHeadingScale => {
+                self.confirm_and_reset_markdown_heading_scale(ctx);
+            }
             SetLineHeight => self.set_line_height_ratio(ctx),
             SetOpacity(value) => self.set_opacity(*value, true, ctx),
             SetBlur(value) => self.set_blur(*value, true, ctx),
@@ -2087,6 +2089,43 @@ impl AppearanceSettingsPageView {
             report_if_error!(font_settings.markdown_heading_h6_scale.clear_value(ctx));
         });
         // clear_value 一定发事件,订阅会回写编辑框。
+    }
+
+    /// 弹出确认对话框后再重置 Markdown 标题字号倍率
+    fn confirm_and_reset_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
+        let dialog = warpui::modals::AlertDialogWithCallbacks::for_app(
+            crate::t!("markdown-heading-scale-reset-confirm-title"),
+            crate::t!("markdown-heading-scale-reset-confirm-body"),
+            vec![
+                warpui::modals::ModalButton::for_app(
+                    crate::t!("common-cancel"),
+                    |_app| {},
+                ),
+                warpui::modals::ModalButton::for_app(
+                    crate::t!("markdown-heading-scale-reset-confirm-ok"),
+                    |app| {
+                        FontSettings::handle(app).update(app, |font_settings, ctx| {
+                            report_if_error!(font_settings.markdown_heading_h1_scale.clear_value(ctx));
+                            report_if_error!(font_settings.markdown_heading_h2_scale.clear_value(ctx));
+                            report_if_error!(font_settings.markdown_heading_h3_scale.clear_value(ctx));
+                            report_if_error!(font_settings.markdown_heading_h4_scale.clear_value(ctx));
+                            report_if_error!(font_settings.markdown_heading_h5_scale.clear_value(ctx));
+                            report_if_error!(font_settings.markdown_heading_h6_scale.clear_value(ctx));
+                        });
+                    },
+                ),
+            ],
+            |_app| {},
+        );
+        let window_id = ctx.window_id();
+        let workspace = ctx
+            .views_of_type::<crate::workspace::Workspace>(window_id)
+            .and_then(|workspaces| workspaces.first().cloned());
+        if let Some(workspace) = workspace {
+            workspace.update(ctx, |view, ctx| {
+                view.show_native_modal(dialog, ctx);
+            });
+        }
     }
 
     fn set_opacity(
@@ -4813,19 +4852,48 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
             crate::t!("settings-appearance-markdown-heading-h6-label"),
         ];
 
-        let changed_from_default = values
-            .iter()
-            .zip(markdown_heading_scale_defaults().iter())
-            .any(|(v, d)| v != d);
-
         let mut rows = Flex::column().with_spacing(4.);
 
-        // 标题行
-        rows.add_child(
-            appearance
+        // 标题行：标题 + 重置按钮同行
+        let title_label = appearance
+            .ui_builder()
+            .span(crate::t!("settings-appearance-markdown-heading-scale-label"))
+            .build()
+            .finish();
+
+        let reset_button = {
+            let button = appearance
                 .ui_builder()
-                .span(crate::t!("settings-appearance-markdown-heading-scale-label"))
+                .reset_button(
+                    ButtonVariant::Text,
+                    self.reset_button_state.clone(),
+                    true,
+                    appearance
+                        .theme()
+                        .disabled_text_color(appearance.theme().surface_2())
+                        .into(),
+                )
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.ui_font_overline()),
+                    ..Default::default()
+                })
+                .with_text_label(crate::t!("settings-appearance-font-reset-default"));
+
+            button
                 .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(AppearancePageAction::ResetMarkdownHeadingScale);
+                })
+                .finish()
+        };
+
+        rows.add_child(
+            Flex::row()
+                .with_main_axis_size(MainAxisSize::Max)
+                .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(Shrinkable::new(1., title_label).finish())
+                .with_child(reset_button)
                 .finish(),
         );
 
@@ -4864,38 +4932,6 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
                     .finish(),
             );
         }
-
-        // 还原默认值按钮
-        rows.add_child({
-            let button = appearance
-                .ui_builder()
-                .reset_button(
-                    ButtonVariant::Text,
-                    self.reset_button_state.clone(),
-                    changed_from_default,
-                    appearance
-                        .theme()
-                        .disabled_text_color(appearance.theme().surface_2())
-                        .into(),
-                )
-                .with_style(UiComponentStyles {
-                    padding: Some(Coords::default().top(4.)),
-                    margin: Some(Coords {
-                        top: 4.,
-                        ..Default::default()
-                    }),
-                    font_size: Some(appearance.ui_font_overline()),
-                    ..Default::default()
-                })
-                .with_text_label(crate::t!("settings-appearance-font-reset-default"));
-
-            button
-                .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(AppearancePageAction::ResetMarkdownHeadingScale);
-                })
-                .finish()
-        });
 
         Container::new(rows.finish())
             .with_margin_bottom(10.)
