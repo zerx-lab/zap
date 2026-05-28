@@ -549,3 +549,83 @@ fn best_supported_provider_falls_back_when_no_match() {
         assert_eq!(result, SkillProvider::Agents);
     });
 }
+
+// ============================================================================
+// Tests for find_skill_by_name (BYOP read_skill 工具按 name 查 ParsedSkill)
+// ============================================================================
+
+#[test]
+fn find_skill_by_name_returns_filesystem_skill() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(DirectoryWatcher::new);
+        app.add_singleton_model(|_| DetectedRepositories::default());
+        app.add_singleton_model(RepoMetadataModel::new);
+        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
+        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
+        let handle = app.add_singleton_model(SkillManager::new);
+
+        let deploy_skill = make_skill("deploy", ".agents");
+        handle.update(&mut app, |manager, _| {
+            manager.add_skill_for_testing(deploy_skill.clone());
+        });
+
+        let resolved = handle.read(&app, |manager, _| {
+            manager.find_skill_by_name("deploy").cloned()
+        });
+        let resolved = resolved.expect("expected to find skill by name");
+        assert_eq!(resolved.name, "deploy");
+        assert_eq!(resolved.path, deploy_skill.path);
+    });
+}
+
+#[test]
+fn find_skill_by_name_prefers_higher_priority_provider() {
+    // 同名 skill 在 .agents 与 .claude 都注册时,find_skill_by_name 应按
+    // SKILL_PROVIDER_DEFINITIONS 顺序返回 .agents(rank 0)的那一份。
+    App::test((), |mut app| async move {
+        app.add_singleton_model(DirectoryWatcher::new);
+        app.add_singleton_model(|_| DetectedRepositories::default());
+        app.add_singleton_model(RepoMetadataModel::new);
+        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
+        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
+        let handle = app.add_singleton_model(SkillManager::new);
+
+        let agents_skill = make_skill("deploy", ".agents");
+        let claude_skill = make_skill("deploy", ".claude");
+        handle.update(&mut app, |manager, _| {
+            manager.add_skill_for_testing(claude_skill.clone());
+            manager.add_skill_for_testing(agents_skill.clone());
+        });
+
+        let resolved = handle.read(&app, |manager, _| {
+            manager.find_skill_by_name("deploy").cloned()
+        });
+        let resolved = resolved.expect("expected to find skill by name");
+        assert_eq!(resolved.provider, SkillProvider::Agents);
+        assert_eq!(resolved.path, agents_skill.path);
+    });
+}
+
+#[test]
+fn find_skill_by_name_returns_none_for_unknown_name() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(DirectoryWatcher::new);
+        app.add_singleton_model(|_| DetectedRepositories::default());
+        app.add_singleton_model(RepoMetadataModel::new);
+        app.add_singleton_model(HomeDirectoryWatcher::new_for_test);
+        app.add_singleton_model(WarpManagedPathsWatcher::new_for_testing);
+        let handle = app.add_singleton_model(SkillManager::new);
+
+        // 注册一个 skill,确保 manager 索引非空 — 否则 `mut app` 警告会被
+        // unused_mut 触发(其它 manager 操作都不会修改 app 自身)。
+        let known = make_skill("deploy", ".agents");
+        handle.update(&mut app, |manager, _| {
+            manager.add_skill_for_testing(known);
+        });
+
+        let resolved = handle.read(&app, |manager, _| {
+            manager.find_skill_by_name("nope").cloned()
+        });
+        assert!(resolved.is_none());
+    });
+}

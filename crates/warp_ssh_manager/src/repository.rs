@@ -12,8 +12,8 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::types::{AuthType, NodeKind, SshNode, SshServerInfo};
-use persistence::model::{NewSshNode, NewSshServer, SshNodeRow, SshServerRow};
-use persistence::schema::{ssh_nodes, ssh_servers};
+use persistence::model::{NewSshNode, NewSshServer, NewSyncMeta, SshNodeRow, SshServerRow, SyncMetaRow};
+use persistence::schema::{ssh_nodes, ssh_servers, sync_meta};
 
 #[derive(Debug, Error)]
 pub enum SshRepositoryError {
@@ -62,6 +62,7 @@ impl SshRepository {
                 sort_order: sort,
             })
             .execute(conn)?;
+        let _ = Self::increment_sync_version(conn);
         Self::get_node(conn, &id)
     }
 
@@ -97,6 +98,7 @@ impl SshRepository {
                 .execute(conn)?;
             Ok(())
         })?;
+        let _ = Self::increment_sync_version(conn);
         Self::get_node(conn, &id)
     }
 
@@ -114,6 +116,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -138,6 +141,7 @@ impl SshRepository {
         diesel::update(ssh_nodes::table.find(&info.node_id))
             .set(ssh_nodes::updated_at.eq(Utc::now().naive_utc()))
             .execute(conn)?;
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -151,6 +155,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -171,6 +176,7 @@ impl SshRepository {
         if n == 0 {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
+        let _ = Self::increment_sync_version(conn);
         Ok(())
     }
 
@@ -201,6 +207,11 @@ impl SshRepository {
             return Err(SshRepositoryError::NotFound(node_id.to_string()));
         }
         Ok(())
+    }
+
+    /// 递增同步版本号
+    pub fn increment_sync_version(conn: &mut SqliteConnection) -> Result<i64, SshRepositoryError> {
+        SyncMetaRepository::increment_sync_version(conn)
     }
 
     /// 把所有 folder 节点的 `is_collapsed` 一次性设成给定值。
@@ -285,6 +296,79 @@ fn server_from_row(r: SshServerRow) -> Result<SshServerInfo, SshRepositoryError>
     })
 }
 
+/// 同步元数据仓库，管理 sync_meta 表中的版本号和同步记录
+pub struct SyncMetaRepository;
+
+impl SyncMetaRepository {
+    /// 获取同步版本号
+    pub fn get_sync_version(conn: &mut SqliteConnection) -> Result<i64, SshRepositoryError> {
+        let row: Option<SyncMetaRow> = sync_meta::table
+            .find("sync_version")
+            .first(conn)
+            .optional()?;
+        Ok(row.and_then(|r| r.value.parse().ok()).unwrap_or(0))
+    }
+
+    /// 递增同步版本号并返回新值
+    pub fn increment_sync_version(conn: &mut SqliteConnection) -> Result<i64, SshRepositoryError> {
+        let current = Self::get_sync_version(conn)?;
+        let new_version = current + 1;
+        let val = new_version.to_string();
+        diesel::replace_into(sync_meta::table)
+            .values(NewSyncMeta {
+                key: "sync_version",
+                value: &val,
+            })
+            .execute(conn)?;
+        Ok(new_version)
+    }
+
+    /// 设置同步版本号
+    pub fn set_sync_version(conn: &mut SqliteConnection, version: i64) -> Result<(), SshRepositoryError> {
+        let val = version.to_string();
+        diesel::replace_into(sync_meta::table)
+            .values(NewSyncMeta {
+                key: "sync_version",
+                value: &val,
+            })
+            .execute(conn)?;
+        Ok(())
+    }
+
+    /// 获取上次同步时间
+    pub fn get_last_sync_time(conn: &mut SqliteConnection) -> Result<String, SshRepositoryError> {
+        let row: Option<SyncMetaRow> = sync_meta::table
+            .find("last_sync_time")
+            .first(conn)
+            .optional()?;
+        Ok(row.map(|r| r.value).unwrap_or_default())
+    }
+
+    /// 获取上次同步平台
+    pub fn get_last_sync_platform(conn: &mut SqliteConnection) -> Result<String, SshRepositoryError> {
+        let row: Option<SyncMetaRow> = sync_meta::table
+            .find("last_sync_platform")
+            .first(conn)
+            .optional()?;
+        Ok(row.map(|r| r.value).unwrap_or_default())
+    }
+
+    /// 更新同步元数据
+    pub fn update_sync_meta(
+        conn: &mut SqliteConnection,
+        last_time: &str,
+        last_platform: &str,
+    ) -> Result<(), SshRepositoryError> {
+        diesel::replace_into(sync_meta::table)
+            .values(&[
+                NewSyncMeta { key: "last_sync_time", value: last_time },
+                NewSyncMeta { key: "last_sync_platform", value: last_platform },
+            ])
+            .execute(conn)?;
+        Ok(())
+    }
+}
+
 /// 测试用:把 SSH 相关 migrations 全部跑一遍在内存 SQLite。新增 migration
 /// 时这里要追加 include_str!。
 #[cfg(test)]
@@ -301,6 +385,9 @@ pub(crate) fn setup_in_memory() -> SqliteConnection {
         ),
         include_str!(
             "../../persistence/migrations/2026-05-23-140000_add_startup_command_and_notes/up.sql"
+        ),
+        include_str!(
+            "../../persistence/migrations/2026-05-24-150000_add_sync_meta/up.sql"
         ),
     ] {
         conn.batch_execute(up).unwrap();
@@ -436,5 +523,144 @@ mod tests {
         let mut conn = setup_in_memory();
         let err = SshRepository::delete_node(&mut conn, "nope").unwrap_err();
         assert!(matches!(err, SshRepositoryError::NotFound(_)));
+    }
+
+    // ---- SyncMetaRepository 测试 ----
+
+    #[test]
+    fn sync_meta_get_version_default() {
+        let mut conn = setup_in_memory();
+        let version = SyncMetaRepository::get_sync_version(&mut conn).unwrap();
+        assert_eq!(version, 0, "无数据时 sync_version 应为 0");
+    }
+
+    #[test]
+    fn sync_meta_set_and_get_version() {
+        let mut conn = setup_in_memory();
+        SyncMetaRepository::set_sync_version(&mut conn, 42).unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 42);
+    }
+
+    #[test]
+    fn sync_meta_increment_version() {
+        let mut conn = setup_in_memory();
+        let v1 = SyncMetaRepository::increment_sync_version(&mut conn).unwrap();
+        assert_eq!(v1, 1);
+        let v2 = SyncMetaRepository::increment_sync_version(&mut conn).unwrap();
+        assert_eq!(v2, 2);
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 2);
+    }
+
+    #[test]
+    fn sync_meta_increment_after_set() {
+        let mut conn = setup_in_memory();
+        SyncMetaRepository::set_sync_version(&mut conn, 99).unwrap();
+        let v = SyncMetaRepository::increment_sync_version(&mut conn).unwrap();
+        assert_eq!(v, 100);
+    }
+
+    #[test]
+    fn sync_meta_last_sync_time_default_empty() {
+        let mut conn = setup_in_memory();
+        let time = SyncMetaRepository::get_last_sync_time(&mut conn).unwrap();
+        assert_eq!(time, "");
+    }
+
+    #[test]
+    fn sync_meta_last_sync_platform_default_empty() {
+        let mut conn = setup_in_memory();
+        let platform = SyncMetaRepository::get_last_sync_platform(&mut conn).unwrap();
+        assert_eq!(platform, "");
+    }
+
+    #[test]
+    fn sync_meta_update_and_read() {
+        let mut conn = setup_in_memory();
+        SyncMetaRepository::update_sync_meta(&mut conn, "2026-05-26T10:00:00Z", "github").unwrap();
+        assert_eq!(SyncMetaRepository::get_last_sync_time(&mut conn).unwrap(), "2026-05-26T10:00:00Z");
+        assert_eq!(SyncMetaRepository::get_last_sync_platform(&mut conn).unwrap(), "github");
+    }
+
+    #[test]
+    fn sync_meta_update_overwrites_previous() {
+        let mut conn = setup_in_memory();
+        SyncMetaRepository::update_sync_meta(&mut conn, "t1", "gitee").unwrap();
+        SyncMetaRepository::update_sync_meta(&mut conn, "t2", "github").unwrap();
+        assert_eq!(SyncMetaRepository::get_last_sync_time(&mut conn).unwrap(), "t2");
+        assert_eq!(SyncMetaRepository::get_last_sync_platform(&mut conn).unwrap(), "github");
+    }
+
+    #[test]
+    fn sync_meta_version_independent_of_meta() {
+        let mut conn = setup_in_memory();
+        SyncMetaRepository::set_sync_version(&mut conn, 10).unwrap();
+        SyncMetaRepository::update_sync_meta(&mut conn, "t1", "gitee").unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 10);
+    }
+
+    // ---- 折叠操作不应递增 sync_version ----
+
+    #[test]
+    fn set_collapsed_does_not_increment_sync_version() {
+        let mut conn = setup_in_memory();
+        let folder = SshRepository::create_folder(&mut conn, None, "F").unwrap();
+        // create_folder 会递增一次，重置为 0 再测试
+        SyncMetaRepository::set_sync_version(&mut conn, 0).unwrap();
+
+        SshRepository::set_collapsed(&mut conn, &folder.id, true).unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 0,
+            "set_collapsed 不应递增 sync_version");
+
+        let node = SshRepository::list_nodes(&mut conn).unwrap().into_iter().next().unwrap();
+        assert!(node.is_collapsed);
+    }
+
+    #[test]
+    fn set_collapsed_false_does_not_increment_sync_version() {
+        let mut conn = setup_in_memory();
+        let folder = SshRepository::create_folder(&mut conn, None, "F").unwrap();
+        SshRepository::set_collapsed(&mut conn, &folder.id, true).unwrap();
+        SyncMetaRepository::set_sync_version(&mut conn, 0).unwrap();
+
+        SshRepository::set_collapsed(&mut conn, &folder.id, false).unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 0,
+            "set_collapsed(false) 不应递增 sync_version");
+    }
+
+    #[test]
+    fn set_all_folders_collapsed_does_not_increment_sync_version() {
+        let mut conn = setup_in_memory();
+        SshRepository::create_folder(&mut conn, None, "A").unwrap();
+        SshRepository::create_folder(&mut conn, None, "B").unwrap();
+        SyncMetaRepository::set_sync_version(&mut conn, 0).unwrap();
+
+        SshRepository::set_all_folders_collapsed(&mut conn, true).unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 0,
+            "set_all_folders_collapsed 不应递增 sync_version");
+
+        let nodes = SshRepository::list_nodes(&mut conn).unwrap();
+        assert!(nodes.iter().all(|n| n.is_collapsed));
+    }
+
+    #[test]
+    fn set_collapsed_missing_node_returns_not_found() {
+        let mut conn = setup_in_memory();
+        let err = SshRepository::set_collapsed(&mut conn, "nonexistent", true).unwrap_err();
+        assert!(matches!(err, SshRepositoryError::NotFound(_)));
+    }
+
+    #[test]
+    fn write_operations_do_increment_sync_version() {
+        let mut conn = setup_in_memory();
+        SyncMetaRepository::set_sync_version(&mut conn, 0).unwrap();
+
+        let folder = SshRepository::create_folder(&mut conn, None, "F").unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 1);
+
+        SshRepository::rename_node(&mut conn, &folder.id, "G").unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 2);
+
+        SshRepository::delete_node(&mut conn, &folder.id).unwrap();
+        assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 3);
     }
 }

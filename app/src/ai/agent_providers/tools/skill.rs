@@ -2,16 +2,22 @@
 //!
 //! Skill 是用户/项目预定义的可复用工作流(`SKILL.md` 文件 + 可选元数据)。
 //! 模型读 skill 后能按用户期望的步骤推进任务。warp 自家维护一个 `SkillManager`
-//! 索引所有可用 skill,既可以用绝对路径(`skill_path`)也可以用 bundled id 引用。
+//! 索引所有可用 skill,既可以用 name(frontmatter `name` 字段)也可以用绝对路径或
+//! bundled id 引用。
+//!
+//! ## 入参契约
+//!
+//! BYOP 路径暴露 `name` 字段,值取自 system prompt `<available_skills><skill><name>`。
+//! `from_args` 把 name 装入 proto 的 `SkillReference::SkillPath` 槽位(不改 proto),
+//! 由 `read_skill` executor 在 cache miss 时先按 name 反查到真实 SKILL.md 绝对路径
+//! 再读盘。这条 fallback 也兼容模型万一直接传绝对路径或 bundled 形式
+//! `@warp-skill:<id>` 的旧写法。
 //!
 //! ## 使用建议(写到 description)
 //!
 //! 模型可在以下场景主动调:
 //! - 用户提到 skill 名 / 文件名 / 路径
 //! - 任务匹配某 skill 描述(如"做 PR review" 触发 `review` skill)
-//!
-//! 当前 BYOP 路径只暴露 `skill_path` 入参 — bundled skill 走 `params.input`
-//! 中的 `AIAgentInput::InvokeSkill`(已被 build_openai_messages 翻成 user prompt)。
 
 use anyhow::Result;
 use serde::Deserialize;
@@ -22,19 +28,19 @@ use super::OpenAiTool;
 
 #[derive(Debug, Deserialize)]
 struct Args {
-    skill_path: String,
+    name: String,
 }
 
 fn parameters() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "skill_path": {
+            "name": {
                 "type": "string",
-                "description": "Skill markdown 文件的绝对路径(SKILL.md 或同等结构)。"
+                "description": "Skill 名称(与 system prompt 内 <available_skills><skill><name> 字段完全一致)。"
             }
         },
-        "required": ["skill_path"],
+        "required": ["name"],
         "additionalProperties": false
     })
 }
@@ -42,9 +48,11 @@ fn parameters() -> Value {
 fn from_args(args: &str) -> Result<api::message::tool_call::Tool> {
     use api::message::tool_call::read_skill::SkillReference;
     let parsed: Args = serde_json::from_str(args)?;
+    // 复用 proto 的 `SkillPath` 槽位携带 name(避免 proto schema 变更);
+    // executor 端在 cache miss 时按 name 反查真实 SKILL.md 路径。
     Ok(api::message::tool_call::Tool::ReadSkill(
         api::message::tool_call::ReadSkill {
-            skill_reference: Some(SkillReference::SkillPath(parsed.skill_path)),
+            skill_reference: Some(SkillReference::SkillPath(parsed.name)),
             name: String::new(),
         },
     ))

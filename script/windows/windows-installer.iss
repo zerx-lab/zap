@@ -67,7 +67,7 @@ SolidCompression=yes
 WizardStyle=modern
 WizardSmallImageFile="installer-images\warp-logo.bmp"
 WizardImageFile="installer-images\warp-banner.bmp"
-SetupIconFile="..\..\app\channels\{#ReleaseChannel}\icon\no-padding\icon.ico"
+SetupIconFile="..\..\app\channels\{#ReleaseChannel}\icon\padded\icon.ico"
 UninstallDisplayIcon="{app}\icon.ico"
 ; Force close previous Zap if it hasn't shut down yet.
 ; In the update flow we already warn the user if they have something running and make them confirm
@@ -105,7 +105,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#TargetProfileDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AssetsDir}\{#Arch}\conpty.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AssetsDir}\{#Arch}\OpenConsole.exe"; DestDir: "{app}\{#Arch}"; Flags: ignoreversion
-Source: "..\..\app\channels\{#ReleaseChannel}\icon\no-padding\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\app\channels\{#ReleaseChannel}\icon\padded\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#AssetsDir}\{#Arch}\vcruntime140.dll"; DestDir: "{app}"
 Source: "{#AssetsDir}\{#Arch}\vcruntime140_1.dll"; DestDir: "{app}"
 Source: "{#AssetsDir}\{#Arch}\msvcp140.dll"; DestDir: "{app}"

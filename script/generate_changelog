@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# 本地预览 Zap Release notes — 与 .github/workflows/zap_release.yml 走同一份
+# cliff.toml,确保 CI 出的 release body 和你本地看到的内容一致。
+#
+# 用法:
+#   script/generate_changelog                   # 上个 v* tag 到 HEAD,本地未发布段
+#   script/generate_changelog v2026.05.27.2     # 指定本次将要发布的 tag
+#   script/generate_changelog v2026.05.27.2 v2026.05.06.preview
+#                                               # 显式指定上一个 tag,跳过 git describe
+#
+# 输出落到 stdout;想存盘自行 `... > preview.md`。
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+if ! command -v git-cliff >/dev/null 2>&1; then
+    echo "error: git-cliff 未安装。Arch 用 'pacman -S git-cliff',其它平台用" >&2
+    echo "       'cargo install --locked git-cliff' 或 'cargo binstall git-cliff'。" >&2
+    exit 1
+fi
+
+THIS_TAG="${1:-HEAD}"
+PREV_TAG="${2:-}"
+
+if [[ -z "$PREV_TAG" ]]; then
+    # 跟 workflow 里一样的策略:HEAD 是 tag 则从 HEAD^ 起找,否则从 HEAD 起找。
+    if git rev-parse "$THIS_TAG" >/dev/null 2>&1 && \
+       git describe --tags --exact-match "$THIS_TAG" >/dev/null 2>&1; then
+        PREV_TAG=$(git describe --tags --abbrev=0 --match='v*' "${THIS_TAG}^" 2>/dev/null || echo "")
+    else
+        PREV_TAG=$(git describe --tags --abbrev=0 --match='v*' HEAD 2>/dev/null || echo "")
+    fi
+fi
+
+ARGS=(--config cliff.toml --strip header --tag "$THIS_TAG")
+if [[ -n "$PREV_TAG" ]]; then
+    ARGS+=("${PREV_TAG}..HEAD")
+    echo "# preview: ${PREV_TAG} → ${THIS_TAG}" >&2
+else
+    echo "# preview: 首次发布(无 prev tag)→ ${THIS_TAG}" >&2
+fi
+
+git-cliff "${ARGS[@]}"

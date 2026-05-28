@@ -375,14 +375,14 @@ fn embed_resource_file(target_dir: &Path) {
     let icon_path = Path::new("channels")
         .join(&bin_name)
         .join("icon")
-        .join("no-padding")
+        .join("padded")
         .join("icon.ico");
 
     if !icon_path.exists() {
         println!(
             "cargo:warning=Icon not found at {} (CARGO_BIN_NAME={bin_name}): \
              skipping Windows resource embed. \
-             Set CARGO_BIN_NAME or add channels/{bin_name}/icon/no-padding/icon.ico",
+             Set CARGO_BIN_NAME or add channels/{bin_name}/icon/padded/icon.ico",
             icon_path.display()
         );
         return;

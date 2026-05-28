@@ -232,6 +232,7 @@ rmcp = { workspace = true, features = ["client"] }
 warp_isolation_platform.workspace = true
 warp_ripgrep.workspace = true
 warp_managed_secrets.workspace = true
+zap_sync = { path = "../crates/zap_sync" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 block.workspace = true
@@ -837,7 +838,7 @@ copyright = "© 2025-2026, Zap"
 identifier = "dev.zap.Zap"
 name = "Zap"
 resources = ["assets/onboarding"]
-icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
+icon = ["channels/oss/icon/padded/512x512.png", "channels/oss/icon/padded/icon.ico"]
 short_description = "The open-source, local-first agentic terminal."
 
 [package.metadata.cargo-udeps.ignore]

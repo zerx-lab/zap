@@ -32,7 +32,11 @@ pub enum AboutPageAction {
     /// 用户点击"检查更新"按钮:主动触发一次检查(等价 RequestType::ManualCheck)。
     CheckForUpdate,
     /// 用户点击"前往 GitHub 下载"链接:用系统默认浏览器打开 release 页面。
+    /// 仅在异常 fallback 路径里使用(例如下载失败 / 没有可用资产)。
     OpenReleasePage(String),
+    /// 用户点击"立即安装"链接:dispatch 给 workspace,触发与菜单 `ApplyUpdate`
+    /// 完全等价的安装+重启流程。具体平台行为见 `autoupdate::apply_update`。
+    InstallUpdate,
     /// 用户点击"导出日志"链接:弹出原生 save-file 对话框,用户选择保存
     /// 位置后将主日志、MCP 日志、自动更新器日志以及诊断摘要打包为 zip
     /// 直接写入用户指定的路径,完成后通过 workspace toast 反馈成功 / 失败。
@@ -84,6 +88,12 @@ impl TypedActionView for AboutPageView {
             }
             AboutPageAction::OpenReleasePage(url) => {
                 ctx.open_url(url);
+            }
+            AboutPageAction::InstallUpdate => {
+                // 复用 WorkspaceAction::ApplyUpdate:它会调 autoupdate::apply_update +
+                // initiate_relaunch_for_update,平台层在 relaunch() 里决定具体安装动作
+                // (mac OSS: open dmg / Win OSS: 非 silent 安装向导 / Linux: 重启新二进制)。
+                ctx.dispatch_typed_action(&WorkspaceAction::ApplyUpdate);
             }
             #[cfg(not(target_family = "wasm"))]
             AboutPageAction::ExportLogs => {
@@ -274,39 +284,69 @@ impl SettingsWidget for AboutPageWidget {
 }
 
 impl AboutPageWidget {
-    /// 渲染"更新状态"行:状态文字 + 操作链接(检查更新 / 打开 GitHub Release)。
+    /// 渲染"更新状态"行:状态文字 + 操作链接(检查更新 / 进度展示 / 立即安装 / GitHub 兜底)。
     fn render_update_status(&self, appearance: &Appearance, app: &AppContext) -> Box<dyn Element> {
         let ui_builder = appearance.ui_builder();
 
         // 当前 stage 决定文案与操作:
         // - NoUpdateAvailable / 未知错误:已是最新 + "检查更新"
-        // - CheckingForUpdate / DownloadingUpdate:正在检查 / 下载...(无操作)
-        // - UpdateReady{version} / UpdatedPendingRestart{version} / UnableTo*{version}:
-        //     发现新版本 + "前往 GitHub 下载"超链接
+        // - CheckingForUpdate:正在检查...(无操作)
+        // - DownloadingUpdate:正在下载 X% (X MB / Y MB) (无操作)
+        // - UpdateReady / UpdatedPendingRestart:可以安装 + "立即安装"按钮
+        // - UnableTo*: 自动安装失败 + "前往 GitHub 下载"兜底链接
         let stage = autoupdate::get_update_state(app);
+        let progress = autoupdate::AutoupdateState::as_ref(app).download_progress().cloned();
 
         let (status_text, action) = match &stage {
             AutoupdateStage::CheckingForUpdate => (
                 crate::t!("settings-about-update-checking"),
                 UpdateAction::None,
             ),
-            AutoupdateStage::DownloadingUpdate => (
-                // 在 OSS 模式下不会进入此状态(我们不下载),但官方 channel 仍可能。
-                crate::t!("settings-about-update-checking"),
-                UpdateAction::None,
-            ),
+            AutoupdateStage::DownloadingUpdate => {
+                // 三平台共用:从 AutoupdateState.download_progress 拿到下载字节,
+                // 拼成"X.X MB / Y.Y MB (P%)";总大小未知时只显示已下载字节。
+                let new_version = stage
+                    .available_new_version()
+                    .map(|v| v.version.as_str())
+                    .unwrap_or("");
+                let text = match &progress {
+                    Some(p) => {
+                        // i18n_embed_fl::fl! 要求参数是引用且有 lifetime,所以
+                        // 先把进度字符串绑到 let,不要塞临时表达式。
+                        let progress_str = format_download_progress(p);
+                        crate::t!(
+                            "settings-about-update-downloading",
+                            version = new_version,
+                            progress = progress_str.as_str()
+                        )
+                    }
+                    None => crate::t!(
+                        "settings-about-update-downloading-init",
+                        version = new_version
+                    ),
+                };
+                (text, UpdateAction::None)
+            }
             AutoupdateStage::NoUpdateAvailable => (
                 crate::t!("settings-about-update-up-to-date"),
                 UpdateAction::Check,
             ),
+            AutoupdateStage::UpdateReady { new_version, .. }
+            | AutoupdateStage::UpdatedPendingRestart { new_version } => {
+                let text = crate::t!(
+                    "settings-about-update-ready",
+                    version = new_version.version.as_str()
+                );
+                (text, UpdateAction::Install)
+            }
             stage if stage.available_new_version().is_some() => {
+                // UnableToUpdateToNewVersion / UnableToLaunchNewVersion / Updating(残留):
+                // 自动安装出错或被打断 → 给用户一个手动下载兜底。
                 let new_version = stage.available_new_version().unwrap();
                 let text = crate::t!(
                     "settings-about-update-available",
                     version = new_version.version.as_str()
                 );
-                // 优先用缓存中的 release.html_url(由 fetch_latest_release 填充);
-                // 兜底:若缓存为空(理论上不会,因为已经走到 UpdateReady),仓库主页 releases。
                 let url = github::cached_release()
                     .map(|r| r.html_url)
                     .unwrap_or_else(|| {
@@ -371,17 +411,92 @@ impl AboutPageWidget {
                     .finish(),
                 );
             }
+            UpdateAction::Install => {
+                row.add_child(
+                    Container::new(
+                        ui_builder
+                            .link(
+                                crate::t!("settings-about-update-install-now"),
+                                None,
+                                Some(Box::new(|ctx| {
+                                    ctx.dispatch_typed_action(AboutPageAction::InstallUpdate);
+                                })),
+                                self.update_action_link_mouse_state.clone(),
+                            )
+                            .soft_wrap(false)
+                            .build()
+                            .finish(),
+                    )
+                    .with_padding_left(8.)
+                    .finish(),
+                );
+            }
+        }
+
+        // 安装提示:仅在 UpdateReady/UpdatedPendingRestart 状态(Install 操作)显示,
+        // 让用户在点击前预知接下来会看到什么(打开 dmg / 启动安装向导 / 重启 AppImage)。
+        if matches!(
+            autoupdate::get_update_state(app),
+            AutoupdateStage::UpdateReady { .. } | AutoupdateStage::UpdatedPendingRestart { .. }
+        ) {
+            // t! 是宏,必须传 literal,不能用变量。按 cfg 分支挑选具体 key。
+            #[cfg(target_os = "macos")]
+            let hint = crate::t!("settings-about-update-install-hint-macos");
+            #[cfg(windows)]
+            let hint = crate::t!("settings-about-update-install-hint-windows");
+            #[cfg(all(not(target_os = "macos"), not(windows)))]
+            let hint = crate::t!("settings-about-update-install-hint-linux");
+
+            return Flex::column()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_child(row.finish())
+                .with_child(
+                    ui_builder
+                        .span(hint)
+                        .with_soft_wrap()
+                        .build()
+                        .with_margin_top(4.)
+                        .finish(),
+                )
+                .finish();
         }
 
         row.finish()
     }
 }
 
-/// 更新状态区域要展示的操作:无 / 检查更新 / 打开 GitHub Release。
+/// 把字节数格式化为 "X.X MB" / "X KB",用于下载进度文案。
+fn format_bytes(bytes: u64) -> String {
+    const MB: f64 = 1024.0 * 1024.0;
+    const KB: f64 = 1024.0;
+    let b = bytes as f64;
+    if b >= MB {
+        format!("{:.1} MB", b / MB)
+    } else if b >= KB {
+        format!("{:.0} KB", b / KB)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+/// 把 DownloadProgress 渲染成 "1.2 MB / 3.4 MB (35%)";total 未知时只显示已下载。
+fn format_download_progress(p: &autoupdate::DownloadProgress) -> String {
+    let downloaded = format_bytes(p.downloaded);
+    match p.total {
+        Some(total) if total > 0 => {
+            let pct = ((p.downloaded as f64 / total as f64) * 100.0).clamp(0.0, 100.0);
+            format!("{} / {} ({:.0}%)", downloaded, format_bytes(total), pct)
+        }
+        _ => downloaded,
+    }
+}
+
+/// 更新状态区域要展示的操作:无 / 检查更新 / 打开 GitHub Release / 立即安装。
 enum UpdateAction {
     None,
     Check,
     OpenReleasePage(String),
+    Install,
 }
 
 impl SettingsPageMeta for AboutPageView {

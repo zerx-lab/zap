@@ -39,6 +39,58 @@ use warpui::{Entity, ModelContext, SingletonEntity, ViewContext};
 pub use self::changelog::get_current_changelog;
 use self::channel_versions::fetch_channel_versions;
 
+/// OSS 下载完成后给三平台共用的 SHA-256 校验:
+/// 1. 如果 cached release 没找到匹配 asset,跳过(降级到无校验);
+/// 2. asset 没有 digest 字段(老 release),跳过;
+/// 3. 摘要不是 sha256:xxx 格式或长度不对,跳过;
+/// 4. 正常情况下读文件流式计算 sha256,匹配则返回 Ok,不匹配返回 Err 并把文件
+///    标记为失效(由调用方决定是否删除)。
+///
+/// 在 OSS 路径外不应调用本函数:其他 channel 使用 codesign / Inno 内置校验。
+pub(crate) fn verify_oss_asset_sha256(
+    path: &std::path::Path,
+    asset_name: &str,
+) -> anyhow::Result<()> {
+    let Some(release) = github::cached_release() else {
+        log::info!("openWarp: 没有 cached release,跳过 SHA-256 校验");
+        return Ok(());
+    };
+    let Some(asset) = release.find_asset(asset_name) else {
+        log::warn!("openWarp: cached release 中找不到 {asset_name},跳过 SHA-256 校验");
+        return Ok(());
+    };
+    let Some(expected) = asset.sha256_hex() else {
+        log::info!(
+            "openWarp: asset {asset_name} 没有可识别的 digest(可能是 sha256 之外的算法),跳过校验"
+        );
+        return Ok(());
+    };
+
+    use sha2::{Digest as _, Sha256};
+    use std::io::Read as _;
+    let mut hasher = Sha256::new();
+    let mut file = std::fs::File::open(path)
+        .with_context(|| format!("打开下载文件失败: {}", path.display()))?;
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let actual = format!("{:x}", hasher.finalize());
+    if actual == expected {
+        log::info!("openWarp: SHA-256 校验通过 ({asset_name})");
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "SHA-256 校验失败: expected={expected} actual={actual} (asset={asset_name}, path={})",
+            path.display()
+        ))
+    }
+}
+
 /// A successfully downloaded and unpacked target update.
 #[derive(Clone, Debug)]
 pub struct DownloadedUpdate {
@@ -99,6 +151,16 @@ impl AutoupdateStage {
     }
 }
 
+/// 下载进度,跨平台共享。`total` 在服务器没返回 `Content-Length` 时为 `None`。
+#[derive(Clone, Debug)]
+pub struct DownloadProgress {
+    pub downloaded: u64,
+    pub total: Option<u64>,
+}
+
+/// 平台下载函数通过这个回调把进度推回 UI 线程。
+pub type ProgressCallback = Arc<dyn Fn(DownloadProgress) + Send + Sync>;
+
 pub struct AutoupdateState {
     /// We only want to hit /client_version/daily about once a day. This field is client state for
     /// implementing the logic so that we (mostly) limit requests to that endpoint to once a day,
@@ -108,6 +170,9 @@ pub struct AutoupdateState {
     /// The most recently downloaded and extracted update. We need this so that if there are
     /// multiple update checks without a relaunch, we only download the update once.
     downloaded_update: Option<DownloadedUpdate>,
+    /// 当前正在进行的下载的最新进度;Stage 离开 DownloadingUpdate 时由本模块清空。
+    /// UI 通过 `download_progress()` 读取后渲染进度条。
+    download_progress: Option<DownloadProgress>,
     /// Holds requests for update checks that are awaiting to be executed. We need this because we
     /// prevent update checks from starting if there is another already in-flight. The different
     /// RequestTypes have different behavior and side-effects, so it's important not to skip any
@@ -123,8 +188,14 @@ impl AutoupdateState {
             last_successful_daily_update_check: None,
             stage: AutoupdateStage::default(),
             downloaded_update: None,
+            download_progress: None,
             request_queue: VecDeque::new(),
         }
+    }
+
+    /// 当前下载进度;只在 stage 处于 DownloadingUpdate 时有意义。
+    pub fn download_progress(&self) -> Option<&DownloadProgress> {
+        self.download_progress.as_ref()
     }
 
     pub fn register(ctx: &mut AppContext, http_client: Arc<http_client::Client>) {
@@ -395,29 +466,16 @@ impl AutoupdateState {
                 new_version,
                 update_id,
             }) => {
-                // openWarp(Channel::Oss):仅展示"有新版本可用"并在关于页面给出 GitHub 下载
-                // 链接;**不**自动下载安装包到本地。这里把 stage 直接置为 UpdateReady,
-                // 让 UI(关于页面 / VersionInfoWidget)能据此判断是否提示新版本。
-                if matches!(ChannelState::channel(), Channel::Oss) {
-                    log::info!(
-                        "openWarp: 发现新版本 {},不自动下载,等用户在关于页面手动下载",
-                        new_version.version
-                    );
-                    self.stage = AutoupdateStage::UpdateReady {
-                        new_version: new_version.clone(),
-                        update_id: update_id.clone(),
-                    };
-                    ctx.emit(AutoupdateStateEvent::UpdateAvailable);
-                } else {
-                    self.download_new_update(
-                        update_id.clone(),
-                        request_type,
-                        new_version.clone(),
-                        ctx,
-                    );
-                    // We report the update status after attempting to download the update.
-                    return;
-                }
+                // openWarp(Channel::Oss):走和官方一致的下载流程,平台 download_update_and_cleanup
+                // 内部在 OSS 分支自己挑选合适的资产并跳过 codesign verify。
+                self.download_new_update(
+                    update_id.clone(),
+                    request_type,
+                    new_version.clone(),
+                    ctx,
+                );
+                // We report the update status after attempting to download the update.
+                return;
             }
             Ok(UpdateReady::Yes {
                 new_version,
@@ -472,6 +530,12 @@ impl AutoupdateState {
         ctx: &mut ModelContext<AutoupdateState>,
     ) {
         self.stage = AutoupdateStage::DownloadingUpdate;
+        // 进入下载阶段时初始化为 0/未知,确保 UI 立刻能看到"下载中"反馈;
+        // 下面通过 mpsc 把每个 chunk 的实际进度推回来覆盖。
+        self.download_progress = Some(DownloadProgress {
+            downloaded: 0,
+            total: None,
+        });
         ctx.notify();
 
         // We're downloading `new_version` as update `update_id`.
@@ -482,14 +546,51 @@ impl AutoupdateState {
         // want to have cleaned it up.
         let last_successful_update_id =
             self.downloaded_update.as_ref().map(|d| d.update_id.clone());
+
+        // 进度通道:下载 future 把 DownloadProgress 推到 tx,model 主线程上的
+        // spawn_stream_local 收到后写入 self.download_progress 并 notify。
+        // 用 unbounded channel 避免下载阻塞在 send 上;UI 每次只读最新进度,
+        // 中间 backlog 由 model 处理时直接覆盖,不会"卡帧"。
+        let (progress_tx, progress_rx) =
+            futures::channel::mpsc::unbounded::<DownloadProgress>();
+        let on_progress: ProgressCallback = Arc::new(move |p| {
+            // 接收端断开(下载完成 / model 销毁)时忽略,不影响下载本体。
+            let _ = progress_tx.unbounded_send(p);
+        });
+
+        // 注意 race:ctx.spawn 的 future 完成后,主线程立刻执行 callback;此时
+        // progress_rx 可能仍有 buffered item 未被 spawn_stream_local 消费完。
+        // 如果在 callback 里粗暴 `download_progress = None`,后续 stream 的 on_item
+        // 会把 None 又改回 Some,出现"鬼影进度"。改法:on_item 只在 stage 还是
+        // DownloadingUpdate 时才写;过期 item 自动丢弃。stream 自然结束(tx Arc
+        // 全部 drop)时,on_done 兜底清空进度。
+        ctx.spawn_stream_local(
+            progress_rx,
+            |autoupdate_state, progress, ctx| {
+                if matches!(autoupdate_state.stage, AutoupdateStage::DownloadingUpdate) {
+                    autoupdate_state.download_progress = Some(progress);
+                    ctx.notify();
+                }
+            },
+            |autoupdate_state, ctx| {
+                if autoupdate_state.download_progress.is_some() {
+                    autoupdate_state.download_progress = None;
+                    ctx.notify();
+                }
+            },
+        );
+
         let _ = ctx.spawn(
             download_update(
                 new_version.clone(),
                 update_id.clone(),
                 last_successful_update_id,
                 self.http_client.clone(),
+                on_progress,
             ),
             move |autoupdate_state, download_ready, ctx| {
+                // 不在这里清 download_progress:留给 spawn_stream_local 的 on_done
+                // 统一清理(避免 race,见上方注释)。
                 autoupdate_state.on_download_update_complete(
                     request_type,
                     new_version,
@@ -820,6 +921,7 @@ async fn download_update(
     #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
     last_successful_update_id: Option<String>,
     http_client: Arc<http_client::Client>,
+    on_progress: ProgressCallback,
 ) -> Result<DownloadReady> {
     if ChannelState::app_version().is_none() {
         log::info!("No tag set, not performing autoupdate.");
@@ -828,12 +930,13 @@ async fn download_update(
 
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
-            mac::download_update_and_cleanup(&version_info, &update_id, last_successful_update_id.as_deref(), http_client.as_ref()).await
+            mac::download_update_and_cleanup(&version_info, &update_id, last_successful_update_id.as_deref(), http_client.as_ref(), on_progress).await
         } else if #[cfg(target_os = "linux")] {
-            linux::download_update_and_cleanup(&version_info, &update_id, http_client.as_ref()).await
+            linux::download_update_and_cleanup(&version_info, &update_id, http_client.as_ref(), on_progress).await
         } else if #[cfg(windows)] {
-            windows::download_update_and_cleanup(&version_info, &update_id, http_client.as_ref()).await
+            windows::download_update_and_cleanup(&version_info, &update_id, http_client.as_ref(), on_progress).await
         } else {
+            let _ = on_progress;
             Err(anyhow::anyhow!("Not implemented"))
         }
     }
@@ -854,11 +957,9 @@ pub fn apply_update(
     _initiating_workspace: &mut Workspace,
     _ctx: &mut ViewContext<Workspace>,
 ) -> Result<ReadyForRelaunch> {
-    // openWarp 仅把安装包下载到 Downloads,由用户手动运行,绝不自动重启。
-    if matches!(ChannelState::channel(), Channel::Oss) {
-        log::info!("openWarp: apply_update no-op,installer 已落 Downloads。");
-        return Ok(ReadyForRelaunch::No);
-    }
+    // openWarp:三平台 apply_update 都走与官方一致的入口,只是各平台 relaunch()
+    // 内部针对 OSS 分支选择了不同的"安装动作"(mac: open dmg / Windows: 非 silent
+    // Inno 安装 / Linux AppImage: in-place 覆盖+重启)。
 
     cfg_if::cfg_if! {
         if #[cfg(any(target_os = "macos", windows))] {
@@ -986,6 +1087,14 @@ fn finalize_update<F>(app: &mut AppContext, callback: F)
 where
     F: FnOnce(Result<()>, &mut AppContext) + Send + 'static,
 {
+    // openWarp(Channel::Oss):mac 平台 dmg 已下载,无需 mount/swap/verify,直接
+    // 由 relaunch() 用 `open <dmg>` 触发 Finder 安装。这里跳过 apply_update_async,
+    // 否则 mac::apply_update_async 会试图 codesign verify(没有 Apple Team ID 会失败)。
+    if matches!(ChannelState::channel(), Channel::Oss) {
+        callback(Ok(()), app);
+        return;
+    }
+
     cfg_if::cfg_if! {
         if #[cfg(target_os = "macos")] {
             mac::apply_update_async(app, |autoupdate_state, result, ctx| {

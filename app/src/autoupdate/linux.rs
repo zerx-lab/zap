@@ -7,7 +7,7 @@ use instant::Duration;
 use warp_core::channel::{Channel, ChannelState};
 
 use super::release_assets_directory_url;
-use super::{DownloadReady, ReadyForRelaunch};
+use super::{DownloadProgress, DownloadReady, ProgressCallback, ReadyForRelaunch};
 
 lazy_static::lazy_static! {
     /// Stores the path to the current executable.
@@ -22,11 +22,13 @@ pub(super) async fn download_update_and_cleanup(
     version_info: &VersionInfo,
     _update_id: &str,
     client: &http_client::Client,
+    on_progress: ProgressCallback,
 ) -> Result<DownloadReady> {
     match UpdateMethod::detect() {
         UpdateMethod::Unknown => Ok(DownloadReady::NeedsAuthorization),
         UpdateMethod::AppImage(appimage_path) => {
-            appimage::download_update_and_cleanup(version_info, &appimage_path, client).await
+            appimage::download_update_and_cleanup(version_info, &appimage_path, client, on_progress)
+                .await
         }
         UpdateMethod::PackageManager(package_manager) => {
             log::info!("Detected that Zap was installed using {package_manager:?}");
@@ -65,19 +67,48 @@ mod appimage {
         version_info: &VersionInfo,
         appimage_path: &Path,
         client: &http_client::Client,
+        on_progress: ProgressCallback,
     ) -> Result<DownloadReady> {
+        use futures::StreamExt as _;
+        use instant::Instant;
         const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
-        // Compute the URL where we can download the new release.
-        let Some(appimage_name) = option_env!("APPIMAGE_NAME") else {
-            bail!("APPIMAGE_NAME environment variable was not set at compile time!");
+        let channel = ChannelState::channel();
+        // openWarp:从 GitHub Release 缓存里取真实下载 URL,绕开空的 releases_base_url。
+        // 官方 channel 仍然走 release_assets_directory_url。
+        let url = if matches!(channel, warp_core::channel::Channel::Oss) {
+            // OSS Linux AppImage 默认资产名 "Zap-x86_64.AppImage"。
+            // 已知 release 资产名固定在 GitHub Actions 里。
+            let asset = "Zap-x86_64.AppImage";
+            if let Some(release) = crate::autoupdate::github::cached_release() {
+                if let Some(found) = release.find_asset(asset) {
+                    found.browser_download_url.clone()
+                } else {
+                    log::warn!(
+                        "openWarp: cached release tag {} 没有名为 {asset} 的资产,回退到 tag URL",
+                        release.tag_name
+                    );
+                    format!(
+                        "https://github.com/zerx-lab/warp/releases/download/v{}/{asset}",
+                        version_info.version
+                    )
+                }
+            } else {
+                format!(
+                    "https://github.com/zerx-lab/warp/releases/download/v{}/{asset}",
+                    version_info.version
+                )
+            }
+        } else {
+            let Some(appimage_name) = option_env!("APPIMAGE_NAME") else {
+                bail!("APPIMAGE_NAME environment variable was not set at compile time!");
+            };
+            format!(
+                "{}/{}",
+                release_assets_directory_url(channel, &version_info.version),
+                appimage_name
+            )
         };
-
-        let url = format!(
-            "{}/{}",
-            release_assets_directory_url(ChannelState::channel(), &version_info.version),
-            appimage_name
-        );
 
         // Create a temporary file that we'll write the download into.
         let mut new_appimage = tempfile::NamedTempFile::new()?;
@@ -90,9 +121,56 @@ mod appimage {
             .send()
             .await?
             .error_for_status()?;
-        new_appimage
-            .as_file_mut()
-            .write_all(&response.bytes().await?)?;
+
+        // 流式读 chunk + 写入,过程中节流上报进度。AppImage 体积大(数十 MB),
+        // 一次 `.bytes()` 会卡住整个 UI 直到下载完;改成 stream 让 UI 看到进度。
+        let total = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok());
+        on_progress(DownloadProgress {
+            downloaded: 0,
+            total,
+        });
+        let mut downloaded: u64 = 0;
+        let mut last_reported = 0u64;
+        let mut last_reported_at = Instant::now();
+        const REPORT_BYTES_THRESHOLD: u64 = 64 * 1024;
+        const REPORT_TIME_THRESHOLD: Duration = Duration::from_millis(250);
+
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            new_appimage.as_file_mut().write_all(&chunk)?;
+            downloaded += chunk.len() as u64;
+            if downloaded - last_reported >= REPORT_BYTES_THRESHOLD
+                || last_reported_at.elapsed() >= REPORT_TIME_THRESHOLD
+            {
+                on_progress(DownloadProgress {
+                    downloaded,
+                    total,
+                });
+                last_reported = downloaded;
+                last_reported_at = Instant::now();
+            }
+        }
+        on_progress(DownloadProgress {
+            downloaded,
+            total,
+        });
+
+        // openWarp:在覆盖原 AppImage 之前先对临时文件做 SHA-256 校验,
+        // 防御 CDN 中间人 / 网络损坏。其他 channel 跳过(有自家流程)。
+        if matches!(channel, warp_core::channel::Channel::Oss) {
+            let temp_path = new_appimage.path().to_path_buf();
+            if let Err(e) =
+                crate::autoupdate::verify_oss_asset_sha256(&temp_path, "Zap-x86_64.AppImage")
+            {
+                // 临时文件会随 NamedTempFile drop 自动清理,这里只需返回错误。
+                return Err(e);
+            }
+        }
 
         log::info!(
             "Copying downloaded AppImage from {} to {}",
@@ -195,6 +273,9 @@ impl UpdateMethod {
             return Self::AppImage(appimage_path);
         }
         if let Ok(package_manager) = PackageManager::detect() {
+            // 记录用户应当跑的升级命令,方便从日志查问题。UI 仍然兜底跳 GitHub
+            // release 页(用户可以下 .deb/.rpm 自行 apt install / dnf install)。
+            package_manager.log_upgrade_hint();
             return Self::PackageManager(package_manager);
         }
         Self::Unknown
@@ -202,50 +283,105 @@ impl UpdateMethod {
 }
 
 /// Package managers that we understand and can assist with auto-update
-/// for.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+/// for. `Pacman` 区分两种情形:`PacmanOfficial` 表示包来自 archlinux.org 的
+/// 官方仓库(可以直接 `sudo pacman -Syu`),`PacmanAur` 表示包来自 AUR 或者
+/// 本地手工 `makepkg -si`,这时应该走 AUR helper(`paru -Syu` / `yay -Syu`),
+/// 不应该让用户 `pacman -U` 一个不存在的 release 资产。
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PackageManager {
-    Apt,
-    Yum,
-    Dnf,
-    Zypper,
-    Pacman,
+    Apt {
+        package_name: String,
+    },
+    Yum {
+        package_name: String,
+    },
+    Dnf {
+        package_name: String,
+    },
+    Zypper {
+        package_name: String,
+    },
+    /// 走 archlinux.org 官方仓库的 pacman 包(`pacman -Si <pkg>` 命中)。
+    PacmanOfficial {
+        package_name: String,
+    },
+    /// AUR / 本地手工安装(`pacman -Qi <pkg>` 命中但 `pacman -Si <pkg>` 不命中)。
+    PacmanAur {
+        package_name: String,
+    },
 }
 
 impl PackageManager {
-    fn package_name() -> &'static str {
-        package_name(ChannelState::channel())
+    /// 当前 channel 下要在系统包管理器里查询的候选包名,按可能性从高到低排序。
+    /// OSS 在 deb/rpm/arch bundle 脚本里包名都是 `zap`(见 script/linux/bundle_*),
+    /// 但 AUR 上常见命名是 `zap-bin` / `zap-git`,所以多试几个。
+    fn candidate_names(channel: Channel) -> &'static [&'static str] {
+        match channel {
+            Channel::Stable => &["warp-terminal"],
+            Channel::Preview => &["warp-terminal-preview"],
+            Channel::Dev => &["warp-terminal-dev"],
+            Channel::Integration => &["warp-terminal-integration"],
+            Channel::Local => &["warp-terminal-local"],
+            // OSS:bundle_deb/rpm/arch 全部用 `zap` 作 package name,但 AUR
+            // 维护者可能选 `zap-bin` / `zap-git`,所以也试一下。
+            Channel::Oss => &["zap", "zap-bin", "zap-git"],
+        }
     }
 
     fn detect() -> Result<Self> {
-        let package_name = Self::package_name();
+        let channel = ChannelState::channel();
+        let candidates = Self::candidate_names(channel);
 
+        // 依次试每个候选包名;第一个被任意 PM 识别为已安装的就返回。
+        // pacman 命中后再用 `pacman -Si` 区分官方仓库 / AUR。
+        for &name in candidates {
+            if let Some(pm) = Self::probe_one(name)? {
+                return Ok(pm);
+            }
+        }
+        bail!(
+            "Could not determine which package manager was used to install \
+             this build (tried candidate names: {candidates:?})"
+        );
+    }
+
+    /// 对一个具体的包名跑探测脚本;命中则返回对应的 PackageManager,未命中返回 None。
+    /// pacman 命中后额外查 `pacman -Si` 来区分官方仓库和 AUR。
+    fn probe_one(package_name: &str) -> Result<Option<Self>> {
+        // shell 脚本里 `$PACKAGE_NAME` 由 env 传入,内容不会被 shell 转义注入
+        // (传到 command 而非 sh -c 字符串拼接)。
         let detect_script = r#"
-            command -p pacman -Qi $PACKAGE_NAME >/dev/null 2>/dev/null
+            command -p pacman -Qi "$PACKAGE_NAME" >/dev/null 2>/dev/null
             if [ $? -eq 0 ]; then
-              echo "pacman"
+              # 区分官方仓库 vs AUR/手工。-Si 查 sync database,AUR/手工
+              # 安装的包不会被 sync 出来。
+              if command -p pacman -Si "$PACKAGE_NAME" >/dev/null 2>/dev/null; then
+                echo "pacman-official"
+              else
+                echo "pacman-aur"
+              fi
               exit
             fi
 
-            command -p zypper search --match-exact --installed-only $PACKAGE_NAME >/dev/null 2>/dev/null
+            command -p zypper search --match-exact --installed-only "$PACKAGE_NAME" >/dev/null 2>/dev/null
             if [ $? -eq 0 ]; then
               echo "zypper"
               exit
             fi
 
-            command -p dnf list --installed $PACKAGE_NAME >/dev/null 2>/dev/null
+            command -p dnf list --installed "$PACKAGE_NAME" >/dev/null 2>/dev/null
             if [ $? -eq 0 ]; then
               echo "dnf"
               exit
             fi
 
-            command -p yum list installed $PACKAGE_NAME >/dev/null 2>/dev/null
+            command -p yum list installed "$PACKAGE_NAME" >/dev/null 2>/dev/null
             if [ $? -eq 0 ]; then
               echo "yum"
               exit
             fi
 
-            if [ "$(command -p dpkg-query --show --showformat='${db:Status-Status}' $PACKAGE_NAME 2>/dev/null)" = "installed" ]; then
+            if [ "$(command -p dpkg-query --show --showformat='${db:Status-Status}' "$PACKAGE_NAME" 2>/dev/null)" = "installed" ]; then
               echo "apt"
               exit
             fi
@@ -257,49 +393,75 @@ impl PackageManager {
             .args(["-c", detect_script])
             .env("PACKAGE_NAME", package_name)
             .output();
-        match output {
-            Ok(output) => {
-                if !output.status.success() {
-                    bail!("Failed to determine which package manager was used to install warp");
-                }
-                let Ok(stdout) = std::str::from_utf8(&output.stdout) else {
-                    bail!("Could not parse package manager detection script output as UTF-8");
-                };
-                match stdout.trim() {
-                    "pacman" => Ok(Self::Pacman),
-                    "zypper" => Ok(Self::Zypper),
-                    "dnf" => Ok(Self::Dnf),
-                    "yum" => Ok(Self::Yum),
-                    "apt" => Ok(Self::Apt),
-                    _ => bail!(
-                        "Received unexpected output from the package manager detection script"
-                    ),
-                }
+        let output = match output {
+            Ok(o) => o,
+            Err(err) => {
+                return Err(err).context("Failed to run package manager detection script")
             }
-            Err(err) => Err(err).context("Failed to run package manager detection script"),
+        };
+
+        // exit 1 = 这个候选名没被任何 PM 识别;不是错,继续下一个候选。
+        if !output.status.success() {
+            return Ok(None);
         }
+        let stdout = std::str::from_utf8(&output.stdout)
+            .map_err(|_| anyhow::anyhow!("non-UTF-8 detect script output"))?;
+        let name = package_name.to_string();
+        let pm = match stdout.trim() {
+            "pacman-official" => Self::PacmanOfficial { package_name: name },
+            "pacman-aur" => Self::PacmanAur { package_name: name },
+            "zypper" => Self::Zypper { package_name: name },
+            "dnf" => Self::Dnf { package_name: name },
+            "yum" => Self::Yum { package_name: name },
+            "apt" => Self::Apt { package_name: name },
+            other => bail!("Unexpected detection output: {other}"),
+        };
+        Ok(Some(pm))
+    }
+
+    /// 把"用户应该跑的升级命令"写到日志里。OSS 用户翻 ~/.local/share/dev.zap.Zap/
+    /// 下面的日志能找到精确指令;UI 仍然走"前往 GitHub 下载"兜底,不区分到包管理器。
+    fn log_upgrade_hint(&self) {
+        let hint = match self {
+            Self::Apt { package_name } => {
+                format!(
+                    "请运行: 从 GitHub Release 下载 .deb 后 `sudo apt install ./{package_name}_*.deb`,\
+                     或者把 release 添加为 apt 源后 `sudo apt update && sudo apt install {package_name}`"
+                )
+            }
+            Self::Yum { package_name } => {
+                format!("请运行: 下载 .rpm 后 `sudo yum install ./{package_name}-*.rpm`")
+            }
+            Self::Dnf { package_name } => {
+                format!("请运行: 下载 .rpm 后 `sudo dnf install ./{package_name}-*.rpm`")
+            }
+            Self::Zypper { package_name } => {
+                format!("请运行: 下载 .rpm 后 `sudo zypper install ./{package_name}-*.rpm`")
+            }
+            Self::PacmanOfficial { package_name } => {
+                format!("请运行: `sudo pacman -Syu {package_name}`")
+            }
+            Self::PacmanAur { package_name } => {
+                format!(
+                    "您似乎从 AUR 安装了 {package_name}。请用 AUR helper 升级,\
+                     例如: `paru -Syu {package_name}` 或 `yay -Syu {package_name}`。\
+                     不要手动 pacman -U,GitHub Release 不附带 .pkg.tar.zst 资产。"
+                )
+            }
+        };
+        log::info!("openWarp 升级提示: {hint}");
     }
 }
 
 impl std::fmt::Display for PackageManager {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PackageManager::Apt => write!(f, "apt"),
-            PackageManager::Yum => write!(f, "yum"),
-            PackageManager::Dnf => write!(f, "dnf"),
-            PackageManager::Zypper => write!(f, "zypper"),
-            PackageManager::Pacman => write!(f, "pacman"),
+            PackageManager::Apt { .. } => write!(f, "apt"),
+            PackageManager::Yum { .. } => write!(f, "yum"),
+            PackageManager::Dnf { .. } => write!(f, "dnf"),
+            PackageManager::Zypper { .. } => write!(f, "zypper"),
+            PackageManager::PacmanOfficial { .. } => write!(f, "pacman (official)"),
+            PackageManager::PacmanAur { .. } => write!(f, "pacman (AUR)"),
         }
-    }
-}
-
-fn package_name(channel: Channel) -> &'static str {
-    match channel {
-        Channel::Stable => "warp-terminal",
-        Channel::Preview => "warp-terminal-preview",
-        Channel::Dev => "warp-terminal-dev",
-        Channel::Integration => "warp-terminal-integration",
-        Channel::Local => "warp-terminal-local",
-        Channel::Oss => "zap-oss",
     }
 }

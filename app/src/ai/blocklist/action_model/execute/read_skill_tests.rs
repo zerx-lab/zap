@@ -253,6 +253,90 @@ fn test_read_skill_executor_fallback_returns_error_when_file_missing() {
     });
 }
 
+/// BYOP `read_skill` 工具用 name 调用时:
+/// `from_args` 把 name 装进 `SkillReference::SkillPath(name)`,
+/// executor 端 cache miss 后按 name 反查命中并 Sync Success 返回。
+#[test]
+fn test_read_skill_executor_resolves_by_name() {
+    let temp_dir = TempDir::new().unwrap();
+    let skill_path = create_test_skill_file(&temp_dir, "byop-named-skill", "Lookup by name");
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+
+        let parsed_skill = parse_skill(&skill_path).expect("Failed to parse test skill");
+        SkillManager::handle(&app).update(&mut app, |manager, _ctx| {
+            manager.add_skill_for_testing(parsed_skill);
+        });
+
+        let executor_handle = app.add_model(|_| ReadSkillExecutor::new());
+
+        // 模拟 BYOP from_args:把 name 当作 path 传入。
+        let action = AIAgentAction {
+            id: AIAgentActionId::from("name-lookup-action".to_string()),
+            action: AIAgentActionType::ReadSkill(ReadSkillRequest {
+                skill: SkillReference::Path(std::path::PathBuf::from("byop-named-skill")),
+            }),
+            task_id: TaskId::new("name-lookup-task".to_string()),
+            requires_result: false,
+        };
+
+        let input = ExecuteActionInput {
+            action: &action,
+            conversation_id: AIConversationId::new(),
+        };
+
+        executor_handle.update(&mut app, |executor, ctx| {
+            let result: AnyActionExecution = executor.execute(input, ctx).into();
+            match result {
+                AnyActionExecution::Sync(AIAgentActionResultType::ReadSkill(
+                    ReadSkillResult::Success { content },
+                )) => {
+                    assert_eq!(content.file_name, skill_path.to_string_lossy().to_string());
+                }
+                _ => panic!("Lookup by name should succeed via Sync Success"),
+            }
+        });
+    });
+}
+
+/// 未知 name(不在 SkillManager 索引中)走完所有 fallback 后:
+/// `name_candidate` 命中但 `find_skill_by_name` 返回 None,继续到 fs fallback —
+/// 此处路径形状不合法(纯 name 不含 `/`),直接 Sync Error。
+#[test]
+fn test_read_skill_executor_rejects_unknown_name() {
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let executor_handle = app.add_model(|_| ReadSkillExecutor::new());
+
+        let action = AIAgentAction {
+            id: AIAgentActionId::from("unknown-name-action".to_string()),
+            action: AIAgentActionType::ReadSkill(ReadSkillRequest {
+                skill: SkillReference::Path(std::path::PathBuf::from("no-such-skill")),
+            }),
+            task_id: TaskId::new("unknown-name-task".to_string()),
+            requires_result: false,
+        };
+
+        let input = ExecuteActionInput {
+            action: &action,
+            conversation_id: AIConversationId::new(),
+        };
+
+        executor_handle.update(&mut app, |executor, ctx| {
+            let result: AnyActionExecution = executor.execute(input, ctx).into();
+            match result {
+                AnyActionExecution::Sync(AIAgentActionResultType::ReadSkill(
+                    ReadSkillResult::Error(msg),
+                )) => {
+                    assert!(msg.starts_with("Skill not found"), "msg={msg}");
+                }
+                _ => panic!("Unknown name should resolve to Sync Error"),
+            }
+        });
+    });
+}
+
 /// Issue #99 安全门:cache 未命中时,若路径不匹配 skill 文件形状,
 /// 直接走 Sync Error 分支,不触发任何磁盘读取。
 #[test]

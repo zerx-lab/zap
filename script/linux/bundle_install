@@ -39,7 +39,7 @@ install -D "$EXECUTABLE_PATH" "${TARGET_DIR}${OPT_DIR}/$BINARY_NAME"
 if [[ "$ARTIFACT" == "app" ]]; then
   install -Dm644 "$WORKSPACE_ROOT_DIR/app/channels/$RELEASE_CHANNEL/$BUNDLE_ID.desktop" "${TARGET_DIR}/usr/share/applications/$BUNDLE_ID.desktop"
   for size in 16x16 32x32 64x64 128x128 256x256 512x512; do
-    src_path="$WORKSPACE_ROOT_DIR/app/channels/$RELEASE_CHANNEL/icon/no-padding/$size.png"
+    src_path="$WORKSPACE_ROOT_DIR/app/channels/$RELEASE_CHANNEL/icon/padded/$size.png"
     if [[ -f "$src_path" ]]; then
       install -Dm644 "$src_path" "${TARGET_DIR}/usr/share/icons/hicolor/$size/apps/$BUNDLE_ID.png"
     fi

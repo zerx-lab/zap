@@ -31,6 +31,25 @@ pub struct GithubAsset {
     pub name: String,
     pub browser_download_url: String,
     pub size: u64,
+    /// GitHub Releases API(2024.12+)在 asset 元数据里返回的资产摘要,
+    /// 形如 `"sha256:<hex>"`。老 release 没有这个字段时为 None。
+    #[serde(default)]
+    pub digest: Option<String>,
+}
+
+impl GithubAsset {
+    /// 解析 `digest` 字段,返回小写的十六进制 SHA-256(64 字符)或 None。
+    /// 当前 GitHub 返回的算法只有 sha256;其他算法直接当作 None 让上层跳过校验,
+    /// 不去做基于未知算法的"绿色通行证"。
+    pub fn sha256_hex(&self) -> Option<String> {
+        let raw = self.digest.as_ref()?;
+        let hex = raw.strip_prefix("sha256:")?;
+        if hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+            Some(hex.to_ascii_lowercase())
+        } else {
+            None
+        }
+    }
 }
 
 impl GithubRelease {

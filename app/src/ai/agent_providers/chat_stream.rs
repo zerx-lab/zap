@@ -2553,14 +2553,17 @@ fn serialize_outgoing_tool_call(
         ),
         Some(Tool::ReadSkill(r)) => {
             use api::message::tool_call::read_skill::SkillReference;
-            let path = match &r.skill_reference {
-                Some(SkillReference::SkillPath(p)) => p.clone(),
-                Some(SkillReference::BundledSkillId(id)) => format!("bundled:{id}"),
+            // 模型上一轮传 `name`,被 `from_args` 装进 `SkillPath` 槽位;
+            // 序列化回上游对话历史时改回 `name` 字段,与当前 JSON schema 自洽。
+            // BundledSkillId 用 Display 形式 `@warp-skill:<id>` 与 SkillReference Display 一致。
+            let name = match &r.skill_reference {
+                Some(SkillReference::SkillPath(s)) => s.clone(),
+                Some(SkillReference::BundledSkillId(id)) => format!("@warp-skill:{id}"),
                 None => String::new(),
             };
             (
                 "read_skill".to_owned(),
-                json!({ "skill_path": path }).to_string(),
+                json!({ "name": name }).to_string(),
             )
         }
         Some(Tool::ReadShellCommandOutput(r)) => {

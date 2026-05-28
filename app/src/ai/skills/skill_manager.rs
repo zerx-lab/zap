@@ -342,6 +342,36 @@ impl SkillManager {
         }
     }
 
+    /// 按 skill name(SKILL.md frontmatter `name` 字段)查最佳匹配。
+    ///
+    /// 用于 BYOP `read_skill` 工具:模型只看得到 system prompt 里的 `<name>`,
+    /// 不知道 SKILL.md 的绝对路径,所以必须支持 name → ParsedSkill 解析。
+    ///
+    /// 同名多份时按 [`provider_rank`] 升序取第一(`Agents > Zap > Claude > …`),
+    /// 与 `unique_skills`/`list_skill_inventory` 的优先级保持一致。Bundled skill
+    /// 不进 `skills_by_name` 索引,这里单独遍历兜底。
+    pub fn find_skill_by_name(&self, name: &str) -> Option<&ParsedSkill> {
+        // Prefer filesystem skills:同名多份按 provider_rank 选最优。
+        let best_fs_path = self
+            .skill_paths_by_name(name)
+            .into_iter()
+            .min_by_key(|path| {
+                get_provider_for_path(path)
+                    .map(provider_rank)
+                    .unwrap_or(usize::MAX)
+            });
+        if let Some(path) = best_fs_path {
+            if let Some(skill) = self.skills_by_path.get(&path) {
+                return Some(skill);
+            }
+        }
+        // Fallback: bundled skills(按 name 而非 id 命中)。
+        self.bundled_skills
+            .values()
+            .map(|bundled| &bundled.skill)
+            .find(|skill| skill.name == name)
+    }
+
     /// Returns a bundled skill by ID only if its activation condition is met.
     pub fn active_bundled_skill(&self, id: &str, ctx: &AppContext) -> Option<&ParsedSkill> {
         let bundled = self.bundled_skills.get(id)?;

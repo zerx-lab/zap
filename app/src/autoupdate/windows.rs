@@ -14,7 +14,9 @@ use tempfile::TempPath;
 use warp_core::channel::{Channel, ChannelState};
 use warpui::AppContext;
 
-use super::{release_assets_directory_url, DownloadReady};
+use super::{
+    github, release_assets_directory_url, DownloadProgress, DownloadReady, ProgressCallback,
+};
 use crate::util::windows::install_dir;
 
 lazy_static! {
@@ -28,23 +30,43 @@ pub(super) async fn download_update_and_cleanup(
     version_info: &VersionInfo,
     _update_id: &str,
     client: &http_client::Client,
+    on_progress: ProgressCallback,
 ) -> Result<DownloadReady> {
+    use futures::StreamExt as _;
+    use instant::Instant;
     const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
-    // openWarp(Channel::Oss)走“发现新版本后只在 UI 提示”路径,不进入下载阶段。
-    // 上层 mod.rs::on_update_check_complete 在 OSS 分支会提前返回,不会调到这里。
-    // 万一入口变动调到这里,返回 DownloadReady::No 以明确避免自动下载。
-    if matches!(ChannelState::channel(), Channel::Oss) {
-        log::info!("openWarp: 跳过自动下载,由用户在关于页面手动下载。");
-        return Ok(DownloadReady::No);
-    }
-
+    let channel = ChannelState::channel();
     let installer_file_name = installer_file_name()?;
-    let url = format!(
-        "{}/{}",
-        release_assets_directory_url(ChannelState::channel(), &version_info.version),
-        installer_file_name
-    );
+    // openWarp:从 GitHub Release 缓存里取真实下载 URL(资产名为 ZapSetup.exe /
+    // ZapSetup-arm64.exe,见 installer_file_name())。其他 channel 走官方 base url。
+    let url = if matches!(channel, Channel::Oss) {
+        if let Some(release) = github::cached_release() {
+            if let Some(found) = release.find_asset(&installer_file_name) {
+                found.browser_download_url.clone()
+            } else {
+                log::warn!(
+                    "openWarp: cached release tag {} 没有名为 {installer_file_name} 的资产,回退到 tag URL",
+                    release.tag_name
+                );
+                format!(
+                    "https://github.com/zerx-lab/warp/releases/download/v{}/{installer_file_name}",
+                    version_info.version
+                )
+            }
+        } else {
+            format!(
+                "https://github.com/zerx-lab/warp/releases/download/v{}/{installer_file_name}",
+                version_info.version
+            )
+        }
+    } else {
+        format!(
+            "{}/{}",
+            release_assets_directory_url(channel, &version_info.version),
+            installer_file_name
+        )
+    };
 
     // Create a temporary file that we'll write the download into.
     let mut already_exists = false;
@@ -69,9 +91,66 @@ pub(super) async fn download_update_and_cleanup(
             .send()
             .await?
             .error_for_status()?;
-        new_installer
+
+        let total = response
+            .headers()
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok());
+        on_progress(DownloadProgress {
+            downloaded: 0,
+            total,
+        });
+
+        let mut downloaded: u64 = 0;
+        let mut last_reported = 0u64;
+        let mut last_reported_at = Instant::now();
+        const REPORT_BYTES_THRESHOLD: u64 = 64 * 1024;
+        const REPORT_TIME_THRESHOLD: Duration = Duration::from_millis(250);
+
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            new_installer.as_file_mut().write_all(&chunk)?;
+            downloaded += chunk.len() as u64;
+            if downloaded - last_reported >= REPORT_BYTES_THRESHOLD
+                || last_reported_at.elapsed() >= REPORT_TIME_THRESHOLD
+            {
+                on_progress(DownloadProgress {
+                    downloaded,
+                    total,
+                });
+                last_reported = downloaded;
+                last_reported_at = Instant::now();
+            }
+        }
+        on_progress(DownloadProgress {
+            downloaded,
+            total,
+        });
+    } else {
+        // 复用之前下载好的同名 installer:不再发起新请求,只补一次进度上报
+        // 让 UI 直接显示 100%。
+        let downloaded = new_installer
             .as_file_mut()
-            .write_all(&response.bytes().await?)?;
+            .metadata()
+            .ok()
+            .map(|m| m.len())
+            .unwrap_or(0);
+        on_progress(DownloadProgress {
+            downloaded,
+            total: Some(downloaded),
+        });
+    }
+
+    // openWarp:校验 GitHub Release 元数据里的 SHA-256,防御 CDN 中间人/损坏。
+    // 校验失败直接返回 Err,installer 临时文件会随后被 TempPath drop 清理;
+    // 这里故意不把它放到 INSTALLER_PATH(否则后续 relaunch() 可能误用)。
+    if matches!(channel, Channel::Oss) {
+        let temp_path = new_installer.path().to_path_buf();
+        if let Err(e) = super::verify_oss_asset_sha256(&temp_path, &installer_file_name) {
+            return Err(e);
+        }
     }
 
     *INSTALLER_PATH.lock() = Some(new_installer.into_temp_path());
@@ -185,11 +264,7 @@ pub(super) fn check_and_report_update_errors(ctx: &mut AppContext) {
 }
 
 pub(super) fn relaunch() -> Result<()> {
-    // openWarp 仅下载 installer 到 Downloads,由用户手动运行,不在此处拉起 Inno Setup。
-    if matches!(ChannelState::channel(), Channel::Oss) {
-        log::info!("openWarp: 跳过 Inno Setup 自动安装,installer 已落 Downloads。");
-        return Ok(());
-    }
+    let channel = ChannelState::channel();
 
     let install_dir = install_dir()?;
     let Some(installer_path) = INSTALLER_PATH.lock().take() else {
@@ -204,11 +279,28 @@ pub(super) fn relaunch() -> Result<()> {
         }
     };
 
-    // The Inno Setup install wizard will run without user input. It will re-launch Zap after
-    // installing the update files.
-    // https://jrsoftware.org/ishelp/index.php?topic=setupcmdline
-    Command::new(&installer_path)
-        .args([
+    // openWarp(Channel::Oss):Inno Setup 走"非静默"。不带 /SILENT 让用户看到
+    // 标准安装界面,可以亲眼确认要安装的版本号、目标目录,并通过常规 UI 取消。
+    // 仍然保留 /SP- 跳过"准备完成"确认弹窗;/NORESTART 避免要求重启 Windows;
+    // /update=1 给 Inno 脚本里检测升级模式用。
+    // /NOCLOSEAPPLICATIONS 让 Inno 等当前 Zap 进程自然退出(mutex poll),
+    // 不强制 RestartManager 杀进程。
+    let mut cmd = Command::new(&installer_path);
+    if matches!(channel, Channel::Oss) {
+        cmd.args([
+            "/SP-",
+            "/NORESTART",
+            &log_arg,
+            "/update=1",
+            "/NOCLOSEAPPLICATIONS",
+            &format!("/DIR={}", install_dir.display()),
+        ]);
+    } else {
+        // 官方 channel:维持原"silent + 进度条"行为,自动安装并重启。
+        // The Inno Setup install wizard will run without user input. It will re-launch Zap after
+        // installing the update files.
+        // https://jrsoftware.org/ishelp/index.php?topic=setupcmdline
+        cmd.args([
             // Skip asking the user to confirm.
             "/SP-",
             // Do not prompt the user for anything. Note that we do not use "VERYSILENT" so that a
@@ -225,13 +317,14 @@ pub(super) fn relaunch() -> Result<()> {
             // Zap to exit naturally by polling the single-instance mutex instead.
             "/NOCLOSEAPPLICATIONS",
             &format!("/DIR={}", install_dir.display()),
-        ])
-        .spawn()?;
+        ]);
+    }
+    cmd.spawn()?;
 
     // DEV ONLY: Sleep after spawning the installer so this process is still alive
     // when Inno Setup tries to overwrite files. This reliably reproduces the
     // auto-update race condition (APP-3702) for testing.
-    if matches!(ChannelState::channel(), Channel::Dev) {
+    if matches!(channel, Channel::Dev) {
         log::info!("DEV: Sleeping 10s after spawning installer to reproduce update race");
         std::thread::sleep(Duration::from_secs(10));
     }

@@ -524,6 +524,7 @@ settings-section-shared-blocks = 共有ブロック
 settings-section-warp-drive = Zap Drive
 settings-section-warpify = Warpify
 settings-section-network = ネットワーク
+settings-section-cloud-sync = クラウド同期
 settings-section-ai = AI
 settings-section-warp-agent = Zap エージェント
 settings-section-agent-profiles = プロファイル
@@ -796,6 +797,51 @@ settings-network-test-success-tcp = ✅ プロキシ到達可能 ({$latency} ms)
 settings-network-test-success-http = ✅ インターネット到達可能 ({$latency} ms)
 settings-network-test-failed-tcp = ❌ プロキシに到達できません: {$error}
 settings-network-test-failed-http = ❌ 接続失敗: {$error}
+
+# --- ANCHOR-SUB-CLOUD-SYNC (agent-settings-cloud-sync) ---
+# クラウド同期設定ページ
+settings-cloud-sync-description = GitHub Gist または Gitee Gist を介してクラウド同期を設定します。設定は暗号化され、シークレット Gist として保存されます。
+settings-cloud-sync-scope-note = 現在、SSH管理サーバーの設定データのみ同期しています。
+settings-cloud-sync-platform-label = 同期プラットフォーム
+settings-cloud-sync-platform-description = 同期に使用するクラウドサービスを選択
+settings-cloud-sync-token-label = アクセストークン
+settings-cloud-sync-token-description = gist 権限のある個人アクセストークン
+settings-cloud-sync-token-placeholder = アクセストークンを入力...
+settings-cloud-sync-operations-header = 同期操作
+settings-cloud-sync-upload-label = アップロード
+settings-cloud-sync-download-label = ダウンロード
+settings-cloud-sync-status-header = 同期ステータス
+settings-cloud-sync-local-version-label = ローカルバージョン
+settings-cloud-sync-last-time-label = 最終同期時刻
+settings-cloud-sync-last-platform-label = 最終同期プラットフォーム
+settings-cloud-sync-local-version = ローカルバージョン: {$version}
+settings-cloud-sync-last-time = 最終同期時刻: {$time}
+settings-cloud-sync-last-platform = 最終同期プラットフォーム: {$platform}
+settings-cloud-sync-na = N/A
+settings-cloud-sync-never = 未同期
+settings-cloud-sync-syncing-upload = {$platform} にアップロード中...
+settings-cloud-sync-syncing-download = {$platform} からダウンロード中...
+settings-cloud-sync-success-upload = {$platform} へのアップロード成功（バージョン v{$version}）
+settings-cloud-sync-success-download = {$platform} からのダウンロード成功（バージョン v{$version}）
+settings-cloud-sync-already-up-to-date = 最新バージョンです（v{$version}）、同期不要
+settings-cloud-sync-failed = 失敗: {$error}
+settings-cloud-sync-conflict-status = 競合: ローカル v{$local} vs リモート v{$remote}
+settings-cloud-sync-conflict-status-equal = バージョンが一致: ローカル v{$local} = リモート v{$remote}
+settings-cloud-sync-token-not-configured = {$platform} Token が設定されていません
+settings-cloud-sync-conflict-title = バージョン競合
+settings-cloud-sync-conflict-description = リモートバージョン（v{$remote}）がローカル（v{$local}）より新しいです。強制アップロードするとリモートデータが上書きされます。
+settings-cloud-sync-conflict-description-equal = リモートバージョンとローカルバージョンが同一です。強制アップロードするとリモートデータが上書きされます。
+settings-cloud-sync-force-upload = 強制アップロード
+settings-cloud-sync-download-confirm-title = ダウンロードの確認
+settings-cloud-sync-download-confirm-description = ダウンロードすると、ローカルのすべてのSSHサーバー設定がリモートバージョンに置き換えられます。この操作は元に戻せません。
+settings-cloud-sync-download-confirm-button = ダウンロードを確認
+settings-cloud-sync-upload-confirm-title = アップロードの確認
+settings-cloud-sync-upload-confirm-description = アップロードすると、リモートのすべての SSH サーバー設定がローカルバージョンで上書きされます。Gist は履歴を保持しないため、この操作は元に戻せません。
+settings-cloud-sync-upload-confirm-button = アップロードを確認
+settings-cloud-sync-clear = クリア
+settings-cloud-sync-validating = トークンを検証中...
+settings-cloud-sync-token-valid = トークン有効（{$username}）
+settings-cloud-sync-token-invalid = 無効なトークン：{$error}
 
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # Section / sub-headers
@@ -2609,6 +2655,20 @@ workspace-left-panel-ssh-manager-startup-command = 起動コマンド
 workspace-left-panel-ssh-manager-startup-command-placeholder = 接続成功後に自動実行するコマンド
 workspace-left-panel-ssh-manager-notes = メモ
 workspace-left-panel-ssh-manager-notes-placeholder = メモ情報
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-header = { $path } から
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-empty = { $path } にインポート可能なホストがありません
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-not-found = SSH 設定ファイルが見つかりません: { $path }
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-error = SSH 設定の読み込みに失敗しました { $path }: { $error }
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-add = SSH マネージャーに追加
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-added = 追加済み
+# TODO: review
+workspace-left-panel-ssh-manager-candidates-refresh = ~/.ssh/config から再読み込み
 terminal-su-root-password-confirm = Root パスワードを自動入力
 terminal-su-root-password-confirm-subtitle = クリックして保存された Root パスワードを入力
 terminal-su-root-password-cancel = キャンセル

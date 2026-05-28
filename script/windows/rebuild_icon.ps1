@@ -6,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSCommandPath))
-$iconDir = Join-Path $repoRoot "app/channels/$Channel/icon/no-padding"
+$iconDir = Join-Path $repoRoot "app/channels/$Channel/icon/padded"
 $icoPath = Join-Path $iconDir 'icon.ico'
 
 if (-not (Test-Path $iconDir)) { throw "Icon dir not found: $iconDir" }

@@ -65,6 +65,10 @@ impl SkillManager {
         None
     }
 
+    pub fn find_skill_by_name(&self, _name: &str) -> Option<&ParsedSkill> {
+        None
+    }
+
     pub fn active_bundled_skill(&self, _id: &str, _ctx: &AppContext) -> Option<&ParsedSkill> {
         None
     }

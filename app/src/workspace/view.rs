@@ -13562,7 +13562,12 @@ impl Workspace {
             if let (Some(sid), Some(cwd), Some(s)) =
                 (session_id, pwd.clone(), server_file_browser_session)
             {
-                if is_remote && FeatureFlag::SshRemoteServer.is_enabled() {
+                // 加上 `ServerFileBrowser` 守卫,确保该功能被 `ZAP_UNSTABLE_FEATURES`
+                // 关闭时不要在 SSH 会话激活后偷偷拉取远程目录,避免任何相关后台活动。
+                if is_remote
+                    && FeatureFlag::ServerFileBrowser.is_enabled()
+                    && FeatureFlag::SshRemoteServer.is_enabled()
+                {
                     let host_id = RemoteServerManager::as_ref(ctx)
                         .host_id_for_session(sid)
                         .cloned()

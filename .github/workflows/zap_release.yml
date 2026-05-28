@@ -49,9 +49,12 @@ jobs:
       release_tag: ${{ steps.compute_tag.outputs.tag }}
       release_branch: ${{ steps.compute_tag.outputs.branch }}
       release_name: ${{ steps.get-config.outputs.release_base_name }} ${{ steps.compute_tag.outputs.tag }}
-      release_body: ${{ steps.get-config.outputs.release_body_text }}
     steps:
+      # fetch-depth: 0 让 git-cliff 能看到完整 tag/commit 历史;
+      # shallow clone 下 `git describe` 找不到上一个 tag,会退化成空 release notes。
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Get channel configuration
         id: get-config
@@ -76,6 +79,69 @@ jobs:
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "branch=$BRANCH" >> $GITHUB_OUTPUT
           echo "Release tag: $TAG / build ref: $BRANCH"
+
+      # 找上一个 release tag(匹配 v*),用于限定 git-cliff 的 commit 范围。
+      # tag-触发:HEAD == 当前 tag,要从 HEAD^ 起找最近的 v* tag。
+      # dispatch:HEAD 不是 tag,直接从 HEAD 起找。
+      # 找不到(首次发布)时输出空字符串,后面 git-cliff 不限定范围。
+      - name: Compute previous release tag
+        id: prev_tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            PREV=$(git describe --tags --abbrev=0 --match='v*' HEAD^ 2>/dev/null || echo "")
+          else
+            PREV=$(git describe --tags --abbrev=0 --match='v*' HEAD 2>/dev/null || echo "")
+          fi
+          echo "prev=$PREV" >> $GITHUB_OUTPUT
+          echo "Previous tag: ${PREV:-<none, first release>}"
+
+      # 用官方推荐的 orhun/git-cliff-action 生成「上个 tag 到 HEAD」的变更说明。
+      # --strip header 去掉模板顶部空 header;--tag 把 unreleased 段标记为本次发布版本。
+      # 范围参数 `<prev>..HEAD` 通过三元表达式注入:有 prev 时限定范围,无 prev 时让
+      # git-cliff 输出全部历史(首次发布场景)。
+      - name: Generate release notes via git-cliff
+        uses: orhun/git-cliff-action@4a4a951bc43fafe41cd2348e181853f6df9d4cfa # v4.5.1
+        with:
+          config: cliff.toml
+          args: >-
+            --strip header
+            --tag ${{ steps.compute_tag.outputs.tag }}
+            ${{ steps.prev_tag.outputs.prev != '' && format('{0}..HEAD', steps.prev_tag.outputs.prev) || '' }}
+        env:
+          OUTPUT: release-notes.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      # 把 release_configurations.json 里的一句固定说明拼到 git-cliff 输出之前,
+      # 形成最终的 release body。后续 publish_release 用 body_path 注入到 GitHub Release。
+      - name: Assemble final release body
+        shell: bash
+        env:
+          RELEASE_BODY_TEXT: ${{ steps.get-config.outputs.release_body_text }}
+          PREV_TAG: ${{ steps.prev_tag.outputs.prev }}
+          THIS_TAG: ${{ steps.compute_tag.outputs.tag }}
+        run: |
+          {
+            echo "$RELEASE_BODY_TEXT"
+            echo
+            if [[ -n "$PREV_TAG" ]]; then
+              echo "## 自 \`$PREV_TAG\` 以来的更新"
+            else
+              echo "## 首发版本变更"
+            fi
+            echo
+            cat release-notes.md
+          } > release-body.md
+          echo "---- release-body.md ----"
+          cat release-body.md
+
+      - name: Upload release body artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-body
+          path: release-body.md
+          if-no-files-found: error
+          retention-days: 7
 
   release_macos:
     name: Build Release (macOS ${{ matrix.dmg_name_suffix }})
@@ -346,7 +412,7 @@ jobs:
                   # 视为已安装,避免它去 pacman -S 一个仓库里没有的包。
                   # 另外带 --noconfirm:容器里没透传 GITHUB_ACTIONS,
                   # bundle_arch 里原生的那个分支不会生效。
-                  MAKEPKG_EXTRA_ARGS='--noconfirm --assume-installed opengl-driver' \
+                  MAKEPKG_EXTRA_ARGS='\''--noconfirm --assume-installed opengl-driver'\'' \
                     script/bundle --skip-build --channel oss --arch x86_64 --packages arch
                 "
             '
@@ -440,6 +506,15 @@ jobs:
           path: dist
           merge-multiple: true
 
+      # release-body artifact 是给 GitHub Release 描述用的,不是要挂到 Release 资产列表的产物。
+      # 提前从 dist/ 移到独立路径,避免 `files: dist/*` 把它当成 asset 上传。
+      - name: Extract release body from artifacts
+        shell: bash
+        run: |
+          mv dist/release-body.md ./release-body.md
+          echo "---- release-body.md ----"
+          cat ./release-body.md
+
       - name: List downloaded files
         run: ls -lh dist
         shell: bash
@@ -449,7 +524,7 @@ jobs:
         with:
           name: ${{ needs.prepare_metadata.outputs.release_name }}
           tag_name: ${{ needs.prepare_metadata.outputs.release_tag }}
-          body: ${{ needs.prepare_metadata.outputs.release_body }}
+          body_path: ./release-body.md
           draft: false
           prerelease: false
           make_latest: "true"
