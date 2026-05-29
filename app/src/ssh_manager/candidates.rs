@@ -21,9 +21,11 @@
 
 use std::collections::HashSet;
 
-use warpui::{Entity, ModelContext};
-
+use settings::Setting;
 use warp_ssh_manager::{LoadOutcome, LoadResult, SshConfigCandidate, load_candidates};
+use warpui::{Entity, ModelContext, SingletonEntity};
+
+use crate::settings::SshSettings;
 
 /// `~/.ssh/config` 一行候选服务器在 UI 中的来源 + 状态视图。
 pub struct CandidatesViewModel {
@@ -71,7 +73,15 @@ impl CandidatesViewModel {
     ///
     /// 设计上不返回错误 —— `LoadOutcome::Error` 已经把错误信息字符串带回,
     /// UI 用红色错误行展示(见 PRODUCT.md UX 表 "Parse / IO error")。
+    ///
+    /// 当"自动发现 SSH 主机"设置关闭时,跳过读取并清空状态。
     pub fn refresh(&mut self, ctx: &mut ModelContext<Self>) {
+        let auto_discover = *SshSettings::as_ref(ctx).enable_ssh_auto_discovery.value();
+        if !auto_discover {
+            self.state = None;
+            ctx.notify();
+            return;
+        }
         self.state = Some(load_candidates());
         ctx.notify();
     }

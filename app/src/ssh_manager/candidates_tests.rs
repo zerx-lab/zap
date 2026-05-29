@@ -234,3 +234,143 @@ fn path_display_reflects_state_path() {
     let empty = CandidatesViewModel::new();
     assert!(empty.path_display().is_none());
 }
+
+// ---- 显式 state=None 场景测试 ----
+// `refresh()` 在"自动发现关闭"时把 `state` 设为 `None`，效果与未初始化一致。
+// 以下测试用 `with_state(None, …)` 显式构造该状态，验证各公开方法的预期行为。
+// 注意：这些测试不经过 `refresh()` 路径，仅验证 `state = None` 时的输出。
+
+#[test]
+fn rows_empty_when_explicit_state_none() {
+    // state = None → rows 返回空 Vec, panel 据此不渲染 Candidates 区段。
+    let vm = CandidatesViewModel::with_state(None, HashSet::new(), true);
+    assert_eq!(vm.rows(), Vec::<CandidateRow>::new());
+}
+
+#[test]
+fn find_candidate_returns_none_when_explicit_state_none() {
+    // state = None → find_candidate 始终返回 None。
+    let vm = CandidatesViewModel::with_state(None, HashSet::new(), true);
+    assert!(vm.find_candidate("any-host").is_none());
+}
+
+#[test]
+fn path_display_returns_none_when_explicit_state_none() {
+    // state = None → path_display 返回 None。
+    let vm = CandidatesViewModel::with_state(None, HashSet::new(), true);
+    assert!(vm.path_display().is_none());
+}
+
+#[test]
+fn added_aliases_still_works_when_state_loaded() {
+    // 开启自动发现时,on_tree_changed 正确更新 added_aliases。
+    let mut added = HashSet::new();
+    added.insert("web-server".to_string());
+    let vm = CandidatesViewModel::with_state(
+        Some(fake_load_result_loaded(
+            "/home/u/.ssh/config",
+            vec![cand("web-server"), cand("db-server")],
+        )),
+        added,
+        true,
+    );
+    let rows = vm.rows();
+    // 第 0 行是 Header,第 1.. 是 Candidate
+    match &rows[1] {
+        CandidateRow::Candidate { alias, added, .. } => {
+            assert_eq!(alias, "web-server");
+            assert!(*added);
+        }
+        other => panic!("expected Candidate, got {other:?}"),
+    }
+    match &rows[2] {
+        CandidateRow::Candidate { alias, added, .. } => {
+            assert_eq!(alias, "db-server");
+            assert!(!*added);
+        }
+        other => panic!("expected Candidate, got {other:?}"),
+    }
+}
+
+#[test]
+fn rows_when_collapsed_with_not_found_returns_header_only() {
+    // 折叠 + NotFound 状态 → 只返回 Header,body 不渲染。
+    let vm = CandidatesViewModel::with_state(
+        Some(fake_load_result_not_found("/home/u/.ssh/config")),
+        HashSet::new(),
+        false,
+    );
+    let rows = vm.rows();
+    assert_eq!(rows.len(), 1);
+    assert!(matches!(
+        rows[0],
+        CandidateRow::Header {
+            count: 0,
+            can_refresh: true,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn rows_when_collapsed_with_error_returns_header_only() {
+    // 折叠 + Error 状态 → 只返回 Header。
+    let vm = CandidatesViewModel::with_state(
+        Some(fake_load_result_error("/home/u/.ssh/config", "io error")),
+        HashSet::new(),
+        false,
+    );
+    let rows = vm.rows();
+    assert_eq!(rows.len(), 1);
+    assert!(matches!(
+        rows[0],
+        CandidateRow::Header {
+            count: 0,
+            can_refresh: true,
+            ..
+        }
+    ));
+}
+
+// ---- refresh() 设置分支测试 ----
+// 以下测试通过 warpui runtime 真正调用 `refresh()`，验证自动发现开关的设置分支。
+// 与上方 `with_state(None, …)` 测试不同，这里经过 `refresh()` 的真实路径。
+
+#[test]
+fn refresh_clears_state_when_auto_discovery_disabled() {
+    use crate::settings::SshSettings;
+    use crate::test_util::settings::initialize_settings_for_tests;
+    use settings::Setting;
+    use warpui::{App, SingletonEntity};
+
+    App::test((), |mut app| async move {
+        initialize_settings_for_tests(&mut app);
+
+        // 关闭自动发现
+        SshSettings::handle(&app).update(&mut app, |s, ctx| {
+            s.enable_ssh_auto_discovery.set_value(false, ctx).unwrap();
+        });
+
+        // 用预加载的候选数据创建模型（模拟"曾经开启并加载过"的场景）
+        let handle = app.add_model(|_| {
+            CandidatesViewModel::with_state(
+                Some(fake_load_result_loaded(
+                    "/home/u/.ssh/config",
+                    vec![cand("web-server"), cand("db-server")],
+                )),
+                HashSet::new(),
+                true,
+            )
+        });
+
+        // refresh → 自动发现关闭 → state 被置 None
+        handle.update(&mut app, |vm, ctx| {
+            vm.refresh(ctx);
+        });
+
+        // rows() 返回空，面板据此不渲染 Candidates 区段
+        handle.read(&app, |vm, _| {
+            assert_eq!(vm.rows(), Vec::<CandidateRow>::new());
+        });
+    });
+}

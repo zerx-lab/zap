@@ -34,9 +34,12 @@ use warp_ssh_manager::{
     SshSecretStore, SshServerInfo,
 };
 
+use settings::Setting;
+
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
+use crate::settings::SshSettings;
 use crate::ssh_manager::candidates::{CandidateRow, CandidatesViewModel};
 use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 
@@ -217,6 +220,13 @@ impl SshManagerPanel {
             },
         );
 
+        // 监听 SshSettings 变更，当自动发现开关切换时刷新候选区段。
+        ctx.subscribe_to_model(&SshSettings::handle(ctx), |me, _, _, ctx| {
+            me.candidates.update(ctx, |vm, ctx| vm.refresh(ctx));
+            me.sync_candidate_row_states(ctx);
+            ctx.notify();
+        });
+
         me
     }
 
@@ -257,10 +267,13 @@ impl SshManagerPanel {
         // 树变化 → 重算 "Added" 集合(PRODUCT.md decision E)。"已导入"按
         // `server.host == candidate.alias` 判定 —— 与 ImportCandidate 的写入
         // 语义对齐(decision I:导入时 `server.host = alias`)。
-        let hosts = list_server_hosts();
-        self.candidates
-            .update(ctx, |vm, ctx| vm.on_tree_changed(hosts, ctx));
-        self.sync_candidate_row_states(ctx);
+        let auto_discover = *SshSettings::as_ref(ctx).enable_ssh_auto_discovery.value();
+        if auto_discover {
+            let hosts = list_server_hosts();
+            self.candidates
+                .update(ctx, |vm, ctx| vm.on_tree_changed(hosts, ctx));
+            self.sync_candidate_row_states(ctx);
+        }
 
         ctx.notify();
     }
@@ -1726,11 +1739,17 @@ impl View for SshManagerPanel {
 
         // PRODUCT.md §2:Candidates 区段在已保存树**上方**,共享同一面板
         // 水平内边距。区段在 view-model 还没 refresh 时返回 Empty,不会占
-        // 高度。
-        let candidates_section = Container::new(self.render_candidates(appearance, app))
-            .with_padding_left(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
-            .with_padding_right(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
-            .finish();
+        // 高度。自动发现关闭时不渲染区段。
+        let auto_discover =
+            *SshSettings::as_ref(app).enable_ssh_auto_discovery.value();
+        let candidates_section = if auto_discover {
+            Container::new(self.render_candidates(appearance, app))
+                .with_padding_left(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
+                .with_padding_right(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
+                .finish()
+        } else {
+            Empty::new().finish()
+        };
 
         let tree = Container::new(self.render_tree(appearance))
             .with_padding_left(PANEL_HORIZONTAL_PADDING - ITEM_PADDING_HORIZONTAL)
