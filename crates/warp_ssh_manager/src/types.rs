@@ -1,6 +1,14 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
+/// 连接状态 —— 仅用于 UI 层显示，不持久化
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConnectionStatus {
+    Unknown,
+    Online,
+    Offline,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum NodeKind {
     Folder,
@@ -70,7 +78,6 @@ pub struct SshServerInfo {
     pub port: u16,
     pub username: String,
     pub auth_type: AuthType,
-    /// auth_type=Key 时使用,绝对路径或 `~` 开头(由调用方 `shellexpand`)。
     pub key_path: Option<String>,
     pub startup_command: Option<String>,
     pub notes: Option<String>,
@@ -88,6 +95,21 @@ impl SshServerInfo {
             key_path: None,
             startup_command: None,
             notes: None,
+            last_connected_at: None,
+        }
+    }
+
+    /// 从现有服务器克隆配置，生成新的 node_id
+    pub fn clone_from_template(source: &Self, new_node_id: String) -> Self {
+        Self {
+            node_id: new_node_id,
+            host: source.host.clone(),
+            port: source.port,
+            username: source.username.clone(),
+            auth_type: source.auth_type,
+            key_path: source.key_path.clone(),
+            startup_command: source.startup_command.clone(),
+            notes: source.notes.clone(),
             last_connected_at: None,
         }
     }

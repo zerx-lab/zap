@@ -30,8 +30,8 @@ use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 
 use warp_ssh_manager::{
-    AuthType, KeychainSecretStore, NodeKind, SecretKind, SshNode, SshRepository, SshSecretStore,
-    SshServerInfo,
+    AuthType, ConnectionStatus, KeychainSecretStore, NodeKind, SecretKind, SshNode, SshRepository,
+    SshSecretStore, SshServerInfo,
 };
 
 const FIELD_LABEL_MARGIN_TOP: f32 = 6.0;
@@ -46,16 +46,18 @@ const AUTH_TOGGLE_PADDING_V: f32 = 6.0;
 pub enum SshServerAction {
     Save,
     Connect,
+    TestConnection,
     SetAuthPassword,
     SetAuthKey,
     /// 打开系统文件选择器选私钥文件,把路径写入 key_path editor。
     PickKeyFile,
 }
 
-/// 一次性显示在 Save 按钮上方/下方的状态标签。Phase 2 用于"已保存 / 错误"提示。
+/// 一次性显示在 Save 按钮上方/下方的状态标签。
 #[derive(Debug, Clone)]
 enum StatusBanner {
     Saved,
+    Success(String),
     Error(String),
 }
 
@@ -83,11 +85,15 @@ pub struct SshServerView {
 
     save_btn_state: MouseStateHandle,
     connect_btn_state: MouseStateHandle,
+    test_btn_state: MouseStateHandle,
     auth_password_btn_state: MouseStateHandle,
     auth_key_btn_state: MouseStateHandle,
     key_path_picker_btn_state: MouseStateHandle,
 
     status: Option<StatusBanner>,
+    connection_status: ConnectionStatus,
+    latency_ms: Option<u64>,
+    is_testing: bool,
     scroll_state: ClippedScrollStateHandle,
 }
 
@@ -124,10 +130,14 @@ impl SshServerView {
             auth_type: AuthType::Password,
             save_btn_state: MouseStateHandle::default(),
             connect_btn_state: MouseStateHandle::default(),
+            test_btn_state: MouseStateHandle::default(),
             auth_password_btn_state: MouseStateHandle::default(),
             auth_key_btn_state: MouseStateHandle::default(),
             key_path_picker_btn_state: MouseStateHandle::default(),
             status: None,
+            connection_status: ConnectionStatus::Unknown,
+            latency_ms: None,
+            is_testing: false,
             scroll_state: ClippedScrollStateHandle::default(),
         };
         me.reload(ctx);
@@ -450,6 +460,83 @@ impl SshServerView {
         });
     }
 
+    fn on_test_connection(&mut self, ctx: &mut ViewContext<Self>) {
+        let host = self.current_text(&self.host_editor.clone(), ctx);
+        let port_str = self.current_text(&self.port_editor.clone(), ctx);
+        let user = self.current_text(&self.user_editor.clone(), ctx);
+        let password = self.current_text(&self.password_editor.clone(), ctx);
+        let key_path_text = self.current_text(&self.key_path_editor.clone(), ctx);
+
+        let port: u16 = port_str.trim().parse().unwrap_or(22);
+        let host = host.trim().to_string();
+        if host.is_empty() {
+            self.status = Some(StatusBanner::Error(crate::t!(
+                "workspace-left-panel-ssh-manager-error-host-required"
+            )));
+            ctx.notify();
+            return;
+        }
+
+        let key_path = key_path_text.trim().to_string();
+        let server = SshServerInfo {
+            node_id: self.node_id.clone(),
+            host,
+            port,
+            username: user.trim().to_string(),
+            auth_type: self.auth_type,
+            key_path: if key_path.is_empty() { None } else { Some(key_path) },
+            startup_command: None,
+            notes: None,
+            last_connected_at: None,
+        };
+
+        let password = if password.is_empty() { None } else { Some(password) };
+
+        self.is_testing = true;
+        self.status = None;
+        ctx.notify();
+
+        let node_id = self.node_id.clone();
+        ctx.spawn(
+            async move {
+                let result = warp_ssh_manager::ssh_command::test_connection(&server, password).await;
+                (node_id, result)
+            },
+            |me, (_node_id, result), ctx| {
+                me.is_testing = false;
+                me.connection_status = result.status;
+                me.latency_ms = result.latency_ms;
+                match result.status {
+                    ConnectionStatus::Online => {
+                        let latency_str = result.latency_ms
+                            .map(|ms| format!("{ms}ms"))
+                            .unwrap_or_else(|| "N/A".into());
+                        let msg = result.error_message.unwrap_or_default();
+                        if msg.contains("password auth required") {
+                            me.status = Some(StatusBanner::Success(format!(
+                                "Server reachable - latency: {latency_str}"
+                            )));
+                        } else {
+                            me.status = Some(StatusBanner::Success(format!(
+                                "Online - latency: {latency_str}"
+                            )));
+                        }
+                    }
+                    ConnectionStatus::Offline => {
+                        me.latency_ms = None;
+                        let err = result.error_message.unwrap_or_else(|| "Unknown error".into());
+                        me.status = Some(StatusBanner::Error(err));
+                    }
+                    ConnectionStatus::Unknown => {
+                        me.latency_ms = None;
+                        me.status = None;
+                    }
+                }
+                ctx.notify();
+            },
+        );
+    }
+
     /// 打开系统文件选择器选私钥文件,选完写入 key_path editor。回调 ctx
     /// 是 ViewContext<Self>(框架自动维持原 view 上下文)。
     fn on_pick_key_file(&mut self, ctx: &mut ViewContext<Self>) {
@@ -727,6 +814,71 @@ impl SshServerView {
             .finish()
     }
 
+    fn render_test_button(&self, appearance: &Appearance) -> Box<dyn Element> {
+        let label = if self.is_testing {
+            crate::t!("workspace-left-panel-ssh-manager-testing")
+        } else {
+            crate::t!("workspace-left-panel-ssh-manager-test")
+        };
+        appearance
+            .ui_builder()
+            .button(ButtonVariant::Secondary, self.test_btn_state.clone())
+            .with_style(UiComponentStyles {
+                font_weight: Some(Weight::Bold),
+                width: Some(SAVE_BUTTON_WIDTH),
+                height: Some(SAVE_BUTTON_HEIGHT),
+                font_size: Some(13.0),
+                ..Default::default()
+            })
+            .with_centered_text_label(label)
+            .build()
+            .on_click(move |ctx, _, _| ctx.dispatch_typed_action(SshServerAction::TestConnection))
+            .finish()
+    }
+
+    fn render_connection_status(&self, appearance: &Appearance) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let bg = theme.background();
+        let (icon, color, text) = match self.connection_status {
+            ConnectionStatus::Online => {
+                let latency_str = self.latency_ms
+                    .map(|ms| format!(" ({ms}ms)"))
+                    .unwrap_or_default();
+                (
+                    "●",
+                    theme.ui_green_color().into(),
+                    format!("{}{latency_str}", crate::t!("workspace-left-panel-ssh-manager-status-online")),
+                )
+            }
+            ConnectionStatus::Offline => (
+                "●",
+                theme.ui_error_color().into(),
+                crate::t!("workspace-left-panel-ssh-manager-status-offline"),
+            ),
+            ConnectionStatus::Unknown => (
+                "○",
+                theme.sub_text_color(bg),
+                crate::t!("workspace-left-panel-ssh-manager-status-unknown"),
+            ),
+        };
+
+        Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_spacing(4.0)
+            .with_child(
+                Text::new_inline(icon, appearance.ui_font_family(), 12.0)
+                    .with_color(color.into())
+                    .finish(),
+            )
+            .with_child(
+                Text::new_inline(text, appearance.ui_font_family(), appearance.ui_font_size())
+                    .with_color(color.into())
+                    .finish(),
+            )
+            .with_main_axis_size(MainAxisSize::Min)
+            .finish()
+    }
+
     fn render_status_banner(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {
         let theme = appearance.theme();
         let (text, color) = match self.status.as_ref()? {
@@ -734,6 +886,7 @@ impl SshServerView {
                 crate::t!("workspace-left-panel-ssh-manager-status-saved"),
                 theme.ui_green_color(),
             ),
+            StatusBanner::Success(msg) => (msg.clone(), theme.ui_green_color()),
             StatusBanner::Error(msg) => (msg.clone(), theme.ui_error_color()),
         };
         Some(
@@ -792,6 +945,7 @@ impl TypedActionView for SshServerView {
         match action {
             SshServerAction::Save => self.on_save(ctx),
             SshServerAction::Connect => self.on_connect(ctx),
+            SshServerAction::TestConnection => self.on_test_connection(ctx),
             SshServerAction::SetAuthPassword => self.on_set_auth(AuthType::Password, ctx),
             SshServerAction::SetAuthKey => self.on_set_auth(AuthType::Key, ctx),
             SshServerAction::PickKeyFile => self.on_pick_key_file(ctx),
@@ -851,10 +1005,11 @@ impl View for SshServerView {
         )
         .finish();
 
-        // Title 在左 / [Connect] [Save] 按钮在右。
+        // Title 在左 / [Test] [Connect] [Save] 按钮在右。
         let buttons = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(8.0)
+            .with_child(self.render_test_button(appearance))
             .with_child(self.render_connect_button(appearance))
             .with_child(self.render_save_button(appearance))
             .with_main_axis_size(MainAxisSize::Min)
@@ -868,7 +1023,9 @@ impl View for SshServerView {
             .finish();
 
         let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
-        col.add_child(Container::new(header).with_margin_bottom(16.0).finish());
+        col.add_child(Container::new(header).with_margin_bottom(8.0).finish());
+
+        col.add_child(Container::new(self.render_connection_status(appearance)).with_margin_bottom(8.0).finish());
 
         if let Some(banner) = self.render_status_banner(appearance) {
             col.add_child(banner);
