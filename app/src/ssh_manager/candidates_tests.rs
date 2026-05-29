@@ -234,3 +234,100 @@ fn path_display_reflects_state_path() {
     let empty = CandidatesViewModel::new();
     assert!(empty.path_display().is_none());
 }
+
+// ---- 自动发现开关相关测试 ----
+// 当"自动发现 SSH 主机"设置关闭时,`refresh()` 会把 `state` 设为 `None`。
+// 下面的测试验证 `state = None` 时各公开方法的预期行为。
+
+#[test]
+fn rows_empty_when_auto_discovery_off() {
+    // 自动发现关闭 → refresh 设 state = None → rows 返回空 Vec,
+    // panel 据此不渲染 Candidates 区段。
+    let vm = CandidatesViewModel::with_state(None, HashSet::new(), true);
+    assert_eq!(vm.rows(), Vec::<CandidateRow>::new());
+}
+
+#[test]
+fn find_candidate_returns_none_when_auto_discovery_off() {
+    // 自动发现关闭 → state = None → find_candidate 始终返回 None。
+    let vm = CandidatesViewModel::with_state(None, HashSet::new(), true);
+    assert!(vm.find_candidate("any-host").is_none());
+}
+
+#[test]
+fn path_display_returns_none_when_auto_discovery_off() {
+    // 自动发现关闭 → state = None → path_display 返回 None。
+    let vm = CandidatesViewModel::with_state(None, HashSet::new(), true);
+    assert!(vm.path_display().is_none());
+}
+
+#[test]
+fn added_aliases_still_works_when_state_loaded() {
+    // 开启自动发现时,on_tree_changed 正确更新 added_aliases。
+    let mut added = HashSet::new();
+    added.insert("web-server".to_string());
+    let vm = CandidatesViewModel::with_state(
+        Some(fake_load_result_loaded(
+            "/home/u/.ssh/config",
+            vec![cand("web-server"), cand("db-server")],
+        )),
+        added,
+        true,
+    );
+    let rows = vm.rows();
+    // 第 0 行是 Header,第 1.. 是 Candidate
+    match &rows[1] {
+        CandidateRow::Candidate { alias, added, .. } => {
+            assert_eq!(alias, "web-server");
+            assert!(*added);
+        }
+        other => panic!("expected Candidate, got {other:?}"),
+    }
+    match &rows[2] {
+        CandidateRow::Candidate { alias, added, .. } => {
+            assert_eq!(alias, "db-server");
+            assert!(!*added);
+        }
+        other => panic!("expected Candidate, got {other:?}"),
+    }
+}
+
+#[test]
+fn rows_when_collapsed_with_not_found_returns_header_only() {
+    // 折叠 + NotFound 状态 → 只返回 Header,body 不渲染。
+    let vm = CandidatesViewModel::with_state(
+        Some(fake_load_result_not_found("/home/u/.ssh/config")),
+        HashSet::new(),
+        false,
+    );
+    let rows = vm.rows();
+    assert_eq!(rows.len(), 1);
+    assert!(matches!(
+        rows[0],
+        CandidateRow::Header {
+            count: 0,
+            can_refresh: true,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn rows_when_collapsed_with_error_returns_header_only() {
+    // 折叠 + Error 状态 → 只返回 Header。
+    let vm = CandidatesViewModel::with_state(
+        Some(fake_load_result_error("/home/u/.ssh/config", "io error")),
+        HashSet::new(),
+        false,
+    );
+    let rows = vm.rows();
+    assert_eq!(rows.len(), 1);
+    assert!(matches!(
+        rows[0],
+        CandidateRow::Header {
+            count: 0,
+            can_refresh: true,
+            ..
+        }
+    ));
+}
