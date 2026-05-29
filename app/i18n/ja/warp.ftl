@@ -842,6 +842,8 @@ settings-cloud-sync-clear = クリア
 settings-cloud-sync-validating = トークンを検証中...
 settings-cloud-sync-token-valid = トークン有効（{$username}）
 settings-cloud-sync-token-invalid = 無効なトークン：{$error}
+settings-cloud-sync-auto-sync-label = 自動同期
+settings-cloud-sync-auto-sync-description = 設定変更時に自動アップロード、アプリ起動時に自動ダウンロード
 
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # Section / sub-headers
