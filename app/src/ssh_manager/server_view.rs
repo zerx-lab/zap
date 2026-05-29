@@ -357,7 +357,11 @@ impl SshServerView {
                 .iter()
                 .position(|(id, _)| id == gid)
                 .map(|pos| pos + 1) // +1 因为 index 0 是 "Root"
-                .unwrap_or(0)
+                .unwrap_or_else(|| {
+                    // 文件夹已被外部删除,回退到根级
+                    self.current_group_id = None;
+                    0
+                })
         } else {
             0 // Root
         };
