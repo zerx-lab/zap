@@ -92,6 +92,35 @@ where
     coloru_to_hex_alpha_string(&coloru).serialize(serializer)
 }
 
+/// 支持 Option<ColorU> 的 serde 序列化/反序列化模块。
+/// 用于 `#[serde(default, with = "hex_color_alpha::option")]`。
+pub mod option {
+    use super::*;
+
+    /// 反序列化可选的 hex 颜色值，支持 None 和字符串。
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<ColorU>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt: Option<String> = Option::deserialize(deserializer)?;
+        match opt {
+            Some(s) => coloru_from_hex_alpha(&s).map(Some).map_err(de::Error::custom),
+            None => Ok(None),
+        }
+    }
+
+    /// 序列化可选的 hex 颜色值，None 时输出 null。
+    pub fn serialize<S>(color: &Option<ColorU>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match color {
+            Some(c) => coloru_to_hex_alpha_string(c).serialize(serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
