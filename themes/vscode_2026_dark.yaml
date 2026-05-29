@@ -1,0 +1,30 @@
+# VS Code 2026 Dark (从 vscode 源码迁移)
+# 配色源: vscode/extensions/theme-defaults/themes/2026-dark.json
+# 安装方式 (Windows / openWarp OSS):
+#   将本文件复制到 %APPDATA%\zap\Zap\data\themes\vscode_2026_dark.yaml
+#   重启 openWarp 后, 在 Settings → Appearance → Themes 选择 "VS Code 2026 Dark"
+---
+name: VS Code 2026 Dark
+background: '#191A1B'
+foreground: '#bfbfbf'
+accent: '#3994BC'
+details: darker
+terminal_colors:
+  normal:
+    black: '#191A1B'
+    red: '#F48771'
+    green: '#2EA043'
+    yellow: '#E5BA7D'
+    blue: '#3994BC'
+    magenta: '#B180D7'
+    cyan: '#48A0C7'
+    white: '#EDEDED'
+  bright:
+    black: '#555555'
+    red: '#F48771'
+    green: '#369432'
+    yellow: '#B89500'
+    blue: '#53A5CA'
+    magenta: '#FF8FFD'
+    cyan: '#56D4DD'
+    white: '#FFFFFF'
