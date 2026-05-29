@@ -70,8 +70,6 @@ enum SyncState {
     Failed {
         message: String,
     },
-    /// 自动同步上传成功
-    AutoSyncSuccess,
     Conflict {
         local_version: i64,
         remote_version: i64,
@@ -324,7 +322,13 @@ impl CloudSyncPageView {
                 if !token.is_empty() {
                     let sync_platform = platform.to_sync_platform();
                     let spawn_token = token.clone();
+                    // 预先保存 conflict_token，与 spawn_download 模式一致
                     me.conflict_token = token;
+                    // 设置 Syncing 状态，让 is_syncing 守卫生效，防止并发同步
+                    me.sync_state = SyncState::Syncing {
+                        platform: sync_platform,
+                        direction: SyncDirection::Download,
+                    };
                     ctx.spawn(
                         async move {
                             let engine = SyncEngine::new();
@@ -363,8 +367,17 @@ impl CloudSyncPageView {
                                     }
                                     ctx.notify();
                                 }
-                                Ok(SyncResult::AlreadyUpToDate { .. }) => {}
+                                Ok(SyncResult::AlreadyUpToDate { .. }) => {
+                                    // 非冲突结局：恢复 Idle 并清理 conflict_token
+                                    view.sync_state = SyncState::Idle;
+                                    view.conflict_token.clear();
+                                }
                                 Err(e) => {
+                                    // 非冲突结局：恢复 Failed 并清理 conflict_token
+                                    view.sync_state = SyncState::Failed {
+                                        message: e.clone(),
+                                    };
+                                    view.conflict_token.clear();
                                     log::warn!("Auto sync download failed: {e}");
                                 }
                             }
@@ -756,6 +769,10 @@ impl CloudSyncPageView {
         if token.is_empty() {
             return;
         }
+
+        // 预先保存 conflict_token，若上传返回 Conflict → Force Upload 时复用
+        // （与 spawn_upload 保持一致，遵循 PR #161 review 确立的 token 快照模式）
+        self.conflict_token = token.clone();
 
         self.sync_state = SyncState::Syncing {
             platform,
@@ -1349,7 +1366,6 @@ impl SettingsWidget for CloudSyncPageWidget {
             SyncState::Success { .. } => Some(theme.accent().into_solid()),
             SyncState::AlreadyUpToDate { .. } => Some(theme.active_ui_text_color().into_solid()),
             SyncState::Failed { .. } => Some(theme.ui_error_color().into()),
-            SyncState::AutoSyncSuccess => None,
             SyncState::Conflict { .. } => Some(theme.active_ui_text_color().into_solid()),
             SyncState::Syncing { .. } => Some(theme.active_ui_text_color().into_solid()),
         };
@@ -1384,7 +1400,6 @@ impl SettingsWidget for CloudSyncPageWidget {
             SyncState::Failed { message } => {
                 Some(crate::t!("settings-cloud-sync-failed", error = message.clone()))
             }
-            SyncState::AutoSyncSuccess => None,
             SyncState::Conflict {
                 local_version,
                 remote_version,
