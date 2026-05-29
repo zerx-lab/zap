@@ -98,6 +98,46 @@ fn test_custom_heading_font_size_multipliers() {
     );
 }
 
+/// 作者: logic
+/// 验证默认倍率精确值，防止 BlockHeaderSize 或 Default impl 被意外修改
+#[test]
+fn test_heading_default_values_are_spec() {
+    let m = HeadingFontSizeMultipliers::default();
+    assert_eq!(m.h1, 2.0);
+    assert_eq!(m.h2, 1.5);
+    assert_eq!(m.h3, 1.17);
+    assert_eq!(m.h4, 1.0);
+    assert_eq!(m.h5, 0.83);
+    assert_eq!(m.h6, 0.75);
+}
+
+/// 作者: logic
+/// 验证标题字号倍率层级不变式: h1 >= h2 >= h3 >= h4 >= h5 >= h6
+#[test]
+fn test_heading_multipliers_size_ordering() {
+    let m = HeadingFontSizeMultipliers::default();
+    assert!(m.h1 >= m.h2, "h1 >= h2");
+    assert!(m.h2 >= m.h3, "h2 >= h3");
+    assert!(m.h3 >= m.h4, "h3 >= h4");
+    assert!(m.h4 >= m.h5, "h4 >= h5");
+    assert!(m.h5 >= m.h6, "h5 >= h6");
+}
+
+/// 作者: logic
+/// 验证 get_multiplier 是 const fn，可在编译期求值
+#[test]
+fn test_get_multiplier_const_fn() {
+    const M: HeadingFontSizeMultipliers = HeadingFontSizeMultipliers {
+        h1: 2.0, h2: 1.5, h3: 1.17, h4: 1.0, h5: 0.83, h6: 0.67,
+    };
+    const H1: f32 = M.get_multiplier(1);
+    const H4: f32 = M.get_multiplier(4);
+    const FALLBACK: f32 = M.get_multiplier(0);
+    assert_eq!(H1, 2.0);
+    assert_eq!(H4, 1.0);
+    assert_eq!(FALLBACK, 1.0);
+}
+
 fn sr(char_start: usize, char_end: usize, byte_start: usize, byte_end: usize) -> SecretRange {
     SecretRange {
         char_range: char_start..char_end,

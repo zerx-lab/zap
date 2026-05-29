@@ -93,6 +93,7 @@ impl OnboardingPromptBlock {
                         font_color.into_solid(),
                         self.learn_more_highlight_index.clone(),
                     )
+                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                     .with_hyperlink_font_color(current_theme.accent().into_solid())
                     .register_default_click_handlers(|url, ctx, _| {
                         ctx.dispatch_typed_action(OnboardingPromptBlockAction::HyperlinkClick(url));

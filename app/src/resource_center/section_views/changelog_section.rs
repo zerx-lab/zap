@@ -329,6 +329,7 @@ fn render_changelog_body(
                 .into_solid(),
             highlighted_link,
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .register_default_click_handlers(move |url, ctx, _| {
             ctx.dispatch_typed_action(SectionAction::OpenUrl(url.url));
         })

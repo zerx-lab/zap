@@ -1088,6 +1088,7 @@ impl MCPServersListPageView {
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
             HighlightedHyperlink::default(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, _, ctx| {
             ctx.open_url(&url.url);
@@ -1126,6 +1127,7 @@ impl MCPServersListPageView {
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
             HighlightedHyperlink::default(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(appearance.theme().accent().into_solid())
         .register_default_click_handlers(|url, _, ctx| {
             ctx.open_url(&url.url);

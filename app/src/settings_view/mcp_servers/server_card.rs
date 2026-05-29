@@ -671,6 +671,7 @@ impl ServerCardView {
             blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
             HighlightedHyperlink::default(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .finish()
     }
 
@@ -695,6 +696,7 @@ impl ServerCardView {
                     ),
                     HighlightedHyperlink::default(),
                 )
+                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                 .finish(),
             );
         }
@@ -711,6 +713,7 @@ impl ServerCardView {
                     blended_colors::text_sub(appearance.theme(), appearance.theme().surface_1()),
                     HighlightedHyperlink::default(),
                 )
+                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                 .finish(),
             );
         }
@@ -727,6 +730,7 @@ impl ServerCardView {
                     appearance.theme().ui_error_color(),
                     HighlightedHyperlink::default(),
                 )
+                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                 .finish(),
             );
         }

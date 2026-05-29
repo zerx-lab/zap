@@ -1,4 +1,5 @@
 use warpui::{
+    elements::HeadingFontSizeMultipliers,
     fonts::{FamilyId, Weight},
     Entity, ModelContext, SingletonEntity,
 };
@@ -37,6 +38,7 @@ pub struct Appearance {
     /// A font that is used for password fields.
     password_font_family: FamilyId,
     ui_font_size: f32,
+    heading_font_size_multipliers: HeadingFontSizeMultipliers,
 }
 
 /// Defines appearance change events.
@@ -77,6 +79,7 @@ pub enum AppearanceEvent {
         previous_font_size: f32,
         current_font_size: f32,
     },
+    HeadingFontSizeMultipliersChanged,
 }
 
 impl Appearance {
@@ -91,6 +94,7 @@ impl Appearance {
         ai_font_family: FamilyId,
         password_font_family: FamilyId,
         ui_font_size: f32,
+        heading_font_size_multipliers: HeadingFontSizeMultipliers,
     ) -> Self {
         Self {
             theme: theme.clone(),
@@ -109,6 +113,7 @@ impl Appearance {
             ai_font_family,
             password_font_family,
             ui_font_size,
+            heading_font_size_multipliers,
         }
     }
 
@@ -148,6 +153,7 @@ impl Appearance {
             ai_font_family: FamilyId(0),
             password_font_family: FamilyId(0),
             ui_font_size: DEFAULT_UI_FONT_SIZE,
+            heading_font_size_multipliers: HeadingFontSizeMultipliers::default(),
         }
     }
 
@@ -333,6 +339,20 @@ impl Appearance {
 
     pub fn monospace_font_size(&self) -> f32 {
         self.monospace_font_size
+    }
+
+    pub fn heading_font_size_multipliers(&self) -> &HeadingFontSizeMultipliers {
+        &self.heading_font_size_multipliers
+    }
+
+    pub fn set_heading_font_size_multipliers(
+        &mut self,
+        new_multipliers: HeadingFontSizeMultipliers,
+        ctx: &mut ModelContext<Self>,
+    ) {
+        self.heading_font_size_multipliers = new_multipliers;
+        ctx.invalidate_all_views();
+        ctx.emit(AppearanceEvent::HeadingFontSizeMultipliersChanged);
     }
 
     pub fn monospace_ui_scalar(&self) -> f32 {

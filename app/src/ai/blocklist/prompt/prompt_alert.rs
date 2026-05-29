@@ -240,6 +240,7 @@ impl View for PromptAlertView {
             error_color(appearance.theme()),
             self.action_hyperlink.clone(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_line_height_ratio(1.)
         .with_hyperlink_font_color(appearance.theme().ansi_fg_blue())
         .with_no_text_wrapping()

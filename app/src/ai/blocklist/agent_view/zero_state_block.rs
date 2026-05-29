@@ -583,6 +583,7 @@ fn render_title_and_description(props: HeaderProps, app: &AppContext) -> Vec<Box
                     sub_text_color,
                     Default::default(),
                 )
+                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                 .with_inline_code_properties(Some(main_text_color), None)
                 .finish()
             });

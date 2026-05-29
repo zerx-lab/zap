@@ -581,6 +581,7 @@ impl SearchItem for ModelSearchItem {
                 theme.disabled_ui_text_color().into_solid(),
                 HighlightedHyperlink::default(),
             )
+            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
             .with_hyperlink_font_color(theme.accent().into_solid())
             .register_default_click_handlers_with_action_support(|hyperlink_lens, event, ctx| {
                 match hyperlink_lens {

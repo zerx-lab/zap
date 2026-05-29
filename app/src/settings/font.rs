@@ -10,7 +10,7 @@ use warpui::{fonts::Weight, rendering::ThinStrokes, AppContext, SingletonEntity}
 use settings::{
     macros::define_settings_group, RespectUserSyncSetting, Setting, SupportedPlatforms, SyncToCloud,
 };
-use warpui::elements::DEFAULT_UI_LINE_HEIGHT_RATIO;
+use warpui::elements::{HeadingFontSizeMultipliers, DEFAULT_UI_LINE_HEIGHT_RATIO};
 
 use super::EnforceMinimumContrast as EnforceMinimumContrastEnum;
 
@@ -137,6 +137,60 @@ define_settings_group!(FontSettings,
             toml_path: "appearance.text.ui_font_size",
             description: "The base font size for UI elements.",
         },
+        markdown_heading_h1_scale: MarkdownHeadingH1Scale {
+            type: f32,
+            default: 2.0,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h1_scale",
+            description: "The font size multiplication ratio for markdown heading level 1.",
+        },
+        markdown_heading_h2_scale: MarkdownHeadingH2Scale {
+            type: f32,
+            default: 1.5,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h2_scale",
+            description: "The font size multiplication ratio for markdown heading level 2.",
+        },
+        markdown_heading_h3_scale: MarkdownHeadingH3Scale {
+            type: f32,
+            default: 1.17,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h3_scale",
+            description: "The font size multiplication ratio for markdown heading level 3.",
+        },
+        markdown_heading_h4_scale: MarkdownHeadingH4Scale {
+            type: f32,
+            default: 1.0,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h4_scale",
+            description: "The font size multiplication ratio for markdown heading level 4.",
+        },
+        markdown_heading_h5_scale: MarkdownHeadingH5Scale {
+            type: f32,
+            default: 0.83,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h5_scale",
+            description: "The font size multiplication ratio for markdown heading level 5.",
+        },
+        markdown_heading_h6_scale: MarkdownHeadingH6Scale {
+            type: f32,
+            default: 0.75,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            toml_path: "appearance.text.markdown_heading_h6_scale",
+            description: "The font size multiplication ratio for markdown heading level 6.",
+        },
     ]
 );
 
@@ -166,5 +220,18 @@ pub fn derived_notebook_font_size(font_settings: &FontSettings) -> f32 {
         *font_settings.monospace_font_size
     } else {
         *font_settings.notebook_font_size
+    }
+}
+
+pub fn heading_font_size_multipliers_from_settings(
+    font_settings: &FontSettings,
+) -> HeadingFontSizeMultipliers {
+    HeadingFontSizeMultipliers {
+        h1: *font_settings.markdown_heading_h1_scale,
+        h2: *font_settings.markdown_heading_h2_scale,
+        h3: *font_settings.markdown_heading_h3_scale,
+        h4: *font_settings.markdown_heading_h4_scale,
+        h5: *font_settings.markdown_heading_h5_scale,
+        h6: *font_settings.markdown_heading_h6_scale,
     }
 }

@@ -241,6 +241,7 @@ impl HeaderConfig {
                     text_color,
                     Default::default(),
                 )
+                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                 .set_selectable(self.is_text_selectable);
                 if !self.soft_wrap_title {
                     element = element.with_no_text_wrapping();

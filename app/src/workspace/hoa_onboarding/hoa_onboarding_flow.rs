@@ -493,6 +493,7 @@ impl HoaOnboardingFlow {
             callout_body_color(appearance),
             Default::default(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_line_height_ratio(1.2)
         .register_default_click_handlers(|link, _ctx, app| {
             app.open_url(&link.url);

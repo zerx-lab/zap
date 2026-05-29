@@ -1875,6 +1875,7 @@ fn render_permissions_speedbump(
         font_color,
         props.ai_settings_link.clone(),
     )
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
     .with_hyperlink_font_color(blended_colors::accent_fg_strong(theme).into())
     .register_default_click_handlers(|_, ctx, _| {
         ctx.dispatch_typed_action(WorkspaceAction::ShowSettingsPage(

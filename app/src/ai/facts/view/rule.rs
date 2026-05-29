@@ -554,6 +554,7 @@ impl RuleView {
                 .into(),
             self.disabled_banner_highlight_index.clone(),
         )
+        .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
         .with_hyperlink_font_color(internal_colors::accent_fg_strong(appearance.theme()).into())
         .register_default_click_handlers(|_, ctx, _| {
             ctx.dispatch_typed_action(RuleViewAction::OpenSettings);

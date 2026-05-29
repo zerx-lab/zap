@@ -377,6 +377,7 @@ pub fn render_requested_action_body_text(
         blended_colors::text_main(theme, theme.background()),
         Default::default(),
     )
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
     .with_color(blended_colors::text_main(theme, theme.background()))
     .set_selectable(true)
 }

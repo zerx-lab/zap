@@ -26,6 +26,7 @@ fn mock_appearance() -> Appearance {
         FamilyId(0),
         FamilyId(0),
         DEFAULT_UI_FONT_SIZE,
+        Default::default(),
     )
 }
 

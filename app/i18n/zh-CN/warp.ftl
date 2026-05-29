@@ -1368,6 +1368,14 @@ settings-appearance-font-size-label = 字号（像素）
 settings-appearance-font-line-height-label = 行高
 settings-appearance-font-reset-default = 恢复默认
 settings-appearance-font-notebook-size-label = 笔记本字号
+settings-appearance-markdown-heading-scale-label = Markdown 标题字号倍率
+settings-appearance-markdown-heading-scale-description = 此倍率以终端字体字号为基准，实际字号 = 终端字体字号 × 倍率
+settings-appearance-markdown-heading-h1-label = H1 倍率
+settings-appearance-markdown-heading-h2-label = H2 倍率
+settings-appearance-markdown-heading-h3-label = H3 倍率
+settings-appearance-markdown-heading-h4-label = H4 倍率
+settings-appearance-markdown-heading-h5-label = H5 倍率
+settings-appearance-markdown-heading-h6-label = H6 倍率
 settings-appearance-font-thin-strokes-label = 使用细笔画
 settings-appearance-font-thin-strokes-never = 从不
 settings-appearance-font-thin-strokes-low-dpi = 仅低 DPI 显示器

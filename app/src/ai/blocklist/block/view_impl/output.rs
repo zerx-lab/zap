@@ -943,6 +943,7 @@ pub(super) fn render(props: Props, app: &AppContext) -> Box<dyn Element> {
                                 body_color,
                                 Default::default(),
                             )
+                            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
                             .set_selectable(true);
 
                             let mut action =
@@ -2032,6 +2033,7 @@ fn create_formatted_text_for_grep(
         theme.main_text_color(theme.background()).into(),
         Default::default(),
     )
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
     .with_inline_code_properties(
         Some(
             if is_queued
@@ -2136,6 +2138,7 @@ fn create_formatted_text_for_file_glob(
         theme.main_text_color(theme.background()).into(),
         Default::default(),
     )
+    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
     .with_inline_code_properties(
         Some(
             if is_queued
