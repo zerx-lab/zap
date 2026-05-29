@@ -5,6 +5,7 @@ use self::contrast::{high_enough_contrast, pick_constrasting_color, MinimumAllow
 pub mod blend;
 pub mod contrast;
 pub mod hex_color;
+pub mod hex_color_alpha;
 
 /// Opacity of the given color expressed as %. Allowing for range 0..100 inclusive.
 /// TODO: use a bounded type instead
