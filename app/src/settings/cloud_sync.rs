@@ -96,4 +96,65 @@ mod tests {
         assert_eq!(SyncPlatformSetting::GitHub.label(), "GitHub");
         assert_eq!(SyncPlatformSetting::Gitee.label(), "Gitee");
     }
+
+    #[test]
+    fn test_sync_platform_display() {
+        assert_eq!(format!("{}", SyncPlatformSetting::GitHub), "GitHub");
+        assert_eq!(format!("{}", SyncPlatformSetting::Gitee), "Gitee");
+    }
+
+    #[test]
+    fn test_sync_platform_equality() {
+        assert_eq!(SyncPlatformSetting::GitHub, SyncPlatformSetting::GitHub);
+        assert_ne!(SyncPlatformSetting::GitHub, SyncPlatformSetting::Gitee);
+    }
+
+    #[test]
+    fn test_sync_platform_serialization() {
+        let github = SyncPlatformSetting::GitHub;
+        let json = serde_json::to_string(&github).unwrap();
+        assert_eq!(json, r#""git_hub""#);
+
+        let gitee = SyncPlatformSetting::Gitee;
+        let json = serde_json::to_string(&gitee).unwrap();
+        assert_eq!(json, r#""gitee""#);
+    }
+
+    #[test]
+    fn test_sync_platform_deserialization() {
+        let github: SyncPlatformSetting = serde_json::from_str(r#""git_hub""#).unwrap();
+        assert_eq!(github, SyncPlatformSetting::GitHub);
+
+        let gitee: SyncPlatformSetting = serde_json::from_str(r#""gitee""#).unwrap();
+        assert_eq!(gitee, SyncPlatformSetting::Gitee);
+    }
+
+    #[test]
+    fn test_sync_platform_deserialization_invalid() {
+        let result: Result<SyncPlatformSetting, _> = serde_json::from_str(r#""invalid""#);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_sync_platform_roundtrip() {
+        for platform in [SyncPlatformSetting::GitHub, SyncPlatformSetting::Gitee] {
+            let json = serde_json::to_string(&platform).unwrap();
+            let parsed: SyncPlatformSetting = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, platform);
+        }
+    }
+
+    #[test]
+    fn test_sync_platform_copy() {
+        let a = SyncPlatformSetting::GitHub;
+        let b = a;
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_sync_platform_clone() {
+        let a = SyncPlatformSetting::GitHub;
+        let b = a.clone();
+        assert_eq!(a, b);
+    }
 }
