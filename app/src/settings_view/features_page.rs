@@ -45,7 +45,8 @@ use crate::settings::{
     AliasExpansionEnabled, AliasExpansionSettings, AppEditorSettings, AtContextMenuInTerminalMode,
     AutocompleteSymbols, AutosuggestionKeybindingHint, CodeSettings, CommandCorrections,
     CompletionsOpenWhileTyping, CopyOnSelect, CtrlTabBehavior, DefaultSessionMode,
-    EnableSlashCommandsInTerminal, EnableSshWrapper, ErrorUnderliningEnabled, ExtraMetaKeys,
+    EnableSshAutoDiscovery, EnableSlashCommandsInTerminal, EnableSshWrapper,
+    ErrorUnderliningEnabled, ExtraMetaKeys,
     GPUSettings, GlobalHotkeyMode, InputSettings, InputSettingsChangedEvent,
     LinuxSelectionClipboard, MiddleClickPasteEnabled, MouseScrollMultiplier, PreferLowPowerGPU,
     PreferencesSettings, PreferredGraphicsBackend, QuakeModeSettings, ScrollSettings,
@@ -371,6 +372,15 @@ pub fn init_actions_from_parent_view<T: Action + Clone>(
     }
 
     toggle_binding_pairs.push(ToggleSettingActionPair::new(
+        &crate::t!("toggle-suffix-ssh-auto-discovery"),
+        builder(SettingsAction::FeaturesPageToggle(
+            FeaturesPageAction::ToggleSshAutoDiscovery,
+        )),
+        context,
+        flags::SSH_AUTO_DISCOVERY_CONTEXT_FLAG,
+    ));
+
+    toggle_binding_pairs.push(ToggleSettingActionPair::new(
         &crate::t!("toggle-suffix-link-tooltip"),
         builder(SettingsAction::FeaturesPageToggle(
             FeaturesPageAction::ToggleLinkTooltip,
@@ -633,6 +643,7 @@ pub enum FeaturesPageAction {
     ToggleOpenLinksInDesktopApp,
     #[deprecated]
     ToggleSshWrapper,
+    ToggleSshAutoDiscovery,
     ToggleSnackbar,
     ToggleLinkTooltip,
     ToggleCompletionsOpenWhileTyping,
@@ -825,6 +836,10 @@ impl FeaturesPageAction {
             Self::ToggleSshWrapper => TelemetryEvent::FeaturesPageAction {
                 action: "ToggleSshWrapper".to_string(),
                 value: to_string(*ssh_settings.enable_legacy_ssh_wrapper.value()),
+            },
+            Self::ToggleSshAutoDiscovery => TelemetryEvent::FeaturesPageAction {
+                action: "ToggleSshAutoDiscovery".to_string(),
+                value: to_string(*ssh_settings.enable_ssh_auto_discovery.value()),
             },
             Self::SetGlobalHotkeyMode(mode) => TelemetryEvent::FeaturesPageAction {
                 action: "SetGlobalHotkeyMode".to_string(),
@@ -1383,6 +1398,13 @@ impl TypedActionView for FeaturesPageView {
                 SshSettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
                     report_if_error!(ssh_settings
                         .enable_legacy_ssh_wrapper
+                        .toggle_and_save_value(ctx));
+                });
+            }
+            ToggleSshAutoDiscovery => {
+                SshSettings::handle(ctx).update(ctx, |ssh_settings, ctx| {
+                    report_if_error!(ssh_settings
+                        .enable_ssh_auto_discovery
                         .toggle_and_save_value(ctx));
                 });
             }
@@ -2544,6 +2566,13 @@ impl FeaturesPageView {
                 .is_supported_on_current_platform()
         {
             session_widgets.push(Box::new(SSHWrapperWidget::default()));
+        }
+
+        if SshSettings::as_ref(ctx)
+            .enable_ssh_auto_discovery
+            .is_supported_on_current_platform()
+        {
+            session_widgets.push(Box::new(SSHAutoDiscoveryWidget::default()));
         }
 
         let session_settings = SessionSettings::as_ref(ctx);
@@ -4903,6 +4932,52 @@ impl SettingsWidget for SSHWrapperWidget {
                 .on_click(move |ctx, _, _| {
                     #[allow(deprecated)]
                     ctx.dispatch_typed_action(FeaturesPageAction::ToggleSshWrapper);
+                })
+                .finish(),
+            None,
+        )
+    }
+}
+
+#[derive(Default)]
+struct SSHAutoDiscoveryWidget {
+    switch_state: SwitchStateHandle,
+}
+
+impl SettingsWidget for SSHAutoDiscoveryWidget {
+    type View = FeaturesPageView;
+
+    fn search_terms(&self) -> &str {
+        "ssh auto discovery"
+    }
+
+    fn render(
+        &self,
+        view: &Self::View,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let ui_builder = appearance.ui_builder();
+        render_body_item::<FeaturesPageAction>(
+            crate::t!("settings-features-ssh-auto-discovery"),
+            None,
+            LocalOnlyIconState::for_setting(
+                EnableSshAutoDiscovery::storage_key(),
+                EnableSshAutoDiscovery::sync_to_cloud(),
+                &mut view
+                    .button_mouse_states
+                    .local_only_icon_tooltip_states
+                    .borrow_mut(),
+                app,
+            ),
+            ToggleState::Enabled,
+            appearance,
+            ui_builder
+                .switch(self.switch_state.clone())
+                .check(*SshSettings::as_ref(app).enable_ssh_auto_discovery.value())
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(FeaturesPageAction::ToggleSshAutoDiscovery);
                 })
                 .finish(),
             None,
