@@ -371,6 +371,7 @@ impl CloudSyncPageView {
                                     // 非冲突结局：恢复 Idle 并清理 conflict_token
                                     view.sync_state = SyncState::Idle;
                                     view.conflict_token.clear();
+                                    ctx.notify();
                                 }
                                 Err(e) => {
                                     // 非冲突结局：恢复 Failed 并清理 conflict_token
@@ -379,6 +380,7 @@ impl CloudSyncPageView {
                                     };
                                     view.conflict_token.clear();
                                     log::warn!("Auto sync download failed: {e}");
+                                    ctx.notify();
                                 }
                             }
                         },
