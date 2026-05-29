@@ -14,6 +14,7 @@ use warpui::{
     ui_components::{
         button::ButtonVariant,
         components::{Coords, UiComponent, UiComponentStyles},
+        switch::SwitchStateHandle,
     },
     AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
@@ -69,6 +70,8 @@ enum SyncState {
     Failed {
         message: String,
     },
+    /// 自动同步上传成功
+    AutoSyncSuccess,
     Conflict {
         local_version: i64,
         remote_version: i64,
@@ -115,6 +118,8 @@ pub enum CloudSyncPageAction {
     ConfirmUpload { platform: SyncPlatform },
     /// 取消上传确认
     CancelUploadConfirm,
+    /// 切换自动同步开关
+    ToggleAutoSync,
 }
 
 /// 云同步设置页面视图
@@ -151,6 +156,11 @@ pub struct CloudSyncPageView {
     cached_last_sync_time: String,
     cached_last_sync_platform: String,
     has_valid_token: bool,
+    /// 自动同步开关状态
+    auto_sync_mouse: MouseStateHandle,
+    auto_sync_switch: SwitchStateHandle,
+    /// 自动同步防抖标记 — 为 true 时跳过 SshTreeChanged 触发的自动上传
+    suppress_auto_upload: bool,
 }
 
 /// 构造 Token 密码编辑器
@@ -284,9 +294,85 @@ impl CloudSyncPageView {
             cached_last_sync_time: String::new(),
             cached_last_sync_platform: String::new(),
             has_valid_token: false,
+            auto_sync_mouse: MouseStateHandle::default(),
+            auto_sync_switch: SwitchStateHandle::default(),
+            suppress_auto_upload: false,
         };
 
+        // 订阅 SSH 树变更事件，用于自动同步上传
+        ctx.subscribe_to_model(
+            &SshTreeChangedNotifier::handle(ctx),
+            move |me: &mut Self, _, event, ctx| {
+                me.handle_ssh_tree_changed(event, ctx);
+            },
+        );
+
         me.refresh_sync_cache();
+        // 启动时自动下载：如果 auto_sync 启用且有有效 token，异步下载
+        {
+            let auto_sync_enabled = *CloudSyncSettings::as_ref(ctx).auto_sync.value();
+            if auto_sync_enabled {
+                let platform = *CloudSyncSettings::as_ref(ctx).sync_platform.value();
+                let key = match platform {
+                    SyncPlatformSetting::GitHub => GITHUB_TOKEN_KEY,
+                    SyncPlatformSetting::Gitee => GITEE_TOKEN_KEY,
+                };
+                let token = CloudSyncTokenStore::as_ref(ctx)
+                    .get(key)
+                    .unwrap_or("")
+                    .to_string();
+                if !token.is_empty() {
+                    let sync_platform = platform.to_sync_platform();
+                    let spawn_token = token.clone();
+                    me.conflict_token = token;
+                    ctx.spawn(
+                        async move {
+                            let engine = SyncEngine::new();
+                            let provider = SshSyncProvider::new();
+                            let version_store = DbVersionStore;
+                            engine
+                                .download(sync_platform, &spawn_token, &[&provider], &version_store)
+                                .await
+                                .map_err(|e| e.to_string())
+                        },
+                        move |view, result, ctx| {
+                            match &result {
+                                Ok(SyncResult::Success { .. }) => {
+                                    view.suppress_auto_upload = true;
+                                    SshTreeChangedNotifier::handle(ctx).update(ctx, |_, ctx| {
+                                        ctx.emit(SshTreeChangedEvent::TreeChanged);
+                                    });
+                                    view.refresh_sync_cache();
+                                    ctx.notify();
+                                }
+                                Ok(SyncResult::Conflict {
+                                    local_version,
+                                    remote_version,
+                                }) => {
+                                    view.sync_state = SyncState::Conflict {
+                                        local_version: *local_version,
+                                        remote_version: *remote_version,
+                                        platform: sync_platform,
+                                    };
+                                    view.conflict_visible = true;
+                                    view.conflict_local_version = *local_version;
+                                    view.conflict_remote_version = *remote_version;
+                                    view.conflict_platform = sync_platform;
+                                    if view.conflict_token.is_empty() {
+                                        view.conflict_token = token_for_platform(ctx, sync_platform);
+                                    }
+                                    ctx.notify();
+                                }
+                                Ok(SyncResult::AlreadyUpToDate { .. }) => {}
+                                Err(e) => {
+                                    log::warn!("Auto sync download failed: {e}");
+                                }
+                            }
+                        },
+                    );
+                }
+            }
+        }
         sync_from_settings(&mut me, ctx);
         load_token_from_store(&mut me, ctx);
         me
@@ -630,6 +716,77 @@ impl CloudSyncPageView {
             },
         );
     }
+
+    /// 处理 SSH 树变更事件 — 自动同步上传的入口
+    fn handle_ssh_tree_changed(
+        &mut self,
+        event: &SshTreeChangedEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            SshTreeChangedEvent::TreeChanged => {
+                if self.suppress_auto_upload {
+                    self.suppress_auto_upload = false;
+                    return;
+                }
+                self.spawn_auto_upload(ctx);
+            }
+        }
+    }
+
+    /// 防抖自动上传：2 秒延迟后执行
+    fn spawn_auto_upload(&mut self, ctx: &mut ViewContext<Self>) {
+        let auto_sync_enabled = *CloudSyncSettings::as_ref(ctx).auto_sync.value();
+        if !auto_sync_enabled {
+            return;
+        }
+        let is_syncing = matches!(
+            self.sync_state,
+            SyncState::Syncing { .. } | SyncState::Validating
+        );
+        if is_syncing {
+            return;
+        }
+
+        let platform = CloudSyncSettings::as_ref(ctx)
+            .sync_platform
+            .value()
+            .to_sync_platform();
+        let token = current_token(ctx);
+        if token.is_empty() {
+            return;
+        }
+
+        self.sync_state = SyncState::Syncing {
+            platform,
+            direction: SyncDirection::Upload,
+        };
+        ctx.notify();
+
+        let spawn_token = token;
+        ctx.spawn(
+            async move {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                let engine = SyncEngine::new();
+                let provider = SshSyncProvider::new();
+                let version_store = DbVersionStore;
+                engine
+                    .upload(platform, &spawn_token, &[&provider], &version_store)
+                    .await
+                    .map_err(|e| e.to_string())
+            },
+            move |view, result, ctx| {
+                view.handle_action(
+                    &CloudSyncPageAction::SyncComplete {
+                        platform,
+                        direction: SyncDirection::Upload,
+                        result,
+                    },
+                    ctx,
+                );
+            },
+        );
+    }
 }
 
 impl Entity for CloudSyncPageView {
@@ -796,6 +953,7 @@ impl TypedActionView for CloudSyncPageView {
                         // 非冲突结局:清掉 conflict_token,避免 PAT 长期驻留在 view 内存
                         self.conflict_token.clear();
                         if direction == SyncDirection::Download {
+                            self.suppress_auto_upload = true;
                             SshTreeChangedNotifier::handle(ctx).update(ctx, |_, ctx| {
                                 ctx.emit(SshTreeChangedEvent::TreeChanged);
                             });
@@ -874,6 +1032,13 @@ impl TypedActionView for CloudSyncPageView {
             CloudSyncPageAction::CancelUploadConfirm => {
                 self.upload_confirm_visible = false;
                 self.upload_confirm_token.clear();
+                ctx.notify();
+            }
+            CloudSyncPageAction::ToggleAutoSync => {
+                let current = *CloudSyncSettings::as_ref(ctx).auto_sync.value();
+                CloudSyncSettings::handle(ctx).update(ctx, |settings, ctx| {
+                    let _ = settings.auto_sync.set_value(!current, ctx);
+                });
                 ctx.notify();
             }
         }
@@ -1041,6 +1206,31 @@ impl SettingsWidget for CloudSyncPageWidget {
             Some(crate::t!("settings-cloud-sync-token-description")),
         ));
 
+        // 自动同步开关
+        let auto_sync_enabled = *CloudSyncSettings::as_ref(_app).auto_sync.value();
+        let auto_sync_switch = appearance
+            .ui_builder()
+            .switch(view.auto_sync_switch.clone())
+            .check(auto_sync_enabled)
+            .build()
+            .on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(CloudSyncPageAction::ToggleAutoSync);
+            })
+            .finish();
+        content.add_child(render_body_item::<CloudSyncPageAction>(
+            crate::t!("settings-cloud-sync-auto-sync-label"),
+            None::<AdditionalInfo<CloudSyncPageAction>>,
+            LocalOnlyIconState::Hidden,
+            if view.has_valid_token {
+                ToggleState::Enabled
+            } else {
+                ToggleState::Disabled
+            },
+            appearance,
+            auto_sync_switch,
+            Some(crate::t!("settings-cloud-sync-auto-sync-description")),
+        ));
+
         // 同步操作
         content.add_child(
             Container::new(
@@ -1159,6 +1349,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             SyncState::Success { .. } => Some(theme.accent().into_solid()),
             SyncState::AlreadyUpToDate { .. } => Some(theme.active_ui_text_color().into_solid()),
             SyncState::Failed { .. } => Some(theme.ui_error_color().into()),
+            SyncState::AutoSyncSuccess => None,
             SyncState::Conflict { .. } => Some(theme.active_ui_text_color().into_solid()),
             SyncState::Syncing { .. } => Some(theme.active_ui_text_color().into_solid()),
         };
@@ -1193,6 +1384,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             SyncState::Failed { message } => {
                 Some(crate::t!("settings-cloud-sync-failed", error = message.clone()))
             }
+            SyncState::AutoSyncSuccess => None,
             SyncState::Conflict {
                 local_version,
                 remote_version,

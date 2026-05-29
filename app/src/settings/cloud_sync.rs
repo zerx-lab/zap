@@ -57,5 +57,43 @@ define_settings_group!(CloudSyncSettings,
             toml_path: "cloud_sync.sync_platform",
             description: "Cloud sync platform",
         },
+        auto_sync: AutoSync {
+            type: bool,
+            default: false,
+            supported_platforms: SupportedPlatforms::ALL,
+            sync_to_cloud: SyncToCloud::Never,
+            private: false,
+            storage_key: "CloudSyncAutoSync",
+            toml_path: "cloud_sync.auto_sync",
+            description: "Auto sync on config change",
+        },
     ]
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sync_platform_default() {
+        assert_eq!(SyncPlatformSetting::default(), SyncPlatformSetting::GitHub);
+    }
+
+    #[test]
+    fn test_sync_platform_to_sync() {
+        assert_eq!(
+            SyncPlatformSetting::GitHub.to_sync_platform(),
+            zap_sync::SyncPlatform::GitHub
+        );
+        assert_eq!(
+            SyncPlatformSetting::Gitee.to_sync_platform(),
+            zap_sync::SyncPlatform::Gitee
+        );
+    }
+
+    #[test]
+    fn test_sync_platform_label() {
+        assert_eq!(SyncPlatformSetting::GitHub.label(), "GitHub");
+        assert_eq!(SyncPlatformSetting::Gitee.label(), "Gitee");
+    }
+}
