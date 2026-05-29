@@ -180,6 +180,17 @@ impl SshRepository {
         Ok(())
     }
 
+    /// 将节点移动到目标 parent 的末尾(new_parent_id=None 表示移到 root)。
+    /// 自动计算 sort_order 为目标 parent 下当前最大值 +1。
+    pub fn move_node_to_end(
+        conn: &mut SqliteConnection,
+        node_id: &str,
+        new_parent_id: Option<&str>,
+    ) -> Result<(), SshRepositoryError> {
+        let sort = next_sort_order(conn, new_parent_id)?;
+        Self::move_node(conn, node_id, new_parent_id, sort)
+    }
+
     pub fn touch_last_connected(
         conn: &mut SqliteConnection,
         node_id: &str,
