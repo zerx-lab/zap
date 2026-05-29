@@ -46,7 +46,7 @@ pub struct ConnectionTestResult {
 }
 
 pub async fn test_connection(server: &SshServerInfo, password: Option<String>) -> ConnectionTestResult {
-    let start = std::time::Instant::now();
+    let start = instant::Instant::now();
 
     let result = match server.auth_type {
         AuthType::Key => test_key_auth(server).await,
@@ -130,7 +130,9 @@ async fn test_password_auth(server: &SshServerInfo, password: Option<String>) ->
 }
 
 async fn run_ssh_test(args: &[String]) -> Result<String, std::io::Error> {
-    let output = tokio::process::Command::new(&args[0])
+    // 统一走 command::r#async 派生子进程,Windows 上会带 CREATE_NO_WINDOW,
+    // 避免闪出控制台窗口(见 .clippy.toml 对 tokio::process::Command 的禁用)。
+    let output = command::r#async::Command::new(&args[0])
         .args(&args[1..])
         .output()
         .await?;
@@ -138,17 +140,12 @@ async fn run_ssh_test(args: &[String]) -> Result<String, std::io::Error> {
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
-    if output.status.success() {
-        Ok(stdout)
-    } else if stdout.contains("ok") {
-        Ok(stdout)
-    } else if stderr.contains("WARNING:") && stdout.contains("ok") {
+    // 成功判定:进程退出码为 0,或远端 `echo ok` 的输出已回传(部分 sshpass
+    // 警告会让退出码非零,但 stdout 里仍含 "ok")。
+    if output.status.success() || stdout.contains("ok") {
         Ok(stdout)
     } else {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            stderr,
-        ))
+        Err(std::io::Error::other(stderr))
     }
 }
 

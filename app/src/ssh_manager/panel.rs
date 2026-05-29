@@ -437,14 +437,13 @@ impl SshManagerPanel {
 
             let new_node = SshRepository::create_server(c, parent.as_deref(), &name, &cloned_info)?;
 
-            if let Ok(Some(source_server)) = SshRepository::get_server(c, &source_id) {
-                let store = KeychainSecretStore;
-                if let Ok(Some(password)) = store.get(&source_id, SecretKind::Password) {
-                    let _ = store.set(&new_node.id, SecretKind::Password, &password);
-                }
-                if let Ok(Some(passphrase)) = store.get(&source_id, SecretKind::Passphrase) {
-                    let _ = store.set(&new_node.id, SecretKind::Passphrase, &passphrase);
-                }
+            // 源服务器在上面已校验存在,直接把 keychain 里的密码 / 私钥口令复制到新节点。
+            let store = KeychainSecretStore;
+            if let Ok(Some(password)) = store.get(&source_id, SecretKind::Password) {
+                let _ = store.set(&new_node.id, SecretKind::Password, &password);
+            }
+            if let Ok(Some(passphrase)) = store.get(&source_id, SecretKind::Passphrase) {
+                let _ = store.set(&new_node.id, SecretKind::Passphrase, &passphrase);
             }
 
             Ok(new_node)
