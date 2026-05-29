@@ -103,12 +103,12 @@ fn test_custom_heading_font_size_multipliers() {
 #[test]
 fn test_heading_default_values_are_spec() {
     let m = HeadingFontSizeMultipliers::default();
-    assert_eq!(m.h1, 2.25);
-    assert_eq!(m.h2, 1.8);
-    assert_eq!(m.h3, 1.5);
+    assert_eq!(m.h1, 2.0);
+    assert_eq!(m.h2, 1.5);
+    assert_eq!(m.h3, 1.17);
     assert_eq!(m.h4, 1.0);
     assert_eq!(m.h5, 0.83);
-    assert_eq!(m.h6, 0.67);
+    assert_eq!(m.h6, 0.75);
 }
 
 /// 作者: logic
@@ -128,12 +128,12 @@ fn test_heading_multipliers_size_ordering() {
 #[test]
 fn test_get_multiplier_const_fn() {
     const M: HeadingFontSizeMultipliers = HeadingFontSizeMultipliers {
-        h1: 2.25, h2: 1.8, h3: 1.5, h4: 1.0, h5: 0.83, h6: 0.67,
+        h1: 2.0, h2: 1.5, h3: 1.17, h4: 1.0, h5: 0.83, h6: 0.67,
     };
     const H1: f32 = M.get_multiplier(1);
     const H4: f32 = M.get_multiplier(4);
     const FALLBACK: f32 = M.get_multiplier(0);
-    assert_eq!(H1, 2.25);
+    assert_eq!(H1, 2.0);
     assert_eq!(H4, 1.0);
     assert_eq!(FALLBACK, 1.0);
 }

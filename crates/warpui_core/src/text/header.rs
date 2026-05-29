@@ -15,16 +15,15 @@ pub enum BlockHeaderSize {
 impl BlockHeaderSize {
     /// Get font size multiplication ratio for this heading level.
     pub fn font_size_multiplication_ratio(self) -> f32 {
-        // The WHATWG HTML living standard is a useful starting point for these, but we don't
-        // follow it exactly:
-        // https://html.spec.whatwg.org/multipage/rendering.html#sections-and-headings
+        // 基于 W3C HTML4 建议默认样式表:
+        // https://www.w3.org/TR/CSS2/sample.html
         match self {
-            Self::Header1 => 2.25,
-            Self::Header2 => 1.8,
-            Self::Header3 => 1.5,
+            Self::Header1 => 2.0,
+            Self::Header2 => 1.5,
+            Self::Header3 => 1.17,
             Self::Header4 => 1.0,
             Self::Header5 => 0.83,
-            Self::Header6 => 0.67,
+            Self::Header6 => 0.75,
         }
     }
 

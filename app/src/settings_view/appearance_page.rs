@@ -568,7 +568,7 @@ impl TypedActionView for AppearanceSettingsPageView {
             SetNotebookFontSize => self.set_notebook_font_size(ctx),
             SetMarkdownHeadingScale => self.set_markdown_heading_scale(ctx),
             ResetMarkdownHeadingScale => {
-                self.confirm_and_reset_markdown_heading_scale(ctx);
+                self.reset_markdown_heading_scale(ctx);
             }
             SetLineHeight => self.set_line_height_ratio(ctx),
             SetOpacity(value) => self.set_opacity(*value, true, ctx),
@@ -2079,6 +2079,7 @@ impl AppearanceSettingsPageView {
         self.refresh_markdown_heading_scale_editors(ctx);
     }
 
+    /// 重置 Markdown 标题字号倍率为默认值
     fn reset_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
         FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
             report_if_error!(font_settings.markdown_heading_h1_scale.clear_value(ctx));
@@ -2088,44 +2089,6 @@ impl AppearanceSettingsPageView {
             report_if_error!(font_settings.markdown_heading_h5_scale.clear_value(ctx));
             report_if_error!(font_settings.markdown_heading_h6_scale.clear_value(ctx));
         });
-        // clear_value 一定发事件,订阅会回写编辑框。
-    }
-
-    /// 弹出确认对话框后再重置 Markdown 标题字号倍率
-    fn confirm_and_reset_markdown_heading_scale(&mut self, ctx: &mut ViewContext<Self>) {
-        let dialog = warpui::modals::AlertDialogWithCallbacks::for_app(
-            crate::t!("markdown-heading-scale-reset-confirm-title"),
-            crate::t!("markdown-heading-scale-reset-confirm-body"),
-            vec![
-                warpui::modals::ModalButton::for_app(
-                    crate::t!("common-cancel"),
-                    |_app| {},
-                ),
-                warpui::modals::ModalButton::for_app(
-                    crate::t!("markdown-heading-scale-reset-confirm-ok"),
-                    |app| {
-                        FontSettings::handle(app).update(app, |font_settings, ctx| {
-                            report_if_error!(font_settings.markdown_heading_h1_scale.clear_value(ctx));
-                            report_if_error!(font_settings.markdown_heading_h2_scale.clear_value(ctx));
-                            report_if_error!(font_settings.markdown_heading_h3_scale.clear_value(ctx));
-                            report_if_error!(font_settings.markdown_heading_h4_scale.clear_value(ctx));
-                            report_if_error!(font_settings.markdown_heading_h5_scale.clear_value(ctx));
-                            report_if_error!(font_settings.markdown_heading_h6_scale.clear_value(ctx));
-                        });
-                    },
-                ),
-            ],
-            |_app| {},
-        );
-        let window_id = ctx.window_id();
-        let workspace = ctx
-            .views_of_type::<crate::workspace::Workspace>(window_id)
-            .and_then(|workspaces| workspaces.first().cloned());
-        if let Some(workspace) = workspace {
-            workspace.update(ctx, |view, ctx| {
-                view.show_native_modal(dialog, ctx);
-            });
-        }
     }
 
     fn set_opacity(
@@ -4837,12 +4800,9 @@ impl SettingsWidget for MarkdownHeadingScaleWidget {
         &self,
         view: &Self::View,
         appearance: &Appearance,
-        app: &AppContext,
+        _app: &AppContext,
     ) -> Box<dyn Element> {
         let editors = view.markdown_heading_scale_editors();
-        let values = AppearanceSettingsPageView::markdown_heading_scale_values(
-            FontSettings::as_ref(app),
-        );
         let row_labels = [
             crate::t!("settings-appearance-markdown-heading-h1-label"),
             crate::t!("settings-appearance-markdown-heading-h2-label"),
