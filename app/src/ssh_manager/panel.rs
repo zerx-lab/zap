@@ -34,12 +34,13 @@ use warp_ssh_manager::{
     SshServerInfo,
 };
 
+use settings::Setting;
+
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
 use crate::settings::SshSettings;
 use crate::ssh_manager::candidates::{CandidateRow, CandidatesViewModel};
-use settings::Setting;
 use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 
 // ---- 视觉常量(参考 Drive) ----
@@ -217,6 +218,13 @@ impl SshManagerPanel {
                 SshTreeChangedEvent::TreeChanged => me.refresh_tree(ctx),
             },
         );
+
+        // 监听 SshSettings 变更，当自动发现开关切换时刷新候选区段。
+        ctx.subscribe_to_model(&SshSettings::handle(ctx), |me, _, _, ctx| {
+            me.candidates.update(ctx, |vm, ctx| vm.refresh(ctx));
+            me.sync_candidate_row_states(ctx);
+            ctx.notify();
+        });
 
         me
     }
