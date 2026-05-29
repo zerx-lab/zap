@@ -891,8 +891,6 @@ settings-cloud-sync-token-valid = 令牌有效（{$username}）
 settings-cloud-sync-token-invalid = 无效令牌：{$error}
 settings-cloud-sync-auto-sync-label = 自动同步
 settings-cloud-sync-auto-sync-description = 启用后，配置变更时自动上传到云端，应用启动时自动从云端下载
-settings-cloud-sync-auto-syncing = 正在自动同步...
-settings-cloud-sync-auto-sync-done = 已同步
 
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # 章节 / 副标题

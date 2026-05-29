@@ -157,8 +157,8 @@ pub struct CloudSyncPageView {
     /// 自动同步开关状态
     auto_sync_mouse: MouseStateHandle,
     auto_sync_switch: SwitchStateHandle,
-    /// 自动同步防抖标记 — 为 true 时跳过 SshTreeChanged 触发的自动上传
-    suppress_auto_upload: bool,
+    /// 自动同步抑制计数 — 大于 0 时跳过 SshTreeChanged 触发的自动上传，每次事件递减
+    suppress_auto_upload: u8,
 }
 
 /// 构造 Token 密码编辑器
@@ -294,7 +294,7 @@ impl CloudSyncPageView {
             has_valid_token: false,
             auto_sync_mouse: MouseStateHandle::default(),
             auto_sync_switch: SwitchStateHandle::default(),
-            suppress_auto_upload: false,
+            suppress_auto_upload: 0,
         };
 
         // 订阅 SSH 树变更事件，用于自动同步上传
@@ -342,7 +342,7 @@ impl CloudSyncPageView {
                         move |view, result, ctx| {
                             match &result {
                                 Ok(SyncResult::Success { .. }) => {
-                                    view.suppress_auto_upload = true;
+                                    view.suppress_auto_upload = 2;
                                     SshTreeChangedNotifier::handle(ctx).update(ctx, |_, ctx| {
                                         ctx.emit(SshTreeChangedEvent::TreeChanged);
                                     });
@@ -738,8 +738,8 @@ impl CloudSyncPageView {
     ) {
         match event {
             SshTreeChangedEvent::TreeChanged => {
-                if self.suppress_auto_upload {
-                    self.suppress_auto_upload = false;
+                if self.suppress_auto_upload > 0 {
+                    self.suppress_auto_upload -= 1;
                     return;
                 }
                 self.spawn_auto_upload(ctx);
@@ -774,12 +774,7 @@ impl CloudSyncPageView {
         // （与 spawn_upload 保持一致，遵循 PR #161 review 确立的 token 快照模式）
         self.conflict_token = token.clone();
 
-        self.sync_state = SyncState::Syncing {
-            platform,
-            direction: SyncDirection::Upload,
-        };
-        ctx.notify();
-
+        // 注意：不在防抖等待期设置 Syncing 状态，避免 2 秒延迟期间阻止手动同步操作
         let spawn_token = token;
         ctx.spawn(
             async move {
@@ -793,6 +788,7 @@ impl CloudSyncPageView {
                     .map_err(|e| e.to_string())
             },
             move |view, result, ctx| {
+                // 上传完成后设置最终状态（成功/冲突/失败由 SyncComplete 统一处理）
                 view.handle_action(
                     &CloudSyncPageAction::SyncComplete {
                         platform,
@@ -970,7 +966,7 @@ impl TypedActionView for CloudSyncPageView {
                         // 非冲突结局:清掉 conflict_token,避免 PAT 长期驻留在 view 内存
                         self.conflict_token.clear();
                         if direction == SyncDirection::Download {
-                            self.suppress_auto_upload = true;
+                            self.suppress_auto_upload = 2;
                             SshTreeChangedNotifier::handle(ctx).update(ctx, |_, ctx| {
                                 ctx.emit(SshTreeChangedEvent::TreeChanged);
                             });

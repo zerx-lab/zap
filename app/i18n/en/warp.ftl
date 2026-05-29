@@ -908,8 +908,6 @@ settings-cloud-sync-token-valid = Token valid ({$username})
 settings-cloud-sync-token-invalid = Invalid token: {$error}
 settings-cloud-sync-auto-sync-label = Auto Sync
 settings-cloud-sync-auto-sync-description = Automatically upload on config change and download on app startup
-settings-cloud-sync-auto-syncing = Auto syncing...
-settings-cloud-sync-auto-sync-done = Synced
 
 # --- ANCHOR-SUB-AI-PAGE (agent-settings-ai-page) ---
 # Section / sub-headers
