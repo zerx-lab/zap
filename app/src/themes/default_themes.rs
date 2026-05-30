@@ -281,6 +281,7 @@ const WEZTERM_CLASSIC_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xFFFFFFFF),
 );
 
+// 16 色 ANSI 配色源: vscode/extensions/theme-defaults/themes/2026-dark.json
 const VSCODE_2026_DARK_NORMAL_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0x000000FF),
     AnsiColor::from_u32(0xCD3131FF),
@@ -302,10 +303,13 @@ const VSCODE_2026_DARK_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xE5E5E5FF),
 );
 
+/// 返回 VS Code 2026 Dark 主题的 16 色 ANSI 终端颜色。
 pub(super) fn vscode_2026_dark_colors() -> TerminalColors {
     TerminalColors::new(VSCODE_2026_DARK_NORMAL_COLORS, VSCODE_2026_DARK_BRIGHT_COLORS)
 }
 
+/// VS Code 2026 Dark 内置主题；配色源: vscode/extensions/theme-defaults/themes/2026-dark.json。
+/// 包含完整 UiColors 覆盖，将 VS Code 的 editor/panel 颜色映射到 Zap UI 组件。
 pub(super) fn vscode_2026_dark() -> WarpTheme {
     use warp_core::ui::theme::ui_colors::UiColors;
     WarpTheme::new(
@@ -329,6 +333,7 @@ pub(super) fn vscode_2026_dark() -> WarpTheme {
             hint_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
             disabled_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
             selection: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }),
+            text_selection: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }),
             hover: Some(ColorU { r: 0xFF, g: 0xFF, b: 0xFF, a: 0x0D }),
             active: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 255 }),
             warning: Some(ColorU { r: 0xE5, g: 0xBA, b: 0x7D, a: 255 }),

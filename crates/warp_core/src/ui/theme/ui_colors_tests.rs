@@ -50,6 +50,7 @@ fn serialize_ui_colors_skips_none() {
         hint_text: None,
         disabled_text: None,
         selection: None,
+        text_selection: None,
         hover: None,
         active: None,
         warning: None,
@@ -62,41 +63,4 @@ fn serialize_ui_colors_skips_none() {
     assert!(yaml.contains("border"));
     assert!(!yaml.contains("surface_2"));
     assert!(!yaml.contains("main_text"));
-}
-
-/// 验证 UiTheme 完整反序列化（模拟 vscode_2026_dark_ui.yaml 的内容）。
-#[test]
-fn deserialize_ui_theme_full() {
-    let yaml = r##"---
-name: VS Code 2026 Dark UI
-base_theme: vscode_2026_dark
-ui_colors:
-  surface_1: "#202122"
-  surface_2: "#242526"
-  surface_3: "#2A2B2C"
-  border: "#333536"
-  focus_border: "#3994BCB3"
-  split_pane_border: "#2A2B2C"
-  main_text: "#EDEDED"
-  sub_text: "#8C8C8C"
-  hint_text: "#555555"
-  disabled_text: "#555555"
-  selection: "#3994BC33"
-  hover: "#FFFFFF0D"
-  active: "#3994BC"
-  warning: "#E5BA7D"
-  error: "#F48771"
-  success: "#72C892"
-  link: "#48A0C7"
-"##;
-    let ui_theme: UiTheme = serde_yaml::from_str(yaml).expect("反序列化失败");
-    assert_eq!(ui_theme.name, "VS Code 2026 Dark UI");
-    assert_eq!(ui_theme.base_theme, "vscode_2026_dark");
-
-    let colors = &ui_theme.ui_colors;
-    assert_eq!(colors.surface_1.unwrap(), ColorU { r: 0x20, g: 0x21, b: 0x22, a: 255 });
-    assert_eq!(colors.focus_border.unwrap(), ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0xB3 });
-    assert_eq!(colors.hover.unwrap(), ColorU { r: 0xFF, g: 0xFF, b: 0xFF, a: 0x0D });
-    assert_eq!(colors.main_text.unwrap(), ColorU { r: 0xED, g: 0xED, b: 0xED, a: 255 });
-    assert_eq!(colors.link.unwrap(), ColorU { r: 0x48, g: 0xA0, b: 0xC7, a: 255 });
 }

@@ -447,6 +447,7 @@ fn test_ui_colors() -> super::ui_colors::UiColors {
         hint_text: Some(ColorU { r: 0x99, g: 0x99, b: 0x99, a: 255 }),
         disabled_text: Some(ColorU { r: 0xAA, g: 0xAA, b: 0xAA, a: 255 }),
         selection: Some(ColorU { r: 0xBB, g: 0xBB, b: 0xBB, a: 128 }),
+        text_selection: Some(ColorU { r: 0xBB, g: 0xBB, b: 0xBB, a: 0x99 }),
         hover: Some(ColorU { r: 0xCC, g: 0xCC, b: 0xCC, a: 128 }),
         active: Some(ColorU { r: 0xDD, g: 0xDD, b: 0xDD, a: 255 }),
         warning: Some(ColorU { r: 0xEE, g: 0x00, b: 0x00, a: 255 }),
@@ -570,7 +571,7 @@ fn split_pane_border_without_ui_colors_returns_derived() {
 #[test]
 fn text_selection_color_with_ui_colors_returns_override() {
     let ui = test_ui_colors();
-    let expected = Fill::Solid(ui.selection.unwrap());
+    let expected = Fill::Solid(ui.text_selection.unwrap());
     let theme = build_theme(Some(ui));
     assert_eq!(theme.text_selection_color(), expected);
 }

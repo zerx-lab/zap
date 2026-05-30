@@ -44,6 +44,9 @@ pub struct UiColors {
     pub selection: Option<ColorU>,
 
     #[serde(default, with = "hex_color_alpha::option", skip_serializing_if = "Option::is_none")]
+    pub text_selection: Option<ColorU>,
+
+    #[serde(default, with = "hex_color_alpha::option", skip_serializing_if = "Option::is_none")]
     pub hover: Option<ColorU>,
 
     #[serde(default, with = "hex_color_alpha::option", skip_serializing_if = "Option::is_none")]
@@ -60,14 +63,6 @@ pub struct UiColors {
 
     #[serde(default, with = "hex_color_alpha::option", skip_serializing_if = "Option::is_none")]
     pub link: Option<ColorU>,
-}
-
-/// 独立的 UI 主题定义，关联一个终端主题并提供可选的 UI 颜色覆盖。
-#[derive(Serialize, Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct UiTheme {
-    pub name: String,
-    pub base_theme: String,
-    pub ui_colors: UiColors,
 }
 
 #[cfg(test)]

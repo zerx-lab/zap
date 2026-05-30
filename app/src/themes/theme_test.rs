@@ -77,6 +77,7 @@ fn vscode_2026_dark_has_ui_colors_override() {
 
     // 交互状态
     assert_eq!(ui.selection, Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }));
+    assert_eq!(ui.text_selection, Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }));
     assert_eq!(ui.hover, Some(ColorU { r: 0xFF, g: 0xFF, b: 0xFF, a: 0x0D }));
     assert_eq!(ui.active, Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 255 }));
 
