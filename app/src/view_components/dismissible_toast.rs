@@ -126,6 +126,9 @@ impl<A: Action + Clone> DismissibleToastStack<A> {
             if let Some(abort_handle) = toast.abort_handle {
                 abort_handle.abort();
             }
+            if let Some(on_dismiss) = &toast.dismissible_toast.on_dismiss {
+                on_dismiss(ctx);
+            }
             ctx.notify();
         }
     }
@@ -307,6 +310,7 @@ impl<A: Action + Clone> ToastLink<A> {
 /// Callback type for body click actions.
 /// Note: Rc is used to allow Clone on DismissibleToast.
 pub type OnBodyClickCallback<A> = Rc<dyn Fn(&mut ViewContext<DismissibleToastStack<A>>)>;
+pub type OnDismissCallback<A> = Rc<dyn Fn(&mut ViewContext<DismissibleToastStack<A>>)>;
 
 /// Holds the data and logic needed to render an individual toast in the stack.
 #[derive(Clone)]
@@ -323,6 +327,8 @@ pub struct DismissibleToast<A: Action + Clone> {
     action_button: Option<ViewHandle<ActionButton>>,
     /// Optional callback invoked when the toast body is clicked.
     pub(crate) on_body_click: Option<OnBodyClickCallback<A>>,
+    /// Optional callback invoked when the toast is dismissed via the close button.
+    pub(crate) on_dismiss: Option<OnDismissCallback<A>>,
 }
 
 pub enum ToastType {
@@ -340,6 +346,7 @@ impl<A: Action + Clone> DismissibleToast<A> {
             object_id: Default::default(),
             action_button: Default::default(),
             on_body_click: None,
+            on_dismiss: None,
         }
     }
 
@@ -378,6 +385,14 @@ impl<A: Action + Clone> DismissibleToast<A> {
         F: Fn(&mut ViewContext<DismissibleToastStack<A>>) + 'static,
     {
         self.on_body_click = Some(Rc::new(callback));
+        self
+    }
+
+    pub fn with_on_dismiss<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(&mut ViewContext<DismissibleToastStack<A>>) + 'static,
+    {
+        self.on_dismiss = Some(Rc::new(callback));
         self
     }
 

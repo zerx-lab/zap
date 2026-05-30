@@ -435,7 +435,9 @@ impl SearchItem for ModelSearchItem {
         // BYOP 走专用 score 渲染:Context / Output (bar 用 log2 归一化) + Cost = BilledToApi。
         // 视觉与默认 Zap 面板完全一致,只是行的语义不同。
         if byop_llm_id::is_byop(&self.id) {
-            if let Some((provider, _api_key, model_id)) = lookup_byop(app, &self.id) {
+            if let Some(lookup) = lookup_byop(app, &self.id) {
+                let provider = lookup.provider;
+                let model_id = lookup.model_id;
                 let model_entry = provider.models.iter().find(|m| m.id == model_id);
                 let context_window = model_entry.map(|m| m.context_window).filter(|n| *n > 0);
                 let max_output_tokens = model_entry.map(|m| m.max_output_tokens).filter(|n| *n > 0);

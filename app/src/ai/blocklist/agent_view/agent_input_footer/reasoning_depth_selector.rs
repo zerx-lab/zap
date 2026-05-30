@@ -201,8 +201,8 @@ impl ReasoningDepthSelector {
             .get_active_base_model(ctx, Some(self.terminal_view_id))
             .id
             .clone();
-        let (provider, _api_key, model_id) = crate::ai::agent_providers::lookup_byop(ctx, &llm_id)?;
-        Some((provider.api_type, model_id))
+        let lookup = crate::ai::agent_providers::lookup_byop(ctx, &llm_id)?;
+        Some((lookup.provider.api_type, lookup.model_id))
     }
 
     fn refresh(&mut self, ctx: &mut ViewContext<Self>) {

@@ -555,6 +555,12 @@ impl LLMPreferences {
                 me.refresh_byop_models(ctx);
             },
         );
+        ctx.subscribe_to_model(
+            &crate::ai::agent_providers::AgentProviderOAuthSecrets::handle(ctx),
+            |me, _event, ctx| {
+                me.refresh_byop_models(ctx);
+            },
+        );
 
         ctx.subscribe_to_model(&NetworkStatus::handle(ctx), |me, event, ctx| {
             if let NetworkStatusEvent::NetworkStatusChanged {

@@ -67,6 +67,7 @@ pub(crate) struct TitleGenParams {
     pub model_id: String,
     pub api_type: crate::settings::AgentProviderApiType,
     pub reasoning_effort: crate::settings::ReasoningEffortSetting,
+    pub extra_headers: Vec<(String, String)>,
 }
 
 fn byop_dispatch_info(
@@ -74,9 +75,10 @@ fn byop_dispatch_info(
     ai_identifiers: &AIIdentifiers,
     ctx: &warpui::AppContext,
 ) -> Option<ByopDispatch> {
-    let (provider, api_key, model_id) =
-        crate::ai::agent_providers::lookup_byop(ctx, &params.model)?;
-    let extra_headers = provider.extra_headers.clone();
+    let lookup = crate::ai::agent_providers::lookup_byop(ctx, &params.model)?;
+    let provider = lookup.provider;
+    let model_id = lookup.model_id;
+    let extra_headers = lookup.extra_headers;
     // 从 provider.models 里找当前模型条目,取其 context_window(tokens)。
     // 0 视为未填,后续走 None 分支 ⇒ chat_stream 不算占用率。
     let context_window = provider
@@ -104,19 +106,19 @@ fn byop_dispatch_info(
     let llm_prefs = crate::ai::llms::LLMPreferences::as_ref(ctx);
     let title_gen = if needs_create_task {
         let title_id = llm_prefs.get_active_title_model(ctx, None).id.clone();
-        crate::ai::agent_providers::lookup_byop(ctx, &title_id).map(
-            |(t_provider, t_api_key, t_model_id)| {
-                let t_effort =
-                    llm_prefs.get_reasoning_effort(None, t_provider.api_type, &t_model_id);
-                TitleGenParams {
-                    base_url: t_provider.base_url,
-                    api_key: t_api_key,
-                    model_id: t_model_id,
-                    api_type: t_provider.api_type,
-                    reasoning_effort: t_effort,
-                }
-            },
-        )
+        crate::ai::agent_providers::lookup_byop(ctx, &title_id).map(|t_lookup| {
+            let t_provider = t_lookup.provider;
+            let t_model_id = t_lookup.model_id;
+            let t_effort = llm_prefs.get_reasoning_effort(None, t_provider.api_type, &t_model_id);
+            TitleGenParams {
+                base_url: t_provider.base_url,
+                api_key: t_lookup.api_key,
+                model_id: t_model_id,
+                api_type: t_provider.api_type,
+                reasoning_effort: t_effort,
+                extra_headers: t_lookup.extra_headers,
+            }
+        })
     } else {
         None
     };
@@ -124,7 +126,7 @@ fn byop_dispatch_info(
     let reasoning_effort = llm_prefs.get_reasoning_effort(None, provider.api_type, &model_id);
     Some(ByopDispatch {
         base_url: provider.base_url,
-        api_key,
+        api_key: lookup.api_key,
         model_id,
         api_type: provider.api_type,
         reasoning_effort,
@@ -159,6 +161,7 @@ fn pending_title_generation_from_byop(
             model_id: title_gen.model_id.clone(),
             api_type: title_gen.api_type,
             reasoning_effort: title_gen.reasoning_effort,
+            extra_headers: title_gen.extra_headers.clone(),
         },
         user_query,
         task_id: byop.root_task_id.clone(),

@@ -766,6 +766,7 @@ fn extra_headers_skip_when_empty() {
         name: "Test".to_string(),
         kind: AgentProviderKind::default(),
         api_type: AgentProviderApiType::default(),
+        auth_kind: crate::settings::AgentProviderAuthKind::default(),
         base_url: "https://api.example.com/v1".to_string(),
         models: Vec::new(),
         extra_headers: Vec::new(),

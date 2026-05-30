@@ -12,6 +12,8 @@
 pub mod active_ai;
 pub mod attachment_caps;
 pub mod chat_stream;
+pub mod codex_oauth;
+pub mod copilot_oauth;
 pub mod llm_id;
 pub mod models_dev;
 pub mod oneshot;
@@ -32,7 +34,10 @@ mod cache_stability_tests;
 // 仍可通过 `crate::ai::agent_providers::openai_compatible::*` 等完整路径访问,
 // 这里不再 re-export 以避免 `unused_imports` 告警。
 pub use openai_compatible::fetch_openai_compatible_models;
-pub use secrets::AgentProviderSecrets;
+pub use secrets::{
+    AgentProviderOAuthCredentials, AgentProviderOAuthKind, AgentProviderOAuthSecrets,
+    AgentProviderSecrets,
+};
 
 // ---------------------------------------------------------------------------
 // LLMInfo 合成:把 settings 中配置的 agent_providers 转成 picker 可用的形态
@@ -47,7 +52,7 @@ use crate::ai::llms::{
     AvailableLLMs, DisableReason, LLMContextWindow, LLMInfo, LLMProvider, LLMUsageMetadata,
     ModelsByFeature,
 };
-use crate::settings::{AISettings, AgentProvider};
+use crate::settings::{AISettings, AgentProvider, AgentProviderAuthKind};
 
 /// 合成给定 provider 的所有合法 (provider, model) 对的 LLMInfo 列表。
 ///
@@ -161,17 +166,49 @@ pub fn build_byop_models_by_feature(app: &AppContext) -> ModelsByFeature {
     }
 }
 
-/// 给定一个 BYOP `LLMId`,从 `AISettings` 与 secrets 里查出 `(provider, api_key, model_id)`。
-/// 任一信息缺失返回 `None`(controller 调用方应映射为 `InvalidApiKey` 错误)。
-pub fn lookup_byop(app: &AppContext, id: &ai::LLMId) -> Option<(AgentProvider, String, String)> {
+#[derive(Debug, Clone)]
+pub struct ByopLookup {
+    pub provider: AgentProvider,
+    pub api_key: String,
+    pub model_id: String,
+    pub extra_headers: Vec<(String, String)>,
+}
+
+/// 给定一个 BYOP `LLMId`,从 `AISettings` 与 secrets 里查出请求所需信息。
+/// 任一必要信息缺失返回 `None`(controller 调用方应映射为 `InvalidApiKey` 错误)。
+pub fn lookup_byop(app: &AppContext, id: &ai::LLMId) -> Option<ByopLookup> {
     let (provider_id, model_id) = llm_id::decode(id)?;
     let providers = AISettings::as_ref(app).agent_providers.value().clone();
     let provider = providers.into_iter().find(|p| p.id == provider_id)?;
-    // API key 可选:无 key 时返回空字符串,下游 build_client 会传给 genai
-    // `AuthData::from_single("")` —— 不附带 `Authorization`,适配 ollama 等本地无认证服务。
-    let api_key = AgentProviderSecrets::as_ref(app)
-        .get(&provider_id)
-        .map(str::to_owned)
-        .unwrap_or_default();
-    Some((provider, api_key, model_id))
+    let mut extra_headers = provider.extra_headers.clone();
+    let api_key = match provider.auth_kind {
+        AgentProviderAuthKind::ApiKey => {
+            // API key 可选:无 key 时返回空字符串,下游 build_client 会传给 genai
+            // `AuthData::from_single("")` —— 不附带 `Authorization`,适配 ollama 等本地无认证服务。
+            AgentProviderSecrets::as_ref(app)
+                .get(&provider_id)
+                .map(str::to_owned)
+                .unwrap_or_default()
+        }
+        AgentProviderAuthKind::CodexOAuth => {
+            let credentials = AgentProviderOAuthSecrets::as_ref(app)
+                .get(&provider_id)
+                .filter(|c| !c.is_expired_or_expiring_soon())?;
+            extra_headers.extend(codex_oauth::request_headers(&credentials.account_id));
+            credentials.access_token.clone()
+        }
+        AgentProviderAuthKind::CopilotOAuth => {
+            let credentials = AgentProviderOAuthSecrets::as_ref(app)
+                .get(&provider_id)
+                .filter(|c| !c.is_expired_or_expiring_soon())?;
+            extra_headers.extend(copilot_oauth::request_headers());
+            credentials.access_token.clone()
+        }
+    };
+    Some(ByopLookup {
+        provider,
+        api_key,
+        model_id,
+        extra_headers,
+    })
 }

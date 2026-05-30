@@ -32,10 +32,13 @@ use crate::settings::{
 };
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::terminal::CLIAgent;
+use crate::view_components::DismissibleToast;
+use crate::view_components::DismissibleToastStack;
 use crate::view_components::{
     action_button::{ActionButton, ButtonSize, SecondaryTheme},
     FilterableDropdown, SubmittableTextInput, SubmittableTextInputEvent,
 };
+use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspacesEvent;
 use ::ai::api_keys::ApiKeyManager;
 use enum_iterator::all;
@@ -46,6 +49,7 @@ use strum::IntoEnumIterator;
 use warp_core::context_flag::ContextFlag;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
+use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, CornerRadius, CrossAxisAlignment, Dismiss, Expanded, Fill,
     HyperlinkLens, MainAxisAlignment, MainAxisSize, MouseStateHandle, Radius, Shrinkable, Text,
@@ -135,7 +139,10 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, LazyLock,
+};
 
 const AI_SETTINGS_DROPDOWN_WIDTH: f32 = 250.;
 const AI_SETTINGS_DROPDOWN_MAX_HEIGHT: f32 = 250.;
@@ -377,6 +384,8 @@ pub struct AISettingsPageView {
     // Profile views
     profile_views: Vec<ViewHandle<ExecutionProfileView>>,
     add_profile_button: ViewHandle<ActionButton>,
+
+    active_copilot_login_cancel_handle: Option<Arc<AtomicBool>>,
 }
 
 impl AISettingsPageView {
@@ -1366,6 +1375,7 @@ impl AISettingsPageView {
             conversation_layout_dropdown,
             profile_views,
             add_profile_button,
+            active_copilot_login_cancel_handle: None,
         }
     }
 
@@ -2140,12 +2150,129 @@ impl AISettingsPageView {
             }
             let _ = settings.agent_providers.set_value(providers, ctx);
         });
-        crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
+        let auth_kind = AISettings::as_ref(ctx)
+            .agent_providers
+            .value()
+            .iter()
+            .find(|p| p.id == provider_id)
+            .map(|p| p.auth_kind)
+            .unwrap_or_default();
+        if matches!(auth_kind, crate::settings::AgentProviderAuthKind::ApiKey) {
+            crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
+                ctx,
+                |secrets, ctx| {
+                    secrets.set(provider_id, api_key.to_owned(), ctx);
+                },
+            );
+        }
+    }
+
+    fn add_managed_oauth_provider(
+        provider_name: &str,
+        auth_kind: crate::settings::AgentProviderAuthKind,
+        api_type: crate::settings::AgentProviderApiType,
+        base_url: &str,
+        credentials: crate::ai::agent_providers::AgentProviderOAuthCredentials,
+        models: Vec<crate::settings::AgentProviderModel>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let mut provider_id = String::new();
+        AISettings::handle(ctx).update(ctx, |settings, ctx| {
+            let mut providers = settings.agent_providers.value().clone();
+            providers.push(crate::settings::AgentProvider::new_empty());
+            let provider = providers
+                .last_mut()
+                .expect("provider was just pushed into the list");
+
+            provider_id = provider.id.clone();
+            provider.name = provider_name.to_string();
+            provider.auth_kind = auth_kind;
+            provider.api_type = api_type;
+            provider.base_url = base_url.to_string();
+            provider.extra_headers.clear();
+            provider.models = models;
+
+            let _ = settings.agent_providers.set_value(providers, ctx);
+        });
+
+        if !provider_id.is_empty() {
+            crate::ai::agent_providers::AgentProviderOAuthSecrets::handle(ctx)
+                .update(ctx, |secrets, ctx| {
+                    secrets.set(&provider_id, credentials, ctx)
+                });
+            crate::ai::agent_providers::AgentProviderSecrets::handle(ctx)
+                .update(ctx, |secrets, ctx| secrets.remove(&provider_id, ctx));
+        }
+    }
+
+    fn add_codex_oauth_provider(
+        credentials: crate::ai::agent_providers::AgentProviderOAuthCredentials,
+        models: Vec<crate::settings::AgentProviderModel>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        use crate::ai::agent_providers::codex_oauth::{CODEX_BASE_URL, CODEX_PROVIDER_NAME};
+        use crate::settings::{AgentProviderApiType, AgentProviderAuthKind};
+
+        Self::add_managed_oauth_provider(
+            CODEX_PROVIDER_NAME,
+            AgentProviderAuthKind::CodexOAuth,
+            AgentProviderApiType::OpenAiResp,
+            CODEX_BASE_URL,
+            credentials,
+            models,
             ctx,
-            |secrets, ctx| {
-                secrets.set(provider_id, api_key.to_owned(), ctx);
-            },
         );
+    }
+
+    fn add_copilot_oauth_provider(
+        credentials: crate::ai::agent_providers::AgentProviderOAuthCredentials,
+        models: Vec<crate::settings::AgentProviderModel>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        use crate::ai::agent_providers::copilot_oauth::{COPILOT_BASE_URL, COPILOT_PROVIDER_NAME};
+        use crate::settings::{AgentProviderApiType, AgentProviderAuthKind};
+
+        Self::add_managed_oauth_provider(
+            COPILOT_PROVIDER_NAME,
+            AgentProviderAuthKind::CopilotOAuth,
+            AgentProviderApiType::OpenAi,
+            COPILOT_BASE_URL,
+            credentials,
+            models,
+            ctx,
+        );
+    }
+
+    fn add_info_toast(message: String, ctx: &mut ViewContext<Self>) {
+        let window_id = ctx.window_id();
+        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            toast_stack.add_ephemeral_toast(DismissibleToast::default(message), window_id, ctx);
+        });
+    }
+
+    fn add_persistent_info_toast(
+        message: String,
+        object_id: String,
+        on_dismiss: impl Fn(&mut ViewContext<DismissibleToastStack<crate::workspace::WorkspaceAction>>)
+            + 'static,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let window_id = ctx.window_id();
+        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            toast_stack.add_persistent_toast(
+                DismissibleToast::default(message)
+                    .with_object_id(object_id)
+                    .with_on_dismiss(move |ctx| on_dismiss(ctx)),
+                window_id,
+                ctx,
+            );
+        });
+    }
+
+    fn cancel_active_copilot_login(&mut self) {
+        if let Some(cancel_handle) = self.active_copilot_login_cancel_handle.take() {
+            cancel_handle.store(true, Ordering::Relaxed);
+        }
     }
 }
 
@@ -2243,6 +2370,8 @@ pub enum AISettingsPageAction {
     },
     // 自定义 Agent Provider 管理动作
     AddAgentProvider,
+    StartCodexAuthLogin,
+    StartCopilotAuthLogin,
     RemoveAgentProvider {
         provider_id: String,
     },
@@ -3040,6 +3169,119 @@ impl TypedActionView for AISettingsPageView {
                 });
                 self.rebuild_current_page(ctx);
             }
+            AISettingsPageAction::StartCodexAuthLogin => {
+                let flow = match crate::ai::agent_providers::codex_oauth::begin_login() {
+                    Ok(flow) => flow,
+                    Err(e) => {
+                        log::warn!("Failed to start Codex OAuth login: {e:#}");
+                        ctx.notify();
+                        return;
+                    }
+                };
+                ctx.open_url(&flow.auth_url);
+                ctx.spawn(
+                    async move {
+                        use crate::ai::agent_providers::codex_oauth;
+
+                        let credentials = codex_oauth::wait_for_login(flow).await?;
+                        let models = codex_oauth::codex_oauth_models();
+                        anyhow::Ok((credentials, models))
+                    },
+                    move |view, result, ctx| {
+                        match result {
+                            Ok((credentials, models)) => {
+                                Self::add_codex_oauth_provider(credentials, models, ctx);
+                            }
+                            Err(e) => {
+                                log::warn!("Codex OAuth login failed: {e:#}");
+                                ctx.notify();
+                            }
+                        }
+                        view.rebuild_current_page(ctx);
+                    },
+                );
+            }
+            AISettingsPageAction::StartCopilotAuthLogin => {
+                self.cancel_active_copilot_login();
+                let flow = match crate::ai::agent_providers::copilot_oauth::begin_login() {
+                    Ok(flow) => flow,
+                    Err(e) => {
+                        log::warn!("Failed to start Copilot OAuth login: {e:#}");
+                        ctx.notify();
+                        return;
+                    }
+                };
+                let window_id = ctx.window_id();
+                log::info!(
+                    "Started Copilot OAuth device flow. User code copied to clipboard: {}",
+                    flow.user_code
+                );
+                ctx.clipboard()
+                    .write(ClipboardContent::plain_text(flow.user_code.clone()));
+                let toast_id = "copilot-oauth-login".to_string();
+                let cancel_handle = flow.cancel_handle();
+                self.active_copilot_login_cancel_handle = Some(cancel_handle.clone());
+                Self::add_persistent_info_toast(
+                    crate::t!(
+                        "settings-agent-providers-copilot-login-code-toast",
+                        code = flow.user_code.clone()
+                    ),
+                    toast_id.clone(),
+                    {
+                        let cancel_handle = cancel_handle.clone();
+                        move |_ctx| {
+                            cancel_handle.store(true, Ordering::Relaxed);
+                        }
+                    },
+                    ctx,
+                );
+                ctx.open_url(&flow.auth_url);
+                ctx.spawn(
+                    async move {
+                        use crate::ai::agent_providers::copilot_oauth;
+
+                        let credentials = copilot_oauth::wait_for_login(flow).await?;
+                        let models =
+                            copilot_oauth::fetch_copilot_oauth_models(&credentials.access_token)
+                                .await?;
+                        anyhow::Ok((credentials, models))
+                    },
+                    move |view, result, ctx| {
+                        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                            toast_stack.remove_toast_by_identifier(
+                                "copilot-oauth-login".to_string(),
+                                window_id,
+                                ctx,
+                            );
+                        });
+                        match result {
+                            Ok((credentials, models)) => {
+                                Self::add_copilot_oauth_provider(credentials, models, ctx);
+                            }
+                            Err(e) => {
+                                log::warn!("Copilot OAuth login failed: {e:#}");
+                                Self::add_info_toast(
+                                    crate::t!(
+                                        "settings-agent-providers-copilot-login-failed-toast",
+                                        error = format!("{e:#}")
+                                    ),
+                                    ctx,
+                                );
+                                ctx.notify();
+                            }
+                        }
+                        cancel_handle.store(true, Ordering::Relaxed);
+                        if view
+                            .active_copilot_login_cancel_handle
+                            .as_ref()
+                            .is_some_and(|active| Arc::ptr_eq(active, &cancel_handle))
+                        {
+                            view.active_copilot_login_cancel_handle = None;
+                        }
+                        view.rebuild_current_page(ctx);
+                    },
+                );
+            }
             AISettingsPageAction::RemoveAgentProvider { provider_id } => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     let mut providers = settings.agent_providers.value().clone();
@@ -3047,6 +3289,12 @@ impl TypedActionView for AISettingsPageView {
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });
                 crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
+                    ctx,
+                    |secrets, ctx| {
+                        secrets.remove(provider_id, ctx);
+                    },
+                );
+                crate::ai::agent_providers::AgentProviderOAuthSecrets::handle(ctx).update(
                     ctx,
                     |secrets, ctx| {
                         secrets.remove(provider_id, ctx);
@@ -5624,10 +5872,7 @@ impl AIFactWidget {
                 "{} ",
                 crate::t!("settings-ai-rules-description")
             )),
-            FormattedTextFragment::hyperlink(
-                crate::t!("settings-ai-learn-more"),
-                "",
-            ),
+            FormattedTextFragment::hyperlink(crate::t!("settings-ai-learn-more"), ""),
         ];
         let description = Container::new(
             FormattedTextElement::new(
@@ -6523,9 +6768,13 @@ impl AwsBedrockWidget {
                 ..Default::default()
             };
 
-            let label = Text::new_inline(label, appearance.ui_font_family(), appearance.ui_font_body())
-                .with_color(styles::header_font_color(is_enabled, app).into())
-                .finish();
+            let label = Text::new_inline(
+                label,
+                appearance.ui_font_family(),
+                appearance.ui_font_body(),
+            )
+            .with_color(styles::header_font_color(is_enabled, app).into())
+            .finish();
 
             let input = appearance
                 .ui_builder()
@@ -6568,16 +6817,24 @@ impl AwsBedrockWidget {
                 .with_cross_axis_alignment(CrossAxisAlignment::Start)
                 .with_spacing(4.)
                 .with_child(
-                    Text::new_inline(title_text, appearance.ui_font_family(), appearance.ui_font_body())
-                        .with_style(Properties::default().weight(Weight::Semibold))
-                        .with_color(title_color.into())
-                        .finish(),
+                    Text::new_inline(
+                        title_text,
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_style(Properties::default().weight(Weight::Semibold))
+                    .with_color(title_color.into())
+                    .finish(),
                 )
                 .with_child(
-                    Text::new(detail_text, appearance.ui_font_family(), appearance.ui_font_body())
-                        .with_color(detail_color.into())
-                        .soft_wrap(true)
-                        .finish(),
+                    Text::new(
+                        detail_text,
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_color(detail_color.into())
+                    .soft_wrap(true)
+                    .finish(),
                 );
 
             Container::new(
