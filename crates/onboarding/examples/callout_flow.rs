@@ -229,6 +229,7 @@ fn adeberry() -> WarpTheme {
         adeberry_colors(),
         None,
         Some("Adeberry".to_string()),
+        None,
     )
 }
 

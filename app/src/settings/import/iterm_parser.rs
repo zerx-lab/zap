@@ -170,6 +170,7 @@ impl ITermTheme {
             },
             None,
             Some(format!("Imported iTerm Theme{suffix}")),
+            None,
         ))
     }
 }

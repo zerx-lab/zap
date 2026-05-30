@@ -281,6 +281,69 @@ const WEZTERM_CLASSIC_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xFFFFFFFF),
 );
 
+// 16 色 ANSI 配色源: vscode/extensions/theme-defaults/themes/2026-dark.json
+const VSCODE_2026_DARK_NORMAL_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x000000FF),
+    AnsiColor::from_u32(0xCD3131FF),
+    AnsiColor::from_u32(0x0DBC79FF),
+    AnsiColor::from_u32(0xE5E510FF),
+    AnsiColor::from_u32(0x2472C8FF),
+    AnsiColor::from_u32(0xBC3FBCFF),
+    AnsiColor::from_u32(0x11A8CDFF),
+    AnsiColor::from_u32(0xE5E5E5FF),
+);
+const VSCODE_2026_DARK_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x666666FF),
+    AnsiColor::from_u32(0xF14C4CFF),
+    AnsiColor::from_u32(0x23D18BFF),
+    AnsiColor::from_u32(0xF5F543FF),
+    AnsiColor::from_u32(0x3B8EEAFF),
+    AnsiColor::from_u32(0xD670D6FF),
+    AnsiColor::from_u32(0x29B8DBFF),
+    AnsiColor::from_u32(0xE5E5E5FF),
+);
+
+/// 返回 VS Code 2026 Dark 主题的 16 色 ANSI 终端颜色。
+pub(super) fn vscode_2026_dark_colors() -> TerminalColors {
+    TerminalColors::new(VSCODE_2026_DARK_NORMAL_COLORS, VSCODE_2026_DARK_BRIGHT_COLORS)
+}
+
+/// VS Code 2026 Dark 内置主题；配色源: vscode/extensions/theme-defaults/themes/2026-dark.json。
+/// 包含完整 UiColors 覆盖，将 VS Code 的 editor/panel 颜色映射到 Zap UI 组件。
+pub(super) fn vscode_2026_dark() -> WarpTheme {
+    use warp_core::ui::theme::ui_colors::UiColors;
+    WarpTheme::new(
+        Fill::Solid(ColorU::from_u32(0x191A1BFF)),
+        ColorU::from_u32(0xCCCCCCFF),
+        Fill::Solid(ColorU::from_u32(0x3994BCFF)),
+        Some(Fill::Solid(ColorU::from_u32(0xBFBFBFFF))),
+        Some(Details::Darker),
+        vscode_2026_dark_colors(),
+        None,
+        Some("VS Code 2026 Dark".to_string()),
+        Some(UiColors {
+            surface_1: Some(ColorU { r: 0x20, g: 0x21, b: 0x22, a: 255 }),
+            surface_2: Some(ColorU { r: 0x24, g: 0x25, b: 0x26, a: 255 }),
+            surface_3: Some(ColorU { r: 0x2A, g: 0x2B, b: 0x2C, a: 255 }),
+            border: Some(ColorU { r: 0x33, g: 0x35, b: 0x36, a: 255 }),
+            focus_border: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0xB3 }),
+            split_pane_border: Some(ColorU { r: 0x2A, g: 0x2B, b: 0x2C, a: 255 }),
+            main_text: Some(ColorU { r: 0xED, g: 0xED, b: 0xED, a: 255 }),
+            sub_text: Some(ColorU { r: 0x8C, g: 0x8C, b: 0x8C, a: 255 }),
+            hint_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
+            disabled_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
+            selection: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }),
+            text_selection: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }),
+            hover: Some(ColorU { r: 0xFF, g: 0xFF, b: 0xFF, a: 0x0D }),
+            active: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 255 }),
+            warning: Some(ColorU { r: 0xE5, g: 0xBA, b: 0x7D, a: 255 }),
+            error: Some(ColorU { r: 0xF4, g: 0x87, b: 0x71, a: 255 }),
+            success: Some(ColorU { r: 0x72, g: 0xC8, b: 0x92, a: 255 }),
+            link: Some(ColorU { r: 0x48, g: 0xA0, b: 0xC7, a: 255 }),
+        }),
+    )
+}
+
 pub(super) fn light_mode_colors() -> TerminalColors {
     TerminalColors::new(LIGHT_MODE_NORMAL_COLORS, LIGHT_MODE_BRIGHT_COLORS)
 }
@@ -344,6 +407,7 @@ pub fn dark_theme() -> WarpTheme {
         dark_mode_colors(),
         None,
         Some("Dark".to_string()),
+        None,
     )
 }
 
@@ -357,6 +421,7 @@ pub fn light_theme() -> WarpTheme {
         light_mode_colors(),
         None,
         Some("Light".to_string()),
+        None,
     )
 }
 
@@ -370,6 +435,7 @@ pub(super) fn dracula() -> WarpTheme {
         dracula_colors(),
         None,
         Some("Dracula".to_string()),
+        None,
     )
 }
 
@@ -383,6 +449,7 @@ pub(super) fn solarized_light() -> WarpTheme {
         solarized_light_colors(),
         None,
         Some("Solarized Light".to_string()),
+        None,
     )
 }
 
@@ -396,6 +463,7 @@ pub(super) fn solarized_dark() -> WarpTheme {
         solarized_dark_colors(),
         None,
         Some("Solarized Dark".to_string()),
+        None,
     )
 }
 
@@ -409,6 +477,7 @@ pub(super) fn gruvbox_dark() -> WarpTheme {
         gruvbox_dark_colors(),
         None,
         Some("Gruvbox Dark".to_string()),
+        None,
     )
 }
 
@@ -422,6 +491,7 @@ pub(super) fn gruvbox_light() -> WarpTheme {
         gruvbox_light_colors(),
         None,
         Some("Gruvbox Light".to_string()),
+        None,
     )
 }
 
@@ -442,6 +512,7 @@ pub(super) fn cyber_wave() -> WarpTheme {
         dark_mode_colors(),
         None,
         Some("Cyber Wave".to_string()),
+        None,
     )
 }
 
@@ -461,6 +532,7 @@ pub(super) fn willow_dream() -> WarpTheme {
         dark_mode_colors(),
         None,
         Some("Willow Dream".to_string()),
+        None,
     )
 }
 
@@ -480,6 +552,7 @@ pub(super) fn fancy_dracula() -> WarpTheme {
         dracula_colors(),
         None,
         Some("Fancy Dracula".to_string()),
+        None,
     )
 }
 
@@ -496,6 +569,7 @@ pub(super) fn phenomenon() -> WarpTheme {
             opacity: 100,
         }),
         Some("Phenomenon".to_string()),
+        None,
     )
 }
 
@@ -513,6 +587,7 @@ pub(super) fn jellyfish() -> WarpTheme {
             opacity: 30,
         }),
         Some("Jellyfish".to_string()),
+        None,
     )
 }
 
@@ -529,6 +604,7 @@ pub(super) fn koi() -> WarpTheme {
             opacity: 30,
         }),
         Some("Koi".to_string()),
+        None,
     )
 }
 
@@ -545,6 +621,7 @@ pub(super) fn leafy() -> WarpTheme {
             opacity: 30,
         }),
         Some("Leafy".to_string()),
+        None,
     )
 }
 
@@ -561,6 +638,7 @@ pub(super) fn marble() -> WarpTheme {
             opacity: 50,
         }),
         Some("Marble".to_string()),
+        None,
     )
 }
 
@@ -580,6 +658,7 @@ pub(super) fn pink_city() -> WarpTheme {
             opacity: 40,
         }),
         Some("Pink City".to_string()),
+        None,
     )
 }
 
@@ -599,6 +678,7 @@ pub(super) fn snowy() -> WarpTheme {
             opacity: 20,
         }),
         Some("Snowy".to_string()),
+        None,
     )
 }
 
@@ -620,6 +700,7 @@ pub(super) fn red_rock() -> WarpTheme {
             opacity: 30,
         }),
         Some("Red Rock".to_string()),
+        None,
     )
 }
 
@@ -641,6 +722,7 @@ pub(super) fn dark_city() -> WarpTheme {
             opacity: 20,
         }),
         Some("Dark City".to_string()),
+        None,
     )
 }
 
@@ -657,6 +739,7 @@ pub(super) fn sent_referral_reward() -> WarpTheme {
             opacity: 100,
         }),
         Some("Zap Referral".to_string()),
+        None,
     )
 }
 
@@ -673,6 +756,7 @@ pub(super) fn solar_flare() -> WarpTheme {
             opacity: 20,
         }),
         Some("Solar Flare".to_string()),
+        None,
     )
 }
 
@@ -686,6 +770,7 @@ pub(super) fn tokyo_night() -> WarpTheme {
         tokyo_night_colors(),
         None,
         Some("Tokyo Night".to_string()),
+        None,
     )
 }
 
@@ -699,6 +784,7 @@ pub(super) fn one_dark() -> WarpTheme {
         one_dark_colors(),
         None,
         Some("One Dark".to_string()),
+        None,
     )
 }
 
@@ -712,6 +798,7 @@ pub(super) fn adeberry() -> WarpTheme {
         adeberry_colors(),
         None,
         Some("Adeberry".to_string()),
+        None,
     )
 }
 
@@ -726,6 +813,7 @@ pub(super) fn wezterm_classic() -> WarpTheme {
         wezterm_classic_colors(),
         None,
         Some("WezTerm Classic".to_string()),
+        None,
     )
 }
 
@@ -742,5 +830,6 @@ pub(super) fn received_referral_reward() -> WarpTheme {
             opacity: 100,
         }),
         Some("Received Referral Reward".to_string()),
+        None,
     )
 }

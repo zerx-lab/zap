@@ -1,0 +1,49 @@
+# VS Code 2026 Dark (从 vscode 源码迁移)
+# 配色源: vscode/extensions/theme-defaults/themes/2026-dark.json
+# 安装方式 (Windows / openWarp OSS):
+#   将本文件复制到 %APPDATA%\zap\Zap\data\themes\vscode_2026_dark.yaml
+#   重启 openWarp 后, 在 Settings → Appearance → Themes 选择 "VS Code 2026 Dark"
+---
+name: VS Code 2026 Dark
+background: '#191A1B'
+foreground: '#CCCCCC'
+accent: '#3994BC'
+details: darker
+terminal_colors:
+  normal:
+    black: '#000000'
+    red: '#cd3131'
+    green: '#0DBC79'
+    yellow: '#e5e510'
+    blue: '#2472c8'
+    magenta: '#bc3fbc'
+    cyan: '#11a8cd'
+    white: '#e5e5e5'
+  bright:
+    black: '#666666'
+    red: '#f14c4c'
+    green: '#23d18b'
+    yellow: '#f5f543'
+    blue: '#3b8eea'
+    magenta: '#d670d6'
+    cyan: '#29b8db'
+    white: '#e5e5e5'
+ui_colors:
+  surface_1: '#202122'
+  surface_2: '#242526'
+  surface_3: '#2A2B2C'
+  border: '#333536'
+  focus_border: '#3994BCB3'
+  split_pane_border: '#2A2B2C'
+  main_text: '#EDEDED'
+  sub_text: '#8C8C8C'
+  hint_text: '#555555'
+  disabled_text: '#555555'
+  selection: '#3994BC33'
+  text_selection: '#3994BC33'
+  hover: '#FFFFFF0D'
+  active: '#3994BC'
+  warning: '#E5BA7D'
+  error: '#F48771'
+  success: '#72C892'
+  link: '#48A0C7'

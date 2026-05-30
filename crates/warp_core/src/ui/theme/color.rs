@@ -112,6 +112,11 @@ impl WarpTheme {
     /// Doesn't allow gradients because these surfaces will often be too small
     /// for the gradients to look appealing.
     pub fn surface_3(&self) -> Fill {
+        if let Some(ref ui) = self.ui_colors {
+            if let Some(color) = ui.surface_3 {
+                return Fill::Solid(color);
+            }
+        }
         Fill::Solid(neutral_3(self))
     }
 
@@ -120,6 +125,11 @@ impl WarpTheme {
     /// Doesn't allow gradients because these surfaces will often be too small
     /// for the gradients to look appealing.
     pub fn surface_2(&self) -> Fill {
+        if let Some(ref ui) = self.ui_colors {
+            if let Some(color) = ui.surface_2 {
+                return Fill::Solid(color);
+            }
+        }
         Fill::Solid(neutral_2(self))
     }
 
@@ -128,6 +138,11 @@ impl WarpTheme {
     /// Doesn't allow gradients because these surfaces will often be too small
     /// for the gradients to look appealing.
     pub fn surface_1(&self) -> Fill {
+        if let Some(ref ui) = self.ui_colors {
+            if let Some(color) = ui.surface_1 {
+                return Fill::Solid(color);
+            }
+        }
         Fill::Solid(neutral_1(self))
     }
 
@@ -152,6 +167,11 @@ impl WarpTheme {
     }
 
     pub fn outline(&self) -> Fill {
+        if let Some(ref ui) = self.ui_colors {
+            if let Some(color) = ui.border {
+                return Fill::Solid(color);
+            }
+        }
         fg_overlay_2(self)
     }
 
@@ -250,6 +270,11 @@ impl WarpTheme {
     }
 
     pub fn split_pane_border_color(&self) -> Fill {
+        if let Some(ref ui) = self.ui_colors {
+            if let Some(color) = ui.split_pane_border {
+                return Fill::Solid(color);
+            }
+        }
         fg_overlay_3(self)
     }
 
@@ -285,6 +310,11 @@ impl WarpTheme {
     }
 
     pub fn block_selection_color(&self) -> Fill {
+        if let Some(ref ui) = self.ui_colors {
+            if let Some(color) = ui.selection {
+                return Fill::Solid(color);
+            }
+        }
         accent_overlay_2(self)
     }
 
@@ -298,9 +328,17 @@ impl WarpTheme {
         color_fill
     }
 
-    // Although text selection colors aren't yet themed, declaring them in this file
-    // will make it easier to theme text selection colors in the future!
+    // 文本选区颜色。优先使用 ui_colors.text_selection，其次回退到 ui_colors.selection，
+    // 最后使用硬编码默认值 rgba(118, 167, 250, 0.4)。
     pub fn text_selection_color(&self) -> Fill {
+        if let Some(ref ui) = self.ui_colors {
+            if let Some(color) = ui.text_selection {
+                return Fill::Solid(color);
+            }
+            if let Some(color) = ui.selection {
+                return Fill::Solid(color);
+            }
+        }
         Fill::Solid(ColorU::new(118, 167, 250, (0.4 * 255.) as u8))
     }
 

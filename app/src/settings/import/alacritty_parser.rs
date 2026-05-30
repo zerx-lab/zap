@@ -298,6 +298,7 @@ impl AlacrittyTheme {
                 terminal_colors,
                 None,
                 Some(String::from("Imported Alacritty Theme")),
+                None,
             )))
         }
     }

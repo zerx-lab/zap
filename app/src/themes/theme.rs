@@ -84,6 +84,8 @@ pub enum ThemeKind {
     Leafy,
     #[schemars(description = "WezTerm Classic")]
     WezTermClassic,
+    #[schemars(description = "VS Code 2026 Dark")]
+    VsCode2026Dark,
     #[schemars(description = "Koi")]
     Koi,
     #[schemars(description = "Solarized Light")]
@@ -142,6 +144,7 @@ impl std::fmt::Display for ThemeKind {
             ThemeKind::SolarFlare => "Solar Flare",
             ThemeKind::Adeberry => "Adeberry",
             ThemeKind::WezTermClassic => "WezTerm Classic",
+            ThemeKind::VsCode2026Dark => "VS Code 2026 Dark",
             ThemeKind::SentReferralReward => "Zap Referral",
             ThemeKind::ReceivedReferralReward => "Referred to Zap",
             ThemeKind::Custom(custom_theme) => custom_theme.name.as_str(),
@@ -291,6 +294,7 @@ impl InMemoryThemeOptions {
                 opacity: 30,
             }),
             Some(self.name()),
+            None,
         )
     }
 }
@@ -333,6 +337,7 @@ impl WarpThemeConfig {
             (ThemeKind::SolarFlare, solar_flare()),
             (ThemeKind::Adeberry, adeberry()),
             (ThemeKind::WezTermClassic, wezterm_classic()),
+            (ThemeKind::VsCode2026Dark, vscode_2026_dark()),
         ]);
         WarpThemeConfig { theme_map }
     }
