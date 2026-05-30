@@ -431,3 +431,235 @@ name: VS Code 2026 Dark
 
     assert!(theme.ui_colors().is_none());
 }
+
+/// 构建 UiColors 测试实例的工具函数。
+fn test_ui_colors() -> super::ui_colors::UiColors {
+    use super::ui_colors::UiColors;
+    UiColors {
+        surface_1: Some(ColorU { r: 0x11, g: 0x11, b: 0x11, a: 255 }),
+        surface_2: Some(ColorU { r: 0x22, g: 0x22, b: 0x22, a: 255 }),
+        surface_3: Some(ColorU { r: 0x33, g: 0x33, b: 0x33, a: 255 }),
+        border: Some(ColorU { r: 0x44, g: 0x44, b: 0x44, a: 255 }),
+        focus_border: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 128 }),
+        split_pane_border: Some(ColorU { r: 0x66, g: 0x66, b: 0x66, a: 255 }),
+        main_text: Some(ColorU { r: 0x77, g: 0x77, b: 0x77, a: 255 }),
+        sub_text: Some(ColorU { r: 0x88, g: 0x88, b: 0x88, a: 255 }),
+        hint_text: Some(ColorU { r: 0x99, g: 0x99, b: 0x99, a: 255 }),
+        disabled_text: Some(ColorU { r: 0xAA, g: 0xAA, b: 0xAA, a: 255 }),
+        selection: Some(ColorU { r: 0xBB, g: 0xBB, b: 0xBB, a: 128 }),
+        hover: Some(ColorU { r: 0xCC, g: 0xCC, b: 0xCC, a: 128 }),
+        active: Some(ColorU { r: 0xDD, g: 0xDD, b: 0xDD, a: 255 }),
+        warning: Some(ColorU { r: 0xEE, g: 0x00, b: 0x00, a: 255 }),
+        error: Some(ColorU { r: 0x00, g: 0xEE, b: 0x00, a: 255 }),
+        success: Some(ColorU { r: 0x00, g: 0x00, b: 0xEE, a: 255 }),
+        link: Some(ColorU { r: 0xFF, g: 0xFF, b: 0x00, a: 255 }),
+    }
+}
+
+/// 构建 WarpTheme 的工具函数，可选注入 UiColors。
+fn build_theme(ui_colors: Option<super::ui_colors::UiColors>) -> WarpTheme {
+    WarpTheme::new(
+        Fill::Solid(ColorU::from_u32(0x1E1E1EFF)),
+        ColorU::from_u32(0xD4D4D4FF),
+        Fill::Solid(ColorU::from_u32(0x007ACCFF)),
+        None,
+        Some(Details::Darker),
+        mock_terminal_colors(),
+        None,
+        Some("test".to_string()),
+        ui_colors,
+    )
+}
+
+// --- surface_1 回退逻辑测试 ---
+
+#[test]
+fn surface_1_without_ui_colors_returns_derived() {
+    let theme = build_theme(None);
+    let derived = Fill::Solid(super::color::internal_colors::neutral_1(&theme));
+    assert_eq!(theme.surface_1(), derived);
+}
+
+#[test]
+fn surface_1_with_ui_colors_returns_override() {
+    let ui = test_ui_colors();
+    let expected = Fill::Solid(ui.surface_1.unwrap());
+    let theme = build_theme(Some(ui));
+    assert_eq!(theme.surface_1(), expected);
+}
+
+#[test]
+fn surface_1_with_ui_colors_but_none_field_returns_derived() {
+    let mut ui = test_ui_colors();
+    ui.surface_1 = None;
+    let theme = build_theme(Some(ui));
+    let derived = Fill::Solid(super::color::internal_colors::neutral_1(&theme));
+    assert_eq!(theme.surface_1(), derived);
+}
+
+// --- surface_2 回退逻辑测试 ---
+
+#[test]
+fn surface_2_with_ui_colors_returns_override() {
+    let ui = test_ui_colors();
+    let expected = Fill::Solid(ui.surface_2.unwrap());
+    let theme = build_theme(Some(ui));
+    assert_eq!(theme.surface_2(), expected);
+}
+
+#[test]
+fn surface_2_without_ui_colors_returns_derived() {
+    let theme = build_theme(None);
+    let derived = Fill::Solid(super::color::internal_colors::neutral_2(&theme));
+    assert_eq!(theme.surface_2(), derived);
+}
+
+// --- surface_3 回退逻辑测试 ---
+
+#[test]
+fn surface_3_with_ui_colors_returns_override() {
+    let ui = test_ui_colors();
+    let expected = Fill::Solid(ui.surface_3.unwrap());
+    let theme = build_theme(Some(ui));
+    assert_eq!(theme.surface_3(), expected);
+}
+
+#[test]
+fn surface_3_without_ui_colors_returns_derived() {
+    let theme = build_theme(None);
+    let derived = Fill::Solid(super::color::internal_colors::neutral_3(&theme));
+    assert_eq!(theme.surface_3(), derived);
+}
+
+// --- outline (border) 回退逻辑测试 ---
+
+#[test]
+fn outline_with_ui_colors_returns_border_override() {
+    let ui = test_ui_colors();
+    let expected = Fill::Solid(ui.border.unwrap());
+    let theme = build_theme(Some(ui));
+    assert_eq!(theme.outline(), expected);
+}
+
+#[test]
+fn outline_without_ui_colors_returns_derived() {
+    let theme = build_theme(None);
+    let derived = super::color::internal_colors::fg_overlay_2(&theme);
+    assert_eq!(theme.outline(), derived);
+}
+
+// --- split_pane_border_color 回退逻辑测试 ---
+
+#[test]
+fn split_pane_border_with_ui_colors_returns_override() {
+    let ui = test_ui_colors();
+    let expected = Fill::Solid(ui.split_pane_border.unwrap());
+    let theme = build_theme(Some(ui));
+    assert_eq!(theme.split_pane_border_color(), expected);
+}
+
+#[test]
+fn split_pane_border_without_ui_colors_returns_derived() {
+    let theme = build_theme(None);
+    let derived = super::color::internal_colors::fg_overlay_3(&theme);
+    assert_eq!(theme.split_pane_border_color(), derived);
+}
+
+// --- text_selection_color 回退逻辑测试 ---
+
+#[test]
+fn text_selection_color_with_ui_colors_returns_override() {
+    let ui = test_ui_colors();
+    let expected = Fill::Solid(ui.selection.unwrap());
+    let theme = build_theme(Some(ui));
+    assert_eq!(theme.text_selection_color(), expected);
+}
+
+#[test]
+fn text_selection_color_without_ui_colors_returns_default() {
+    let theme = build_theme(None);
+    let expected = Fill::Solid(ColorU::new(118, 167, 250, (0.4 * 255.) as u8));
+    assert_eq!(theme.text_selection_color(), expected);
+}
+
+// --- block_selection_color 回退逻辑测试 ---
+
+#[test]
+fn block_selection_color_with_ui_colors_returns_override() {
+    let ui = test_ui_colors();
+    let expected = Fill::Solid(ui.selection.unwrap());
+    let theme = build_theme(Some(ui));
+    assert_eq!(theme.block_selection_color(), expected);
+}
+
+#[test]
+fn block_selection_color_without_ui_colors_returns_derived() {
+    let theme = build_theme(None);
+    let derived = super::color::internal_colors::accent_overlay_2(&theme);
+    assert_eq!(theme.block_selection_color(), derived);
+}
+
+// --- UiColors 往返序列化测试 ---
+
+#[test]
+fn ui_colors_roundtrip_serialization() {
+    use super::ui_colors::UiColors;
+    let original = test_ui_colors();
+    let yaml = serde_yaml::to_string(&original).expect("序列化失败");
+    let restored: UiColors = serde_yaml::from_str(&yaml).expect("反序列化失败");
+    assert_eq!(original, restored);
+}
+
+// --- hex_color_alpha 边界条件测试（通过 UiColors 间接测试） ---
+
+#[test]
+fn hex_alpha_rejects_no_hash_prefix_via_ui_colors() {
+    let yaml = r##"---
+surface_1: "3994BC"
+"##;
+    let result = serde_yaml::from_str::<super::ui_colors::UiColors>(yaml);
+    assert!(result.is_err());
+}
+
+#[test]
+fn hex_alpha_rejects_invalid_length_via_ui_colors() {
+    let yaml = r##"---
+surface_1: "#1234"
+"##;
+    let result = serde_yaml::from_str::<super::ui_colors::UiColors>(yaml);
+    assert!(result.is_err());
+}
+
+#[test]
+fn hex_alpha_rejects_invalid_chars_via_ui_colors() {
+    let yaml = r##"---
+surface_1: "#GHIJKL"
+"##;
+    let result = serde_yaml::from_str::<super::ui_colors::UiColors>(yaml);
+    assert!(result.is_err());
+}
+
+#[test]
+fn hex_alpha_roundtrip_with_alpha_via_ui_colors() {
+    let mut colors = test_ui_colors();
+    // 确保 surface_1 有特定 alpha 值
+    colors.surface_1 = Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x26 });
+    colors.surface_2 = None;
+    colors.surface_3 = None;
+    let yaml = serde_yaml::to_string(&colors).expect("序列化失败");
+    let restored: super::ui_colors::UiColors =
+        serde_yaml::from_str(&yaml).expect("反序列化失败");
+    assert_eq!(restored.surface_1, colors.surface_1);
+}
+
+#[test]
+fn hex_alpha_roundtrip_opaque_via_ui_colors() {
+    let mut colors = test_ui_colors();
+    colors.surface_1 = Some(ColorU { r: 0xFF, g: 0x00, b: 0x80, a: 255 });
+    colors.surface_2 = None;
+    colors.surface_3 = None;
+    let yaml = serde_yaml::to_string(&colors).expect("序列化失败");
+    let restored: super::ui_colors::UiColors =
+        serde_yaml::from_str(&yaml).expect("反序列化失败");
+    assert_eq!(restored.surface_1, colors.surface_1);
+}
