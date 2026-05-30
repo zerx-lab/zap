@@ -603,6 +603,9 @@ pub struct WarpTheme {
     terminal_colors: TerminalColors,
     // If name is None, we construct the name by processing the theme .yaml file name
     name: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ui_colors: Option<self::ui_colors::UiColors>,
 }
 
 impl WarpTheme {
@@ -616,6 +619,7 @@ impl WarpTheme {
         terminal_colors: TerminalColors,
         background_image: Option<Image>,
         name: Option<String>,
+        ui_colors: Option<self::ui_colors::UiColors>,
     ) -> Self {
         WarpTheme {
             background: bg,
@@ -626,6 +630,7 @@ impl WarpTheme {
             terminal_colors,
             background_image,
             name,
+            ui_colors,
         }
     }
 
@@ -651,6 +656,11 @@ impl WarpTheme {
 
     pub fn background_image(&self) -> Option<Image> {
         self.background_image.clone()
+    }
+
+    /// 获取 UI 颜色覆盖，如果未设置返回 None。
+    pub fn ui_colors(&self) -> Option<&self::ui_colors::UiColors> {
+        self.ui_colors.as_ref()
     }
 }
 

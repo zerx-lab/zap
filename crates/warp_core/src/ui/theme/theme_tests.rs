@@ -11,6 +11,7 @@ fn serialize_test() {
         mock_terminal_colors(),
         None,
         Some("test_theme".to_string()),
+        None,
     );
     assert_eq!(
         r##"---
@@ -84,6 +85,7 @@ name: test_theme
         mock_terminal_colors(),
         None,
         Some("test_theme".to_string()),
+        None,
     );
 
     assert_eq!(expected_theme, theme);
@@ -127,6 +129,7 @@ terminal_colors:
         None,
         Some(Details::Darker),
         mock_terminal_colors(),
+        None,
         None,
         None,
     );
@@ -338,4 +341,93 @@ fn infer_from_foreground_color_test() {
         ColorScheme::infer_from_foreground_color(ColorU::black()),
         ColorScheme::DarkOnLight
     );
+}
+
+#[test]
+fn deserialize_with_ui_colors_test() {
+    let theme = serde_yaml::from_str::<WarpTheme>(
+        r##"---
+background: "#191A1B"
+accent: "#3994BC"
+foreground: "#bfbfbf"
+details: darker
+terminal_colors:
+  normal:
+    black: "#191A1B"
+    red: "#F48771"
+    green: "#2EA043"
+    yellow: "#E5BA7D"
+    blue: "#3994BC"
+    magenta: "#B180D7"
+    cyan: "#48A0C7"
+    white: "#EDEDED"
+  bright:
+    black: "#555555"
+    red: "#F48771"
+    green: "#369432"
+    yellow: "#B89500"
+    blue: "#53A5CA"
+    magenta: "#FF8FFD"
+    cyan: "#56D4DD"
+    white: "#FFFFFF"
+name: VS Code 2026 Dark
+ui_colors:
+  surface_1: "#1E1F20"
+  border: "#333536"
+  main_text: "#EDEDED"
+"##,
+    )
+    .expect("Couldn't deserialize");
+
+    assert_eq!(theme.name(), Some("VS Code 2026 Dark".to_string()));
+    assert!(theme.ui_colors().is_some());
+    let colors = theme.ui_colors().unwrap();
+    assert_eq!(
+        colors.surface_1.unwrap(),
+        ColorU { r: 0x1E, g: 0x1F, b: 0x20, a: 255 }
+    );
+    assert_eq!(
+        colors.border.unwrap(),
+        ColorU { r: 0x33, g: 0x35, b: 0x36, a: 255 }
+    );
+    assert_eq!(
+        colors.main_text.unwrap(),
+        ColorU { r: 0xED, g: 0xED, b: 0xED, a: 255 }
+    );
+    assert!(colors.surface_2.is_none());
+}
+
+#[test]
+fn deserialize_without_ui_colors_test() {
+    let theme = serde_yaml::from_str::<WarpTheme>(
+        r##"---
+background: "#191A1B"
+accent: "#3994BC"
+foreground: "#bfbfbf"
+details: darker
+terminal_colors:
+  normal:
+    black: "#191A1B"
+    red: "#F48771"
+    green: "#2EA043"
+    yellow: "#E5BA7D"
+    blue: "#3994BC"
+    magenta: "#B180D7"
+    cyan: "#48A0C7"
+    white: "#EDEDED"
+  bright:
+    black: "#555555"
+    red: "#F48771"
+    green: "#369432"
+    yellow: "#B89500"
+    blue: "#53A5CA"
+    magenta: "#FF8FFD"
+    cyan: "#56D4DD"
+    white: "#FFFFFF"
+name: VS Code 2026 Dark
+"##,
+    )
+    .expect("Couldn't deserialize");
+
+    assert!(theme.ui_colors().is_none());
 }

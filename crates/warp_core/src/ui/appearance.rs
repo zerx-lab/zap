@@ -127,6 +127,7 @@ impl Appearance {
             mock_terminal_colors(),
             None,
             Some("Dark".to_string()),
+            None,
         );
         let line_height_ratio = 1.4;
         let ui_font_family = FamilyId(1);

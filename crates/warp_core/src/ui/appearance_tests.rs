@@ -15,6 +15,7 @@ fn mock_appearance() -> Appearance {
         mock_terminal_colors(),
         None,
         Some("Dark".to_string()),
+        None,
     );
     Appearance::new(
         theme,

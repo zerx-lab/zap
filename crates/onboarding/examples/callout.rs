@@ -147,6 +147,7 @@ fn mock_theme() -> WarpTheme {
         TerminalColors::new(normal, bright),
         None,
         Some("Onboarding Example".to_string()),
+        None,
     )
 }
 
