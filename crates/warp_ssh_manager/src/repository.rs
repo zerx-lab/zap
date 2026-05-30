@@ -181,13 +181,13 @@ impl SshRepository {
     }
 
     /// 将节点移动到目标 parent 的末尾(new_parent_id=None 表示移到 root)。
-    /// 自动计算 sort_order 为目标 parent 下当前最大值 +1。
+    /// 自动计算 sort_order 为目标 parent 下当前最大值 +1，排除自身避免同父节点移动时跳号。
     pub fn move_node_to_end(
         conn: &mut SqliteConnection,
         node_id: &str,
         new_parent_id: Option<&str>,
     ) -> Result<(), SshRepositoryError> {
-        let sort = next_sort_order(conn, new_parent_id)?;
+        let sort = next_sort_order_excluding(conn, new_parent_id, node_id)?;
         Self::move_node(conn, node_id, new_parent_id, sort)
     }
 
@@ -262,6 +262,27 @@ fn next_sort_order(
             .first(conn)?,
         None => ssh_nodes::table
             .filter(ssh_nodes::parent_id.is_null())
+            .select(diesel::dsl::max(ssh_nodes::sort_order))
+            .first(conn)?,
+    };
+    Ok(max.unwrap_or(-1) + 1)
+}
+
+/// 计算目标 parent 下的下一个 sort_order，排除指定节点（避免同父节点移动时跳号）。
+fn next_sort_order_excluding(
+    conn: &mut SqliteConnection,
+    parent_id: Option<&str>,
+    exclude_node_id: &str,
+) -> Result<i32, SshRepositoryError> {
+    let max: Option<i32> = match parent_id {
+        Some(p) => ssh_nodes::table
+            .filter(ssh_nodes::parent_id.eq(p))
+            .filter(ssh_nodes::id.ne(exclude_node_id))
+            .select(diesel::dsl::max(ssh_nodes::sort_order))
+            .first(conn)?,
+        None => ssh_nodes::table
+            .filter(ssh_nodes::parent_id.is_null())
+            .filter(ssh_nodes::id.ne(exclude_node_id))
             .select(diesel::dsl::max(ssh_nodes::sort_order))
             .first(conn)?,
     };

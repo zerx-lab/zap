@@ -291,6 +291,8 @@ impl SshServerView {
             self.key_path_editor
                 .update(ctx, |e, ctx| e.set_buffer_text(&key_path, ctx));
 
+            // 密码:不展示明文,只清空 buffer — 密码保留在 keychain 里;
+            // Save 时只在 buffer 非空才写入,空字符串保持密码不变。
             self.password_editor
                 .update(ctx, |e, ctx| e.set_buffer_text("", ctx));
             let startup_command = srv.startup_command.clone().unwrap_or_default();
@@ -587,6 +589,7 @@ impl SshServerView {
     fn on_set_auth(&mut self, auth: AuthType, ctx: &mut ViewContext<Self>) {
         if self.auth_type != auth {
             self.auth_type = auth;
+            // 切换 auth 类型时清空密码 buffer — 密码和 passphrase 语义不同。
             self.password_editor
                 .update(ctx, |e, ctx| e.set_buffer_text("", ctx));
             self.status = None;
