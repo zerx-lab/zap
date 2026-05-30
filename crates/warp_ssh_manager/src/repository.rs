@@ -180,6 +180,17 @@ impl SshRepository {
         Ok(())
     }
 
+    /// 将节点移动到目标 parent 的末尾(new_parent_id=None 表示移到 root)。
+    /// 自动计算 sort_order 为目标 parent 下当前最大值 +1，排除自身避免同父节点移动时跳号。
+    pub fn move_node_to_end(
+        conn: &mut SqliteConnection,
+        node_id: &str,
+        new_parent_id: Option<&str>,
+    ) -> Result<(), SshRepositoryError> {
+        let sort = next_sort_order_excluding(conn, new_parent_id, node_id)?;
+        Self::move_node(conn, node_id, new_parent_id, sort)
+    }
+
     pub fn touch_last_connected(
         conn: &mut SqliteConnection,
         node_id: &str,
@@ -251,6 +262,27 @@ fn next_sort_order(
             .first(conn)?,
         None => ssh_nodes::table
             .filter(ssh_nodes::parent_id.is_null())
+            .select(diesel::dsl::max(ssh_nodes::sort_order))
+            .first(conn)?,
+    };
+    Ok(max.unwrap_or(-1) + 1)
+}
+
+/// 计算目标 parent 下的下一个 sort_order，排除指定节点（避免同父节点移动时跳号）。
+fn next_sort_order_excluding(
+    conn: &mut SqliteConnection,
+    parent_id: Option<&str>,
+    exclude_node_id: &str,
+) -> Result<i32, SshRepositoryError> {
+    let max: Option<i32> = match parent_id {
+        Some(p) => ssh_nodes::table
+            .filter(ssh_nodes::parent_id.eq(p))
+            .filter(ssh_nodes::id.ne(exclude_node_id))
+            .select(diesel::dsl::max(ssh_nodes::sort_order))
+            .first(conn)?,
+        None => ssh_nodes::table
+            .filter(ssh_nodes::parent_id.is_null())
+            .filter(ssh_nodes::id.ne(exclude_node_id))
             .select(diesel::dsl::max(ssh_nodes::sort_order))
             .first(conn)?,
     };
@@ -662,5 +694,135 @@ mod tests {
 
         SshRepository::delete_node(&mut conn, &folder.id).unwrap();
         assert_eq!(SyncMetaRepository::get_sync_version(&mut conn).unwrap(), 3);
+    }
+
+    // ---- move_node_to_end 测试 ----
+
+    #[test]
+    fn move_node_to_end_from_folder_a_to_folder_b() {
+        let mut conn = setup_in_memory();
+        let a = SshRepository::create_folder(&mut conn, None, "A").unwrap();
+        let b = SshRepository::create_folder(&mut conn, None, "B").unwrap();
+        let srv = SshRepository::create_server(
+            &mut conn,
+            Some(&a.id),
+            "srv1",
+            &sample_server("srv1"),
+        )
+        .unwrap();
+
+        SshRepository::move_node_to_end(&mut conn, &srv.id, Some(&b.id)).unwrap();
+
+        let nodes = SshRepository::list_nodes(&mut conn).unwrap();
+        let moved = nodes.iter().find(|n| n.id == srv.id).unwrap();
+        assert_eq!(moved.parent_id.as_deref(), Some(b.id.as_str()));
+        assert_eq!(moved.sort_order, 0, "B 下无其他子节点,sort_order 应为 0");
+    }
+
+    #[test]
+    fn move_node_to_end_to_root() {
+        let mut conn = setup_in_memory();
+        let folder = SshRepository::create_folder(&mut conn, None, "F").unwrap();
+        let srv = SshRepository::create_server(
+            &mut conn,
+            Some(&folder.id),
+            "srv1",
+            &sample_server("srv1"),
+        )
+        .unwrap();
+
+        SshRepository::move_node_to_end(&mut conn, &srv.id, None).unwrap();
+
+        let nodes = SshRepository::list_nodes(&mut conn).unwrap();
+        let moved = nodes.iter().find(|n| n.id == srv.id).unwrap();
+        assert!(moved.parent_id.is_none(), "移到 root 后 parent_id 应为 None");
+    }
+
+    #[test]
+    fn move_node_to_end_appends_after_existing_children() {
+        let mut conn = setup_in_memory();
+        let folder = SshRepository::create_folder(&mut conn, None, "F").unwrap();
+        let _s1 = SshRepository::create_server(
+            &mut conn,
+            Some(&folder.id),
+            "s1",
+            &sample_server("s1"),
+        )
+        .unwrap();
+        let _s2 = SshRepository::create_server(
+            &mut conn,
+            Some(&folder.id),
+            "s2",
+            &sample_server("s2"),
+        )
+        .unwrap();
+
+        let other = SshRepository::create_folder(&mut conn, None, "Other").unwrap();
+        let srv = SshRepository::create_server(
+            &mut conn,
+            Some(&other.id),
+            "mover",
+            &sample_server("mover"),
+        )
+        .unwrap();
+
+        SshRepository::move_node_to_end(&mut conn, &srv.id, Some(&folder.id)).unwrap();
+
+        let nodes = SshRepository::list_nodes(&mut conn).unwrap();
+        let moved = nodes.iter().find(|n| n.id == srv.id).unwrap();
+        assert_eq!(moved.sort_order, 2, "F 下已有 2 个子节点,新节点 sort_order 应为 2");
+        assert_eq!(moved.parent_id.as_deref(), Some(folder.id.as_str()));
+    }
+
+    #[test]
+    fn move_node_to_end_empty_target_folder() {
+        let mut conn = setup_in_memory();
+        let folder = SshRepository::create_folder(&mut conn, None, "Empty").unwrap();
+        let srv = SshRepository::create_server(
+            &mut conn,
+            None,
+            "srv1",
+            &sample_server("srv1"),
+        )
+        .unwrap();
+
+        SshRepository::move_node_to_end(&mut conn, &srv.id, Some(&folder.id)).unwrap();
+
+        let nodes = SshRepository::list_nodes(&mut conn).unwrap();
+        let moved = nodes.iter().find(|n| n.id == srv.id).unwrap();
+        assert_eq!(moved.sort_order, 0, "空 folder 下 sort_order 应为 0");
+        assert_eq!(moved.parent_id.as_deref(), Some(folder.id.as_str()));
+    }
+
+    #[test]
+    fn move_node_to_end_missing_node_returns_not_found() {
+        let mut conn = setup_in_memory();
+        let err = SshRepository::move_node_to_end(&mut conn, "nonexistent", None).unwrap_err();
+        assert!(
+            matches!(err, SshRepositoryError::NotFound(_)),
+            "不存在的节点应返回 NotFound 错误"
+        );
+    }
+
+    #[test]
+    fn move_node_to_end_increments_sync_version() {
+        let mut conn = setup_in_memory();
+        let folder = SshRepository::create_folder(&mut conn, None, "F").unwrap();
+        let srv = SshRepository::create_server(
+            &mut conn,
+            Some(&folder.id),
+            "srv1",
+            &sample_server("srv1"),
+        )
+        .unwrap();
+        SyncMetaRepository::set_sync_version(&mut conn, 0).unwrap();
+
+        SshRepository::move_node_to_end(&mut conn, &srv.id, None).unwrap();
+
+        assert_eq!(
+            SyncMetaRepository::get_sync_version(&mut conn).unwrap(),
+            1,
+            "move_node_to_end 应递增 sync_version"
+        );
     }
 }
