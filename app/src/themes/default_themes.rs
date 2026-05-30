@@ -344,6 +344,7 @@ pub fn dark_theme() -> WarpTheme {
         dark_mode_colors(),
         None,
         Some("Dark".to_string()),
+        None,
     )
 }
 
@@ -357,6 +358,7 @@ pub fn light_theme() -> WarpTheme {
         light_mode_colors(),
         None,
         Some("Light".to_string()),
+        None,
     )
 }
 
@@ -370,6 +372,7 @@ pub(super) fn dracula() -> WarpTheme {
         dracula_colors(),
         None,
         Some("Dracula".to_string()),
+        None,
     )
 }
 
@@ -383,6 +386,7 @@ pub(super) fn solarized_light() -> WarpTheme {
         solarized_light_colors(),
         None,
         Some("Solarized Light".to_string()),
+        None,
     )
 }
 
@@ -396,6 +400,7 @@ pub(super) fn solarized_dark() -> WarpTheme {
         solarized_dark_colors(),
         None,
         Some("Solarized Dark".to_string()),
+        None,
     )
 }
 
@@ -409,6 +414,7 @@ pub(super) fn gruvbox_dark() -> WarpTheme {
         gruvbox_dark_colors(),
         None,
         Some("Gruvbox Dark".to_string()),
+        None,
     )
 }
 
@@ -422,6 +428,7 @@ pub(super) fn gruvbox_light() -> WarpTheme {
         gruvbox_light_colors(),
         None,
         Some("Gruvbox Light".to_string()),
+        None,
     )
 }
 
@@ -442,6 +449,7 @@ pub(super) fn cyber_wave() -> WarpTheme {
         dark_mode_colors(),
         None,
         Some("Cyber Wave".to_string()),
+        None,
     )
 }
 
@@ -461,6 +469,7 @@ pub(super) fn willow_dream() -> WarpTheme {
         dark_mode_colors(),
         None,
         Some("Willow Dream".to_string()),
+        None,
     )
 }
 
@@ -480,6 +489,7 @@ pub(super) fn fancy_dracula() -> WarpTheme {
         dracula_colors(),
         None,
         Some("Fancy Dracula".to_string()),
+        None,
     )
 }
 
@@ -496,6 +506,7 @@ pub(super) fn phenomenon() -> WarpTheme {
             opacity: 100,
         }),
         Some("Phenomenon".to_string()),
+        None,
     )
 }
 
@@ -513,6 +524,7 @@ pub(super) fn jellyfish() -> WarpTheme {
             opacity: 30,
         }),
         Some("Jellyfish".to_string()),
+        None,
     )
 }
 
@@ -529,6 +541,7 @@ pub(super) fn koi() -> WarpTheme {
             opacity: 30,
         }),
         Some("Koi".to_string()),
+        None,
     )
 }
 
@@ -545,6 +558,7 @@ pub(super) fn leafy() -> WarpTheme {
             opacity: 30,
         }),
         Some("Leafy".to_string()),
+        None,
     )
 }
 
@@ -561,6 +575,7 @@ pub(super) fn marble() -> WarpTheme {
             opacity: 50,
         }),
         Some("Marble".to_string()),
+        None,
     )
 }
 
@@ -580,6 +595,7 @@ pub(super) fn pink_city() -> WarpTheme {
             opacity: 40,
         }),
         Some("Pink City".to_string()),
+        None,
     )
 }
 
@@ -599,6 +615,7 @@ pub(super) fn snowy() -> WarpTheme {
             opacity: 20,
         }),
         Some("Snowy".to_string()),
+        None,
     )
 }
 
@@ -620,6 +637,7 @@ pub(super) fn red_rock() -> WarpTheme {
             opacity: 30,
         }),
         Some("Red Rock".to_string()),
+        None,
     )
 }
 
@@ -641,6 +659,7 @@ pub(super) fn dark_city() -> WarpTheme {
             opacity: 20,
         }),
         Some("Dark City".to_string()),
+        None,
     )
 }
 
@@ -657,6 +676,7 @@ pub(super) fn sent_referral_reward() -> WarpTheme {
             opacity: 100,
         }),
         Some("Zap Referral".to_string()),
+        None,
     )
 }
 
@@ -673,6 +693,7 @@ pub(super) fn solar_flare() -> WarpTheme {
             opacity: 20,
         }),
         Some("Solar Flare".to_string()),
+        None,
     )
 }
 
@@ -686,6 +707,7 @@ pub(super) fn tokyo_night() -> WarpTheme {
         tokyo_night_colors(),
         None,
         Some("Tokyo Night".to_string()),
+        None,
     )
 }
 
@@ -699,6 +721,7 @@ pub(super) fn one_dark() -> WarpTheme {
         one_dark_colors(),
         None,
         Some("One Dark".to_string()),
+        None,
     )
 }
 
@@ -712,6 +735,7 @@ pub(super) fn adeberry() -> WarpTheme {
         adeberry_colors(),
         None,
         Some("Adeberry".to_string()),
+        None,
     )
 }
 
@@ -726,6 +750,7 @@ pub(super) fn wezterm_classic() -> WarpTheme {
         wezterm_classic_colors(),
         None,
         Some("WezTerm Classic".to_string()),
+        None,
     )
 }
 
@@ -742,5 +767,6 @@ pub(super) fn received_referral_reward() -> WarpTheme {
             opacity: 100,
         }),
         Some("Received Referral Reward".to_string()),
+        None,
     )
 }

@@ -291,6 +291,7 @@ impl InMemoryThemeOptions {
                 opacity: 30,
             }),
             Some(self.name()),
+            None,
         )
     }
 }

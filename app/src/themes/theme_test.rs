@@ -40,6 +40,7 @@ fn in_memory_theme_generation_test() {
                 opacity: 30,
             }),
             Some("mountains".to_string()),
+            None,
         )
     );
 
@@ -64,6 +65,7 @@ fn in_memory_theme_generation_test() {
                 opacity: 30,
             }),
             Some("mountains".to_string()),
+            None,
         )
     );
 }
