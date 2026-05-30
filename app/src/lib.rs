@@ -1189,6 +1189,7 @@ fn initialize_app(
     // 自定义 Agent Provider 的 API key 由独立单例存到 secure storage,
     // 与 ApiKeyManager (BYOK 转发给 warp-server) 解耦。
     ctx.add_singleton_model(crate::ai::agent_providers::AgentProviderSecrets::new);
+    ctx.add_singleton_model(crate::ai::agent_providers::AgentProviderOAuthSecrets::new);
 
     // Issue #72: 全局 HTTP 代理的 Basic Auth 密码走 OS 密钥库。
     // 注册后立即 reapply,让 settings::init 阶段以空串占位的全局 slot 被真实密码覆盖。

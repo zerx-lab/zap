@@ -2140,12 +2140,58 @@ impl AISettingsPageView {
             }
             let _ = settings.agent_providers.set_value(providers, ctx);
         });
-        crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
-            ctx,
-            |secrets, ctx| {
-                secrets.set(provider_id, api_key.to_owned(), ctx);
-            },
-        );
+        let auth_kind = AISettings::as_ref(ctx)
+            .agent_providers
+            .value()
+            .iter()
+            .find(|p| p.id == provider_id)
+            .map(|p| p.auth_kind)
+            .unwrap_or_default();
+        if matches!(auth_kind, crate::settings::AgentProviderAuthKind::ApiKey) {
+            crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
+                ctx,
+                |secrets, ctx| {
+                    secrets.set(provider_id, api_key.to_owned(), ctx);
+                },
+            );
+        }
+    }
+
+    fn add_codex_oauth_provider(
+        credentials: crate::ai::agent_providers::AgentProviderOAuthCredentials,
+        models: Vec<crate::settings::AgentProviderModel>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        use crate::ai::agent_providers::codex_oauth::{CODEX_BASE_URL, CODEX_PROVIDER_NAME};
+        use crate::settings::{AgentProviderApiType, AgentProviderAuthKind};
+
+        let mut provider_id = String::new();
+        AISettings::handle(ctx).update(ctx, |settings, ctx| {
+            let mut providers = settings.agent_providers.value().clone();
+            providers.push(crate::settings::AgentProvider::new_empty());
+            let provider = providers
+                .last_mut()
+                .expect("provider was just pushed into the list");
+
+            provider_id = provider.id.clone();
+            provider.name = CODEX_PROVIDER_NAME.to_string();
+            provider.auth_kind = AgentProviderAuthKind::CodexOAuth;
+            provider.api_type = AgentProviderApiType::OpenAiResp;
+            provider.base_url = CODEX_BASE_URL.to_string();
+            provider.extra_headers.clear();
+            provider.models = models;
+
+            let _ = settings.agent_providers.set_value(providers, ctx);
+        });
+
+        if !provider_id.is_empty() {
+            crate::ai::agent_providers::AgentProviderOAuthSecrets::handle(ctx)
+                .update(ctx, |secrets, ctx| {
+                    secrets.set(&provider_id, credentials, ctx)
+                });
+            crate::ai::agent_providers::AgentProviderSecrets::handle(ctx)
+                .update(ctx, |secrets, ctx| secrets.remove(&provider_id, ctx));
+        }
     }
 }
 
@@ -2243,6 +2289,7 @@ pub enum AISettingsPageAction {
     },
     // 自定义 Agent Provider 管理动作
     AddAgentProvider,
+    StartCodexAuthLogin,
     RemoveAgentProvider {
         provider_id: String,
     },
@@ -3040,6 +3087,38 @@ impl TypedActionView for AISettingsPageView {
                 });
                 self.rebuild_current_page(ctx);
             }
+            AISettingsPageAction::StartCodexAuthLogin => {
+                let flow = match crate::ai::agent_providers::codex_oauth::begin_login() {
+                    Ok(flow) => flow,
+                    Err(e) => {
+                        log::warn!("Failed to start Codex OAuth login: {e:#}");
+                        ctx.notify();
+                        return;
+                    }
+                };
+                ctx.open_url(&flow.auth_url);
+                ctx.spawn(
+                    async move {
+                        use crate::ai::agent_providers::codex_oauth;
+
+                        let credentials = codex_oauth::wait_for_login(flow).await?;
+                        let models = codex_oauth::codex_oauth_models();
+                        anyhow::Ok((credentials, models))
+                    },
+                    |view, result, ctx| {
+                        match result {
+                            Ok((credentials, models)) => {
+                                Self::add_codex_oauth_provider(credentials, models, ctx);
+                            }
+                            Err(e) => {
+                                log::warn!("Codex OAuth login failed: {e:#}");
+                                ctx.notify();
+                            }
+                        }
+                        view.rebuild_current_page(ctx);
+                    },
+                );
+            }
             AISettingsPageAction::RemoveAgentProvider { provider_id } => {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     let mut providers = settings.agent_providers.value().clone();
@@ -3047,6 +3126,12 @@ impl TypedActionView for AISettingsPageView {
                     let _ = settings.agent_providers.set_value(providers, ctx);
                 });
                 crate::ai::agent_providers::AgentProviderSecrets::handle(ctx).update(
+                    ctx,
+                    |secrets, ctx| {
+                        secrets.remove(provider_id, ctx);
+                    },
+                );
+                crate::ai::agent_providers::AgentProviderOAuthSecrets::handle(ctx).update(
                     ctx,
                     |secrets, ctx| {
                         secrets.remove(provider_id, ctx);
@@ -5624,10 +5709,7 @@ impl AIFactWidget {
                 "{} ",
                 crate::t!("settings-ai-rules-description")
             )),
-            FormattedTextFragment::hyperlink(
-                crate::t!("settings-ai-learn-more"),
-                "",
-            ),
+            FormattedTextFragment::hyperlink(crate::t!("settings-ai-learn-more"), ""),
         ];
         let description = Container::new(
             FormattedTextElement::new(
@@ -6523,9 +6605,13 @@ impl AwsBedrockWidget {
                 ..Default::default()
             };
 
-            let label = Text::new_inline(label, appearance.ui_font_family(), appearance.ui_font_body())
-                .with_color(styles::header_font_color(is_enabled, app).into())
-                .finish();
+            let label = Text::new_inline(
+                label,
+                appearance.ui_font_family(),
+                appearance.ui_font_body(),
+            )
+            .with_color(styles::header_font_color(is_enabled, app).into())
+            .finish();
 
             let input = appearance
                 .ui_builder()
@@ -6568,16 +6654,24 @@ impl AwsBedrockWidget {
                 .with_cross_axis_alignment(CrossAxisAlignment::Start)
                 .with_spacing(4.)
                 .with_child(
-                    Text::new_inline(title_text, appearance.ui_font_family(), appearance.ui_font_body())
-                        .with_style(Properties::default().weight(Weight::Semibold))
-                        .with_color(title_color.into())
-                        .finish(),
+                    Text::new_inline(
+                        title_text,
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_style(Properties::default().weight(Weight::Semibold))
+                    .with_color(title_color.into())
+                    .finish(),
                 )
                 .with_child(
-                    Text::new(detail_text, appearance.ui_font_family(), appearance.ui_font_body())
-                        .with_color(detail_color.into())
-                        .soft_wrap(true)
-                        .finish(),
+                    Text::new(
+                        detail_text,
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_color(detail_color.into())
+                    .soft_wrap(true)
+                    .finish(),
                 );
 
             Container::new(

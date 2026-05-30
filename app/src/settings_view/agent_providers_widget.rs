@@ -41,7 +41,9 @@ use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, Event as EditorEvent, SingleLineEditorOptions, TextColors, TextOptions,
 };
-use crate::settings::{AISettings, AgentProvider, AgentProviderApiType, AgentProviderModel};
+use crate::settings::{
+    AISettings, AgentProvider, AgentProviderApiType, AgentProviderAuthKind, AgentProviderModel,
+};
 use strum::IntoEnumIterator;
 
 use super::ai_page::{AISettingsPageAction, AISettingsPageView, ModelCapabilityKind};
@@ -266,6 +268,7 @@ impl ProviderDraftEditors {
 /// 自定义 Agent Provider 设置 widget。
 pub(super) struct AgentProvidersWidget {
     add_button_state: MouseStateHandle,
+    codex_login_button_state: MouseStateHandle,
     refresh_catalog_button_state: MouseStateHandle,
     expand_chips_button_state: MouseStateHandle,
     /// 快速添加 chip 行的搜索框。
@@ -313,6 +316,7 @@ impl AgentProvidersWidget {
 
         Self {
             add_button_state: MouseStateHandle::default(),
+            codex_login_button_state: MouseStateHandle::default(),
             refresh_catalog_button_state: MouseStateHandle::default(),
             expand_chips_button_state: MouseStateHandle::default(),
             search_editor,
@@ -1001,12 +1005,28 @@ impl AgentProvidersWidget {
             label_color,
             appearance,
         );
-        let api_key_field = field_block(
-            &crate::t!("settings-agent-providers-field-api-key"),
-            ChildView::new(&row.api_key_editor).finish(),
-            label_color,
-            appearance,
-        );
+        let api_key_field = if matches!(provider.auth_kind, AgentProviderAuthKind::CodexOAuth) {
+            field_block(
+                &crate::t!("settings-agent-providers-field-api-key"),
+                Text::new(
+                    crate::t!("settings-agent-providers-auth-login-managed-secret"),
+                    appearance.ui_font_family(),
+                    appearance.ui_font_size(),
+                )
+                .with_color(appearance.theme().disabled_ui_text_color().into())
+                .soft_wrap(true)
+                .finish(),
+                label_color,
+                appearance,
+            )
+        } else {
+            field_block(
+                &crate::t!("settings-agent-providers-field-api-key"),
+                ChildView::new(&row.api_key_editor).finish(),
+                label_color,
+                appearance,
+            )
+        };
 
         let headers_label = Container::new(
             Text::new(
@@ -1412,6 +1432,57 @@ fn field_block(
 }
 
 impl AgentProvidersWidget {
+    fn render_auth_login_section(
+        &self,
+        appearance: &Appearance,
+        app: &AppContext,
+    ) -> Box<dyn Element> {
+        let label_color = appearance.theme().active_ui_text_color();
+        let dim_color = appearance.theme().disabled_ui_text_color();
+        let _ = app;
+
+        let title = Text::new(
+            crate::t!("settings-agent-providers-auth-login-title"),
+            appearance.ui_font_family(),
+            appearance.ui_font_size(),
+        )
+        .with_color(label_color.into())
+        .finish();
+
+        let description = Text::new(
+            crate::t!("settings-agent-providers-auth-login-description"),
+            appearance.ui_font_family(),
+            appearance.ui_font_size(),
+        )
+        .with_color(dim_color.into())
+        .soft_wrap(true)
+        .finish();
+
+        let login_button = Self::render_card_button(
+            crate::t!("settings-agent-providers-auth-login-login"),
+            self.codex_login_button_state.clone(),
+            AISettingsPageAction::StartCodexAuthLogin,
+            appearance,
+        );
+
+        let body = Flex::column()
+            .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+            .with_child(title)
+            .with_child(Container::new(description).with_margin_top(4.).finish())
+            .with_child(
+                Container::new(login_button)
+                    .with_margin_top(8.)
+                    .finish(),
+            );
+
+        Container::new(body.finish())
+        .with_background(appearance.theme().surface_1())
+        .with_uniform_padding(10.)
+        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.)))
+        .with_margin_bottom(10.)
+        .finish()
+    }
+
     /// 渲染 "来自 models.dev 的已知 provider 快速添加" 区:
     /// - 标题 + "刷新目录" 按钮
     /// - 一行 chip(每个对应一个 catalog provider id),点击即新建本地 provider 并预填模型
@@ -1654,6 +1725,7 @@ impl SettingsWidget for AgentProvidersWidget {
 
         // ---- 来自 models.dev 的快速添加 chip 行 ----
         column.add_child(self.render_models_dev_section(appearance, app));
+        column.add_child(self.render_auth_login_section(appearance, app));
 
         if providers.is_empty() {
             let empty = Container::new(

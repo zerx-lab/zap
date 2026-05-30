@@ -2561,10 +2561,7 @@ fn serialize_outgoing_tool_call(
                 Some(SkillReference::BundledSkillId(id)) => format!("@warp-skill:{id}"),
                 None => String::new(),
             };
-            (
-                "read_skill".to_owned(),
-                json!({ "name": name }).to_string(),
-            )
+            ("read_skill".to_owned(), json!({ "name": name }).to_string())
         }
         Some(Tool::ReadShellCommandOutput(r)) => {
             use api::message::tool_call::read_shell_command_output::Delay;
@@ -3109,6 +3106,17 @@ fn build_chat_options(
         );
         opts = opts.with_extra_body(json!({"enable_thinking": true}));
     }
+    let mut extra_headers = extra_headers;
+    if let Some(cid) = conversation_id {
+        if !cid.is_empty()
+            && extra_headers
+                .iter()
+                .any(|(key, _)| key.eq_ignore_ascii_case("chatgpt-account-id"))
+        {
+            extra_headers.push(("conversation_id".to_string(), cid.to_string()));
+            extra_headers.push(("session_id".to_string(), cid.to_string()));
+        }
+    }
     if !extra_headers.is_empty() {
         opts = opts.with_extra_headers(extra_headers);
     }
@@ -3161,6 +3169,7 @@ pub struct TitleGenInput {
     pub model_id: String,
     pub api_type: AgentProviderApiType,
     pub reasoning_effort: crate::settings::ReasoningEffortSetting,
+    pub extra_headers: Vec<(String, String)>,
 }
 
 pub struct ByopOutputInput {
@@ -4245,6 +4254,7 @@ pub(crate) async fn generate_title_via_byop(
         model_id: tg.model_id.clone(),
         api_type: tg.api_type,
         reasoning_effort: tg.reasoning_effort,
+        extra_headers: tg.extra_headers.clone(),
     };
     let system = include_str!("prompts/tasks/title_system.md");
     let user_prompt = format!(

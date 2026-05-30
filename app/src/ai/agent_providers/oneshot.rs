@@ -32,6 +32,7 @@ pub struct OneshotConfig {
     pub model_id: String,
     pub api_type: AgentProviderApiType,
     pub reasoning_effort: ReasoningEffortSetting,
+    pub extra_headers: Vec<(String, String)>,
 }
 
 /// One-shot 调用的可选参数。
@@ -78,6 +79,9 @@ fn build_oneshot_request(
                 chat_opts = chat_opts.with_reasoning_effort(effort);
             }
         }
+    }
+    if !cfg.extra_headers.is_empty() {
+        chat_opts = chat_opts.with_extra_headers(cfg.extra_headers.clone());
     }
 
     let max_chars = opts.max_chars.unwrap_or(DEFAULT_MAX_CHARS);
@@ -165,15 +169,18 @@ pub fn resolve_active_ai_oneshot(
         .get_active_ai_model(app, terminal_view_id)
         .id
         .clone();
-    let (provider, api_key, model_id) = super::lookup_byop(app, &id)?;
+    let lookup = super::lookup_byop(app, &id)?;
+    let provider = lookup.provider;
+    let model_id = lookup.model_id;
     let reasoning_effort =
         llm_prefs.get_reasoning_effort(terminal_view_id, provider.api_type, &model_id);
     Some(OneshotConfig {
         base_url: provider.base_url,
-        api_key,
+        api_key: lookup.api_key,
         model_id,
         api_type: provider.api_type,
         reasoning_effort,
+        extra_headers: lookup.extra_headers,
     })
 }
 
@@ -188,14 +195,17 @@ pub fn resolve_next_command_oneshot(
         .get_active_next_command_model(app, terminal_view_id)
         .id
         .clone();
-    let (provider, api_key, model_id) = super::lookup_byop(app, &id)?;
+    let lookup = super::lookup_byop(app, &id)?;
+    let provider = lookup.provider;
+    let model_id = lookup.model_id;
     let reasoning_effort =
         llm_prefs.get_reasoning_effort(terminal_view_id, provider.api_type, &model_id);
     Some(OneshotConfig {
         base_url: provider.base_url,
-        api_key,
+        api_key: lookup.api_key,
         model_id,
         api_type: provider.api_type,
         reasoning_effort,
+        extra_headers: lookup.extra_headers,
     })
 }

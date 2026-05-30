@@ -680,6 +680,20 @@ pub enum AgentProviderApiType {
     DeepSeek,
 }
 
+/// Provider 的认证方式。
+///
+/// 默认仍是 API key,以保证旧配置不需要迁移。OAuth token 不写入 settings,
+/// 只用该字段标识运行时应去对应 secure storage 取凭据。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[derive(Default)]
+pub enum AgentProviderAuthKind {
+    #[default]
+    ApiKey,
+    /// Codex CLI / ChatGPT OAuth 登录。
+    CodexOAuth,
+}
+
 /// Provider 级别的 reasoning effort(思考深度)偏好。
 ///
 /// 语义说明:
@@ -814,6 +828,10 @@ pub struct AgentProvider {
     #[serde(default)]
     pub api_type: AgentProviderApiType,
 
+    /// 认证方式。老配置(无此字段)反序列化为 API key。
+    #[serde(default)]
+    pub auth_kind: AgentProviderAuthKind,
+
     /// API base URL,例如 `https://api.deepseek.com/v1`、`http://localhost:11434/v1`。
     /// 不要带尾随斜杠,但代码侧会做容错。
     pub base_url: String,
@@ -842,6 +860,7 @@ impl AgentProvider {
             name: String::new(),
             kind: AgentProviderKind::default(),
             api_type: AgentProviderApiType::default(),
+            auth_kind: AgentProviderAuthKind::default(),
             base_url: String::new(),
             models: Vec::new(),
             extra_headers: Vec::new(),
