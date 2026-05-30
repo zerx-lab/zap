@@ -101,7 +101,7 @@ jobs:
       # 范围参数 `<prev>..HEAD` 通过三元表达式注入:有 prev 时限定范围,无 prev 时让
       # git-cliff 输出全部历史(首次发布场景)。
       - name: Generate release notes via git-cliff
-        uses: orhun/git-cliff-action@4a4a951bc43fafe41cd2348e181853f6df9d4cfa # v4.5.1
+        uses: orhun/git-cliff-action@98c93442bb05a455a77bee982867857ae748eeea # v4.5.1
         with:
           config: cliff.toml
           args: >-

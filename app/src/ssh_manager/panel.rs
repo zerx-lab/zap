@@ -30,8 +30,8 @@ use warpui::{
 };
 
 use warp_ssh_manager::{
-    AuthType, KeychainSecretStore, NodeKind, SecretKind, SshNode, SshRepository, SshSecretStore,
-    SshServerInfo,
+    AuthType, KeychainSecretStore, NodeKind, SecretKind, SshNode, SshRepository,
+    SshSecretStore, SshServerInfo,
 };
 
 use crate::editor::{
@@ -64,6 +64,7 @@ pub enum SshManagerPanelAction {
     DeleteSelected,
     Connect,
     Edit,
+    CloneServer(String),
     /// 单击行,处理逻辑根据 node 种类:
     /// - server: 选中 + emit OpenSshTerminal(直接连接)
     /// - folder: 仅选中
@@ -394,17 +395,7 @@ impl SshManagerPanel {
 
     fn on_add_server(&mut self, ctx: &mut ViewContext<Self>) {
         let parent = self.parent_for_new_node();
-        let info_template = SshServerInfo {
-            node_id: String::new(),
-            host: "example.com".into(),
-            port: 22,
-            username: "user".into(),
-            auth_type: AuthType::Password,
-            key_path: None,
-            startup_command: None,
-            notes: None,
-            last_connected_at: None,
-        };
+        let info_template = SshServerInfo::new_default(String::new());
         let result = warp_ssh_manager::with_conn(|c| {
             let name = unique_name(c, parent.as_deref(), "New server")?;
             Ok(SshRepository::create_server(
@@ -425,6 +416,47 @@ impl SshManagerPanel {
             }
             Err(e) => {
                 log::error!("ssh_manager: create server failed: {e:?}");
+                ctx.emit(SshManagerPanelEvent::PersistenceError(e.to_string()));
+            }
+        }
+    }
+
+    fn on_clone_server(&mut self, source_id: &str, ctx: &mut ViewContext<Self>) {
+        let source_id = source_id.to_string();
+        let result = warp_ssh_manager::with_conn(|c| {
+            let source_info = SshRepository::get_server(c, &source_id)?
+                .ok_or_else(|| warp_ssh_manager::SshRepositoryError::NotFound(source_id.clone()))?;
+            let source_node = SshRepository::list_nodes(c)?
+                .into_iter()
+                .find(|n| n.id == source_id)
+                .ok_or_else(|| warp_ssh_manager::SshRepositoryError::NotFound(source_id.clone()))?;
+
+            let parent = source_node.parent_id;
+            let cloned_info = SshServerInfo::clone_from_template(&source_info, String::new());
+            let name = unique_name(c, parent.as_deref(), &format!("{} (copy)", source_node.name))?;
+
+            let new_node = SshRepository::create_server(c, parent.as_deref(), &name, &cloned_info)?;
+
+            // 源服务器在上面已校验存在,直接把 keychain 里的密码 / 私钥口令复制到新节点。
+            let store = KeychainSecretStore;
+            if let Ok(Some(password)) = store.get(&source_id, SecretKind::Password) {
+                let _ = store.set(&new_node.id, SecretKind::Password, &password);
+            }
+            if let Ok(Some(passphrase)) = store.get(&source_id, SecretKind::Passphrase) {
+                let _ = store.set(&new_node.id, SecretKind::Passphrase, &passphrase);
+            }
+
+            Ok(new_node)
+        });
+        match result {
+            Ok(node) => {
+                let new_id = node.id.clone();
+                self.selected_id = Some(new_id.clone());
+                self.refresh_tree(ctx);
+                ctx.emit(SshManagerPanelEvent::OpenServerEditor { node_id: new_id });
+            }
+            Err(e) => {
+                log::error!("ssh_manager: clone server failed: {e:?}");
                 ctx.emit(SshManagerPanelEvent::PersistenceError(e.to_string()));
             }
         }
@@ -1555,6 +1587,10 @@ impl SshManagerPanel {
                             SshManagerPanelAction::Connect,
                         ),
                         (
+                            crate::t!("workspace-left-panel-ssh-manager-menu-clone"),
+                            SshManagerPanelAction::CloneServer(id.clone()),
+                        ),
+                        (
                             crate::t!("workspace-left-panel-ssh-manager-menu-delete"),
                             SshManagerPanelAction::DeleteSelected,
                         ),
@@ -1639,6 +1675,7 @@ impl TypedActionView for SshManagerPanel {
             SshManagerPanelAction::DeleteSelected => self.on_delete_selected(ctx),
             SshManagerPanelAction::Connect => self.on_connect(ctx),
             SshManagerPanelAction::Edit => self.on_edit(ctx),
+            SshManagerPanelAction::CloneServer(id) => self.on_clone_server(id, ctx),
             SshManagerPanelAction::Click(id) => self.on_click(id.clone(), ctx),
             SshManagerPanelAction::StartRename(id) => self.enter_rename(id.clone(), ctx),
             SshManagerPanelAction::CommitRename => self.commit_rename(ctx),

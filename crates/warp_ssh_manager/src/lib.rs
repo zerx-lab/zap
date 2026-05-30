@@ -13,10 +13,11 @@ pub mod types;
 pub use db::{set_database_path, with_conn};
 pub use repository::{SshRepository, SshRepositoryError, SyncMetaRepository};
 pub use secrets::{KeychainSecretStore, SecretKind, SshSecretStore, SshSecretStoreError};
-pub use ssh_command::{build_ssh_args, build_ssh_command_line};
+pub use ssh_command::{build_ssh_args, build_ssh_command_line, test_connection, ConnectionTestResult};
 pub use ssh_config_parser::{
     LoadOutcome, LoadResult, SshConfigCandidate, default_ssh_config_path, load_candidates,
     load_candidates_from, parse_ssh_config,
 };
 pub use sync_provider::{DbVersionStore, SshSyncData, SshSyncProvider, SyncNode, SyncServer};
 pub use types::{AuthType, NodeKind, SshNode, SshServerInfo};
+pub use types::ConnectionStatus;
