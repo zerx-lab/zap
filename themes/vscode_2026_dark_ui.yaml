@@ -5,7 +5,7 @@
 name: VS Code 2026 Dark UI
 base_theme: vscode_2026_dark
 ui_colors:
-  surface_1: '#1E1F20'
+  surface_1: '#202122'
   surface_2: '#242526'
   surface_3: '#2A2B2C'
   border: '#333536'
@@ -15,10 +15,10 @@ ui_colors:
   sub_text: '#8C8C8C'
   hint_text: '#555555'
   disabled_text: '#555555'
-  selection: '#3994BC26'
+  selection: '#3994BC33'
   hover: '#FFFFFF0D'
   active: '#3994BC'
   warning: '#E5BA7D'
   error: '#F48771'
-  success: '#2EA043'
+  success: '#72C892'
   link: '#48A0C7'
