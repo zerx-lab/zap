@@ -281,6 +281,64 @@ const WEZTERM_CLASSIC_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0xFFFFFFFF),
 );
 
+const VSCODE_2026_DARK_NORMAL_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x191A1BFF),
+    AnsiColor::from_u32(0xF48771FF),
+    AnsiColor::from_u32(0x2EA043FF),
+    AnsiColor::from_u32(0xE5BA7DFF),
+    AnsiColor::from_u32(0x3994BCFF),
+    AnsiColor::from_u32(0xB180D7FF),
+    AnsiColor::from_u32(0x48A0C7FF),
+    AnsiColor::from_u32(0xEDEDEDFF),
+);
+const VSCODE_2026_DARK_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
+    AnsiColor::from_u32(0x555555FF),
+    AnsiColor::from_u32(0xF48771FF),
+    AnsiColor::from_u32(0x369432FF),
+    AnsiColor::from_u32(0xB89500FF),
+    AnsiColor::from_u32(0x53A5CAFF),
+    AnsiColor::from_u32(0xFF8FFDFF),
+    AnsiColor::from_u32(0x56D4DDFF),
+    AnsiColor::from_u32(0xFFFFFFFF),
+);
+
+pub(super) fn vscode_2026_dark_colors() -> TerminalColors {
+    TerminalColors::new(VSCODE_2026_DARK_NORMAL_COLORS, VSCODE_2026_DARK_BRIGHT_COLORS)
+}
+
+pub(super) fn vscode_2026_dark() -> WarpTheme {
+    use warp_core::ui::theme::ui_colors::UiColors;
+    WarpTheme::new(
+        Fill::Solid(ColorU::from_u32(0x191A1BFF)),
+        ColorU::from_u32(0xBFBFBFFF),
+        Fill::Solid(ColorU::from_u32(0x3994BCFF)),
+        None,
+        Some(Details::Darker),
+        vscode_2026_dark_colors(),
+        None,
+        Some("VS Code 2026 Dark".to_string()),
+        Some(UiColors {
+            surface_1: Some(ColorU { r: 0x1E, g: 0x1F, b: 0x20, a: 255 }),
+            surface_2: Some(ColorU { r: 0x24, g: 0x25, b: 0x26, a: 255 }),
+            surface_3: Some(ColorU { r: 0x2A, g: 0x2B, b: 0x2C, a: 255 }),
+            border: Some(ColorU { r: 0x33, g: 0x35, b: 0x36, a: 255 }),
+            focus_border: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0xB3 }),
+            split_pane_border: Some(ColorU { r: 0x2A, g: 0x2B, b: 0x2C, a: 255 }),
+            main_text: Some(ColorU { r: 0xED, g: 0xED, b: 0xED, a: 255 }),
+            sub_text: Some(ColorU { r: 0x8C, g: 0x8C, b: 0x8C, a: 255 }),
+            hint_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
+            disabled_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
+            selection: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x26 }),
+            hover: Some(ColorU { r: 0xFF, g: 0xFF, b: 0xFF, a: 0x0D }),
+            active: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 255 }),
+            warning: Some(ColorU { r: 0xE5, g: 0xBA, b: 0x7D, a: 255 }),
+            error: Some(ColorU { r: 0xF4, g: 0x87, b: 0x71, a: 255 }),
+            success: Some(ColorU { r: 0x2E, g: 0xA0, b: 0x43, a: 255 }),
+            link: Some(ColorU { r: 0x48, g: 0xA0, b: 0xC7, a: 255 }),
+        }),
+    )
+}
+
 pub(super) fn light_mode_colors() -> TerminalColors {
     TerminalColors::new(LIGHT_MODE_NORMAL_COLORS, LIGHT_MODE_BRIGHT_COLORS)
 }
