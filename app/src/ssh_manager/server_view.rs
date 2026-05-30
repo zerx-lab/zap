@@ -376,6 +376,26 @@ impl SshServerView {
         editor.as_ref(app).buffer_text(app)
     }
 
+    /// 获取当前选中的分组 ID。
+    pub fn current_group_id(&self) -> &Option<String> {
+        &self.current_group_id
+    }
+
+    /// 获取文件夹缓存的数量（用于测试断言）。
+    pub fn folders_count(&self) -> usize {
+        self.folders.len()
+    }
+
+    /// 获取指定索引的文件夹 ID（用于测试断言）。
+    pub fn folder_id_at(&self, index: usize) -> Option<&str> {
+        self.folders.get(index).map(|(id, _)| id.as_str())
+    }
+
+    /// 获取所有文件夹 (id, name) 的引用（用于测试）。
+    pub fn folders(&self) -> &[(String, String)] {
+        &self.folders
+    }
+
     fn on_save(&mut self, ctx: &mut ViewContext<Self>) {
         // 1. 收集字段
         let name = self.current_text(&self.name_editor.clone(), ctx);

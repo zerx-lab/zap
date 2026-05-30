@@ -83,12 +83,19 @@ pub fn main() -> Result<()> {
                 "Integration test binary should have set an ORIGINAL_HOME environment variable",
             );
             assert_ne!(home, original_home, "HOME should not be the same as ORIGINAL_HOME!");
+        } else if #[cfg(windows)] {
+            let user_profile =
+                std::env::var("USERPROFILE").expect("Should have a value for the USERPROFILE environment variable");
+            let original_user_profile = std::env::var("ORIGINAL_USERPROFILE").expect(
+                "Integration test binary should have set an ORIGINAL_USERPROFILE environment variable",
+            );
+            assert_ne!(user_profile, original_user_profile, "USERPROFILE should not be the same as ORIGINAL_USERPROFILE!");
         } else {
             unimplemented!("Need to add support for hermetic integration tests for the current platform!");
         }
     }
 
-    #[cfg_attr(not(unix), allow(unreachable_code))]
+    #[cfg_attr(not(any(unix, windows)), allow(unreachable_code))]
     warp::run_integration_test(driver)
 }
 
@@ -247,6 +254,7 @@ fn register_tests() -> HashMap<&'static str, BoxedBuilderFn> {
     register_test!(test_ssh_into_sh);
     register_test!(test_ssh_into_ash);
     register_test!(test_ssh_with_shell_override);
+    register_test!(test_ssh_server_group_dropdown);
     register_test!(test_custom_open_completions_menu_binding);
     register_test!(test_color_overrides_in_prompt_dont_crash);
     register_test!(test_copy_prompt_from_block_honor_ps1_disabled);
