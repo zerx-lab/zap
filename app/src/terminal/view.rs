@@ -376,8 +376,8 @@ use warpui::platform::{Cursor, OperatingSystem};
 use warpui::r#async::Timer;
 use warpui::windowing::WindowManager;
 
-use warpui::assets::asset_cache::{AssetCache, AssetCacheEvent};
-use warpui::image_cache::ImageType;
+use warpui::assets::asset_cache::{Asset as _, AssetCache, AssetCacheEvent, AssetSource, AssetState};
+use warpui::image_cache::{AnimatedImage, ImageType, StaticImage};
 use warpui::units::{IntoLines, IntoPixels, Lines, Pixels};
 use warpui::{
     accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole},
@@ -509,6 +509,7 @@ use super::model::block::{
 };
 use super::model::blocks::RichContentItem;
 use super::model::completions::ShellCompletion;
+use super::model::kitty::DEFAULT_FRAME_GAP_MS;
 use super::model::rich_content::RichContentType;
 use super::model::secrets::RichContentSecretTooltipInfo;
 use super::model::selection::ExpandedSelectionRange;
@@ -10853,6 +10854,16 @@ impl TerminalView {
                     ctx
                 );
             }
+            ModelEvent::AnimatedImageReceived { image_id, frames } => {
+                AssetCache::handle(ctx).update(ctx, |asset_cache, ctx| {
+                    let Some(asset) = build_animated_image(asset_cache, *image_id, frames) else {
+                        return;
+                    };
+
+                    asset_cache.insert_asset::<ImageType>(image_id.to_string(), asset, ctx);
+                });
+                ctx.notify();
+            }
             ModelEvent::BootstrapPrecmdDone => {
                 self.execute_pending_command((), ctx);
             }
@@ -12107,6 +12118,81 @@ fn build_onboarding_keybindings(ctx: &AppContext) -> OnboardingKeybindings {
         toggle_input_mode,
         submit_to_local_agent,
     }
+}
+
+/// Builds the asset for a kitty image whose animation frames changed. Frame 1 of
+/// the animation is the image itself, which the asset cache already holds, so
+/// only the frames transmitted after it travel with the event.
+fn build_animated_image(
+    asset_cache: &AssetCache,
+    image_id: u32,
+    frames: &[(Vec<u8>, u32)],
+) -> Option<ImageType> {
+    let mut images: Vec<(Arc<StaticImage>, u32)> = Vec::new();
+
+    if let Some(root) = cached_image(asset_cache, image_id) {
+        images.push((root, DEFAULT_FRAME_GAP_MS));
+    }
+
+    for (data, gap_ms) in frames {
+        match ImageType::try_from_bytes(data) {
+            Ok(ImageType::StaticBitmap { image }) => images.push((image, *gap_ms)),
+            Ok(_) | Err(_) => {
+                log::warn!("Could not decode an animation frame of kitty image {image_id}");
+            }
+        }
+    }
+
+    match &images[..] {
+        [] => None,
+        // A stopped animation is a single frame. Keeping it static spares the
+        // renderer a repaint for every frame delay that elapses.
+        [(image, _)] => Some(ImageType::StaticBitmap {
+            image: image.clone(),
+        }),
+        _ => {
+            let frames: Vec<image::Frame> = images
+                .iter()
+                .filter_map(|(image, gap_ms)| animation_frame(image, *gap_ms))
+                .collect();
+
+            Some(ImageType::AnimatedBitmap {
+                image: Arc::new(AnimatedImage::from(frames)),
+            })
+        }
+    }
+}
+
+/// The decoded image the asset cache holds for an image id. Once an animation
+/// has been built for it, its first frame is that same image.
+fn cached_image(asset_cache: &AssetCache, image_id: u32) -> Option<Arc<StaticImage>> {
+    let AssetState::Loaded { data } = asset_cache.load_asset::<ImageType>(AssetSource::Raw {
+        id: image_id.to_string(),
+    }) else {
+        return None;
+    };
+
+    match &*data {
+        ImageType::StaticBitmap { image } => Some(image.clone()),
+        ImageType::AnimatedBitmap { image } => {
+            image.frames.first().map(|frame| frame.image.clone())
+        }
+        ImageType::Svg { .. } | ImageType::Unrecognized => None,
+    }
+}
+
+/// Copies a decoded image into an `image` crate frame, which is what
+/// [`AnimatedImage`] is built from.
+fn animation_frame(image: &StaticImage, gap_ms: u32) -> Option<image::Frame> {
+    let buffer =
+        image::RgbaImage::from_raw(image.width(), image.height(), image.rgba_bytes().to_vec())?;
+
+    Some(image::Frame::from_parts(
+        buffer,
+        0,
+        0,
+        image::Delay::from_numer_denom_ms(gap_ms, 1),
+    ))
 }
 
 /// Builds the context-menu label for forking an AI conversation from a given query.

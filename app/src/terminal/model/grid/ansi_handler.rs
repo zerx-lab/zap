@@ -4,7 +4,7 @@
 mod tab_stops;
 
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::ops::Range;
 use std::sync::Arc;
@@ -35,7 +35,8 @@ use crate::terminal::model::image_map::{ImagePlacementData, ImageType, StoredIma
 use crate::terminal::model::index::{Point, VisibleRow};
 use crate::terminal::model::iterm_image::{ITermImage, ITermImageDimensionUnit};
 use crate::terminal::model::kitty::{
-    CursorMovementPolicy, KittyAction, KittyError, KittyResponse, StorageError,
+    CursorMovementPolicy, DeletionType, InvalidKittyAction, KittyAction, KittyError, KittyResponse,
+    StorageError,
 };
 use crate::terminal::model::selection::ScrollDelta;
 use crate::terminal::model::ObfuscateSecrets;
@@ -1343,6 +1344,8 @@ impl ansi::Handler for GridHandler {
         // Convert the visual dimension in pixels to cells. We want to round up if this doesn't perfectly fit within an amount of cells.
         let height_cells =
             (height_px as f32 / (self.ansi_handler_state.cell_height as f32)).ceil() as usize;
+        let width_cells =
+            (width_px as f32 / (self.ansi_handler_state.cell_width as f32)).ceil() as usize;
 
         // Convert the user requested dimension in pixels to cells. This is needed to scroll the cursor by the space the user requested.
         // If preserve_aspect_ratio is true, this may be larger than the visual dimension of the image.
@@ -1377,6 +1380,7 @@ impl ansi::Handler for GridHandler {
             ImagePlacementData {
                 z_index: 0,
                 height_cells,
+                width_cells,
                 image_size,
             },
         );
@@ -1448,6 +1452,12 @@ impl ansi::Handler for GridHandler {
         let response = format!("\x1b[?{}u", mode.bits());
         let _ = writer.write_all(response.as_bytes());
     }
+}
+
+/// Converts a kitty cell coordinate into a 0-based grid index. Kitty numbers
+/// cells from one, so a zero means the key was absent and selects no cell.
+fn cell_index(coordinate: u32) -> Option<usize> {
+    coordinate.checked_sub(1).map(|index| index as usize)
 }
 
 /// Helper functions for the [`ansi::Handler`] implementation.
@@ -1712,6 +1722,34 @@ impl GridHandler {
         }
     }
 
+    /// Maps a kitty delete coordinate pair onto the absolute cell that
+    /// placements are keyed by, using the same translation that placing an image
+    /// at the cursor uses.
+    fn delete_cell(&self, col: u32, row: u32) -> Option<AbsolutePoint> {
+        let col = cell_index(col)?;
+        let row = cell_index(row)?;
+        Some(AbsolutePoint::from_point(Point::new(row, col), self))
+    }
+
+    /// Removes every placement drawn at `z_index`, returning what was removed so
+    /// that callers can also free the images that no longer have a placement.
+    pub fn evict_placements_with_z(&mut self, z_index: i32) -> Vec<(u32, u32)> {
+        let placements = self.images.placements_with_z(z_index);
+        self.images.evict_placements(&placements);
+        placements
+    }
+
+    /// Removes every placement whose image id lies in the inclusive range.
+    pub fn evict_placements_in_id_range(&mut self, start: u32, end: u32) {
+        let placements = self.images.placements_for_id_range(start, end);
+        self.images.evict_placements(&placements);
+    }
+
+    /// Removes every placement of an image that is not in `live`.
+    pub fn evict_images_absent_from(&mut self, live: &HashSet<u32>) {
+        self.images.evict_images_absent_from(live);
+    }
+
     fn handle_completed_kitty_action_internal(
         &mut self,
         action: KittyAction,
@@ -1768,8 +1806,24 @@ impl GridHandler {
                     return Ok(());
                 }
 
-                let max_width =
-                    (self.columns() - self.cursor_point().col) * self.ansi_handler_state.cell_width;
+                // A virtual placement has no anchor in the grid and must not
+                // disturb the cursor: the unicode placeholder cells that
+                // reference it decide where it is drawn. The image data still
+                // has to reach the asset cache.
+                if action.placement_data.unicode_placeholder {
+                    self.ansi_handler_state
+                        .event_proxy
+                        .send_terminal_event(Event::ImageReceived {
+                            image_id: action.image_id,
+                            image_data: action.image.data,
+                            image_protocol: ImageProtocol::Kitty,
+                        });
+
+                    return Ok(());
+                }
+
+                let max_width = self.columns().saturating_sub(self.cursor_point().col)
+                    * self.ansi_handler_state.cell_width;
 
                 let max_height =
                     MAX_IMAGE_CELL_HEIGHT as usize * self.ansi_handler_state.cell_height;
@@ -1812,6 +1866,7 @@ impl GridHandler {
                     ImagePlacementData {
                         z_index: action.placement_data.z_index,
                         height_cells,
+                        width_cells,
                         image_size,
                     },
                 );
@@ -1832,7 +1887,7 @@ impl GridHandler {
                 }
 
                 // Create the whitespace to fit the image on.
-                for _ in 0..height_cells - 1 {
+                for _ in 0..height_cells.saturating_sub(1) {
                     self.newline();
                 }
 
@@ -1858,6 +1913,10 @@ impl GridHandler {
                     }
                 };
 
+                if metadata.image_size.x() == 0.0 || metadata.image_size.y() == 0.0 {
+                    return Ok(());
+                }
+
                 if let Some(0) = action.placement_data.cols {
                     return Ok(());
                 }
@@ -1866,8 +1925,14 @@ impl GridHandler {
                     return Ok(());
                 }
 
-                let max_width =
-                    (self.columns() - self.cursor_point().col) * self.ansi_handler_state.cell_width;
+                // See the matching branch in `StoreAndDisplay`: a virtual
+                // placement is anchored by its placeholder cells, not the grid.
+                if action.placement_data.unicode_placeholder {
+                    return Ok(());
+                }
+
+                let max_width = self.columns().saturating_sub(self.cursor_point().col)
+                    * self.ansi_handler_state.cell_width;
 
                 let max_height =
                     MAX_IMAGE_CELL_HEIGHT as usize * self.ansi_handler_state.cell_height;
@@ -1902,6 +1967,7 @@ impl GridHandler {
                     ImagePlacementData {
                         z_index: action.placement_data.z_index,
                         height_cells,
+                        width_cells,
                         image_size,
                     },
                 );
@@ -1922,7 +1988,7 @@ impl GridHandler {
                 }
 
                 // Create the whitespace to fit the image on.
-                for _ in 0..height_cells - 1 {
+                for _ in 0..height_cells.saturating_sub(1) {
                     self.newline();
                 }
 
@@ -1938,7 +2004,66 @@ impl GridHandler {
                 });
             }
             KittyAction::QuerySupport(_) => {}
-            KittyAction::Delete { .. } => {}
+            KittyAction::Delete {
+                delete_placements_only,
+                deletion_type,
+            } => {
+                // Only the positional specifiers are handled here: they are the
+                // ones that need this grid's cursor and placement geometry. The
+                // rest are applied to every grid by the terminal model.
+                let placements = match deletion_type {
+                    DeletionType::AtCursor => {
+                        let cursor = AbsolutePoint::from_point(self.cursor_point(), self);
+                        self.images.placements_at_point(cursor.col, cursor.row)
+                    }
+                    DeletionType::AtPoint { col, row } => match self.delete_cell(col, row) {
+                        Some(cell) => self.images.placements_at_point(cell.col, cell.row),
+                        None => vec![],
+                    },
+                    DeletionType::AtPointZ { col, row, z } => match self.delete_cell(col, row) {
+                        Some(cell) => self
+                            .images
+                            .placements_at_point(cell.col, cell.row)
+                            .into_iter()
+                            .filter(|&(image_id, placement_id)| {
+                                self.images
+                                    .get_image_placement_data(image_id, placement_id)
+                                    .is_some_and(|data| data.z_index == z)
+                            })
+                            .collect(),
+                        None => vec![],
+                    },
+                    DeletionType::Column(col) => match cell_index(col) {
+                        Some(col) => self.images.placements_intersecting_col(col),
+                        None => vec![],
+                    },
+                    DeletionType::Row(row) => match self.delete_cell(1, row) {
+                        Some(cell) => self.images.placements_intersecting_row(cell.row),
+                        None => vec![],
+                    },
+                    DeletionType::Frames { .. } => {
+                        return Err(InvalidKittyAction::UnsupportedAction.into())
+                    }
+                    DeletionType::All
+                    | DeletionType::ById { .. }
+                    | DeletionType::ByNumber { .. }
+                    | DeletionType::ZIndex(_)
+                    | DeletionType::IdRange { .. } => return Ok(()),
+                };
+
+                // An uppercase specifier frees the image data as well, so the
+                // model must forget the metadata it looks placements up by.
+                if !delete_placements_only {
+                    for (image_id, _) in &placements {
+                        metadata.remove(image_id);
+                    }
+                }
+
+                self.images.evict_placements(&placements);
+            }
+            // Animation actions carry no placement: the terminal model applies
+            // them to the image itself before any grid sees them.
+            KittyAction::TransmitFrame { .. } | KittyAction::AnimationControl { .. } => {}
         }
 
         Ok(())

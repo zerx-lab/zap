@@ -34,6 +34,8 @@ typedef struct {
   float drop_shadow_padding_factor;
   float dash_length;
   vector_float2 gap_lengths;
+  vector_float2 uv_origin;
+  vector_float2 uv_size;
 } PerRectUniforms;
 
 typedef struct {

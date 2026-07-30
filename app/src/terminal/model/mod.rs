@@ -31,6 +31,9 @@ pub mod image_map;
 pub mod index;
 pub mod iterm_image;
 pub mod kitty;
+#[cfg(test)]
+#[path = "kitty_test.rs"]
+mod kitty_test;
 pub mod secrets;
 pub mod selection;
 pub mod session;

@@ -102,7 +102,10 @@ rect_vertex_shader(
     out.border_end = rect->border_end * rect->size + rect->origin;
     out.border_start_color = rect->border_start_color;
     out.border_end_color = rect->border_end_color;
-    out.texture_coordinate = vertices[vertex_id];
+    // The vertices span the unit square, so they double as the texture
+    // coordinates of the full asset; map them onto the requested source
+    // sub-rectangle of the texture.
+    out.texture_coordinate = vertices[vertex_id] * rect->uv_size + rect->uv_origin;
     out.is_icon = rect->is_icon;
     out.icon_color = rect->icon_color;
     out.drop_shadow_offsets = rect->drop_shadow_offsets;

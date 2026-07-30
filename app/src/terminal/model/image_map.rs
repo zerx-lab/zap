@@ -268,6 +268,92 @@ impl ImageMap {
         }
     }
 
+    /// Removes every kitty placement of an image that is not in `live`. Only
+    /// kitty placements: a kitty delete command must be structurally incapable
+    /// of touching an iTerm image, whose metadata lifecycle is independent.
+    pub fn evict_images_absent_from(&mut self, live: &HashSet<u32>) {
+        let orphaned: Vec<(u32, u32)> = self
+            .point_by_image_id
+            .keys()
+            .copied()
+            .filter(|(image_id, _)| {
+                !live.contains(image_id)
+                    && self.image_type_by_image_id.get(image_id) == Some(&ImageType::Kitty)
+            })
+            .collect();
+
+        self.evict_placements(&orphaned);
+    }
+
+    /// Every placement in the map, paired with its anchor cell and its geometry.
+    /// Placements without recorded geometry are skipped, matching how the
+    /// rendering queries treat them.
+    fn placements(
+        &self,
+    ) -> impl Iterator<Item = (AbsolutePoint, (u32, u32), &ImagePlacementData)> + '_ {
+        let placement_data = &self.image_placement_data;
+        self.image_ids_by_point
+            .iter()
+            .flat_map(move |(&top_left, ids)| {
+                ids.iter().filter_map(move |&id| {
+                    let data = placement_data.get(&id)?;
+                    Some((top_left, id, data))
+                })
+            })
+    }
+
+    /// The placements whose cell footprint contains the given absolute cell.
+    pub fn placements_at_point(&self, col: usize, row: u64) -> Vec<(u32, u32)> {
+        self.placements()
+            .filter(|(top_left, _, data)| {
+                data.covers_row(*top_left, row) && data.covers_col(*top_left, col)
+            })
+            .map(|(_, id, _)| id)
+            .collect_vec()
+    }
+
+    /// The placements whose cell footprint intersects the given absolute row.
+    pub fn placements_intersecting_row(&self, row: u64) -> Vec<(u32, u32)> {
+        self.placements()
+            .filter(|(top_left, _, data)| data.covers_row(*top_left, row))
+            .map(|(_, id, _)| id)
+            .collect_vec()
+    }
+
+    /// The placements whose cell footprint intersects the given column.
+    pub fn placements_intersecting_col(&self, col: usize) -> Vec<(u32, u32)> {
+        self.placements()
+            .filter(|(top_left, _, data)| data.covers_col(*top_left, col))
+            .map(|(_, id, _)| id)
+            .collect_vec()
+    }
+
+    /// The placements drawn at the given z-index.
+    pub fn placements_with_z(&self, z_index: i32) -> Vec<(u32, u32)> {
+        self.placements()
+            .filter(|(_, _, data)| data.z_index == z_index)
+            .map(|(_, id, _)| id)
+            .collect_vec()
+    }
+
+    /// The placements of every image whose id lies in the inclusive range.
+    pub fn placements_for_id_range(&self, start: u32, end: u32) -> Vec<(u32, u32)> {
+        if start > end {
+            return vec![];
+        }
+
+        self.point_by_image_id
+            .range((Included(&(start, u32::MIN)), Included(&(end, u32::MAX))))
+            .map(|(&id, _)| id)
+            .collect_vec()
+    }
+
+    pub fn evict_placements(&mut self, placements: &[(u32, u32)]) {
+        for &(image_id, placement_id) in placements {
+            self.evict_placement(image_id, placement_id);
+        }
+    }
+
     pub fn evict_placement(&mut self, image_id: u32, placement_id: u32) {
         self.image_placement_data.remove(&(image_id, placement_id));
         if let Some(point) = self.point_by_image_id.get(&(image_id, placement_id)) {
@@ -322,5 +408,25 @@ impl StoredImageMetadata {
 pub struct ImagePlacementData {
     pub z_index: i32,
     pub height_cells: usize,
+    /// The placement's width in cells. Needed to decide whether a placement
+    /// intersects a given cell or column.
+    pub width_cells: usize,
     pub image_size: Vector2F,
+}
+
+impl ImagePlacementData {
+    /// Whether the placement anchored at `top_left` covers `row`. A placement
+    /// with no recorded extent still covers the cell it is anchored on, so that
+    /// it stays deletable.
+    fn covers_row(&self, top_left: AbsolutePoint, row: u64) -> bool {
+        let height = self.height_cells.max(1) as u64;
+        (top_left.row..top_left.row + height).contains(&row)
+    }
+
+    /// Whether the placement anchored at `top_left` covers `col`. See
+    /// [`ImagePlacementData::covers_row`].
+    fn covers_col(&self, top_left: AbsolutePoint, col: usize) -> bool {
+        let width = self.width_cells.max(1);
+        (top_left.col..top_left.col + width).contains(&col)
+    }
 }

@@ -342,6 +342,37 @@ impl AssetCache {
         assets[&key].to_external_type(source)
     }
 
+    /// Inserts an asset that the caller already built, for the cases where the
+    /// asset cannot be produced from a single buffer of bytes.
+    pub fn insert_asset<T: Asset>(&self, id: String, asset: T, ctx: &mut ModelContext<Self>) {
+        let mut assets = self.inner.borrow_mut();
+        let source = AssetSource::Raw { id };
+        let key = AssetHandle {
+            source: source.clone(),
+            asset_type: TypeId::of::<T>(),
+        };
+        let timestamp = instant::now() as u64;
+        let size_in_bytes = asset.size_in_bytes();
+
+        assets.insert(
+            key,
+            AssetStateInternal::Loaded {
+                data: Rc::new(asset) as Rc<dyn Any>,
+                timestamp,
+                size_in_bytes,
+            },
+        );
+
+        ImageCache::as_ref(ctx).evict_image(&source);
+
+        drop(assets);
+        let image_ids = self.evict_raw_assets_if_needed(ctx);
+
+        if !image_ids.is_empty() {
+            ctx.emit(AssetCacheEvent::ImagesEvicted { image_ids });
+        }
+    }
+
     pub fn insert_raw_asset_bytes<T: Asset>(
         &self,
         id: String,

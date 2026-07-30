@@ -109,8 +109,16 @@ pub struct Rect {
 pub struct Image {
     pub bounds: RectF,
     pub asset: Arc<StaticImage>,
+    /// The sub-rectangle of `asset` to sample, in unit UV space. Covering the
+    /// whole asset means an origin of (0, 0) and a size of (1, 1).
+    pub source_uv: RectF,
     pub opacity: f32,
     pub corner_radius: CornerRadius,
+}
+
+/// The `source_uv` of an [`Image`] that samples its asset in its entirety.
+pub fn full_source_uv() -> RectF {
+    RectF::new(vec2f(0., 0.), vec2f(1., 1.))
 }
 
 #[derive(Clone)]
@@ -612,6 +620,19 @@ impl Scene {
         opacity: f32,
         corner_radius: CornerRadius,
     ) {
+        self.draw_image_with_source(rect, asset, full_source_uv(), opacity, corner_radius);
+    }
+
+    /// Like [`Scene::draw_image`], but samples only `source_uv` of the asset
+    /// (in unit UV space) instead of the whole thing.
+    pub fn draw_image_with_source(
+        &mut self,
+        rect: RectF,
+        asset: Arc<StaticImage>,
+        source_uv: RectF,
+        opacity: f32,
+        corner_radius: CornerRadius,
+    ) {
         #[cfg(debug_assertions)]
         let location = self.panic_location.take();
         #[cfg(not(debug_assertions))]
@@ -622,6 +643,7 @@ impl Scene {
         layer.images.push(Image {
             bounds: rect,
             asset,
+            source_uv,
             opacity,
             corner_radius,
         });

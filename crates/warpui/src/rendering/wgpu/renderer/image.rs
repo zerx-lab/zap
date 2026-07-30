@@ -152,6 +152,7 @@ impl Pipeline {
                     opacity: (image.opacity * 255.) as u8,
                 },
                 corner_radius,
+                image.source_uv,
             ));
             let (texture_id, _) =
                 self.texture_cache
@@ -166,6 +167,7 @@ impl Pipeline {
                 icon.bounds * scale_factor,
                 ColorModifier::Icon { color: icon.color },
                 crate::rendering::CornerRadius::default(),
+                crate::scene::full_source_uv(),
             ));
             let (texture_id, _) = self
                 .texture_cache
@@ -329,20 +331,23 @@ mod shaders {
         color: ColorF,
         is_icon: u32,
         corner_radius: Vector4F,
+        uv_bounds: Vector4F,
     }
 
     impl ImageInstanceData {
-        const ATTRIBS: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
+        const ATTRIBS: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
             1 => Float32x4,    // Bounds
             2 => Float32x4,    // Color
             3 => Uint32,       // Boolean, image or icon
             4 => Float32x4,    // Corner radius
+            5 => Float32x4,    // Source sub-rectangle of the texture: xy = origin, zw = size
         ];
 
         pub(super) fn new(
             bounds: RectF,
             color_modifier: ColorModifier,
             corner_radius: CornerRadius,
+            source_uv: RectF,
         ) -> Self {
             Self {
                 bounds: bounds.into(),
@@ -354,6 +359,7 @@ mod shaders {
                     corner_radius.bottom_left,
                     corner_radius.bottom_right,
                 ),
+                uv_bounds: source_uv.into(),
             }
         }
 

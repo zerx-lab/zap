@@ -331,6 +331,7 @@ impl<'a> Frame<'a> {
         let is_icon;
         let icon_color;
         let ui_corner_radius;
+        let source_uv;
 
         if let Some(to_render) = image {
             opacity = to_render.opacity;
@@ -339,6 +340,7 @@ impl<'a> Frame<'a> {
             is_icon = false;
             icon_color = ColorF::new(0.0, 0.0, 0.0, opacity).into();
             ui_corner_radius = to_render.corner_radius;
+            source_uv = to_render.source_uv;
         } else {
             let to_render = icon.unwrap();
             opacity = to_render.opacity;
@@ -347,6 +349,7 @@ impl<'a> Frame<'a> {
             is_icon = true;
             icon_color = to_render.color.to_f32().into();
             ui_corner_radius = CornerRadius::default();
+            source_uv = crate::scene::full_source_uv();
         }
 
         let mut per_rect_uniforms = Vec::new();
@@ -382,6 +385,8 @@ impl<'a> Frame<'a> {
             0_f32,
             0.,
             vec2f(0.0, 0.0).into(),
+            source_uv.origin().into(),
+            source_uv.size().into(),
         ));
         let per_rect_uniforms_buffer = new_metal_buffer(
             self.ctx.device,
@@ -541,6 +546,8 @@ impl<'a> Frame<'a> {
                     padding,
                     dash_length,
                     gap_lengths.into(),
+                    Vector2F::zero().into(),
+                    vec2f(1.0, 1.0).into(),
                 ));
             }
 
@@ -575,6 +582,8 @@ impl<'a> Frame<'a> {
                 0_f32,
                 dash_length,
                 gap_lengths.into(),
+                Vector2F::zero().into(),
+                vec2f(1.0, 1.0).into(),
             ));
         }
         let per_rect_uniforms_buffer = new_metal_buffer(
@@ -845,6 +854,8 @@ mod shader {
             drop_shadow_padding_factor: f32,
             dash_length: f32,
             gap_lengths: Vector2F,
+            uv_origin: Vector2F,
+            uv_size: Vector2F,
         ) -> Self {
             Self {
                 origin: origin.0,
@@ -873,6 +884,8 @@ mod shader {
                 drop_shadow_padding_factor,
                 dash_length,
                 gap_lengths: gap_lengths.0,
+                uv_origin: uv_origin.0,
+                uv_size: uv_size.0,
             }
         }
     }

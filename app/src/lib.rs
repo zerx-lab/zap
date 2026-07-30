@@ -2363,7 +2363,7 @@ pub fn enabled_features() -> HashSet<FeatureFlag> {
         FeatureFlag::ImeMarkedText,
         #[cfg(feature = "partial_next_command_suggestions")]
         FeatureFlag::PartialNextCommandSuggestions,
-        #[cfg(feature = "iterm_images")]
+        #[cfg(all(not(windows), feature = "iterm_images"))]
         FeatureFlag::ITermImages,
         #[cfg(feature = "validate_autosuggestions")]
         FeatureFlag::ValidateAutosuggestions,

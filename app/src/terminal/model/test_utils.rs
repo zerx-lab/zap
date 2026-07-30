@@ -6,7 +6,7 @@
 //! is marked as no_run only  because it's currently not possible
 //! to reference `#[cfg(test)]` symbols from doctests.
 
-use std::{io::sink, sync::Arc};
+use std::sync::Arc;
 
 use warp_core::command::ExitCode;
 use warpui::r#async::executor::Background;
@@ -336,15 +336,17 @@ impl TerminalModel {
     /// Processes a set of `bytes` and applies them to the model,
     /// akin to what happens when reading bytes from a real PTY.
     pub fn process_bytes<B: AsBytes>(&mut self, bytes: B) {
+        self.process_bytes_capturing(bytes);
+    }
+
+    /// Same as [`Self::process_bytes`], but returns the bytes that would have
+    /// been written back to the shell, so that replies can be asserted on.
+    pub fn process_bytes_capturing<B: AsBytes>(&mut self, bytes: B) -> Vec<u8> {
         let bytes = bytes.as_bytes();
         let mut processor = Processor::new();
-        processor.parse_bytes(
-            self,
-            bytes,
-            // For unit tests, there's no shell to write back to
-            // so the writes should no-op.
-            &mut sink(),
-        );
+        let mut written = Vec::new();
+        processor.parse_bytes(self, bytes, &mut written);
+        written
     }
 }
 

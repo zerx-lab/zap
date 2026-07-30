@@ -138,6 +138,13 @@ pub enum Event {
         image_data: Vec<u8>,
         image_protocol: ImageProtocol,
     },
+    /// The animation frames of a kitty image changed (`a=f`/`a=a`). The frames
+    /// follow frame 1, which is the already-received image itself; an empty list
+    /// means the animation is stopped.
+    AnimatedImageReceived {
+        image_id: u32,
+        frames: Vec<(Vec<u8>, u32)>,
+    },
     BootstrapPrecmdDone,
     /// A pluggable notification triggered via OSC 9 or OSC 777 escape sequences.
     /// External programs can use this to trigger notifications in Zap.
@@ -479,6 +486,13 @@ impl Debug for Event {
             Event::SendCompletionsPrompt => write!(f, "SendCompletionsPrompt"),
             Event::ImageReceived { image_id, .. } => {
                 write!(f, "ImageReceived(image_id: {image_id})")
+            }
+            Event::AnimatedImageReceived { image_id, frames } => {
+                write!(
+                    f,
+                    "AnimatedImageReceived(image_id: {image_id}, frames: {})",
+                    frames.len()
+                )
             }
             Event::BootstrapPrecmdDone => write!(f, "BootstrapPrecmdDone"),
             Event::PluggableNotification { title, body } => {

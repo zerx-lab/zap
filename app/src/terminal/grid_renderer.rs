@@ -1,5 +1,6 @@
 mod cell_glyph_cache;
 mod cell_type;
+mod unicode_placeholder;
 
 use crate::appearance::Appearance;
 use crate::terminal::grid_size_util::calculate_grid_baseline_position;
@@ -18,8 +19,11 @@ use crate::util::color::{ContrastingColor, MinimumAllowedContrast};
 use core::mem;
 use lazy_static::lazy_static;
 use num_traits::Float as _;
+use smallvec::SmallVec;
 use std::cmp::Ordering;
 use std::ops::Range;
+use std::sync::{Arc, LazyLock};
+use std::time::{Duration, Instant};
 use std::{collections::HashMap, ops::RangeInclusive};
 use unicode_width::UnicodeWidthChar;
 use warp_core::features::FeatureFlag;
@@ -29,7 +33,9 @@ use warpui::elements::{Border, CornerRadius, Fill, Radius, DEFAULT_UI_LINE_HEIGH
 use warpui::fonts::{Cache as FontCache, FamilyId, FontId, Properties, Style, Weight};
 use warpui::geometry::rect::RectF;
 use warpui::geometry::vector::{vec2f, Vector2F};
-use warpui::image_cache::{AnimatedImageBehavior, CacheOption, FitType, Image, ImageCache};
+use warpui::image_cache::{
+    AnimatedImageBehavior, CacheOption, FitType, Image, ImageCache, StaticImage,
+};
 use warpui::platform::LineStyle;
 use warpui::text_layout::{Line, StyleAndFont, TextStyle, DEFAULT_TOP_BOTTOM_RATIO};
 use warpui::units::{IntoLines as _, Lines, Pixels};
@@ -37,6 +43,9 @@ use warpui::{AppContext, Element, EntityId, PaintContext, Scene, SingletonEntity
 
 pub use self::cell_glyph_cache::CellGlyphCache;
 use self::cell_type::{CellType, IsFocused, Secret};
+use self::unicode_placeholder::{
+    build_runs, is_unicode_placeholder, parse_placeholder_cell, PlaceholderRun,
+};
 
 use super::block_filter::{BLOCK_FILTER_DOTTED_LINE_DASH, BLOCK_FILTER_DOTTED_LINE_WIDTH};
 use super::blockgrid_renderer::GridRenderParams;
@@ -46,6 +55,10 @@ use super::model::grid::RespectDisplayedOutput;
 use super::model::image_map::{ImagePlacementData, StoredImageMetadata};
 use super::model::terminal_model::RangeInModel;
 use crate::settings::EnforceMinimumContrast;
+
+/// Rows of a single grid render held without allocating. Sized for a typical
+/// viewport; taller ones spill to the heap.
+const VISIBLE_ROWS_INLINE_CAPACITY: usize = 64;
 
 // The scale factor of the cursor relative to the cursor width.
 const CURSOR_THICKNESS_SCALE_FACTOR: f32 = 0.15;
@@ -455,6 +468,12 @@ pub fn render_grid<'a>(
     }
 }
 
+/// Whether inline terminal images should be rendered. Both the iTerm and the kitty
+/// graphics protocols feed the same image map, so either flag enables rendering.
+fn terminal_images_enabled() -> bool {
+    FeatureFlag::ITermImages.is_enabled() || FeatureFlag::KittyImages.is_enabled()
+}
+
 // TODO (kevin): Solidify highlighted_url and link_tool_tip into one single struct.
 #[allow(clippy::too_many_arguments)]
 fn render_grid_without_ligatures<'a>(
@@ -551,7 +570,12 @@ fn render_grid_without_ligatures<'a>(
         .flat_map(|marked_text| marked_text.chars());
     let mut next_marked_text_cell_is_wide_char_spacer = false;
 
-    if FeatureFlag::ITermImages.is_enabled() {
+    // Materialized because the unicode placeholder pass walks the same rows
+    // before the main loop does. Inline capacity covers a normal viewport, so
+    // this doesn't allocate per frame.
+    let visible_rows: SmallVec<[usize; VISIBLE_ROWS_INLINE_CAPACITY]> = visible_rows.collect();
+
+    if terminal_images_enabled() {
         let image_ids = grid.get_image_ids_in_range(start_row, end_row);
 
         let (background_image_ids, foreground_image_ids): (Vec<_>, Vec<_>) = image_ids
@@ -613,9 +637,22 @@ fn render_grid_without_ligatures<'a>(
             }
             ctx.scene.stop_layer();
         }
+
+        // Virtual placements are anchored by their placeholder cells rather than
+        // by the image map, so they need their own pass over the visible cells.
+        render_unicode_placeholders(
+            grid,
+            &visible_rows,
+            start_row,
+            cell_size,
+            grid_origin,
+            image_metadata,
+            ctx,
+            app,
+        );
     }
 
-    for (offset, row_idx) in visible_rows.enumerate() {
+    for (offset, row_idx) in visible_rows.iter().copied().enumerate() {
         let offset_row = start_row + offset;
 
         let Some(row) = grid.row(row_idx) else {
@@ -1055,7 +1092,11 @@ fn render_grid_with_ligatures<'a>(
         .flat_map(|marked_text| marked_text.chars())
         .peekable();
     let mut next_marked_text_cell_is_wide_char_spacer = false;
-    if FeatureFlag::ITermImages.is_enabled() {
+
+    // See the matching comment in `render_grid_without_ligatures`.
+    let visible_rows: SmallVec<[usize; VISIBLE_ROWS_INLINE_CAPACITY]> = visible_rows.collect();
+
+    if terminal_images_enabled() {
         let image_ids = grid.get_image_ids_in_range(start_row, end_row);
 
         let (background_image_ids, foreground_image_ids): (Vec<_>, Vec<_>) = image_ids
@@ -1117,9 +1158,22 @@ fn render_grid_with_ligatures<'a>(
             }
             ctx.scene.stop_layer();
         }
+
+        // Virtual placements are anchored by their placeholder cells rather than
+        // by the image map, so they need their own pass over the visible cells.
+        render_unicode_placeholders(
+            grid,
+            &visible_rows,
+            start_row,
+            cell_size,
+            grid_origin,
+            image_metadata,
+            ctx,
+            app,
+        );
     }
 
-    for (offset, row_idx) in visible_rows.enumerate() {
+    for (offset, row_idx) in visible_rows.iter().copied().enumerate() {
         let offset_row = start_row + offset;
         let mut string_builder = AttributedStringBuilder::new(
             font_family,
@@ -1413,6 +1467,11 @@ fn render_grid_with_ligatures<'a>(
                     ctx,
                 ) {
                     string_builder.append_content(secret_content, col);
+                } else if is_unicode_placeholder(cell) {
+                    // Drawn as an image by `render_unicode_placeholders`. The
+                    // cell is still reserved so columns stay aligned, and its
+                    // grapheme never reaches the text layout cache.
+                    string_builder.append_placeholder(col);
                 } else if let Some(glyph_type) = native_glyph_for_cell(cell) {
                     native_glyphs_to_render.push(NativeGlyph {
                         cell_bounds: RectF::new(grid_origin + glyph_offset, actual_cell_size),
@@ -1693,6 +1752,14 @@ fn render_cell_glyph(
     fallback_font_family: Option<FamilyId>,
     ctx: &mut PaintContext,
 ) {
+    // Kitty unicode placeholders are drawn as images by
+    // `render_unicode_placeholders`. Returning before the glyph lookup also
+    // keeps their grapheme strings, which are unique per image cell, out of the
+    // `CellGlyphCache`.
+    if is_unicode_placeholder(cell) {
+        return;
+    }
+
     let cell_size = if cell.flags().intersects(Flags::WIDE_CHAR) {
         // WIDE_CHAR takes up two cells.
         Vector2F::new(cell_size.x() * 2., cell_size.y())
@@ -1832,6 +1899,216 @@ fn render_glyph_svg(
     }
 }
 
+/// Reference point for animated inline image playback. All animated images share this
+/// phase, so a GIF starts on whichever frame is current when it is first drawn rather
+/// than on frame zero.
+static ANIMATION_EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+/// Draws the images that kitty unicode placeholder cells (`U=1`) stand in for.
+///
+/// Virtual placements are not in the image map — they have no anchor in the grid
+/// — so this scans the visible cells instead. Each horizontal strip of an image
+/// becomes a single quad that samples just the part of the image its cells
+/// represent.
+#[allow(clippy::too_many_arguments)]
+fn render_unicode_placeholders(
+    grid: &GridHandler,
+    visible_rows: &[usize],
+    start_row: usize,
+    cell_size: Vector2F,
+    grid_origin: Vector2F,
+    image_metadata: &HashMap<u32, StoredImageMetadata>,
+    ctx: &mut PaintContext,
+    app: &AppContext,
+) {
+    // The scan below touches every visible cell, so skip it (and its layer)
+    // outright unless some image actually has a virtual placement.
+    if !image_metadata
+        .values()
+        .any(|m| matches!(m, StoredImageMetadata::Kitty(k) if !k.virtual_placements.is_empty()))
+    {
+        return;
+    }
+
+    ctx.scene.start_layer(warpui::ClipBounds::ActiveLayer);
+
+    let mut placeholder_cells = Vec::new();
+
+    for (offset, row_idx) in visible_rows.iter().copied().enumerate() {
+        let Some(row) = grid.row(row_idx) else {
+            continue;
+        };
+
+        placeholder_cells.clear();
+        placeholder_cells.extend((0..grid.columns()).filter_map(|col| {
+            parse_placeholder_cell(&row[col]).map(|placeholder| (col, placeholder))
+        }));
+
+        if placeholder_cells.is_empty() {
+            continue;
+        }
+
+        let offset_row = start_row + offset;
+        for run in build_runs(placeholder_cells.iter().copied()) {
+            render_placeholder_run(
+                &run,
+                offset_row,
+                cell_size,
+                grid_origin,
+                image_metadata,
+                ctx,
+                app,
+            );
+        }
+    }
+
+    ctx.scene.stop_layer();
+}
+
+/// Matches `MAX_IMAGE_CELL_HEIGHT` in the anchored placement path.
+const MAX_VIRTUAL_PLACEMENT_CELLS: u32 = 255;
+
+/// Draws one horizontal strip of a virtually placed image.
+#[allow(clippy::too_many_arguments)]
+fn render_placeholder_run(
+    run: &PlaceholderRun,
+    offset_row: usize,
+    cell_size: Vector2F,
+    grid_origin: Vector2F,
+    image_metadata: &HashMap<u32, StoredImageMetadata>,
+    ctx: &mut PaintContext,
+    app: &AppContext,
+) {
+    let Some(StoredImageMetadata::Kitty(metadata)) = image_metadata.get(&run.image_id) else {
+        return;
+    };
+
+    // Placement ids cannot be recovered from the cells, so `run.placement_id` is
+    // always 0 (see `parse_placeholder_cell`). When the keyed lookup misses,
+    // degrade to the lowest-numbered placement so an image shown through
+    // several virtual placements still renders one of them.
+    let placement = metadata
+        .virtual_placements
+        .get(&run.placement_id)
+        .or_else(|| {
+            metadata
+                .virtual_placements
+                .iter()
+                .min_by_key(|(id, _)| **id)
+                .map(|(_, placement)| placement)
+        });
+    let Some(placement) = placement else {
+        return;
+    };
+
+    // The placement's extent in cells is resolved here rather than when the
+    // placement was created, so that a font size change re-tiles the image
+    // against the new cell size.
+    // Clamped like the anchored placement path: `r=`/`c=` are client-supplied,
+    // and unclamped values would drive an arbitrarily large resize (and a cache
+    // entry per distinct size) in `ImageCache::image` below.
+    let cols = placement
+        .cols
+        .unwrap_or_else(|| cells_to_cover(metadata.image_size.x(), cell_size.x()))
+        .min(MAX_VIRTUAL_PLACEMENT_CELLS);
+    let rows = placement
+        .rows
+        .unwrap_or_else(|| cells_to_cover(metadata.image_size.y(), cell_size.y()))
+        .min(MAX_VIRTUAL_PLACEMENT_CELLS);
+
+    if rows == 0 || cols == 0 || run.image_row >= rows || run.image_col_start >= cols {
+        return;
+    }
+
+    // Cells are free to reference columns past the right edge of the placement.
+    let image_col_end = run.image_col_end.min(cols - 1);
+    let covered_cols = image_col_end - run.image_col_start + 1;
+
+    let placement_size = cell_size * vec2f(cols as f32, rows as f32);
+    let bounds = (placement_size * ctx.scene.scale_factor()).to_i32();
+
+    let asset_cache = AssetCache::as_ref(app);
+    let image = ImageCache::as_ref(app).image(
+        AssetSource::Raw {
+            id: run.image_id.to_string(),
+        },
+        bounds,
+        // `rows`/`cols` already define the box the image is tiled over.
+        FitType::Stretch,
+        AnimatedImageBehavior::FullAnimation,
+        CacheOption::BySize,
+        ctx.max_texture_dimension_2d,
+        asset_cache,
+    );
+
+    let image = match image {
+        AssetState::Loaded { data } => data,
+        AssetState::Evicted => return,
+        _ => {
+            log::warn!(
+                "Could not load image to render (image id = {})",
+                run.image_id
+            );
+            return;
+        }
+    };
+
+    let Some(frame) = current_image_frame(image.as_ref(), run.image_id, ctx) else {
+        return;
+    };
+
+    let origin = grid_origin + cell_size * vec2f(run.col_start as f32, offset_row as f32);
+    let destination = RectF::new(origin, cell_size * vec2f(covered_cols as f32, 1.));
+    let source_uv = RectF::new(
+        vec2f(
+            run.image_col_start as f32 / cols as f32,
+            run.image_row as f32 / rows as f32,
+        ),
+        vec2f(covered_cols as f32 / cols as f32, 1. / rows as f32),
+    );
+
+    ctx.scene
+        .draw_image_with_source(destination, frame, source_uv, 1., CornerRadius::default());
+}
+
+/// How many cells of `cell_extent` pixels an image extent of `image_extent`
+/// pixels spans, rounding up. This is kitty's default when a virtual placement
+/// doesn't say how many rows or columns it covers.
+fn cells_to_cover(image_extent: f32, cell_extent: f32) -> u32 {
+    if cell_extent <= 0. || image_extent <= 0. {
+        return 0;
+    }
+
+    (image_extent / cell_extent).ceil() as u32
+}
+
+/// The frame of an inline image to draw right now, scheduling a repaint if the
+/// image is animated.
+fn current_image_frame(
+    image: &Image,
+    image_id: u32,
+    ctx: &mut PaintContext,
+) -> Option<Arc<StaticImage>> {
+    match image {
+        Image::Static(image) => Some(image.clone()),
+        Image::Animated(animated_image) => {
+            let elapsed = ANIMATION_EPOCH.elapsed().as_millis() as u32;
+            match animated_image.get_current_frame(elapsed) {
+                Ok((frame, remaining_delay)) => {
+                    ctx.repaint_after(Duration::from_millis(remaining_delay as u64));
+                    Some(frame)
+                }
+                Err(e) => {
+                    log::error!(
+                        "Unable to retrieve current frame from image (image id = {image_id}): {e:?}"
+                    );
+                    None
+                }
+            }
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn render_image(
     image_id: u32,
@@ -1885,8 +2162,29 @@ fn render_image(
                 CornerRadius::default(),
             );
         }
-        Image::Animated(_) => {
-            log::warn!("Image should be static");
+        Image::Animated(animated_image) => {
+            // After about ~50 days of uptime, casting the elapsed time to a u32 will
+            // silently overflow. The animation may jump and resume from a different frame.
+            let elapsed = ANIMATION_EPOCH.elapsed().as_millis() as u32;
+            match animated_image.get_current_frame(elapsed) {
+                Ok((frame, remaining_delay)) => {
+                    let logical_image_size = frame.size().to_f32() / ctx.scene.scale_factor();
+
+                    let image_origin = grid_origin + glyph_offset;
+                    ctx.scene.draw_image(
+                        RectF::new(image_origin, logical_image_size),
+                        frame,
+                        1.,
+                        CornerRadius::default(),
+                    );
+                    ctx.repaint_after(Duration::from_millis(remaining_delay as u64));
+                }
+                Err(e) => {
+                    log::error!(
+                        "Unable to retrieve current frame from image (image id = {image_id}): {e:?}"
+                    );
+                }
+            }
         }
     }
 }

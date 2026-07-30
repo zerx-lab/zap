@@ -39,8 +39,9 @@ use super::grid::grid_handler::{
 use super::image_map::StoredImageMetadata;
 use super::index::Point;
 use super::kitty::{
-    create_kitty_error_reply, create_kitty_ok_reply, DeletionType, KittyAction, KittyChunk,
-    KittyMessage, KittyResponse, PendingKittyMessage,
+    create_kitty_error_reply, create_kitty_ok_reply, frame_index, DeletionType, InvalidKittyAction,
+    KittyAction, KittyChunk, KittyError, KittyMessage, KittyPlacementAction, KittyResponse,
+    PendingKittyMessage, StorageError, MAX_ANIMATION_FRAMES, MAX_ANIMATION_FRAME_BYTES,
 };
 use super::secrets::{RespectObfuscatedSecrets, SecretAndHandle};
 use super::selection::ScrollDelta;
@@ -76,7 +77,7 @@ use instant::Instant;
 use itertools::{Either, Itertools};
 use serde::Serialize;
 use std::cmp::{max, min};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::num::ParseIntError;
 use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
@@ -1677,6 +1678,173 @@ impl TerminalModel {
 
     pub fn remove_image_id_to_metadata_entry(&mut self, image_id: u32) {
         self.image_id_to_metadata.remove(&image_id);
+    }
+
+    /// Runs `evict` against every grid that can hold images: the alternate screen
+    /// while it is active, otherwise every block's grid.
+    fn for_each_image_grid(&mut self, mut evict: impl FnMut(&mut GridHandler)) {
+        if self.alt_screen_active {
+            evict(self.alt_screen.grid_handler_mut());
+        } else {
+            for block in self.block_list_mut().blocks_mut() {
+                evict(block.grid_handler_mut());
+            }
+        }
+    }
+
+    /// Removes a kitty image's placements, or only the given placement, and
+    /// frees the stored image data when `delete_image_data` is set.
+    fn delete_kitty_image(
+        &mut self,
+        image_id: u32,
+        placement_id: Option<u32>,
+        delete_image_data: bool,
+    ) {
+        if delete_image_data {
+            // Freeing the image data frees every placement of the image: one
+            // left in a grid would draw nothing once the metadata is gone.
+            self.image_id_to_metadata.remove(&image_id);
+            self.for_each_image_grid(|grid| grid.evict_image(image_id));
+            return;
+        }
+
+        // Virtual (`U=1`) placements live in the metadata rather than any grid.
+        if let Some(StoredImageMetadata::Kitty(metadata)) =
+            self.image_id_to_metadata.get_mut(&image_id)
+        {
+            match placement_id {
+                Some(placement_id) => {
+                    metadata.virtual_placements.remove(&placement_id);
+                }
+                None => metadata.virtual_placements.clear(),
+            }
+        }
+
+        self.for_each_image_grid(|grid| match placement_id {
+            Some(placement_id) => grid.evict_placement(image_id, placement_id),
+            None => grid.evict_image(image_id),
+        });
+    }
+
+    /// The id of the newest image transmitted under the given `I=` number. Ids
+    /// are handed out in increasing order, so the newest is the largest.
+    fn newest_kitty_image_with_number(&self, image_number: u32) -> Option<u32> {
+        self.image_id_to_metadata
+            .iter()
+            .filter(|(_, metadata)| match metadata {
+                StoredImageMetadata::Kitty(metadata) => metadata.image_number == Some(image_number),
+                StoredImageMetadata::ITerm(_) => false,
+            })
+            .map(|(image_id, _)| *image_id)
+            .max()
+    }
+
+    /// Applies an `a=f` frame transmission or an `a=a` playback control to the
+    /// image it names, then hands the resulting frame list to the view so it can
+    /// rebuild the image's asset. Sending no frames leaves the image on frame 1,
+    /// which is how a stopped animation is expressed.
+    fn handle_kitty_animation_action(&mut self, action: KittyAction) -> Result<(), KittyError> {
+        if !FeatureFlag::KittyImages.is_enabled() {
+            return Err(KittyError::KittyFeatureDisabled);
+        }
+
+        let image_id = match &action {
+            KittyAction::TransmitFrame { image_id, .. }
+            | KittyAction::AnimationControl { image_id, .. } => *image_id,
+            // No other action reaches this function.
+            _ => return Ok(()),
+        };
+
+        let Some(StoredImageMetadata::Kitty(metadata)) =
+            self.image_id_to_metadata.get_mut(&image_id)
+        else {
+            return Err(StorageError::UnknownId { id: image_id }.into());
+        };
+
+        match action {
+            KittyAction::TransmitFrame {
+                frame_number,
+                gap_ms,
+                image,
+                ..
+            } => {
+                // A frame smaller than the canvas has to be composited onto what
+                // is already there, which is not implemented.
+                if image.metadata.image_size != metadata.image_size {
+                    return Err(InvalidKittyAction::UnsupportedAction.into());
+                }
+
+                let edited = match frame_number.filter(|&number| number != 0) {
+                    // Frame 1 is the root image; replacing its pixels means
+                    // replacing the image itself, not a frame.
+                    Some(1) => return Err(InvalidKittyAction::UnsupportedAction.into()),
+                    Some(frame_number) => {
+                        // `r=` names an existing frame; a number past the end
+                        // is an error, not an append.
+                        let index = frame_index(frame_number)
+                            .filter(|&index| index < metadata.frames.len())
+                            .ok_or(KittyError::from(StorageError::UnknownId {
+                                id: frame_number,
+                            }))?;
+                        metadata.frames.get_mut(index)
+                    }
+                    None => None,
+                };
+
+                match edited {
+                    Some(frame) => *frame = (image.data, gap_ms),
+                    None => {
+                        let stored_bytes: usize =
+                            metadata.frames.iter().map(|(data, _)| data.len()).sum();
+                        if metadata.frames.len() >= MAX_ANIMATION_FRAMES
+                            || stored_bytes + image.data.len() > MAX_ANIMATION_FRAME_BYTES
+                        {
+                            return Err(InvalidKittyAction::UnsupportedAction.into());
+                        }
+                        metadata.frames.push((image.data, gap_ms));
+                    }
+                }
+
+                metadata.playing = true;
+            }
+            KittyAction::AnimationControl { play, gap_edit, .. } => {
+                let mut changed = false;
+
+                if let Some(play) = play {
+                    changed |= metadata.playing != play;
+                    metadata.playing = play;
+                }
+
+                // A gap edit naming a frame that was never transmitted is
+                // ignored, as is one naming the root frame, whose gap is not
+                // tracked.
+                if let Some((frame_number, gap_ms)) = gap_edit {
+                    if let Some(frame) =
+                        frame_index(frame_number).and_then(|index| metadata.frames.get_mut(index))
+                    {
+                        changed |= frame.1 != gap_ms;
+                        frame.1 = gap_ms;
+                    }
+                }
+
+                // A no-op control message must not trigger an asset rebuild.
+                if !changed {
+                    return Ok(());
+                }
+            }
+            _ => return Ok(()),
+        }
+
+        let frames = if metadata.playing {
+            metadata.frames.clone()
+        } else {
+            Vec::new()
+        };
+
+        self.event_proxy
+            .send_terminal_event(Event::AnimatedImageReceived { image_id, frames });
+
+        Ok(())
     }
 
     /// Starts the active block and resets block-to-block state. For local sessions, this is called
@@ -3405,9 +3573,36 @@ impl ansi::Handler for TerminalModel {
         };
 
         let message_id = pending.control_data.image_id;
+        let placement_id = pending.control_data.placement_id;
+        let image_number = pending.control_data.image_number;
         let verbosity = pending.control_data.verbosity;
+        // Query replies are the only way a client can detect support, so they are
+        // sent regardless of the requested verbosity. This is a deliberate
+        // deviation: kitty itself honors `q=2` even for queries.
+        let is_query = matches!(
+            pending.control_data.placement_action,
+            KittyPlacementAction::QuerySupport
+        );
+        let send_ok = is_query || verbosity.send_ok();
+        let send_error = is_query || verbosity.send_error();
 
-        if message_id.is_none() {
+        // A message that names its image only by client number (`I=`, no `i=`)
+        // refers to the newest image transmitted under that number, unless it
+        // is itself a transmission, which allocates a fresh image below.
+        if pending.control_data.image_id.is_none() {
+            if let Some(number) = image_number.filter(|&number| number != 0) {
+                if matches!(
+                    pending.control_data.placement_action,
+                    KittyPlacementAction::DisplayStoredImage
+                        | KittyPlacementAction::TransmitFrame
+                        | KittyPlacementAction::AnimationControl
+                ) {
+                    pending.control_data.image_id = self.newest_kitty_image_with_number(number);
+                }
+            }
+        }
+
+        if pending.control_data.image_id.is_none() {
             pending.control_data.image_id = Some(self.next_kitty_image_id);
             self.next_kitty_image_id = self.next_kitty_image_id.wrapping_add(1);
             // 0 is an invalid ID for kitty images
@@ -3416,13 +3611,28 @@ impl ansi::Handler for TerminalModel {
             }
         }
 
+        // A message that carries only a client-side number (`I=`, no `i=`)
+        // still gets a reply: the reply is how the client learns the id the
+        // terminal assigned to its number. `I=0` is the unset default and gets
+        // no reply, matching how the reply builder omits it.
+        let message_id = message_id.or_else(|| {
+            image_number
+                .filter(|&number| number != 0)
+                .and(pending.control_data.image_id)
+        });
+
         let message = match KittyMessage::try_from(pending) {
             Ok(message) => message,
             Err(err) => {
                 log::warn!("{err:?}");
                 if let Some(message_id) = message_id {
-                    if verbosity.send_error() {
-                        let _ = writer.write_all(&create_kitty_error_reply(message_id, err.into()));
+                    if send_error {
+                        let _ = writer.write_all(&create_kitty_error_reply(
+                            message_id,
+                            placement_id,
+                            image_number,
+                            err.into(),
+                        ));
                     }
                 }
                 return;
@@ -3431,6 +3641,59 @@ impl ansi::Handler for TerminalModel {
 
         match KittyAction::try_from(message) {
             Ok(action) => {
+                // Queries never touch the grid, so answer them before the block
+                // delegate: a block still before `preexec` routes kitty actions
+                // to its header grid, which drops them without a reply, and a
+                // support probe must never go unanswered. Decode failures were
+                // already answered above.
+                if matches!(action, KittyAction::QuerySupport(_)) {
+                    if let Some(message_id) = message_id {
+                        let _ = writer.write_all(&create_kitty_ok_reply(
+                            message_id,
+                            placement_id,
+                            image_number,
+                        ));
+                    }
+                    return;
+                }
+
+                // Animation actions change an image's frames, never the grid, so
+                // they are applied and answered here for the same reason queries
+                // are: a block that has not reached `preexec` routes grid-bound
+                // actions to its header grid, which drops them without a reply.
+                if matches!(
+                    action,
+                    KittyAction::TransmitFrame { .. } | KittyAction::AnimationControl { .. }
+                ) {
+                    match self.handle_kitty_animation_action(action) {
+                        Ok(()) => {
+                            if let Some(message_id) = message_id {
+                                if send_ok {
+                                    let _ = writer.write_all(&create_kitty_ok_reply(
+                                        message_id,
+                                        placement_id,
+                                        image_number,
+                                    ));
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            log::warn!("{err:?}");
+                            if let Some(message_id) = message_id {
+                                if send_error {
+                                    let _ = writer.write_all(&create_kitty_error_reply(
+                                        message_id,
+                                        placement_id,
+                                        image_number,
+                                        err,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
+
                 match &action {
                     KittyAction::StoreOnly(action) => {
                         self.image_id_to_metadata.insert(
@@ -3439,85 +3702,197 @@ impl ansi::Handler for TerminalModel {
                         );
                     }
                     KittyAction::StoreAndDisplay(action) => {
-                        self.image_id_to_metadata.insert(
-                            action.image_id,
-                            StoredImageMetadata::Kitty(action.image.metadata.clone()),
-                        );
+                        let mut metadata = action.image.metadata.clone();
+                        if action.placement_data.unicode_placeholder {
+                            metadata.virtual_placements.insert(
+                                action.placement_id,
+                                action.placement_data.virtual_placement(),
+                            );
+                        }
+                        self.image_id_to_metadata
+                            .insert(action.image_id, StoredImageMetadata::Kitty(metadata));
                     }
-                    KittyAction::DisplayStoredImage(_) => {}
-                    KittyAction::QuerySupport(_) => {}
+                    KittyAction::DisplayStoredImage(action) => {
+                        // A virtual placement of an already-transmitted image only
+                        // adds to that image's metadata; the cells referencing it
+                        // supply the position.
+                        if action.placement_data.unicode_placeholder {
+                            if let Some(StoredImageMetadata::Kitty(metadata)) =
+                                self.image_id_to_metadata.get_mut(&action.image_id)
+                            {
+                                metadata.virtual_placements.insert(
+                                    action.placement_id,
+                                    action.placement_data.virtual_placement(),
+                                );
+                            }
+                        }
+                    }
+                    // Both are answered above, before this match.
+                    KittyAction::QuerySupport(_)
+                    | KittyAction::TransmitFrame { .. }
+                    | KittyAction::AnimationControl { .. } => {}
                     KittyAction::Delete {
                         delete_placements_only,
                         deletion_type,
-                    } => match deletion_type {
-                        DeletionType::DeleteAll => {
-                            if !delete_placements_only {
-                                self.image_id_to_metadata.clear();
-                            }
+                    } => {
+                        let delete_image_data = !delete_placements_only;
 
-                            if self.alt_screen_active {
-                                self.alt_screen.grid_handler_mut().evict_all_images();
-                            } else {
-                                for block in self.block_list_mut().blocks_mut() {
-                                    block.grid_handler_mut().evict_all_images();
-                                }
-                            }
-                        }
-                        DeletionType::DeleteById(delete_by_id) => {
-                            if !delete_placements_only {
-                                self.image_id_to_metadata.remove(&delete_by_id.image_id);
-                            }
-
-                            if self.alt_screen_active {
-                                if let Some(placement_id) = delete_by_id.placement_id {
-                                    self.alt_screen
-                                        .grid_handler_mut()
-                                        .evict_placement(delete_by_id.image_id, placement_id);
+                        match deletion_type {
+                            DeletionType::All => {
+                                if delete_image_data {
+                                    self.image_id_to_metadata.clear();
                                 } else {
-                                    self.alt_screen
-                                        .grid_handler_mut()
-                                        .evict_image(delete_by_id.image_id);
+                                    // `d=a` removes placements only, and virtual
+                                    // (`U=1`) placements live in the metadata
+                                    // rather than any grid.
+                                    for metadata in self.image_id_to_metadata.values_mut() {
+                                        if let StoredImageMetadata::Kitty(metadata) = metadata {
+                                            metadata.virtual_placements.clear();
+                                        }
+                                    }
                                 }
-                            } else {
-                                for block in self.block_list_mut().blocks_mut() {
-                                    if let Some(placement_id) = delete_by_id.placement_id {
-                                        block
-                                            .grid_handler_mut()
-                                            .evict_placement(delete_by_id.image_id, placement_id);
-                                    } else {
-                                        block.grid_handler_mut().evict_image(delete_by_id.image_id);
+
+                                self.for_each_image_grid(|grid| grid.evict_all_images());
+                            }
+                            DeletionType::ById {
+                                image_id,
+                                placement_id,
+                            } => {
+                                self.delete_kitty_image(
+                                    *image_id,
+                                    *placement_id,
+                                    delete_image_data,
+                                );
+                            }
+                            DeletionType::ByNumber {
+                                image_number,
+                                placement_id,
+                            } => {
+                                // Nothing to do when no image was transmitted
+                                // under that number; kitty treats deleting an
+                                // absent image as a no-op.
+                                if let Some(image_id) =
+                                    self.newest_kitty_image_with_number(*image_number)
+                                {
+                                    self.delete_kitty_image(
+                                        image_id,
+                                        *placement_id,
+                                        delete_image_data,
+                                    );
+                                }
+                            }
+                            DeletionType::IdRange { start, end } => {
+                                let range = *start..=*end;
+
+                                if delete_image_data {
+                                    self.image_id_to_metadata
+                                        .retain(|image_id, _| !range.contains(image_id));
+                                }
+
+                                self.for_each_image_grid(|grid| {
+                                    grid.evict_placements_in_id_range(*start, *end)
+                                });
+                            }
+                            DeletionType::ZIndex(z_index) => {
+                                let mut evicted = vec![];
+                                self.for_each_image_grid(|grid| {
+                                    evicted.extend(grid.evict_placements_with_z(*z_index))
+                                });
+                                let mut affected: Vec<u32> =
+                                    evicted.into_iter().map(|(image_id, _)| image_id).collect();
+
+                                // Virtual (`U=1`) placements carry their own z
+                                // and live in the metadata rather than any grid.
+                                for (image_id, metadata) in self.image_id_to_metadata.iter_mut() {
+                                    if let StoredImageMetadata::Kitty(metadata) = metadata {
+                                        let before = metadata.virtual_placements.len();
+                                        metadata
+                                            .virtual_placements
+                                            .retain(|_, placement| placement.z_index != *z_index);
+                                        if metadata.virtual_placements.len() != before {
+                                            affected.push(*image_id);
+                                        }
+                                    }
+                                }
+
+                                if delete_image_data {
+                                    for image_id in affected {
+                                        // Freeing an image frees every placement
+                                        // of it, not just the matched ones.
+                                        self.image_id_to_metadata.remove(&image_id);
+                                        self.for_each_image_grid(|grid| grid.evict_image(image_id));
                                     }
                                 }
                             }
+                            // The positional specifiers need a cursor and cell
+                            // geometry, so the grid handler applies them.
+                            DeletionType::AtCursor
+                            | DeletionType::AtPoint { .. }
+                            | DeletionType::AtPointZ { .. }
+                            | DeletionType::Column(_)
+                            | DeletionType::Row(_)
+                            | DeletionType::Frames { .. } => {}
                         }
-                    },
+                    }
                 }
 
                 match self.handle_completed_kitty_action(action.clone(), &mut HashMap::new()) {
                     Some(Ok(_)) => {
                         if let Some(message_id) = message_id {
-                            if verbosity.send_ok() {
-                                let _ = writer.write_all(&create_kitty_ok_reply(message_id));
+                            if send_ok {
+                                let _ = writer.write_all(&create_kitty_ok_reply(
+                                    message_id,
+                                    placement_id,
+                                    image_number,
+                                ));
                             }
                         }
                     }
                     Some(Err(err)) => {
                         log::warn!("{err:?}");
                         if let Some(message_id) = message_id {
-                            if verbosity.send_error() {
-                                let _ =
-                                    writer.write_all(&create_kitty_error_reply(message_id, err));
+                            if send_error {
+                                let _ = writer.write_all(&create_kitty_error_reply(
+                                    message_id,
+                                    placement_id,
+                                    image_number,
+                                    err,
+                                ));
                             }
                         }
                     }
                     None => {}
                 };
+
+                // An uppercase positional delete frees image data based on what
+                // the active grid held, but other placements of the freed
+                // images would draw as blank gaps. Sweep them out of the grids
+                // this delete can reach (the alt screen when active, the block
+                // grids otherwise — the same reach as every delete above).
+                if let KittyAction::Delete {
+                    delete_placements_only: false,
+                    deletion_type:
+                        DeletionType::AtCursor
+                        | DeletionType::AtPoint { .. }
+                        | DeletionType::AtPointZ { .. }
+                        | DeletionType::Column(_)
+                        | DeletionType::Row(_),
+                } = &action
+                {
+                    let live: HashSet<u32> = self.image_id_to_metadata.keys().copied().collect();
+                    self.for_each_image_grid(|grid| grid.evict_images_absent_from(&live));
+                }
             }
             Err(err) => {
                 log::warn!("{err:?}");
                 if let Some(message_id) = message_id {
-                    if verbosity.send_error() {
-                        let _ = writer.write_all(&create_kitty_error_reply(message_id, err));
+                    if send_error {
+                        let _ = writer.write_all(&create_kitty_error_reply(
+                            message_id,
+                            placement_id,
+                            image_number,
+                            err,
+                        ));
                     }
                 }
             }

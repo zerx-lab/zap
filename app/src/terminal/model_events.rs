@@ -292,6 +292,9 @@ impl ModelEventDispatcher {
                 image_data,
                 image_protocol,
             },
+            Event::AnimatedImageReceived { image_id, frames } => {
+                ModelEvent::AnimatedImageReceived { image_id, frames }
+            }
             Event::BootstrapPrecmdDone => ModelEvent::BootstrapPrecmdDone,
             Event::AgentTaggedInChanged { is_tagged_in } => {
                 ModelEvent::AgentTaggedInChanged { is_tagged_in }
@@ -460,6 +463,11 @@ pub enum ModelEvent {
         image_id: u32,
         image_data: Vec<u8>,
         image_protocol: ImageProtocol,
+    },
+    /// See [`Event::AnimatedImageReceived`].
+    AnimatedImageReceived {
+        image_id: u32,
+        frames: Vec<(Vec<u8>, u32)>,
     },
     BootstrapPrecmdDone,
     AgentTaggedInChanged {

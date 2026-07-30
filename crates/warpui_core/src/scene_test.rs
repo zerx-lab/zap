@@ -69,3 +69,19 @@ fn test_click_through_layer_does_not_cover_lower_layers() {
 
     assert!(!scene.is_covered(Point::new(10., 10., ZIndex::new(0))));
 }
+
+#[test]
+fn test_image_source_uv() {
+    let mut scene = Scene::new(1., rendering::Config::default());
+    let asset = crate::image_cache::test_utils::make_static_image(4, 4);
+    let bounds = RectF::new(vec2f(0., 0.), vec2f(10., 10.));
+    let full_uv = RectF::new(vec2f(0., 0.), vec2f(1., 1.));
+    let source_uv = RectF::new(vec2f(0.25, 0.5), vec2f(0.25, 0.5));
+
+    scene.draw_image(bounds, asset.clone(), 1., CornerRadius::default());
+    scene.draw_image_with_source(bounds, asset, source_uv, 1., CornerRadius::default());
+
+    let images = &scene.layers.first().images;
+    assert_eq!(images[0].source_uv, full_uv);
+    assert_eq!(images[1].source_uv, source_uv);
+}

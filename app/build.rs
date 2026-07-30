@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     let target_family = env::var("CARGO_CFG_TARGET_FAMILY")?;
     let target_env = env::var("CARGO_CFG_TARGET_ENV")?;
 
-    add_features(&target_family, &target_os);
+    add_features(&target_family);
 
     if target_os == "macos" && target_family != "wasm" {
         println!("cargo:rustc-link-lib=framework=MetalKit");
@@ -233,14 +233,10 @@ fn get_build_profile_name() -> String {
         .to_string()
 }
 
-fn add_features(target_family: &str, target_os: &str) {
+fn add_features(target_family: &str) {
     if target_family != "wasm" {
         println!("cargo:rustc-cfg=feature=\"local_fs\"");
         println!("cargo:rustc-cfg=feature=\"local_tty\"");
-    }
-
-    if target_os != "windows" {
-        println!("cargo:rustc-cfg=feature=\"iterm_images\"");
     }
 
     if env::var("PROFILE").ok().is_some_and(|val| val == "debug") {

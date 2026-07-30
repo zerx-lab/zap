@@ -461,6 +461,7 @@ default = [
     "agent_mode_pre_plan_xml",
     "command_correction_key",
     "kitty_images",
+    "iterm_images",
     "grep_tool",
     "validate_autosuggestions",
     "clear_autosuggestion_on_escape",

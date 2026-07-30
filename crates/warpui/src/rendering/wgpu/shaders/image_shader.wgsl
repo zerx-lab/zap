@@ -21,6 +21,9 @@ struct ImageVertexShaderInput {
     @location(3) is_icon: u32,
     // Corner radius in the order top_left, top_right, bottom_left, bottom_right.
     @location(4) corner_radius: vec4<f32>,
+    // The sub-rectangle of the texture to sample, in unit UV space. xy is the
+    // origin and zw is the size.
+    @location(5) uv_bounds: vec4<f32>,
 }
 
 struct ImageVertexShaderOutput {
@@ -52,7 +55,10 @@ fn vs_main(
     out.rect_corner = clipped_size / 2.0;
     out.rect_center = clipped_origin + out.rect_corner;
 
-    out.texture_coordinate = image.vertex_position;
+    // The vertex positions span the unit square, so they double as the texture
+    // coordinates of the full asset; map them onto the requested source
+    // sub-rectangle of the texture.
+    out.texture_coordinate = image.vertex_position * image.uv_bounds.zw + image.uv_bounds.xy;
     out.color = image.color;
     out.is_icon = image.is_icon;
     out.corner_radius = image.corner_radius;
