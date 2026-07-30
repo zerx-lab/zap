@@ -1,5 +1,5 @@
 ﻿# Prevent history from being written to file, among other interactive features.
-Remove-Module -Name PSReadline
+Remove-Module -Name PSReadline -ErrorAction Ignore
 
 $global:_warpOriginalPrompt = $function:global:prompt
 
