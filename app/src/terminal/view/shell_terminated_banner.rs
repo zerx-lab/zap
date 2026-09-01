@@ -225,9 +225,7 @@ impl TerminationType {
                         .with_text_label(crate::t!("terminal-more-info"))
                         .build()
                         .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "".to_string(),
-                            ));
+                            ctx.dispatch_typed_action(Action::OpenUrl("".to_string()));
                         })
                         .finish(),
                 ]
@@ -263,9 +261,7 @@ impl TerminationType {
                         .with_text_label(crate::t!("terminal-more-info"))
                         .build()
                         .on_click(|ctx, _, _| {
-                            ctx.dispatch_typed_action(Action::OpenUrl(
-                                "".to_string(),
-                            ));
+                            ctx.dispatch_typed_action(Action::OpenUrl("".to_string()));
                         })
                         .finish(),
                 ]

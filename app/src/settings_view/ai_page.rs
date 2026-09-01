@@ -30,8 +30,8 @@ use crate::settings::{
     ShowAgentZeroStateHints, ShowConversationHistory, ShowHintText, ThinkingDisplayMode,
     VoiceInputEnabled,
 };
-use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::terminal::cli_agent::{CLIAgentInstallEvent, CLIAgentInstallModel};
+use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::terminal::CLIAgent;
 use crate::view_components::{
     action_button::{ActionButton, ButtonSize, SecondaryTheme},
@@ -49,14 +49,14 @@ use warp_core::features::FeatureFlag;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
     Border, ChildView, ConstrainedBox, CornerRadius, CrossAxisAlignment, Dismiss, Empty, Expanded,
-    Fill, Hoverable, HyperlinkLens, MainAxisAlignment, MainAxisSize, MouseStateHandle, Radius, Shrinkable,
-    Text,
+    Fill, Hoverable, HyperlinkLens, MainAxisAlignment, MainAxisSize, MouseStateHandle, Radius,
+    Shrinkable, Text,
 };
 use warpui::fonts::{Properties, Weight};
-use warpui::platform::Cursor;
-use warpui::text_layout::TextAlignment;
 use warpui::id;
 use warpui::keymap::ContextPredicate;
+use warpui::platform::Cursor;
+use warpui::text_layout::TextAlignment;
 use warpui::ui_components::slider::SliderStateHandle;
 use warpui::{
     elements::{
@@ -5088,7 +5088,9 @@ impl AgentsWidget {
                     styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
                     HighlightedHyperlink::default(),
                 )
-                .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+                .with_heading_to_font_size_multipliers(
+                    appearance.heading_font_size_multipliers().clone(),
+                )
                 .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                 .register_default_click_handlers_with_action_support(|hyperlink_lens, ctx, _app| {
                     match hyperlink_lens {
@@ -5419,7 +5421,9 @@ impl AIInputWidget {
                         styles::description_font_color(is_toggleable, app).into(),
                         incorrect_autodetection_highlight_index,
                     )
-                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+                    .with_heading_to_font_size_multipliers(
+                        appearance.heading_font_size_multipliers().clone(),
+                    )
                     .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                     .register_default_click_handlers(|url, ctx, _| {
                         ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5470,7 +5474,9 @@ impl AIInputWidget {
                         styles::description_font_color(is_toggleable, app).into(),
                         incorrect_autodetection_highlight_index,
                     )
-                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+                    .with_heading_to_font_size_multipliers(
+                        appearance.heading_font_size_multipliers().clone(),
+                    )
                     .with_hyperlink_font_color(appearance.theme().accent().into_solid())
                     .register_default_click_handlers(|url, ctx, _| {
                         ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5567,7 +5573,9 @@ impl SettingsWidget for MCPServersWidget {
                 styles::description_font_color(is_any_ai_enabled, app).into(),
                 self.mcp_docs_link_index.clone(),
             )
-            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+            .with_heading_to_font_size_multipliers(
+                appearance.heading_font_size_multipliers().clone(),
+            )
             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
             .register_default_click_handlers(|url, ctx, _| {
                 ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -5696,7 +5704,9 @@ impl AIFactWidget {
                 styles::description_font_color(ai_settings.is_any_ai_enabled(app), app).into(),
                 self.rules_link_index.clone(),
             )
-            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+            .with_heading_to_font_size_multipliers(
+                appearance.heading_font_size_multipliers().clone(),
+            )
             .with_hyperlink_font_color(appearance.theme().accent().into_solid())
             .register_default_click_handlers(|url, ctx, _| {
                 ctx.dispatch_typed_action(AISettingsPageAction::HyperlinkClick(url));
@@ -6556,11 +6566,13 @@ impl CLIAgentWidget {
         });
 
         if is_clickable {
-            chip = chip.with_cursor(Cursor::PointingHand).on_click(move |ctx, _, _| {
-                ctx.dispatch_typed_action(AISettingsPageAction::ToggleCLIAgentPerAgent(
-                    agent, dimension,
-                ));
-            });
+            chip = chip
+                .with_cursor(Cursor::PointingHand)
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(AISettingsPageAction::ToggleCLIAgentPerAgent(
+                        agent, dimension,
+                    ));
+                });
         }
 
         chip.finish()

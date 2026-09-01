@@ -2436,9 +2436,7 @@ impl RootView {
             return;
         };
 
-        if FeatureFlag::ZapNewSettingsModes.is_enabled()
-            && FeatureFlag::TabConfigs.is_enabled()
-        {
+        if FeatureFlag::ZapNewSettingsModes.is_enabled() && FeatureFlag::TabConfigs.is_enabled() {
             let intention = tutorial.intention();
             // Terminal-intent users skip the session config modal.
             if matches!(intention, OnboardingIntention::AgentDrivenDevelopment) {

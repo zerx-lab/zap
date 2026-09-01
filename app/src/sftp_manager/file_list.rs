@@ -9,8 +9,8 @@ use std::collections::HashSet;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
-    ConstrainedBox, Container, CrossAxisAlignment, Fill, Flex, Hoverable,
-    MouseStateHandle, ParentElement, SavePosition, Shrinkable, Text,
+    ConstrainedBox, Container, CrossAxisAlignment, Fill, Flex, Hoverable, MouseStateHandle,
+    ParentElement, SavePosition, Shrinkable, Text,
 };
 use warpui::platform::Cursor;
 use warpui::Element;
@@ -46,7 +46,10 @@ pub fn render_file_row(
     } else {
         theme.background().into_solid()
     };
-    let icon_color = if matches!(entry.file_type, FileEntryType::Directory | FileEntryType::Symlink) {
+    let icon_color = if matches!(
+        entry.file_type,
+        FileEntryType::Directory | FileEntryType::Symlink
+    ) {
         theme.accent().into_solid()
     } else {
         theme.sub_text_color(theme.background()).into_solid()
@@ -65,7 +68,9 @@ pub fn render_file_row(
     Hoverable::new(mouse_handle, move |_| {
         // 图标
         let icon_el = ConstrainedBox::new(
-            file_icon(&file_type).to_warpui_icon(icon_color.into()).finish(),
+            file_icon(&file_type)
+                .to_warpui_icon(icon_color.into())
+                .finish(),
         )
         .with_width(16.0)
         .with_height(16.0)
@@ -208,8 +213,7 @@ pub fn render_file_rows(
     mouse_handles: &[MouseStateHandle],
     appearance: &Appearance,
 ) -> Box<dyn Element> {
-    let mut col = Flex::column()
-        .with_cross_axis_alignment(CrossAxisAlignment::Stretch);
+    let mut col = Flex::column().with_cross_axis_alignment(CrossAxisAlignment::Stretch);
 
     for &index in filtered_indices {
         let entry = &entries[index];

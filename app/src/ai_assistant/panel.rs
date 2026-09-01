@@ -69,7 +69,6 @@ const PANEL_HORIZONTAL_PADDING: f32 = 6.;
 const EDITOR_MARGIN: f32 = 16.;
 const LOGO_SIZE: f32 = 20.;
 
-
 const ZERO_STATE_HELP_TEXT: &str = "Shift + ctrl + space a block or text selection to ask Zap AI.";
 const SCRIPT_ZERO_STATE_PROMPT: &str = "Write a script to connect to an AWS EC2 instance.";
 const GIT_ZERO_STATE_PROMPT: &str = "How do I undo the most recent commits in git?";

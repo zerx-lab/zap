@@ -18,6 +18,7 @@ use crate::network::NetworkStatus;
 use crate::notebooks::editor::keys::NotebookKeybindings;
 use crate::notebooks::notebook::NotebookView;
 use crate::pane_group::{Direction, PaneGroupAction, PaneId};
+use crate::persistence::RepositoryPersistence;
 use crate::pricing::PricingInfoModel;
 use crate::suggestions::ignored_suggestions_model::IgnoredSuggestionsModel;
 use crate::terminal::shared_session::protocol::SessionSourceType;
@@ -28,7 +29,9 @@ use repo_metadata::repositories::DetectedRepositories;
 use repo_metadata::watcher::DirectoryWatcher;
 #[cfg(feature = "local_fs")]
 use repo_metadata::RepoMetadataModel;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::Arc;
 use watcher::HomeDirectoryWatcher;
 
@@ -70,12 +73,24 @@ use crate::{experiments, workspace, GlobalResourceHandlesProvider};
 use crate::terminal::shared_session::protocol::SessionId;
 use ai::project_context::model::ProjectContextModel;
 use pane_group::{NotebookPane, PaneState, SplitPaneState, TerminalPaneId};
+use pathfinder_geometry::vector::vec2f;
 use terminal::view::ActiveSessionState;
 use warpui::AddSingletonModel;
-use warpui::{platform::WindowStyle, App, ViewHandle};
+use warpui::{platform::WindowStyle, App, Presenter, ViewHandle, WindowInvalidation};
 
 fn initialize_app(app: &mut App) {
     initialize_settings_for_tests(app);
+    crate::settings::language::LanguageSettings::register(app);
+    crate::settings::network::NetworkSettings::register(app);
+    crate::settings::AutoupdateSettings::register(app);
+    crate::settings::WarpDrivePrivacySettings::register(app);
+    crate::settings::app_installation_detection::UserAppInstallDetectionSettings::register(app);
+    crate::settings::CloudSyncSettings::register(app);
+    crate::workflows::aliases::WorkflowAliases::register(app);
+    let temp_ssh_db = std::env::temp_dir().join("warp_workspace_view_test.sqlite");
+    let _ = warp_ssh_manager::set_database_path(temp_ssh_db);
+    app.add_singleton_model(crate::settings::network_secrets::ProxyCredentials::new);
+    app.add_singleton_model(crate::settings::CloudSyncTokenStore::new);
 
     // Add the necessary singleton models to the App
     app.add_singleton_model(|_| AuthStateProvider::new_for_test());
@@ -113,7 +128,9 @@ fn initialize_app(app: &mut App) {
     // Zap(本地化,Phase 5):`PreferencesSyncer` 已物理删除,test singleton 不再需要。
     app.add_singleton_model(|_| BlocklistAIHistoryModel::new_for_test());
     app.add_singleton_model(|_| CLIAgentSessionsModel::new());
+    app.add_singleton_model(crate::terminal::cli_agent::CLIAgentInstallModel::new);
     app.add_singleton_model(AgentConversationsModel::new);
+    app.add_singleton_model(crate::ai::agent_providers::AgentProviderSecrets::new);
     app.add_singleton_model(LLMPreferences::new);
     app.add_singleton_model(|_| SettingsPaneManager::new());
     app.add_singleton_model(|_| AIFactManager::new());
@@ -144,6 +161,15 @@ fn initialize_app(app: &mut App) {
     app.add_singleton_model(DefaultTerminal::new);
     app.add_singleton_model(|_| IgnoredSuggestionsModel::new(vec![]));
     app.add_singleton_model(|_| crate::code_review::git_status_update::GitStatusUpdateModel::new());
+    app.add_singleton_model(|ctx| {
+        crate::project_organization::model::ProjectOrganizationModel::try_new(
+            vec![],
+            vec![],
+            RepositoryPersistence::new(None),
+            ctx,
+        )
+        .expect("project organization model should initialize")
+    });
     app.add_singleton_model(remote_server::manager::RemoteServerManager::new);
 
     #[cfg(feature = "local_fs")]
@@ -186,6 +212,20 @@ fn initialize_app(app: &mut App) {
     app.update(workspace::init);
 }
 
+#[test]
+fn existing_worktree_source_never_requests_git_cleanup() {
+    assert!(!source_creates_worktree(
+        &CreateWorkspaceSource::ExistingWorktree {
+            local_branch: "feature/adopt".to_string(),
+        }
+    ));
+    assert!(source_creates_worktree(
+        &CreateWorkspaceSource::ExistingLocalBranch {
+            local_branch: "feature/create".to_string(),
+        }
+    ));
+}
+
 fn mock_workspace(app: &mut App) -> ViewHandle<Workspace> {
     let global_resource_handles = GlobalResourceHandles::mock(app);
     let active_window_id = app.read(|ctx| ctx.windows().active_window());
@@ -201,6 +241,25 @@ fn mock_workspace(app: &mut App) -> ViewHandle<Workspace> {
         )
     });
     workspace
+}
+
+#[test]
+fn repository_open_preflight_rejects_missing_path() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|ctx| {
+            ProjectOrganizationModel::try_new(vec![], vec![], RepositoryPersistence::new(None), ctx)
+                .expect("empty project organization model should initialize")
+        });
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let missing_path = tempdir.path().join("missing-repository");
+
+        let result = app.update(|ctx| Workspace::touch_repository_for_open(&missing_path, ctx));
+
+        assert!(matches!(
+            result,
+            Err(ProjectOrganizationError::InvalidPath { path, .. }) if path == missing_path
+        ));
+    });
 }
 
 fn restored_workspace(
@@ -2396,6 +2455,262 @@ fn test_standard_tab_context_menu_shows_hover_only_tab_bar() {
             assert_eq!(workspace.tab_bar_mode(ctx), ShowTabBar::Stacked);
         });
     });
+}
+
+#[test]
+fn compute_tab_bar_left_padding_omits_macos_traffic_lights_when_repository_chrome_is_on() {
+    let _flag = FeatureFlag::RepositoryWorkspaces.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.open_left_panel(ctx);
+            assert!(
+                workspace.use_full_height_left_panel_chrome(ctx),
+                "repository workspaces with an open left panel should use full-height chrome"
+            );
+            assert_eq!(
+                workspace.compute_tab_bar_left_padding(ctx),
+                super::TAB_BAR_PADDING_LEFT
+            );
+        });
+    });
+}
+
+#[test]
+fn left_panel_titlebar_leading_inset_is_computed_at_render_time_not_from_cache() {
+    let _flag = FeatureFlag::RepositoryWorkspaces.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.open_left_panel(ctx);
+            assert!(
+                workspace.use_full_height_left_panel_chrome(ctx),
+                "repository workspaces with an open left panel should use full-height chrome"
+            );
+            let expected = super::full_height_left_panel_chrome::left_panel_titlebar_leading_inset(
+                true,
+                workspace.is_macos_fullscreen(ctx),
+                workspace.left_traffic_light_width(ctx),
+            );
+            workspace.left_panel_view.update(ctx, |left_panel, ctx| {
+                left_panel.set_titlebar_leading_inset(expected + 64., ctx);
+            });
+            assert_eq!(
+                workspace
+                    .left_panel_view
+                    .as_ref(ctx)
+                    .titlebar_leading_inset(),
+                expected + 64.,
+                "cached field was forced stale"
+            );
+            assert_eq!(
+                workspace
+                    .left_panel_view
+                    .as_ref(ctx)
+                    .titlebar_leading_inset_for_render(ctx),
+                expected,
+                "render-time inset must follow the chrome helper, not the cached field"
+            );
+        });
+    });
+}
+
+#[test]
+fn handle_window_state_change_resyncs_left_panel_titlebar_inset_on_fullscreen() {
+    let _flag = FeatureFlag::RepositoryWorkspaces.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.open_left_panel(ctx);
+            let expected_inset = workspace
+                .left_panel_view
+                .as_ref(ctx)
+                .titlebar_leading_inset();
+            workspace.left_panel_view.update(ctx, |left_panel, ctx| {
+                left_panel.set_titlebar_leading_inset(expected_inset + 64., ctx);
+            });
+
+            let mut previous = WindowManager::as_ref(ctx).state().clone();
+            let mut current = previous.clone();
+            previous.is_active_window_fullscreen = Some(false);
+            current.is_active_window_fullscreen = Some(true);
+            workspace.handle_window_state_change(
+                &StateEvent::ValueChanged { current, previous },
+                ctx,
+            );
+
+            assert_eq!(
+                workspace
+                    .left_panel_view
+                    .as_ref(ctx)
+                    .titlebar_leading_inset(),
+                expected_inset,
+                "fullscreen change should rewrite the left panel titlebar inset"
+            );
+        });
+    });
+}
+
+fn layout_workspace_scene(
+    app: &mut App,
+    workspace: &ViewHandle<Workspace>,
+    window_id: WindowId,
+) -> (
+    pathfinder_geometry::rect::RectF,
+    Option<pathfinder_geometry::rect::RectF>,
+) {
+    let root_view_id = app
+        .root_view_id(window_id)
+        .expect("window should have a root view");
+    // Presenter 只 layout `updated` 里的 View；LeftPanel 是 ChildView，不加入则尺寸为 0。
+    let left_panel_view_id = workspace.read(app, |workspace, _| workspace.left_panel_view.id());
+    let presenter = Rc::new(RefCell::new(Presenter::new(window_id)));
+    app.update({
+        let presenter = presenter.clone();
+        let workspace = workspace.clone();
+        move |ctx| {
+            presenter.borrow_mut().invalidate(
+                WindowInvalidation {
+                    updated: [root_view_id, workspace.id(), left_panel_view_id]
+                        .into_iter()
+                        .collect(),
+                    ..Default::default()
+                },
+                ctx,
+            );
+            presenter
+                .borrow_mut()
+                .build_scene(vec2f(1200., 800.), 1., None, ctx);
+        }
+    });
+    let cache = presenter.borrow();
+    let cache = cache.position_cache();
+    let tab_bar = cache
+        .get_position(TAB_BAR_POSITION_ID)
+        .expect("tab bar should have a saved position");
+    let left_panel = cache.get_position(LEFT_PANEL_POSITION_ID);
+    (tab_bar, left_panel)
+}
+
+fn assert_lifted_left_panel_geometry(
+    tab_bar: pathfinder_geometry::rect::RectF,
+    left_panel: pathfinder_geometry::rect::RectF,
+) {
+    const SCENE_HEIGHT: f32 = 800.;
+    let expected_max_y = SCENE_HEIGHT - super::WORKSPACE_PADDING;
+    assert!(
+        tab_bar.min_x() >= left_panel.max_x() - 2.,
+        "tab bar should sit to the right of the full-height left panel, tab_bar={tab_bar:?} left_panel={left_panel:?}"
+    );
+    assert!(
+        (tab_bar.min_y() - left_panel.min_y()).abs() < 2.,
+        "tab bar and left panel should share the window top, tab_bar_y={} left_panel_y={}",
+        tab_bar.min_y(),
+        left_panel.min_y()
+    );
+    assert!(
+        (left_panel.max_y() - expected_max_y).abs() < 2.,
+        "left panel should stretch toward the window bottom, max_y={} expected={}",
+        left_panel.max_y(),
+        expected_max_y
+    );
+}
+
+#[test]
+fn full_height_left_panel_places_tab_bar_in_the_content_column() {
+    let _flag = FeatureFlag::RepositoryWorkspaces.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let window_id = workspace.read(&app, |workspace, _| workspace.window_id);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.open_left_panel(ctx);
+        });
+
+        let (tab_bar, left_panel) = layout_workspace_scene(&mut app, &workspace, window_id);
+        let left_panel = left_panel.expect("left panel should have a saved position");
+        assert_lifted_left_panel_geometry(tab_bar, left_panel);
+    });
+}
+
+#[test]
+fn full_height_chrome_keeps_content_column_tab_bar_when_workspace_has_no_tabs() {
+    let _flag = FeatureFlag::RepositoryWorkspaces.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let window_id = workspace.read(&app, |workspace, _| workspace.window_id);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.open_left_panel(ctx);
+            // close_tab 在最后一页且 CloseWindow 关闭时会拒绝关闭，测试直接清空集合以走到空态渲染。
+            workspace.tabs.clear();
+            workspace.active_tab_index = 0;
+        });
+
+        let (tab_bar, left_panel) = layout_workspace_scene(&mut app, &workspace, window_id);
+        let left_panel = left_panel.expect("left panel should stay full-height with no tabs");
+        assert_lifted_left_panel_geometry(tab_bar, left_panel);
+    });
+}
+
+#[test]
+fn closing_left_panel_restores_full_width_tab_bar() {
+    let _flag = FeatureFlag::RepositoryWorkspaces.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace = mock_workspace(&mut app);
+        let window_id = workspace.read(&app, |workspace, _| workspace.window_id);
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.open_left_panel(ctx);
+        });
+        let (open_tab_bar, open_left) = layout_workspace_scene(&mut app, &workspace, window_id);
+        assert!(
+            open_left.is_some(),
+            "open left panel should publish LEFT_PANEL_POSITION_ID"
+        );
+        assert!(
+            open_tab_bar.min_x() > 40.,
+            "open chrome should push the tab bar rightward"
+        );
+
+        workspace.update(&mut app, |workspace, ctx| {
+            workspace.close_left_panel(ctx);
+        });
+        let (closed_tab_bar, closed_left) = layout_workspace_scene(&mut app, &workspace, window_id);
+        assert!(
+            closed_left.is_none(),
+            "closed left panel should not keep the lifted SavePosition"
+        );
+        assert!(
+            closed_tab_bar.min_x() < open_tab_bar.min_x(),
+            "closing the left panel should restore a full-width tab bar, open_x={} closed_x={}",
+            open_tab_bar.min_x(),
+            closed_tab_bar.min_x()
+        );
+    });
+}
+
+#[test]
+fn workspace_configuration_allows_empty_tabs_when_repository_workspaces_are_enabled() {
+    assert!(super::workspace_configuration_is_valid(0, true));
+    assert!(!super::workspace_configuration_is_valid(0, false));
+    assert!(super::workspace_configuration_is_valid(1, false));
+    assert!(super::workspace_configuration_is_valid(2, true));
 }
 
 // 已删:test_open_ambient_agent_setup_guide_action_opens_management_view_and_is_idempotent

@@ -384,15 +384,30 @@ ui_colors:
     let colors = theme.ui_colors().unwrap();
     assert_eq!(
         colors.surface_1.unwrap(),
-        ColorU { r: 0x1E, g: 0x1F, b: 0x20, a: 255 }
+        ColorU {
+            r: 0x1E,
+            g: 0x1F,
+            b: 0x20,
+            a: 255
+        }
     );
     assert_eq!(
         colors.border.unwrap(),
-        ColorU { r: 0x33, g: 0x35, b: 0x36, a: 255 }
+        ColorU {
+            r: 0x33,
+            g: 0x35,
+            b: 0x36,
+            a: 255
+        }
     );
     assert_eq!(
         colors.main_text.unwrap(),
-        ColorU { r: 0xED, g: 0xED, b: 0xED, a: 255 }
+        ColorU {
+            r: 0xED,
+            g: 0xED,
+            b: 0xED,
+            a: 255
+        }
     );
     assert!(colors.surface_2.is_none());
 }
@@ -436,24 +451,114 @@ name: VS Code 2026 Dark
 fn test_ui_colors() -> super::ui_colors::UiColors {
     use super::ui_colors::UiColors;
     UiColors {
-        surface_1: Some(ColorU { r: 0x11, g: 0x11, b: 0x11, a: 255 }),
-        surface_2: Some(ColorU { r: 0x22, g: 0x22, b: 0x22, a: 255 }),
-        surface_3: Some(ColorU { r: 0x33, g: 0x33, b: 0x33, a: 255 }),
-        border: Some(ColorU { r: 0x44, g: 0x44, b: 0x44, a: 255 }),
-        focus_border: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 128 }),
-        split_pane_border: Some(ColorU { r: 0x66, g: 0x66, b: 0x66, a: 255 }),
-        main_text: Some(ColorU { r: 0x77, g: 0x77, b: 0x77, a: 255 }),
-        sub_text: Some(ColorU { r: 0x88, g: 0x88, b: 0x88, a: 255 }),
-        hint_text: Some(ColorU { r: 0x99, g: 0x99, b: 0x99, a: 255 }),
-        disabled_text: Some(ColorU { r: 0xAA, g: 0xAA, b: 0xAA, a: 255 }),
-        selection: Some(ColorU { r: 0xBB, g: 0xBB, b: 0xBB, a: 128 }),
-        text_selection: Some(ColorU { r: 0xBB, g: 0xBB, b: 0xBB, a: 0x99 }),
-        hover: Some(ColorU { r: 0xCC, g: 0xCC, b: 0xCC, a: 128 }),
-        active: Some(ColorU { r: 0xDD, g: 0xDD, b: 0xDD, a: 255 }),
-        warning: Some(ColorU { r: 0xEE, g: 0x00, b: 0x00, a: 255 }),
-        error: Some(ColorU { r: 0x00, g: 0xEE, b: 0x00, a: 255 }),
-        success: Some(ColorU { r: 0x00, g: 0x00, b: 0xEE, a: 255 }),
-        link: Some(ColorU { r: 0xFF, g: 0xFF, b: 0x00, a: 255 }),
+        surface_1: Some(ColorU {
+            r: 0x11,
+            g: 0x11,
+            b: 0x11,
+            a: 255,
+        }),
+        surface_2: Some(ColorU {
+            r: 0x22,
+            g: 0x22,
+            b: 0x22,
+            a: 255,
+        }),
+        surface_3: Some(ColorU {
+            r: 0x33,
+            g: 0x33,
+            b: 0x33,
+            a: 255,
+        }),
+        border: Some(ColorU {
+            r: 0x44,
+            g: 0x44,
+            b: 0x44,
+            a: 255,
+        }),
+        focus_border: Some(ColorU {
+            r: 0x55,
+            g: 0x55,
+            b: 0x55,
+            a: 128,
+        }),
+        split_pane_border: Some(ColorU {
+            r: 0x66,
+            g: 0x66,
+            b: 0x66,
+            a: 255,
+        }),
+        main_text: Some(ColorU {
+            r: 0x77,
+            g: 0x77,
+            b: 0x77,
+            a: 255,
+        }),
+        sub_text: Some(ColorU {
+            r: 0x88,
+            g: 0x88,
+            b: 0x88,
+            a: 255,
+        }),
+        hint_text: Some(ColorU {
+            r: 0x99,
+            g: 0x99,
+            b: 0x99,
+            a: 255,
+        }),
+        disabled_text: Some(ColorU {
+            r: 0xAA,
+            g: 0xAA,
+            b: 0xAA,
+            a: 255,
+        }),
+        selection: Some(ColorU {
+            r: 0xBB,
+            g: 0xBB,
+            b: 0xBB,
+            a: 128,
+        }),
+        text_selection: Some(ColorU {
+            r: 0xBB,
+            g: 0xBB,
+            b: 0xBB,
+            a: 0x99,
+        }),
+        hover: Some(ColorU {
+            r: 0xCC,
+            g: 0xCC,
+            b: 0xCC,
+            a: 128,
+        }),
+        active: Some(ColorU {
+            r: 0xDD,
+            g: 0xDD,
+            b: 0xDD,
+            a: 255,
+        }),
+        warning: Some(ColorU {
+            r: 0xEE,
+            g: 0x00,
+            b: 0x00,
+            a: 255,
+        }),
+        error: Some(ColorU {
+            r: 0x00,
+            g: 0xEE,
+            b: 0x00,
+            a: 255,
+        }),
+        success: Some(ColorU {
+            r: 0x00,
+            g: 0x00,
+            b: 0xEE,
+            a: 255,
+        }),
+        link: Some(ColorU {
+            r: 0xFF,
+            g: 0xFF,
+            b: 0x00,
+            a: 255,
+        }),
     }
 }
 
@@ -644,23 +749,31 @@ surface_1: "#GHIJKL"
 fn hex_alpha_roundtrip_with_alpha_via_ui_colors() {
     let mut colors = test_ui_colors();
     // 确保 surface_1 有特定 alpha 值
-    colors.surface_1 = Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x26 });
+    colors.surface_1 = Some(ColorU {
+        r: 0x39,
+        g: 0x94,
+        b: 0xBC,
+        a: 0x26,
+    });
     colors.surface_2 = None;
     colors.surface_3 = None;
     let yaml = serde_yaml::to_string(&colors).expect("序列化失败");
-    let restored: super::ui_colors::UiColors =
-        serde_yaml::from_str(&yaml).expect("反序列化失败");
+    let restored: super::ui_colors::UiColors = serde_yaml::from_str(&yaml).expect("反序列化失败");
     assert_eq!(restored.surface_1, colors.surface_1);
 }
 
 #[test]
 fn hex_alpha_roundtrip_opaque_via_ui_colors() {
     let mut colors = test_ui_colors();
-    colors.surface_1 = Some(ColorU { r: 0xFF, g: 0x00, b: 0x80, a: 255 });
+    colors.surface_1 = Some(ColorU {
+        r: 0xFF,
+        g: 0x00,
+        b: 0x80,
+        a: 255,
+    });
     colors.surface_2 = None;
     colors.surface_3 = None;
     let yaml = serde_yaml::to_string(&colors).expect("序列化失败");
-    let restored: super::ui_colors::UiColors =
-        serde_yaml::from_str(&yaml).expect("反序列化失败");
+    let restored: super::ui_colors::UiColors = serde_yaml::from_str(&yaml).expect("反序列化失败");
     assert_eq!(restored.surface_1, colors.surface_1);
 }

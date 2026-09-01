@@ -216,6 +216,24 @@ pub(super) fn spawn(options: PtyOptions) -> Result<PtySpawnInfo> {
     spawn_command_in_pty(command, &size, close_fds)
 }
 
+/// Advertise truecolor and strip color-killer vars inherited from the Zap process.
+///
+/// Agent/CI 终端常带 `NO_COLOR=1` 和 `FORCE_COLOR=0`。Zap GUI 若从这类环境启动,
+/// `Command` 会把它们遗传进 PTY。Claude Code 的 chalk/ink 只要看到 `NO_COLOR`
+/// 就会把 TUI 画成灰阶,即使 `COLORTERM=truecolor`。必须在 env_vars 覆盖之后调用,
+/// 避免调用方或父进程把禁色变量再写回来。
+fn apply_color_support_env(builder: &mut Command) {
+    builder.env("COLORTERM", "truecolor");
+    builder.env("FORCE_COLOR", "3");
+    builder.env("CLICOLOR_FORCE", "1");
+    builder.env_remove("NO_COLOR");
+    builder.env_remove("NODE_DISABLE_COLORS");
+    // Agent 关 pager 时会临时 export `GIT_CONFIG_COUNT=1` + `core.pager=cat`。
+    // 若这组变量漏进 Zap 进程再遗传到新 PTY,用户自己跑 `git log --stat`
+    // 也会一次性把全部内容打出来,不再进 less。
+    builder.env_remove("GIT_CONFIG_COUNT");
+}
+
 /// Builds the `Command` for a host-shell PTY session: executable, args,
 /// environment variables, and startup directory.
 ///
@@ -263,8 +281,6 @@ fn build_host_shell_command(
     // Specify terminal name and capabilities.
     builder.env("TERM", "xterm-256color");
     builder.env("TERM_PROGRAM", "WarpTerminal");
-    // Advertise 24-bit color support.
-    builder.env("COLORTERM", "truecolor");
 
     // Prevent child processes from inheriting startup notification env.
     // See: https://specifications.freedesktop.org/startup-notification-spec/startup-notification-latest.txt
@@ -363,6 +379,9 @@ fn build_host_shell_command(
     for (key, value) in env_vars {
         builder.env(key, value);
     }
+
+    // 必须在 env_vars 之后:父进程/调用方可能把 NO_COLOR 又写回来。
+    apply_color_support_env(&mut builder);
 
     // Set the initial working directory to the user's home directory.  If
     // `start_dir` is Some, we'll attempt to cd to that directory at the
@@ -771,7 +790,6 @@ fn build_docker_sandbox_command(
     builder.env("HOME", &home_dir);
     builder.env("TERM", "xterm-256color");
     builder.env("TERM_PROGRAM", "WarpTerminal");
-    builder.env("COLORTERM", "truecolor");
     builder.env_remove("DESKTOP_STARTUP_ID");
     if let Some(version) = ChannelState::app_version() {
         builder.env("TERM_PROGRAM_VERSION", version);
@@ -816,6 +834,9 @@ fn build_docker_sandbox_command(
     for (key, value) in env_vars {
         builder.env(key, value);
     }
+
+    // 必须在 env_vars 之后:父进程/调用方可能把 NO_COLOR 又写回来。
+    apply_color_support_env(&mut builder);
 
     builder.current_dir(home_dir);
 
@@ -909,3 +930,7 @@ fn test_get_pw_entry() {
     let mut buf: [i8; 1024] = [0; 1024];
     let _pw = get_pw_entry(&mut buf);
 }
+
+#[cfg(test)]
+#[path = "unix_tests.rs"]
+mod tests;

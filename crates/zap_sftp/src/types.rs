@@ -81,12 +81,12 @@ impl Metadata {
             size: m.size.unwrap_or(0),
             uid: m.uid.unwrap_or(0),
             gid: m.gid.unwrap_or(0),
-            accessed: m.atime.map(|t| {
-                std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(t)
-            }),
-            modified: m.mtime.map(|t| {
-                std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(t)
-            }),
+            accessed: m
+                .atime
+                .map(|t| std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(t)),
+            modified: m
+                .mtime
+                .map(|t| std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(t)),
         }
     }
 }

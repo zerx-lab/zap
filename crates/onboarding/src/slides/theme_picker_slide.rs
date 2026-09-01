@@ -151,8 +151,7 @@ impl ThemePickerSlide {
         let state = self.onboarding_state.as_ref(app);
         let is_terminal = matches!(state.intention(), OnboardingIntention::Terminal);
         let warp_drive_enabled = state.ui_customization().show_warp_drive;
-        if is_terminal && !warp_drive_enabled && FeatureFlag::ZapNewSettingsModes.is_enabled()
-        {
+        if is_terminal && !warp_drive_enabled && FeatureFlag::ZapNewSettingsModes.is_enabled() {
             content.push(self.render_disclaimer_section(appearance));
         }
 

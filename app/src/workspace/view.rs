@@ -2,11 +2,11 @@ pub(crate) mod codex_modal;
 pub mod conversation_list;
 #[cfg(enable_crash_recovery)]
 mod crash_recovery;
+pub(crate) mod full_height_left_panel_chrome;
 pub mod global_search;
 pub(crate) mod launch_modal;
 pub(crate) mod left_panel;
 pub(crate) mod onboarding;
-pub(crate) mod zap_launch_modal;
 pub(crate) mod right_panel;
 pub(crate) mod server_file_browser;
 mod startup_directory;
@@ -16,6 +16,7 @@ mod tests;
 mod vertical_tabs;
 #[cfg(target_family = "wasm")]
 mod wasm_view;
+pub(crate) mod zap_launch_modal;
 
 use self::vertical_tabs::telemetry::{VerticalTabsDisplayOption, VerticalTabsTelemetryEvent};
 use self::vertical_tabs::{
@@ -27,6 +28,10 @@ use crate::workspace::cross_window_tab_drag::{
 };
 pub(crate) use onboarding::OnboardingTutorial;
 
+use self::full_height_left_panel_chrome::{
+    use_workspace_info_bar, workspace_info_bar_label, workspace_info_bar_parts,
+    WorkspaceInfoBarGitStats, WorkspaceInfoBarParts,
+};
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::agent_conversations_model::ConversationOrTask;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -53,8 +58,8 @@ use crate::ai::{
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::app_state::{
     LeafContents, LeafSnapshot, LeftPanelDisplayedTab, LeftPanelSnapshot, NotebookPaneSnapshot,
-    PaneNodeSnapshot, PaneUuid, RightPanelSnapshot, SettingsPaneSnapshot, TabSnapshot,
-    TerminalPaneSnapshot, WindowSnapshot, WorkflowPaneSnapshot,
+    PaneNodeSnapshot, PaneUuid, RepositoryWorkspaceWindowStateSnapshot, RightPanelSnapshot,
+    SettingsPaneSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot, WorkflowPaneSnapshot,
 };
 use crate::code_review::diff_state::DiffStateModel;
 #[cfg(feature = "local_fs")]
@@ -70,7 +75,32 @@ use crate::notifications::{
     NotificationMailboxViewEvent,
 };
 use crate::pane_group::pane::ActionOrigin;
-use crate::projects::ProjectManagementModel;
+use crate::project_organization::domain::{
+    ProjectOrganizationError, RepositoryWorkspace, RepositoryWorkspaceId,
+};
+use crate::project_organization::git::{
+    create_from_local_async, create_from_remote_async, deletion_preflight_async,
+    fetch_and_list_refs_async, list_branch_refs_async, list_worktrees_async,
+    remove_workspace_async, validate_existing_worktree_async, validate_repository_async,
+};
+use crate::project_organization::model::ProjectOrganizationModel;
+use crate::project_organization::project_tree_tab::{
+    assign_idle_terminal_numbers, resolve_terminal_tab_label, tab_node_activity, ProjectTreeTabId,
+    ProjectTreeTabNode, ResolvedWorkspaceTabLabel,
+};
+use crate::project_organization::view::create_workspace_modal::{
+    CreateWorkspaceModal, CreateWorkspaceModalEvent, CreateWorkspaceRequest, CreateWorkspaceSource,
+};
+use crate::project_organization::view::delete_workspace_dialog::{
+    DeleteWorkspaceDialog, DeleteWorkspaceDialogEvent,
+};
+use crate::project_organization::view::project_tree::{
+    resolved_project_organization_tab_layout, ProjectTreeEvent, TabLayout,
+};
+use crate::project_organization::workspace_agent_activity::{
+    activities_from_terminal_sources, last_agent_activity, OzConversationSource,
+    WorkspaceAgentActivity,
+};
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
 use crate::terminal::session_settings::SessionSettings;
@@ -99,18 +129,19 @@ use crate::util::openable_file_type::{resolve_file_target_with_editor_choice, Ed
 
 use crate::ai::blocklist::history_model::LoadedConversationData;
 use crate::ai::blocklist::FORK_PREFIX;
+use crate::terminal::cli_agent::{CLIAgentInstallEvent, CLIAgentInstallModel};
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::plugin_manager::{plugin_manager_for, PluginModalKind};
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
-use crate::terminal::cli_agent::{CLIAgentInstallEvent, CLIAgentInstallModel};
 use crate::terminal::CLIAgent;
 use crate::workspace::header_toolbar_editor::{HeaderToolbarEditorEvent, HeaderToolbarEditorModal};
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
+use crate::workspace::repository_workspace_tabs::{
+    RepositoryWorkspaceTabSets, RepositoryWorkspaceTabState,
+};
 use crate::workspace::tab_settings::TabCloseButtonPosition;
 use crate::workspace::view::codex_modal::{CodexModal, CodexModalEvent};
-use crate::workspace::view::zap_launch_modal::{
-    ZapLaunchModal, ZapLaunchModalEvent,
-};
+use crate::workspace::view::zap_launch_modal::{ZapLaunchModal, ZapLaunchModalEvent};
 use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
 use crate::BlocklistAIHistoryModel;
 
@@ -254,7 +285,7 @@ use crate::server::telemetry::{
     OpenedWarpAISource, WarpDriveSource,
 };
 use crate::server_time::ServerTime;
-use crate::session_management::{SessionNavigationData, SessionSource};
+use crate::session_management::{RunningSessionSummary, SessionNavigationData, SessionSource};
 use crate::settings::{
     active_theme_kind, respect_system_theme, AccessibilitySettings, AliasExpansionSettings,
     AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings, FontSettings,
@@ -352,9 +383,10 @@ use std::convert::TryFrom;
 use std::time::Duration;
 #[cfg(target_os = "macos")]
 use std::time::{SystemTime, UNIX_EPOCH};
+use uuid::Uuid;
 use warp_core::context_flag::ContextFlag;
-use warp_core::HostId;
 use warp_core::semantic_selection::SemanticSelection;
+use warp_core::HostId;
 use warp_util::path::{user_friendly_path, LineAndColumnArg};
 use warpui::fonts::Weight;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
@@ -367,7 +399,7 @@ use warpui::elements::{
     CacheOption, DispatchEventResult, DraggableState, DropTarget, EventHandler, Image,
     MouseInBehavior, Rect,
 };
-use warpui::ui_components::button::Button;
+use warpui::ui_components::button::{Button, ButtonVariant};
 use warpui::windowing::{StateEvent, WindowManager};
 use warpui::{elements::MouseStateHandle, fonts::Properties};
 
@@ -499,7 +531,7 @@ pub const TAB_BAR_HEIGHT: f32 = 34.;
 pub const PANEL_HEADER_HEIGHT: f32 = TAB_BAR_HEIGHT;
 /// The hover area height for states where the tab bar is revealed on hover.
 const TAB_BAR_HOVER_HEIGHT: f32 = 12.;
-const TAB_BAR_PADDING_LEFT: f32 = 4.;
+pub(crate) const TAB_BAR_PADDING_LEFT: f32 = 4.;
 const TAB_BAR_PADDING_RIGHT: f32 = 8.;
 const TITLE_BAR_SEARCH_BAR_MAX_WIDTH: f32 = 320.;
 const TITLE_BAR_SEARCH_BAR_SLOT_PADDING: f32 = 8.;
@@ -523,6 +555,9 @@ const THEME_CHOOSER_RATIO: f32 = 3.5;
 
 /// Save position for the tab bar.
 pub(crate) const TAB_BAR_POSITION_ID: &str = "workspace_view:tab_bar";
+
+/// Save position for the full-height left tools panel.
+pub(crate) const LEFT_PANEL_POSITION_ID: &str = "workspace_view:left_panel";
 
 /// Save position for the vertical tabs panel.
 /// HOA onboarding callouts anchor relative to this position, so whichever code
@@ -843,6 +878,7 @@ enum PendingSessionConfigTabConfigChipTutorial {
 /// animation continues seamlessly after a handoff.
 pub struct TransferredTab {
     pub pane_group: ViewHandle<PaneGroup>,
+    pub repository_workspace_id: Option<RepositoryWorkspaceId>,
     pub color: Option<AnsiColorIdentifier>,
     pub custom_title: Option<String>,
     pub left_panel_open: bool,
@@ -856,7 +892,9 @@ pub struct Workspace {
     window_id: WindowId,
     pub(crate) tabs: Vec<TabData>,
     active_tab_index: usize,
+    repository_workspace_tabs: RepositoryWorkspaceTabSets<TabData>,
     pub(crate) hovered_tab_index: Option<TabBarHoverIndex>,
+    workspace_info_bar_git: WorkspaceInfoBarGitStats,
     tab_bar_hover_state: MouseStateHandle,
     tab_fixed_width: Option<f32>,
     traffic_light_mouse_states: TrafficLightMouseStates,
@@ -914,6 +952,8 @@ pub struct Workspace {
     pending_session_config_tab_config_chip_tutorial:
         Option<PendingSessionConfigTabConfigChipTutorial>,
     new_worktree_modal: ModalViewState<Modal<NewWorktreeModal>>,
+    create_workspace_modal: ModalViewState<Modal<CreateWorkspaceModal>>,
+    delete_workspace_dialog: ModalViewState<Modal<DeleteWorkspaceDialog>>,
     close_session_confirmation_dialog: ViewHandle<CloseSessionConfirmationDialog>,
     rewind_confirmation_dialog: ViewHandle<RewindConfirmationDialog>,
     delete_conversation_confirmation_dialog: ViewHandle<DeleteConversationConfirmationDialog>,
@@ -1009,6 +1049,10 @@ pub struct Workspace {
     remove_tab_config_confirmation_dialog: ViewHandle<RemoveTabConfigConfirmationDialog>,
 }
 
+fn source_creates_worktree(source: &CreateWorkspaceSource) -> bool {
+    !matches!(source, CreateWorkspaceSource::ExistingWorktree { .. })
+}
+
 impl Workspace {
     pub fn is_tab_drag_preview(&self) -> bool {
         self.is_tab_drag_preview
@@ -1021,8 +1065,238 @@ impl Workspace {
     pub(crate) fn set_suppress_detach_panes_on_window_close(&mut self, value: bool) {
         self.suppress_detach_panes_on_window_close = value;
     }
+
+    fn vertical_tabs_active(ctx: &AppContext) -> bool {
+        matches!(
+            resolved_project_organization_tab_layout(
+                FeatureFlag::RepositoryWorkspaces.is_enabled(),
+                FeatureFlag::VerticalTabs.is_enabled()
+                    && *TabSettings::as_ref(ctx).use_vertical_tabs,
+            ),
+            TabLayout::Vertical
+        )
+    }
+
+    fn use_full_height_left_panel_chrome(&self, app: &AppContext) -> bool {
+        cfg_if::cfg_if! {
+            if #[cfg(target_family = "wasm")] {
+                let simplified_wasm_tab_bar =
+                    self.get_simplified_wasm_tab_bar_content(app).is_some();
+            } else {
+                let simplified_wasm_tab_bar = false;
+            }
+        }
+
+        full_height_left_panel_chrome::use_full_height_left_panel_chrome(
+            FeatureFlag::RepositoryWorkspaces.is_enabled(),
+            self.is_left_panel_open(app),
+            simplified_wasm_tab_bar,
+            Self::vertical_tabs_active(app),
+            warpui::platform::is_mobile_device(),
+        )
+    }
+
+    fn use_workspace_info_bar(&self, app: &AppContext) -> bool {
+        use_workspace_info_bar(
+            self.use_full_height_left_panel_chrome(app),
+            self.active_repository_workspace_id().is_some(),
+        )
+    }
+
+    fn render_workspace_info_bar(
+        &self,
+        appearance: &Appearance,
+        ctx: &AppContext,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let muted = theme.sub_text_color(theme.background());
+        let parts = self.workspace_info_bar_parts(ctx);
+        let mut row = Flex::row()
+            .with_cross_axis_alignment(CrossAxisAlignment::Center)
+            .with_spacing(6.);
+        row.add_child(
+            Text::new_inline(
+                parts.branch.clone(),
+                appearance.ui_font_family(),
+                appearance.ui_font_body(),
+            )
+            .with_color(muted.into())
+            .finish(),
+        );
+        if let Some(upstream) = &parts.from_upstream {
+            row.add_child(
+                Text::new_inline("·", appearance.ui_font_family(), appearance.ui_font_body())
+                    .with_color(muted.into())
+                    .finish(),
+            );
+            row.add_child(
+                Text::new_inline(
+                    format!("from {upstream}"),
+                    appearance.ui_font_family(),
+                    appearance.ui_font_body(),
+                )
+                .with_color(muted.into())
+                .finish(),
+            );
+        }
+        if parts.has_diff() {
+            row.add_child(
+                Text::new_inline("·", appearance.ui_font_family(), appearance.ui_font_body())
+                    .with_color(muted.into())
+                    .finish(),
+            );
+            if parts.lines_added > 0 {
+                row.add_child(
+                    Text::new_inline(
+                        format!("+{}", parts.lines_added),
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_color(theme.terminal_colors().normal.green.into())
+                    .finish(),
+                );
+            }
+            if parts.lines_removed > 0 {
+                row.add_child(
+                    Text::new_inline(
+                        format!("−{}", parts.lines_removed),
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_color(theme.terminal_colors().normal.red.into())
+                    .finish(),
+                );
+            }
+        }
+        Shrinkable::new(
+            1.0,
+            Container::new(row.finish()).with_padding_left(8.).finish(),
+        )
+        .finish()
+    }
+
+    fn workspace_info_bar_parts(&self, ctx: &AppContext) -> WorkspaceInfoBarParts {
+        let Some(workspace_id) = self.active_repository_workspace_id() else {
+            return workspace_info_bar_parts("", None, None, None);
+        };
+        let branch = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .workspace(workspace_id)
+            .map(|workspace| workspace.branch.clone())
+            .unwrap_or_default();
+        let stats_match_workspace = self.workspace_info_bar_git.workspace_id == Some(workspace_id);
+        workspace_info_bar_parts(
+            &branch,
+            stats_match_workspace
+                .then_some(self.workspace_info_bar_git.upstream.as_deref())
+                .flatten(),
+            stats_match_workspace
+                .then_some(self.workspace_info_bar_git.lines_added)
+                .flatten(),
+            stats_match_workspace
+                .then_some(self.workspace_info_bar_git.lines_removed)
+                .flatten(),
+        )
+    }
+
+    fn workspace_info_bar_text(&self, ctx: &AppContext) -> String {
+        let parts = self.workspace_info_bar_parts(ctx);
+        workspace_info_bar_label(
+            &parts.branch,
+            parts.from_upstream.as_deref(),
+            Some(parts.lines_added).filter(|n| *n > 0),
+            Some(parts.lines_removed).filter(|n| *n > 0),
+        )
+    }
+
+    fn refresh_workspace_info_bar(&mut self, ctx: &mut ViewContext<Self>) {
+        let Some(workspace_id) = self.active_repository_workspace_id() else {
+            self.workspace_info_bar_git = WorkspaceInfoBarGitStats::default();
+            return;
+        };
+        if self.workspace_info_bar_git.workspace_id != Some(workspace_id) {
+            self.workspace_info_bar_git = WorkspaceInfoBarGitStats {
+                workspace_id: Some(workspace_id),
+                ..WorkspaceInfoBarGitStats::default()
+            };
+        }
+        #[cfg(feature = "local_fs")]
+        {
+            let Some(workspace) = ProjectOrganizationModel::handle(ctx)
+                .as_ref(ctx)
+                .workspace(workspace_id)
+                .cloned()
+            else {
+                return;
+            };
+            let worktree_path = workspace.worktree_path.clone();
+            let branch = workspace.branch.clone();
+            ctx.spawn(
+                async move {
+                    let summary = crate::util::git::get_repo_git_summary(&worktree_path).await;
+                    let upstream = crate::project_organization::git::workspace_upstream_ref(
+                        &worktree_path,
+                        &branch,
+                    )
+                    .ok()
+                    .flatten();
+                    (workspace_id, summary, upstream)
+                },
+                |workspace, (id, summary, upstream), ctx| {
+                    if workspace.active_repository_workspace_id() != Some(id) {
+                        return;
+                    }
+                    workspace.workspace_info_bar_git.workspace_id = Some(id);
+                    workspace.workspace_info_bar_git.upstream = upstream;
+                    match summary {
+                        Some(summary) => {
+                            workspace.workspace_info_bar_git.lines_added =
+                                Some(summary.lines_added);
+                            workspace.workspace_info_bar_git.lines_removed =
+                                Some(summary.lines_removed);
+                        }
+                        None => {
+                            workspace.workspace_info_bar_git.lines_added = None;
+                            workspace.workspace_info_bar_git.lines_removed = None;
+                        }
+                    }
+                    ctx.notify();
+                },
+            );
+        }
+    }
+
+    fn left_traffic_light_width(&self, ctx: &AppContext) -> f32 {
+        let zoom_factor = WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor();
+        traffic_light_data(ctx, self.window_id)
+            .as_ref()
+            .filter(|data| data.side == TrafficLightSide::Left)
+            .map(|data| data.width(zoom_factor))
+            .unwrap_or(0.)
+    }
+
+    fn is_macos_fullscreen(&self, ctx: &AppContext) -> bool {
+        let is_window_fullscreen = ctx
+            .windows()
+            .platform_window(self.window_id)
+            .map(|window| window.fullscreen_state() == FullscreenState::Fullscreen)
+            .unwrap_or(false);
+        is_window_fullscreen && cfg!(target_os = "macos")
+    }
+
+    fn sync_left_panel_titlebar_inset(&self, ctx: &mut ViewContext<Self>) {
+        let inset = full_height_left_panel_chrome::left_panel_titlebar_leading_inset(
+            self.use_full_height_left_panel_chrome(ctx),
+            self.is_macos_fullscreen(ctx),
+            self.left_traffic_light_width(ctx),
+        );
+        self.left_panel_view.update(ctx, |left_panel, ctx| {
+            left_panel.set_titlebar_leading_inset(inset, ctx);
+        });
+    }
+
     fn tab_rename_editor_font_size(ctx: &AppContext, appearance: &Appearance) -> f32 {
-        if FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs {
+        if Self::vertical_tabs_active(ctx) {
             match *TabSettings::as_ref(ctx)
                 .vertical_tabs_display_granularity
                 .value()
@@ -1366,11 +1640,7 @@ impl Workspace {
                     id_to_force_expand = Some(workflow.id);
                 }
                 if let Some(id) = id_to_force_expand {
-                    self.open_workflow_with_existing(
-                        id,
-                        &ZapDriveObjectSettings::default(),
-                        ctx,
-                    );
+                    self.open_workflow_with_existing(id, &ZapDriveObjectSettings::default(), ctx);
                     ObjectStoreModel::handle(ctx).update(ctx, |object_store_model, ctx| {
                         object_store_model.force_expand_object_and_ancestors(id, ctx);
                     });
@@ -1830,6 +2100,48 @@ impl Workspace {
         ModalViewState::new(modal)
     }
 
+    fn build_create_workspace_modal(
+        ctx: &mut ViewContext<Self>,
+    ) -> ModalViewState<Modal<CreateWorkspaceModal>> {
+        let body = ctx.add_typed_action_view(CreateWorkspaceModal::new);
+        ctx.subscribe_to_view(&body, |workspace, _, event, ctx| {
+            workspace.handle_create_workspace_modal_body_event(event, ctx);
+        });
+        let modal = ctx.add_typed_action_view(|ctx| {
+            Modal::new(None, body, ctx).with_modal_style(UiComponentStyles {
+                width: Some(520.),
+                ..Default::default()
+            })
+        });
+        ctx.subscribe_to_view(&modal, |workspace, _, event, ctx| {
+            if matches!(event, ModalEvent::Close) {
+                workspace.close_create_workspace_modal(ctx);
+            }
+        });
+        ModalViewState::new(modal)
+    }
+
+    fn build_delete_workspace_dialog(
+        ctx: &mut ViewContext<Self>,
+    ) -> ModalViewState<Modal<DeleteWorkspaceDialog>> {
+        let body = ctx.add_typed_action_view(DeleteWorkspaceDialog::new);
+        ctx.subscribe_to_view(&body, |workspace, _, event, ctx| {
+            workspace.handle_delete_workspace_dialog_event(event, ctx);
+        });
+        let modal = ctx.add_typed_action_view(|ctx| {
+            Modal::new(None, body, ctx).with_modal_style(UiComponentStyles {
+                width: Some(480.),
+                ..Default::default()
+            })
+        });
+        ctx.subscribe_to_view(&modal, |workspace, _, event, ctx| {
+            if matches!(event, ModalEvent::Close) {
+                workspace.close_delete_workspace_dialog(ctx);
+            }
+        });
+        ModalViewState::new(modal)
+    }
+
     fn build_remove_tab_config_confirmation_dialog(
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<RemoveTabConfigConfirmationDialog> {
@@ -2045,7 +2357,7 @@ impl Workspace {
     /// Opens the vertical tabs panel if the setting was enabled.
     /// Called from the onboarding flow before the session config modal is shown.
     pub(crate) fn open_vertical_tabs_panel_if_enabled(&mut self, ctx: &mut ViewContext<Self>) {
-        if FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs {
+        if Self::vertical_tabs_active(ctx) {
             self.vertical_tabs_panel_open = true;
             self.sync_window_button_visibility(ctx);
             ctx.notify();
@@ -2537,6 +2849,8 @@ impl Workspace {
 
         let tab_config_params_modal = Self::build_tab_config_params_modal(ctx);
         let new_worktree_modal = Self::build_new_worktree_modal(ctx);
+        let create_workspace_modal = Self::build_create_workspace_modal(ctx);
+        let delete_workspace_dialog = Self::build_delete_workspace_dialog(ctx);
 
         let session_config_modal = Self::build_session_config_modal(ctx);
 
@@ -2857,10 +3171,21 @@ impl Workspace {
             },
         );
 
+        let active_repository_workspace_id = match &workspace_setting {
+            NewWorkspaceSource::Restored {
+                window_snapshot, ..
+            } => window_snapshot.active_repository_workspace_id,
+            _ => None,
+        };
+
         let mut ws = Self {
             tabs: Vec::new(),
             active_tab_index: 0,
+            repository_workspace_tabs: RepositoryWorkspaceTabSets::new(
+                active_repository_workspace_id,
+            ),
             hovered_tab_index: None,
+            workspace_info_bar_git: WorkspaceInfoBarGitStats::default(),
             tab_bar_hover_state: Default::default(),
             traffic_light_mouse_states: Default::default(),
             tab_rename_editor: Self::tab_rename_editor(ctx),
@@ -2899,6 +3224,8 @@ impl Workspace {
             show_session_config_tab_config_chip: false,
             pending_session_config_tab_config_chip_tutorial: None,
             new_worktree_modal,
+            create_workspace_modal,
+            delete_workspace_dialog,
             close_session_confirmation_dialog,
             rewind_confirmation_dialog,
             delete_conversation_confirmation_dialog,
@@ -2978,6 +3305,7 @@ impl Workspace {
         };
 
         ws.configure_new_workspace(workspace_setting, ctx);
+        ws.sync_project_tree(ctx);
         ws.sync_panel_positions_from_config(ctx);
         ws.sync_window_button_visibility(ctx);
         ws.update_titlebar_height(ctx);
@@ -3056,8 +3384,13 @@ impl Workspace {
         if matches!(
             event,
             BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
+                | BlocklistAIHistoryEvent::SetActiveConversation { .. }
+                | BlocklistAIHistoryEvent::ClearedActiveConversation { .. }
+                | BlocklistAIHistoryEvent::ClearedConversationsInTerminalView { .. }
+                | BlocklistAIHistoryEvent::StartedNewConversation { .. }
+                | BlocklistAIHistoryEvent::RestoredConversations { .. }
         ) {
-            ctx.notify();
+            self.sync_project_tree(ctx);
         }
 
         if self.agent_conversation_event_affects_vertical_tabs(event, ctx) {
@@ -3109,9 +3442,12 @@ impl Workspace {
                 | CLIAgentSessionsModelEvent::StatusChanged { .. }
                 | CLIAgentSessionsModelEvent::Ended { .. }
                 | CLIAgentSessionsModelEvent::SessionUpdated { .. }
-        ) && self.workspace_contains_terminal_view(event.terminal_view_id(), ctx)
-        {
-            ctx.notify();
+        ) {
+            // 非活动 workspace 的 grok/CLI 会话不在 self.tabs 内, map_last_matching 仍会扫描。
+            self.sync_project_tree(ctx);
+            if self.workspace_contains_terminal_view(event.terminal_view_id(), ctx) {
+                ctx.notify();
+            }
         }
     }
 
@@ -3157,7 +3493,7 @@ impl Workspace {
                 ctx.notify();
             }
             TabSettingsChangedEvent::UseVerticalTabs { .. } => {
-                let vertical_tabs_enabled = *TabSettings::as_ref(ctx).use_vertical_tabs;
+                let vertical_tabs_enabled = Self::vertical_tabs_active(ctx);
                 // During HOA onboarding, keep the vertical tabs panel open
                 // regardless of the setting so the callout stays anchored.
                 if self.hoa_onboarding_flow.is_none() {
@@ -3183,8 +3519,7 @@ impl Workspace {
                 ctx.notify();
             }
             TabSettingsChangedEvent::ShowVerticalTabPanelInRestoredWindows { .. } => {
-                if FeatureFlag::VerticalTabs.is_enabled()
-                    && *TabSettings::as_ref(ctx).use_vertical_tabs
+                if Self::vertical_tabs_active(ctx)
                     && *TabSettings::as_ref(ctx).show_vertical_tab_panel_in_restored_windows
                 {
                     self.vertical_tabs_panel_open = true;
@@ -3282,6 +3617,49 @@ impl Workspace {
         }
     }
 
+    fn restore_repository_workspace_tab_sets(
+        &mut self,
+        active_tab_index: usize,
+        workspace_states: &[RepositoryWorkspaceWindowStateSnapshot],
+    ) {
+        if !FeatureFlag::RepositoryWorkspaces.is_enabled() {
+            return;
+        }
+
+        let active_workspace_id = self.active_repository_workspace_id();
+        let active_indices = workspace_states
+            .iter()
+            .map(|state| (state.repository_workspace_id, state.active_tab_index))
+            .collect::<HashMap<_, _>>();
+        let mut tabs_by_workspace = HashMap::<Option<RepositoryWorkspaceId>, Vec<TabData>>::new();
+        for tab in std::mem::take(&mut self.tabs) {
+            tabs_by_workspace
+                .entry(tab.repository_workspace_id)
+                .or_default()
+                .push(tab);
+        }
+
+        let active_state = RepositoryWorkspaceTabState::new(
+            tabs_by_workspace
+                .remove(&active_workspace_id)
+                .unwrap_or_default(),
+            active_tab_index,
+        );
+        self.tabs = active_state.tabs;
+        self.active_tab_index = active_state.active_tab_index;
+        self.repository_workspace_tabs = RepositoryWorkspaceTabSets::new(active_workspace_id);
+
+        for (workspace_id, tabs) in tabs_by_workspace {
+            let saved_active_tab_index = workspace_id
+                .and_then(|id| active_indices.get(&id).copied())
+                .unwrap_or(0);
+            self.repository_workspace_tabs.insert_inactive(
+                workspace_id,
+                RepositoryWorkspaceTabState::new(tabs, saved_active_tab_index),
+            );
+        }
+    }
+
     fn configure_new_workspace(
         &mut self,
         workspace_setting: NewWorkspaceSource,
@@ -3303,6 +3681,8 @@ impl Workspace {
             } => {
                 let active_tab_index = window_snapshot.active_tab_index;
                 let restored_left_panel_open = window_snapshot.left_panel_open;
+                let repository_workspace_states =
+                    window_snapshot.repository_workspace_states.clone();
 
                 // Re-apply this window's per-window theme override, if it had one,
                 // and record it so subsequent snapshots keep it.
@@ -3329,6 +3709,8 @@ impl Workspace {
                         self.tabs[tab_index].default_directory_color =
                             saved_tab.default_directory_color;
                         self.tabs[tab_index].selected_color = saved_tab.selected_color;
+                        self.tabs[tab_index].repository_workspace_id =
+                            saved_tab.repository_workspace_id;
 
                         let pane_group = self.tabs[tab_index].pane_group.clone();
 
@@ -3345,7 +3727,16 @@ impl Workspace {
                         }
                     });
 
-                if self.tab_count() == 0 {
+                let has_restored_tabs = !self.tabs.is_empty();
+                self.restore_repository_workspace_tab_sets(
+                    active_tab_index,
+                    &repository_workspace_states,
+                );
+
+                let should_create_default_tab = !has_restored_tabs
+                    && (!FeatureFlag::RepositoryWorkspaces.is_enabled()
+                        || self.active_repository_workspace_id().is_none());
+                if should_create_default_tab {
                     if self.should_trigger_get_started_onboarding(ctx) {
                         self.trigger_get_started_onboarding(ctx);
                         return;
@@ -3364,9 +3755,11 @@ impl Workspace {
                     self.left_panel_open = restored_left_panel_open;
                 }
 
-                self.activate_tab_internal(active_tab_index, ctx);
-                self.check_and_trigger_onboarding(ctx);
-                self.maybe_auto_open_conversation_list(ctx);
+                if !self.tabs.is_empty() {
+                    self.activate_tab_internal(self.active_tab_index, ctx);
+                    self.check_and_trigger_onboarding(ctx);
+                    self.maybe_auto_open_conversation_list(ctx);
+                }
             }
             NewWorkspaceSource::FromTemplate { window_template } => {
                 self.open_launch_config_window(window_template, ctx);
@@ -3466,15 +3859,28 @@ impl Workspace {
         };
 
         debug_assert!(
-            self.tab_count() > 0,
+            workspace_configuration_is_valid(
+                self.tab_count(),
+                FeatureFlag::RepositoryWorkspaces.is_enabled(),
+            ),
             "Workspace should have at least one tab upon configuration"
         );
+
+        if FeatureFlag::RepositoryWorkspaces.is_enabled() {
+            self.open_left_panel(ctx);
+            self.left_panel_view.update(ctx, |left_panel, ctx| {
+                left_panel.restore_active_view_from_snapshot(ToolPanelView::ProjectTree, ctx);
+            });
+        }
+
+        let Some(active_pane_group) = self.try_active_tab_pane_group().cloned() else {
+            return;
+        };
 
         if self.left_panel_visibility_across_tabs_enabled(ctx) {
             self.reconcile_left_panel_open_for_active_tab(ctx);
         }
 
-        let active_pane_group = self.active_tab_pane_group().clone();
         let working_directories_model = self.working_directories_model.clone();
         self.left_panel_view.update(ctx, |left_panel, ctx| {
             left_panel.set_active_pane_group(active_pane_group, &working_directories_model, ctx);
@@ -3485,8 +3891,7 @@ impl Workspace {
         workspace_setting: &NewWorkspaceSource,
         ctx: &AppContext,
     ) -> bool {
-        let should_default_open =
-            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs;
+        let should_default_open = Self::vertical_tabs_active(ctx);
 
         match workspace_setting {
             NewWorkspaceSource::Restored {
@@ -3544,6 +3949,7 @@ impl Workspace {
         self.left_panel_view.update(ctx, |lp, ctx| {
             // Restore which panel tab was active
             let active_view = match left_panel_snapshot.left_panel_displayed_tab {
+                LeftPanelDisplayedTab::ProjectTree => ToolPanelView::ProjectTree,
                 LeftPanelDisplayedTab::FileTree => ToolPanelView::ProjectExplorer,
                 LeftPanelDisplayedTab::GlobalSearch => ToolPanelView::GlobalSearch {
                     entry_focus: GlobalSearchEntryFocus::Results,
@@ -3745,9 +4151,8 @@ impl Workspace {
 
     // Returns true if the focused pane is the viewer of a shared session
     pub fn is_shared_session_viewer_focused(&self, app: &AppContext) -> bool {
-        self.active_tab_pane_group()
-            .as_ref(app)
-            .active_session_view(app)
+        self.try_active_tab_pane_group()
+            .and_then(|pane_group| pane_group.as_ref(app).active_session_view(app))
             .is_some_and(|view| {
                 view.as_ref(app)
                     .model
@@ -3758,9 +4163,8 @@ impl Workspace {
     }
 
     pub fn is_conversation_transcript_viewer_focused(&self, app: &AppContext) -> bool {
-        self.active_tab_pane_group()
-            .as_ref(app)
-            .active_session_view(app)
+        self.try_active_tab_pane_group()
+            .and_then(|pane_group| pane_group.as_ref(app).active_session_view(app))
             .is_some_and(|view| {
                 view.as_ref(app)
                     .model
@@ -3980,7 +4384,10 @@ impl Workspace {
 
     fn current_focus_region(&self, ctx: &mut ViewContext<Self>) -> FocusRegion {
         let app = ctx;
-        if self.active_tab_pane_group().is_self_or_child_focused(app) {
+        if self
+            .try_active_tab_pane_group()
+            .is_some_and(|pane_group| pane_group.is_self_or_child_focused(app))
+        {
             return FocusRegion::PaneGroup;
         }
 
@@ -4001,31 +4408,45 @@ impl Workspace {
     }
 
     fn has_left_region(&self, app: &AppContext) -> bool {
-        self.active_tab_pane_group().as_ref(app).left_panel_open
+        self.try_active_tab_pane_group()
+            .map(|pane_group| pane_group.as_ref(app).left_panel_open)
+            .unwrap_or(self.left_panel_open)
     }
 
     fn has_right_region(&self, app: &AppContext) -> bool {
-        let group = self.active_tab_pane_group().as_ref(app);
-        group.right_panel_open || self.current_workspace_state.is_right_panel_open()
+        self.try_active_tab_pane_group()
+            .map(|pane_group| {
+                pane_group.as_ref(app).right_panel_open
+                    || self.current_workspace_state.is_right_panel_open()
+            })
+            .unwrap_or(self.current_workspace_state.is_right_panel_open())
     }
 
     fn focus_next_pane_in_group(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let handle = self.active_tab_pane_group().clone();
+        let Some(handle) = self.try_active_tab_pane_group().cloned() else {
+            return false;
+        };
         handle.update(ctx, |pane_group, ctx| pane_group.try_navigate_next(ctx))
     }
 
     fn focus_prev_pane_in_group(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let handle = self.active_tab_pane_group().clone();
+        let Some(handle) = self.try_active_tab_pane_group().cloned() else {
+            return false;
+        };
         handle.update(ctx, |pane_group, ctx| pane_group.try_navigate_prev(ctx))
     }
 
     fn focus_first_visible_pane_in_group(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let handle = self.active_tab_pane_group().clone();
+        let Some(handle) = self.try_active_tab_pane_group().cloned() else {
+            return false;
+        };
         handle.update(ctx, |pane_group, ctx| pane_group.focus_first_pane(ctx))
     }
 
     fn focus_last_visible_pane_in_group(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        let handle = self.active_tab_pane_group().clone();
+        let Some(handle) = self.try_active_tab_pane_group().cloned() else {
+            return false;
+        };
         handle.update(ctx, |pane_group, ctx| pane_group.focus_last_pane(ctx))
     }
 
@@ -4038,8 +4459,10 @@ impl Workspace {
     }
 
     fn focus_right_region_entry(&mut self, ctx: &mut ViewContext<Self>) {
-        let group = self.active_tab_pane_group().as_ref(ctx);
-        if group.right_panel_open {
+        if self
+            .try_active_tab_pane_group()
+            .is_some_and(|pane_group| pane_group.as_ref(ctx).right_panel_open)
+        {
             ctx.focus(&self.right_panel_view);
             return;
         }
@@ -4167,7 +4590,9 @@ impl Workspace {
     fn set_pane_dimming_for_region(&mut self, region: FocusRegion, ctx: &mut ViewContext<Self>) {
         let dim_even_if_focused =
             matches!(region, FocusRegion::LeftPanel | FocusRegion::RightPanel);
-        let handle = self.active_tab_pane_group().clone();
+        let Some(handle) = self.try_active_tab_pane_group().cloned() else {
+            return;
+        };
         handle.update(ctx, |pane_group, ctx| {
             pane_group.set_dim_even_if_focused_for_all_panes(dim_even_if_focused, ctx);
         });
@@ -4301,6 +4726,372 @@ impl Workspace {
         self.tabs.iter().map(|s| &s.pane_group)
     }
 
+    pub(crate) fn active_repository_workspace_id(&self) -> Option<RepositoryWorkspaceId> {
+        self.repository_workspace_tabs.active_workspace_id()
+    }
+
+    pub(crate) fn switch_repository_workspace(
+        &mut self,
+        workspace_id: Option<RepositoryWorkspaceId>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.repository_workspace_tabs.switch_to(
+            workspace_id,
+            &mut self.tabs,
+            &mut self.active_tab_index,
+        );
+        self.hovered_tab_index = None;
+        self.sync_project_tree(ctx);
+        self.refresh_workspace_info_bar(ctx);
+        self.flush_cli_agent_resumes_in_active_tabs(ctx);
+        ctx.dispatch_global_action("workspace:save_app", ());
+        ctx.notify();
+    }
+
+    fn flush_cli_agent_resumes_in_active_tabs(&mut self, ctx: &mut ViewContext<Self>) {
+        if !FeatureFlag::CliAgentSessionResume.is_enabled() {
+            return;
+        }
+        let terminals = self
+            .tabs
+            .iter()
+            .flat_map(|tab| tab.pane_group.as_ref(ctx).terminal_views(ctx))
+            .collect::<Vec<_>>();
+        for terminal in terminals {
+            terminal.update(ctx, |terminal, ctx| {
+                terminal.flush_queued_cli_agent_resume(ctx);
+            });
+        }
+    }
+
+    fn activate_repository_workspace(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        initial_directory: PathBuf,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.switch_repository_workspace(Some(workspace_id), ctx);
+        self.add_tab_with_pane_layout(
+            PanesLayout::SingleTerminal(Box::new(
+                NewTerminalOptions::default().with_initial_directory(initial_directory),
+            )),
+            Arc::new(HashMap::new()),
+            None,
+            ctx,
+        );
+    }
+
+    fn sync_project_tree(&mut self, ctx: &mut ViewContext<Self>) {
+        if !FeatureFlag::RepositoryWorkspaces.is_enabled() {
+            return;
+        }
+
+        let tab_counts = self.repository_workspace_tabs.tab_counts(&self.tabs);
+        let active_workspace_id = self.active_repository_workspace_id();
+        let running_workspace_ids = self.repository_workspace_ids_with_long_running_terminal(ctx);
+        let tab_nodes = self.repository_workspace_tab_nodes(ctx);
+        self.left_panel_view.update(ctx, |left_panel, ctx| {
+            left_panel.set_project_tree_tab_counts(tab_counts, ctx);
+            left_panel.set_project_tree_active_workspace(active_workspace_id, ctx);
+            left_panel.set_project_tree_running_workspaces(running_workspace_ids, ctx);
+            left_panel.set_project_tree_tab_nodes(tab_nodes, ctx);
+        });
+    }
+
+    fn all_repository_workspace_tabs(&self) -> impl Iterator<Item = &TabData> {
+        self.tabs.iter().chain(
+            self.repository_workspace_tabs
+                .inactive_states()
+                .flat_map(|(_, state)| state.tabs.iter()),
+        )
+    }
+
+    fn tab_has_long_running_terminal(&self, tab: &TabData, ctx: &AppContext) -> bool {
+        let pane_group = tab.pane_group.as_ref(ctx);
+        let sessions = pane_group
+            .pane_sessions(tab.pane_group.id(), tab.pane_group.window_id(ctx), ctx)
+            .collect_vec();
+        !RunningSessionSummary::new(&sessions)
+            .long_running_cmds
+            .is_empty()
+    }
+
+    fn repository_workspace_ids_with_long_running_terminal(
+        &self,
+        ctx: &AppContext,
+    ) -> HashSet<RepositoryWorkspaceId> {
+        self.repository_workspace_tabs
+            .workspace_ids_matching(&self.tabs, |tab| {
+                self.tab_has_long_running_terminal(tab, ctx)
+            })
+    }
+
+    fn repository_workspace_tab_nodes(
+        &self,
+        ctx: &AppContext,
+    ) -> HashMap<RepositoryWorkspaceId, Vec<ProjectTreeTabNode>> {
+        let drafts = self.repository_workspace_tabs.map_tabs(
+            &self.tabs,
+            self.active_tab_index,
+            |tab, _index, is_active| {
+                (
+                    ProjectTreeTabId(tab.pane_group.id()),
+                    self.resolve_workspace_tab_label(tab, ctx),
+                    tab_node_activity(
+                        self.tab_agent_activity(tab, ctx),
+                        self.tab_has_long_running_terminal(tab, ctx),
+                    ),
+                    is_active,
+                )
+            },
+        );
+        drafts
+            .into_iter()
+            .map(|(workspace_id, tabs)| {
+                let titles = assign_idle_terminal_numbers(
+                    tabs.iter().map(|(_, label, _, _)| label.clone()).collect(),
+                );
+                let nodes = tabs
+                    .into_iter()
+                    .zip(titles)
+                    .map(|((id, _, activity, is_active), title)| ProjectTreeTabNode {
+                        id,
+                        title,
+                        activity,
+                        is_active,
+                    })
+                    .collect();
+                (workspace_id, nodes)
+            })
+            .collect()
+    }
+
+    fn repository_workspace_tab_labels(&self, tabs: &[TabData], ctx: &AppContext) -> Vec<String> {
+        if !FeatureFlag::RepositoryWorkspaces.is_enabled()
+            || self.active_repository_workspace_id().is_none()
+        {
+            return tabs
+                .iter()
+                .map(|tab| tab.pane_group.as_ref(ctx).display_title(ctx))
+                .collect();
+        }
+        assign_idle_terminal_numbers(
+            tabs.iter()
+                .map(|tab| self.resolve_workspace_tab_label(tab, ctx))
+                .collect(),
+        )
+    }
+
+    fn resolve_workspace_tab_label(
+        &self,
+        tab: &TabData,
+        ctx: &AppContext,
+    ) -> ResolvedWorkspaceTabLabel {
+        let pane_group = tab.pane_group.as_ref(ctx);
+        let custom_title = pane_group.custom_title(ctx);
+        let fallback_display_title = pane_group.display_title(ctx);
+        let Some(terminal_view) = pane_group
+            .focused_session_view(ctx)
+            .or_else(|| pane_group.terminal_views(ctx).into_iter().next())
+        else {
+            return resolve_terminal_tab_label(
+                custom_title.as_deref(),
+                false,
+                &fallback_display_title,
+                None,
+                None,
+                false,
+                "",
+                "",
+                None,
+            );
+        };
+        let terminal_view_id = terminal_view.id();
+        let view = terminal_view.as_ref(ctx);
+        let cli_agent_title = CLIAgentSessionsModel::as_ref(ctx)
+            .session(terminal_view_id)
+            .filter(|session| session.listener.is_some())
+            .and_then(|session| session.session_context.display_title());
+        let conversation_title = view.selected_conversation_display_title(ctx);
+        let working_directory = view.display_working_directory(ctx).unwrap_or_default();
+        resolve_terminal_tab_label(
+            custom_title.as_deref(),
+            true,
+            &fallback_display_title,
+            cli_agent_title.as_deref(),
+            conversation_title.as_deref(),
+            view.is_long_running_and_user_controlled(),
+            &view.terminal_title_from_shell(),
+            &working_directory,
+            view.last_completed_command_text().as_deref(),
+        )
+    }
+
+    fn tab_index_by_tree_id(&self, tab_id: ProjectTreeTabId) -> Option<usize> {
+        self.tabs
+            .iter()
+            .position(|tab| tab.pane_group.id() == tab_id.0)
+    }
+
+    fn activate_repository_workspace_tab(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        tab_id: ProjectTreeTabId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.switch_repository_workspace(Some(workspace_id), ctx);
+        if let Some(index) = self.tab_index_by_tree_id(tab_id) {
+            self.activate_tab(index, ctx);
+        }
+    }
+
+    fn close_repository_workspace_tab(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        tab_id: ProjectTreeTabId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.switch_repository_workspace(Some(workspace_id), ctx);
+        if let Some(index) = self.tab_index_by_tree_id(tab_id) {
+            self.close_tab(index, false, true, ctx);
+        }
+    }
+
+    fn reorder_repository_workspace_tabs(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        from: usize,
+        to: usize,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if self.active_repository_workspace_id() == Some(workspace_id) {
+            let active_id = self
+                .tabs
+                .get(self.active_tab_index)
+                .map(|tab| tab.pane_group.id());
+            if !Self::reorder_tab_items(&mut self.tabs, from, to) {
+                return;
+            }
+            if let Some(active_id) = active_id {
+                if let Some(index) = self
+                    .tabs
+                    .iter()
+                    .position(|tab| tab.pane_group.id() == active_id)
+                {
+                    self.active_tab_index = index;
+                }
+            }
+            self.sync_project_tree(ctx);
+            ctx.dispatch_global_action("workspace:save_app", ());
+            ctx.notify();
+            return;
+        }
+
+        let Some(mut state) = self
+            .repository_workspace_tabs
+            .take_inactive(Some(workspace_id))
+        else {
+            return;
+        };
+        let active_id = state
+            .tabs
+            .get(state.active_tab_index)
+            .map(|tab| tab.pane_group.id());
+        if !Self::reorder_tab_items(&mut state.tabs, from, to) {
+            self.repository_workspace_tabs
+                .insert_inactive(Some(workspace_id), state);
+            return;
+        }
+        if let Some(active_id) = active_id {
+            if let Some(index) = state
+                .tabs
+                .iter()
+                .position(|tab| tab.pane_group.id() == active_id)
+            {
+                state.active_tab_index = index;
+            }
+        }
+        self.repository_workspace_tabs
+            .insert_inactive(Some(workspace_id), state);
+        self.sync_project_tree(ctx);
+        ctx.dispatch_global_action("workspace:save_app", ());
+        ctx.notify();
+    }
+
+    fn reorder_tab_items<T>(tabs: &mut Vec<T>, from: usize, to: usize) -> bool {
+        if from == to || from >= tabs.len() || to >= tabs.len() {
+            return false;
+        }
+        let item = tabs.remove(from);
+        tabs.insert(to, item);
+        true
+    }
+
+    fn tab_agent_activity(
+        &self,
+        tab: &TabData,
+        ctx: &AppContext,
+    ) -> Option<WorkspaceAgentActivity> {
+        let pane_group = tab.pane_group.as_ref(ctx);
+        // pane_sessions 借用 pane_group, 先收集再查 terminal_view, 避免双重借用。
+        let sessions = pane_group
+            .pane_sessions(tab.pane_group.id(), tab.pane_group.window_id(ctx), ctx)
+            .collect_vec();
+        let mut activities = Vec::new();
+        for session in sessions {
+            if session.is_read_only() || session.shared_session_status().is_viewer() {
+                continue;
+            }
+            let Some(terminal_view) =
+                pane_group.terminal_view_from_pane_id(session.pane_view_locator().pane_id, ctx)
+            else {
+                continue;
+            };
+            let terminal_view_id = terminal_view.id();
+
+            let cli = CLIAgentSessionsModel::as_ref(ctx)
+                .session(terminal_view_id)
+                .map(|session| (session.agent, session.status.clone()));
+            let history = BlocklistAIHistoryModel::as_ref(ctx);
+            let oz = history
+                .active_conversation(terminal_view_id)
+                .map(|conversation| OzConversationSource {
+                    status: conversation.status().clone(),
+                    is_empty: conversation.is_empty(),
+                    is_entirely_passive: conversation.is_entirely_passive(),
+                    is_ambient: history
+                        .get_conversation_metadata(&conversation.id())
+                        .is_some_and(|metadata| metadata.is_ambient_agent_conversation()),
+                });
+
+            activities.extend(activities_from_terminal_sources(cli, oz, false));
+        }
+        last_agent_activity(activities)
+    }
+
+    /// 在持久化线程终止前保存所有 tab 中的活动 terminal block。
+    pub(crate) fn persist_active_terminal_blocks_for_shutdown(&self, ctx: &mut ViewContext<Self>) {
+        let pane_groups = self
+            .all_repository_workspace_tabs()
+            .map(|tab| tab.pane_group.clone())
+            .collect::<Vec<_>>();
+
+        for pane_group in pane_groups {
+            pane_group.update(ctx, |pane_group, ctx| {
+                pane_group.persist_active_blocks_for_shutdown(ctx);
+            });
+        }
+    }
+
+    fn tab_data_for_active_repository_workspace(
+        &self,
+        pane_group: ViewHandle<PaneGroup>,
+    ) -> TabData {
+        let mut tab_data = TabData::new(pane_group);
+        tab_data.repository_workspace_id = self.active_repository_workspace_id();
+        tab_data
+    }
+
     /// Get the tab color for a given tab index.
     pub fn get_tab_color(&self, index: usize) -> Option<AnsiColorIdentifier> {
         self.tabs.get(index).and_then(|tab| tab.color())
@@ -4347,8 +5138,12 @@ impl Workspace {
 
     /// Returns the PaneGroup view handle for the currently active tab.
     pub fn active_tab_pane_group(&self) -> &ViewHandle<PaneGroup> {
-        self.get_pane_group_view(self.active_tab_index)
+        self.try_active_tab_pane_group()
             .expect("Active tab index entry should exist")
+    }
+
+    pub(crate) fn try_active_tab_pane_group(&self) -> Option<&ViewHandle<PaneGroup>> {
+        self.get_pane_group_view(self.active_tab_index)
     }
 
     /// Attempts to get selected text from the focused pane.
@@ -4432,10 +5227,7 @@ impl Workspace {
 
         self.active_tab_index = index;
 
-        if self.vertical_tabs_panel_open
-            && FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(ctx).use_vertical_tabs
-        {
+        if self.vertical_tabs_panel_open && Self::vertical_tabs_active(ctx) {
             self.vertical_tabs_panel.scroll_to_tab(index);
         }
 
@@ -4461,6 +5253,11 @@ impl Workspace {
                 ctx,
             );
         });
+
+        if FeatureFlag::RepositoryWorkspaces.is_enabled() {
+            self.sync_project_tree(ctx);
+        }
+        self.flush_cli_agent_resumes_in_active_tabs(ctx);
 
         let pane_group = self.active_tab_pane_group();
         let focused_terminal_view_id = self
@@ -4517,8 +5314,11 @@ impl Workspace {
     }
 
     pub fn rename_tab(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
-        let tab = &self.tabs[index];
-        let title = tab.pane_group.as_ref(ctx).display_title(ctx);
+        let title = self
+            .repository_workspace_tab_labels(&self.tabs, ctx)
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| self.tabs[index].pane_group.as_ref(ctx).display_title(ctx));
 
         self.rename_tab_internal(index, &title, ctx);
         send_telemetry_from_ctx!(
@@ -4790,6 +5590,21 @@ impl Workspace {
 
     /// Focuses the given pane within the pane group.
     pub fn focus_pane(&mut self, pane_view_locator: PaneViewLocator, ctx: &mut ViewContext<Self>) {
+        if !self
+            .tabs
+            .iter()
+            .any(|tab_data| tab_data.pane_group.id() == pane_view_locator.pane_group_id)
+        {
+            if let Some(workspace_id) =
+                self.repository_workspace_tabs
+                    .find_inactive_workspace(|tab_data| {
+                        tab_data.pane_group.id() == pane_view_locator.pane_group_id
+                    })
+            {
+                self.switch_repository_workspace(workspace_id, ctx);
+            }
+        }
+
         if let Some((index, tab)) = self
             .tabs
             .iter()
@@ -5247,6 +6062,7 @@ impl Workspace {
 
     fn handle_left_panel_event(&mut self, event: &LeftPanelEvent, ctx: &mut ViewContext<Self>) {
         match event {
+            LeftPanelEvent::ProjectTree(event) => self.handle_project_tree_event(event, ctx),
             LeftPanelEvent::FileTree(pane_group_event) => {
                 let pane_group = self.active_tab_pane_group().clone();
                 self.handle_file_tree_event(pane_group, pane_group_event, ctx);
@@ -5342,6 +6158,656 @@ impl Workspace {
                 self.open_sftp_pane(node_id.clone(), ctx);
             }
         }
+    }
+
+    fn handle_project_tree_event(&mut self, event: &ProjectTreeEvent, ctx: &mut ViewContext<Self>) {
+        match event {
+            ProjectTreeEvent::AddRepositoryRequested => {
+                self.open_add_repository_picker(ctx);
+            }
+            ProjectTreeEvent::CreateWorkspaceRequested { repository_id } => {
+                self.open_create_workspace_modal(*repository_id, ctx);
+            }
+            ProjectTreeEvent::DeleteWorkspaceRequested { workspace_id } => {
+                self.open_delete_workspace_dialog(*workspace_id, ctx);
+            }
+            ProjectTreeEvent::WorkspaceSelected { workspace_id } => {
+                self.switch_repository_workspace(*workspace_id, ctx);
+            }
+            ProjectTreeEvent::TabSelected {
+                workspace_id,
+                tab_id,
+            } => {
+                self.activate_repository_workspace_tab(*workspace_id, *tab_id, ctx);
+            }
+            ProjectTreeEvent::TabCloseRequested {
+                workspace_id,
+                tab_id,
+            } => {
+                self.close_repository_workspace_tab(*workspace_id, *tab_id, ctx);
+            }
+            ProjectTreeEvent::NewTabRequested { workspace_id } => {
+                self.switch_repository_workspace(Some(*workspace_id), ctx);
+                self.handle_action(&WorkspaceAction::AddDefaultTab, ctx);
+            }
+            ProjectTreeEvent::TabsReordered {
+                workspace_id,
+                from,
+                to,
+            } => {
+                self.reorder_repository_workspace_tabs(*workspace_id, *from, *to, ctx);
+            }
+        }
+    }
+
+    fn open_add_repository_picker(&mut self, ctx: &mut ViewContext<Self>) {
+        ctx.open_file_picker(
+            |result, ctx| match result {
+                Ok(paths) => {
+                    let Some(path) = paths.into_iter().next() else {
+                        return;
+                    };
+                    let Some(handle) = ctx.handle().upgrade(ctx) else {
+                        return;
+                    };
+                    handle.update(ctx, |workspace, ctx| {
+                        workspace.validate_and_add_repository(PathBuf::from(path), ctx);
+                    });
+                }
+                Err(error) => {
+                    let window_id = ctx.window_id();
+                    ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                        toast_stack.add_ephemeral_toast(
+                            DismissibleToast::error(format!(
+                                "Failed to select repository directory: {error}"
+                            )),
+                            window_id,
+                            ctx,
+                        );
+                    });
+                }
+            },
+            FilePickerConfiguration::new().folders_only(),
+        );
+    }
+
+    fn validate_and_add_repository(&mut self, path: PathBuf, ctx: &mut ViewContext<Self>) {
+        ctx.spawn(
+            validate_repository_async(path),
+            |workspace, result, ctx| match result {
+                Ok(repository) => {
+                    let repository_root = repository.root.clone();
+                    let result = ProjectOrganizationModel::handle(ctx).update(ctx, |model, ctx| {
+                        model.add_local_repository_with_initial_workspace(
+                            &repository.root,
+                            Some(repository.remote_url),
+                            repository.primary_branch,
+                            ctx,
+                        )
+                    });
+                    match result {
+                        Ok((_, workspace_id)) => {
+                            workspace.activate_repository_workspace(
+                                workspace_id,
+                                repository_root,
+                                ctx,
+                            );
+                        }
+                        Err(error) => {
+                            workspace.toast_stack.update(ctx, |toast_stack, ctx| {
+                                toast_stack.add_ephemeral_toast(
+                                    DismissibleToast::error(format!(
+                                        "Failed to add repository: {error}"
+                                    )),
+                                    ctx,
+                                );
+                            });
+                        }
+                    }
+                }
+                Err(error) => {
+                    workspace.toast_stack.update(ctx, |toast_stack, ctx| {
+                        toast_stack.add_ephemeral_toast(
+                            DismissibleToast::error(format!(
+                                "Failed to validate repository: {error}"
+                            )),
+                            ctx,
+                        );
+                    });
+                }
+            },
+        );
+    }
+
+    fn open_create_workspace_modal(
+        &mut self,
+        repository_id: crate::project_organization::domain::RepositoryId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(repository) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .repository(repository_id)
+            .cloned()
+        else {
+            self.toast_stack.update(ctx, |toast_stack, ctx| {
+                toast_stack.add_ephemeral_toast(
+                    DismissibleToast::error("Repository no longer exists.".to_string()),
+                    ctx,
+                );
+            });
+            return;
+        };
+
+        let workspace_id = RepositoryWorkspaceId::from(Uuid::new_v4());
+        let home = dirs::home_dir().expect("home directory should be available");
+        self.create_workspace_modal.view.update(ctx, |modal, ctx| {
+            modal.body().update(ctx, |body, ctx| {
+                body.configure(
+                    repository_id,
+                    workspace_id,
+                    repository.path.clone(),
+                    home,
+                    repository.display_name.clone(),
+                    ctx,
+                );
+            });
+        });
+        self.create_workspace_modal.open();
+        self.fetch_create_workspace_branch_refs(
+            repository_id,
+            workspace_id,
+            repository.path.clone(),
+            ctx,
+        );
+        self.fetch_existing_worktrees(repository_id, workspace_id, repository.path, ctx);
+        ctx.notify();
+    }
+
+    fn fetch_create_workspace_branch_refs(
+        &mut self,
+        repository_id: crate::project_organization::domain::RepositoryId,
+        workspace_id: RepositoryWorkspaceId,
+        repository_path: PathBuf,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let mut should_fetch = false;
+        self.create_workspace_modal.view.update(ctx, |modal, ctx| {
+            modal.body().update(ctx, |body, ctx| {
+                if body.matches_target(repository_id, workspace_id) {
+                    should_fetch = true;
+                    body.begin_branch_fetch(ctx);
+                }
+            });
+        });
+        if !should_fetch {
+            return;
+        }
+
+        ctx.spawn(
+            fetch_and_list_refs_async(repository_path.clone()),
+            move |workspace, result, ctx| match result {
+                Ok(refs) => {
+                    workspace
+                        .create_workspace_modal
+                        .view
+                        .update(ctx, |modal, ctx| {
+                            modal.body().update(ctx, |body, ctx| {
+                                if body.matches_target(repository_id, workspace_id) {
+                                    body.set_branch_refs(refs, ctx);
+                                }
+                            });
+                        });
+                }
+                Err(fetch_error) => {
+                    let error_message = format!("Failed to fetch repository refs: {fetch_error}");
+                    ctx.spawn(
+                        list_branch_refs_async(repository_path),
+                        move |workspace, local_result, ctx| {
+                            workspace
+                                .create_workspace_modal
+                                .view
+                                .update(ctx, |modal, ctx| {
+                                    modal.body().update(ctx, |body, ctx| {
+                                        if !body.matches_target(repository_id, workspace_id) {
+                                            return;
+                                        }
+                                        if let Ok(refs) = local_result {
+                                            body.set_local_branch_refs(refs, ctx);
+                                        }
+                                        body.set_branch_fetch_error(error_message, ctx);
+                                    });
+                                });
+                        },
+                    );
+                }
+            },
+        );
+    }
+
+    fn fetch_existing_worktrees(
+        &mut self,
+        repository_id: crate::project_organization::domain::RepositoryId,
+        workspace_id: RepositoryWorkspaceId,
+        repository_path: PathBuf,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let mut should_fetch = false;
+        self.create_workspace_modal.view.update(ctx, |modal, ctx| {
+            modal.body().update(ctx, |body, ctx| {
+                if body.matches_target(repository_id, workspace_id) {
+                    should_fetch = true;
+                    body.begin_existing_worktree_fetch(ctx);
+                }
+            });
+        });
+        if !should_fetch {
+            return;
+        }
+
+        ctx.spawn(
+            list_worktrees_async(repository_path),
+            move |workspace, result, ctx| {
+                workspace
+                    .create_workspace_modal
+                    .view
+                    .update(ctx, |modal, ctx| {
+                        modal.body().update(ctx, |body, ctx| {
+                            if !body.matches_target(repository_id, workspace_id) {
+                                return;
+                            }
+                            match result {
+                                Ok(worktrees) => body.set_existing_worktrees(worktrees, ctx),
+                                Err(error) => body.set_existing_worktree_fetch_error(
+                                    format!("Failed to list existing worktrees: {error}"),
+                                    ctx,
+                                ),
+                            }
+                        });
+                    });
+            },
+        );
+    }
+
+    fn handle_create_workspace_modal_body_event(
+        &mut self,
+        event: &CreateWorkspaceModalEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            CreateWorkspaceModalEvent::Close => self.close_create_workspace_modal(ctx),
+            CreateWorkspaceModalEvent::RetryBranchRefs {
+                repository_id,
+                workspace_id,
+            } => {
+                let Some(repository) = ProjectOrganizationModel::handle(ctx)
+                    .as_ref(ctx)
+                    .repository(*repository_id)
+                    .cloned()
+                else {
+                    return;
+                };
+                self.fetch_create_workspace_branch_refs(
+                    *repository_id,
+                    *workspace_id,
+                    repository.path,
+                    ctx,
+                );
+            }
+            CreateWorkspaceModalEvent::RetryExistingWorktrees {
+                repository_id,
+                workspace_id,
+            } => {
+                let Some(repository) = ProjectOrganizationModel::handle(ctx)
+                    .as_ref(ctx)
+                    .repository(*repository_id)
+                    .cloned()
+                else {
+                    return;
+                };
+                self.fetch_existing_worktrees(*repository_id, *workspace_id, repository.path, ctx);
+            }
+            CreateWorkspaceModalEvent::Submit(request) => {
+                self.close_create_workspace_modal(ctx);
+                self.create_repository_workspace(request.clone(), ctx);
+            }
+        }
+    }
+
+    fn close_create_workspace_modal(&mut self, ctx: &mut ViewContext<Self>) {
+        self.create_workspace_modal.close();
+        self.create_workspace_modal.view.update(ctx, |modal, ctx| {
+            modal.body().update(ctx, |body, ctx| {
+                body.on_close(ctx);
+            });
+        });
+        ctx.notify();
+    }
+
+    fn open_delete_workspace_dialog(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(workspace) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .workspace(workspace_id)
+            .cloned()
+        else {
+            self.toast_stack.update(ctx, |toast_stack, ctx| {
+                toast_stack.add_ephemeral_toast(
+                    DismissibleToast::error("Workspace no longer exists.".to_string()),
+                    ctx,
+                );
+            });
+            return;
+        };
+        self.delete_workspace_dialog.view.update(ctx, |modal, ctx| {
+            modal.body().update(ctx, |body, ctx| {
+                body.configure(workspace_id, workspace.display_name, workspace.branch, ctx);
+            });
+        });
+        self.delete_workspace_dialog.open();
+        ctx.notify();
+    }
+
+    fn close_delete_workspace_dialog(&mut self, ctx: &mut ViewContext<Self>) {
+        self.delete_workspace_dialog.close();
+        self.delete_workspace_dialog.view.update(ctx, |modal, ctx| {
+            modal.body().update(ctx, |body, ctx| body.reset(ctx));
+        });
+        ctx.notify();
+    }
+
+    fn handle_delete_workspace_dialog_event(
+        &mut self,
+        event: &DeleteWorkspaceDialogEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            DeleteWorkspaceDialogEvent::Close => self.close_delete_workspace_dialog(ctx),
+            DeleteWorkspaceDialogEvent::Confirm {
+                workspace_id,
+                delete_branch,
+                force_branch,
+            } => {
+                if *force_branch {
+                    self.remove_repository_workspace(*workspace_id, *delete_branch, true, ctx);
+                } else {
+                    self.preflight_repository_workspace_removal(*workspace_id, *delete_branch, ctx);
+                }
+            }
+        }
+    }
+
+    fn preflight_repository_workspace_removal(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        delete_branch: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(workspace) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .workspace(workspace_id)
+            .cloned()
+        else {
+            self.close_delete_workspace_dialog(ctx);
+            return;
+        };
+        let Some(repository) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .repository(workspace.repository_id)
+            .cloned()
+        else {
+            self.close_delete_workspace_dialog(ctx);
+            return;
+        };
+
+        ctx.spawn(
+            deletion_preflight_async(repository.path, workspace.worktree_path, delete_branch),
+            move |workspace_view, result, ctx| match result {
+                Ok(preflight)
+                    if delete_branch
+                        && preflight
+                            .merge_target
+                            .as_ref()
+                            .is_some_and(|target| !target.is_merged) =>
+                {
+                    workspace_view
+                        .delete_workspace_dialog
+                        .view
+                        .update(ctx, |modal, ctx| {
+                            modal.body().update(ctx, |body, ctx| {
+                                body.require_force_confirmation(ctx);
+                            });
+                        });
+                }
+                Ok(_) => workspace_view.remove_repository_workspace(
+                    workspace_id,
+                    delete_branch,
+                    false,
+                    ctx,
+                ),
+                Err(error) => {
+                    workspace_view.toast_stack.update(ctx, |toast_stack, ctx| {
+                        toast_stack.add_ephemeral_toast(
+                            DismissibleToast::error(format!("Cannot remove workspace: {error}")),
+                            ctx,
+                        );
+                    });
+                }
+            },
+        );
+    }
+
+    fn remove_repository_workspace(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        delete_branch: bool,
+        force_branch: bool,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(workspace) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .workspace(workspace_id)
+            .cloned()
+        else {
+            self.close_delete_workspace_dialog(ctx);
+            return;
+        };
+        let Some(repository) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .repository(workspace.repository_id)
+            .cloned()
+        else {
+            self.close_delete_workspace_dialog(ctx);
+            return;
+        };
+        let branch = workspace.branch.clone();
+        ctx.spawn(
+            remove_workspace_async(
+                repository.path,
+                workspace.worktree_path,
+                branch,
+                delete_branch,
+                force_branch,
+            ),
+            move |workspace_view, result, ctx| match result {
+                Ok(()) => {
+                    let removed = ProjectOrganizationModel::handle(ctx)
+                        .update(ctx, |model, ctx| model.remove_workspace(workspace_id, ctx));
+                    match removed {
+                        Ok(_) => {
+                            workspace_view.close_repository_workspace_tabs(workspace_id, ctx);
+                            workspace_view.close_delete_workspace_dialog(ctx);
+                        }
+                        Err(error) => {
+                            workspace_view.toast_stack.update(ctx, |toast_stack, ctx| {
+                                toast_stack.add_ephemeral_toast(
+                                    DismissibleToast::error(format!(
+                                        "Worktree was removed but workspace state could not be saved: {error}"
+                                    )),
+                                    ctx,
+                                );
+                            });
+                        }
+                    }
+                }
+                Err(error) => {
+                    workspace_view.toast_stack.update(ctx, |toast_stack, ctx| {
+                        toast_stack.add_ephemeral_toast(
+                            DismissibleToast::error(format!("Failed to remove workspace: {error}")),
+                            ctx,
+                        );
+                    });
+                }
+            },
+        );
+    }
+
+    fn close_repository_workspace_tabs(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let tabs = if self.active_repository_workspace_id() == Some(workspace_id) {
+            let tabs = std::mem::take(&mut self.tabs);
+            self.switch_repository_workspace(None, ctx);
+            self.repository_workspace_tabs
+                .take_inactive(Some(workspace_id));
+            tabs
+        } else {
+            self.repository_workspace_tabs
+                .take_inactive(Some(workspace_id))
+                .map_or_else(Vec::new, |state| state.tabs)
+        };
+        let working_directories_model = self.working_directories_model.clone();
+        for tab in tabs {
+            tab.pane_group.update(ctx, |pane_group, ctx| {
+                pane_group.detach_panes_for_close(&working_directories_model, ctx);
+            });
+        }
+        self.sync_project_tree(ctx);
+    }
+
+    fn create_repository_workspace(
+        &mut self,
+        request: CreateWorkspaceRequest,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(repository) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .repository(request.repository_id)
+            .cloned()
+        else {
+            self.toast_stack.update(ctx, |toast_stack, ctx| {
+                toast_stack.add_ephemeral_toast(
+                    DismissibleToast::error("Repository no longer exists.".to_string()),
+                    ctx,
+                );
+            });
+            return;
+        };
+
+        let repository_path = repository.path.clone();
+        let worktree_path = request.worktree_path.clone();
+        let branch = match &request.source {
+            CreateWorkspaceSource::RemoteBranch { new_branch, .. } => new_branch.clone(),
+            CreateWorkspaceSource::ExistingLocalBranch { local_branch } => local_branch.clone(),
+            CreateWorkspaceSource::ExistingWorktree { local_branch } => local_branch.clone(),
+        };
+        let delete_branch_on_cleanup =
+            matches!(&request.source, CreateWorkspaceSource::RemoteBranch { .. });
+        let should_cleanup_on_persistence_failure = source_creates_worktree(&request.source);
+        let source = request.source.clone();
+        let git_operation = async move {
+            match source {
+                CreateWorkspaceSource::RemoteBranch {
+                    remote_ref,
+                    new_branch,
+                } => {
+                    create_from_remote_async(repository_path, remote_ref, new_branch, worktree_path)
+                        .await
+                }
+                CreateWorkspaceSource::ExistingLocalBranch { local_branch } => {
+                    create_from_local_async(repository_path, local_branch, worktree_path).await
+                }
+                CreateWorkspaceSource::ExistingWorktree { local_branch } => {
+                    validate_existing_worktree_async(repository_path, worktree_path, local_branch)
+                        .await
+                        .map(|_| ())
+                }
+            }
+        };
+        let persistence_repository_path = repository.path.clone();
+        let persistence_worktree_path = request.worktree_path.clone();
+        ctx.spawn(git_operation, move |workspace, result, ctx| match result {
+            Ok(()) => {
+                let now = chrono::Utc::now().naive_utc();
+                let record = RepositoryWorkspace {
+                    id: request.workspace_id,
+                    repository_id: request.repository_id,
+                    display_name: request.display_name.clone(),
+                    branch: branch.clone(),
+                    worktree_path: request.worktree_path.clone(),
+                    created_at: now,
+                    last_opened_at: now,
+                };
+                let persisted = ProjectOrganizationModel::handle(ctx)
+                    .update(ctx, |model, ctx| model.insert_workspace(record, ctx));
+                if let Err(error) = persisted {
+                    if !should_cleanup_on_persistence_failure {
+                        workspace.toast_stack.update(ctx, |toast_stack, ctx| {
+                            toast_stack.add_ephemeral_toast(
+                                DismissibleToast::error(format!(
+                                    "Failed to save workspace: {error}"
+                                )),
+                                ctx,
+                            );
+                        });
+                        return;
+                    }
+                    let cleanup_branch = branch.clone();
+                    ctx.spawn(
+                        remove_workspace_async(
+                            persistence_repository_path.clone(),
+                            persistence_worktree_path.clone(),
+                            cleanup_branch,
+                            delete_branch_on_cleanup,
+                            true,
+                        ),
+                        move |workspace, cleanup, ctx| {
+                            let cleanup_detail = cleanup
+                                .err()
+                                .map(|cleanup_error| format!(" Cleanup failed: {cleanup_error}"))
+                                .unwrap_or_default();
+                            workspace.toast_stack.update(ctx, |toast_stack, ctx| {
+                                toast_stack.add_ephemeral_toast(
+                                    DismissibleToast::error(format!(
+                                        "Failed to save workspace: {error}.{cleanup_detail}"
+                                    )),
+                                    ctx,
+                                );
+                            });
+                        },
+                    );
+                    return;
+                }
+
+                workspace.activate_repository_workspace(
+                    request.workspace_id,
+                    request.worktree_path.clone(),
+                    ctx,
+                );
+            }
+            Err(error) => {
+                workspace.toast_stack.update(ctx, |toast_stack, ctx| {
+                    toast_stack.add_ephemeral_toast(
+                        DismissibleToast::error(format!("Failed to create workspace: {error}")),
+                        ctx,
+                    );
+                });
+            }
+        });
     }
 
     /// 在中央区域打开给定 SSH 节点的编辑 pane。MVP 实现:**每次都开新
@@ -6138,8 +7604,7 @@ impl Workspace {
     }
 
     fn toggle_tab_configs_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        let use_vertical_tabs =
-            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs;
+        let use_vertical_tabs = Self::vertical_tabs_active(ctx);
         if self.show_new_session_dropdown_menu.is_some() {
             self.close_new_session_dropdown_menu(ctx);
             return;
@@ -6204,9 +7669,7 @@ impl Workspace {
                     open_in_active_window: false,
                 },
             ),
-            NewSessionMenuItem::OpenLaunchConfigDocs => {
-                ctx.open_url("")
-            }
+            NewSessionMenuItem::OpenLaunchConfigDocs => ctx.open_url(""),
             #[cfg(feature = "local_fs")]
             NewSessionMenuItem::CreateNewTabConfig => {
                 self.create_and_open_new_tab_config(ctx);
@@ -7677,11 +9140,13 @@ impl Workspace {
     fn open_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
         self.left_panel_open = true;
 
-        let active_pane_group = self.active_tab_pane_group().clone();
-        active_pane_group.update(ctx, |pane_group, ctx| {
-            pane_group.set_left_panel_open(true, ctx);
-        });
+        if let Some(active_pane_group) = self.try_active_tab_pane_group().cloned() {
+            active_pane_group.update(ctx, |pane_group, ctx| {
+                pane_group.set_left_panel_open(true, ctx);
+            });
+        }
 
+        self.sync_left_panel_titlebar_inset(ctx);
         ctx.notify();
     }
 
@@ -7701,16 +9166,21 @@ impl Workspace {
         }
 
         // Only auto-open on terminal tabs, not on settings or other non-terminal tabs
-        let has_terminal = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .has_terminal_panes();
+        let (has_terminal, left_panel_open) = {
+            let Some(active_pane_group) = self.try_active_tab_pane_group() else {
+                return;
+            };
+            (
+                active_pane_group.as_ref(ctx).has_terminal_panes(),
+                active_pane_group.as_ref(ctx).left_panel_open,
+            )
+        };
         if !has_terminal {
             return;
         }
 
         // For first-time-users, auto-open the conversation list for discoverability
-        if !self.active_tab_pane_group().as_ref(ctx).left_panel_open {
+        if !left_panel_open {
             self.open_left_panel(ctx);
         }
         self.left_panel_view.update(ctx, |lp, ctx| {
@@ -7728,11 +9198,13 @@ impl Workspace {
     fn close_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
         self.left_panel_open = false;
 
-        let active_pane_group = self.active_tab_pane_group().clone();
-        active_pane_group.update(ctx, |pane_group, ctx| {
-            pane_group.set_left_panel_open(false, ctx);
-        });
+        if let Some(active_pane_group) = self.try_active_tab_pane_group().cloned() {
+            active_pane_group.update(ctx, |pane_group, ctx| {
+                pane_group.set_left_panel_open(false, ctx);
+            });
+        }
 
+        self.sync_left_panel_titlebar_inset(ctx);
         ctx.notify();
     }
 
@@ -7754,9 +9226,7 @@ impl Workspace {
     fn set_is_agent_management_view_open(&mut self, _is_open: bool, _ctx: &mut ViewContext<Self>) {}
 
     fn toggle_left_panel(&mut self, ctx: &mut ViewContext<Self>) {
-        let active_pane_group = self.active_tab_pane_group().clone();
-
-        let was_open = active_pane_group.read(ctx, |pane_group, _| pane_group.left_panel_open);
+        let was_open = self.is_left_panel_open(ctx);
         let new_state = !was_open;
 
         if new_state {
@@ -7782,8 +9252,11 @@ impl Workspace {
                     // Only recompute default if the current width is at the default value
                     // This preserves the width from the most recent tab
                     if current_width == DEFAULT_LEFT_PANEL_WIDTH {
-                        let has_horizontal_split = active_pane_group
-                            .read(ctx, |pane_group, _| pane_group.has_horizontal_split());
+                        let has_horizontal_split =
+                            self.try_active_tab_pane_group().is_some_and(|pane_group| {
+                                pane_group
+                                    .read(ctx, |pane_group, _| pane_group.has_horizontal_split())
+                            });
                         let (left_width, _right_width) =
                             compute_default_panel_widths(ctx, window_id, has_horizontal_split);
                         state.set_size(left_width);
@@ -9558,49 +11031,17 @@ impl Workspace {
             None
         };
         let tabs = self
-            .tab_views()
+            .tabs
+            .iter()
             .enumerate()
             .filter(|(tab_index, _)| Some(*tab_index) != transferred_tab_index)
-            .map(|(tab_index, pane_group_view)| {
-                let resizable_data = ResizableData::handle(app);
-                let modal_sizes = resizable_data.as_ref(app).get_all_handles(window_id);
-
-                let left_panel_width = modal_sizes.map(|ms| {
-                    ms.left_panel_width
-                        .lock()
-                        .expect("should be able to lock left panel handle")
-                        .size()
-                });
-
-                let right_panel_width = modal_sizes.map(|ms| {
-                    ms.right_panel_width
-                        .lock()
-                        .expect("should be able to lock right panel handle")
-                        .size()
-                });
-
-                let pane_group = pane_group_view.as_ref(app);
-                let root = pane_group.snapshot(app);
-                let left_panel =
-                    self.compute_left_panel_snapshot(pane_group_view, left_panel_width, app);
-                let right_panel =
-                    self.compute_right_panel_snapshot(pane_group_view, right_panel_width, app);
-                TabSnapshot {
-                    root,
-                    custom_title: pane_group.custom_title(app),
-                    default_directory_color: self
-                        .tabs
-                        .get(tab_index)
-                        .and_then(|tab| tab.default_directory_color),
-                    selected_color: self
-                        .tabs
-                        .get(tab_index)
-                        .map(|tab| tab.selected_color)
-                        .unwrap_or_default(),
-                    left_panel,
-                    right_panel,
-                }
-            })
+            .map(|(_, tab)| self.snapshot_tab(tab, window_id, app))
+            .chain(
+                self.repository_workspace_tabs
+                    .inactive_states()
+                    .flat_map(|(_, state)| state.tabs.iter())
+                    .map(|tab| self.snapshot_tab(tab, window_id, app)),
+            )
             .filter(|tab| {
                 // Filter out any tab that contains a single, read-only session.
                 !matches!(
@@ -9665,6 +11106,19 @@ impl Workspace {
         WindowSnapshot {
             tabs,
             active_tab_index,
+            active_repository_workspace_id: self.active_repository_workspace_id(),
+            repository_workspace_states: self
+                .repository_workspace_tabs
+                .inactive_states()
+                .filter_map(|(workspace_id, state)| {
+                    workspace_id.map(|repository_workspace_id| {
+                        RepositoryWorkspaceWindowStateSnapshot {
+                            repository_workspace_id,
+                            active_tab_index: state.active_tab_index,
+                        }
+                    })
+                })
+                .collect(),
             bounds: window_bounds,
             fullscreen_state: window_fullscreen_state,
             quake_mode,
@@ -9678,6 +11132,33 @@ impl Workspace {
             right_panel_width,
             agent_management_filters: None,
             theme_override: self.theme_override.clone(),
+        }
+    }
+
+    fn snapshot_tab(&self, tab: &TabData, window_id: WindowId, app: &AppContext) -> TabSnapshot {
+        let resizable_data = ResizableData::handle(app);
+        let modal_sizes = resizable_data.as_ref(app).get_all_handles(window_id);
+        let left_panel_width = modal_sizes.map(|ms| {
+            ms.left_panel_width
+                .lock()
+                .expect("should be able to lock left panel handle")
+                .size()
+        });
+        let right_panel_width = modal_sizes.map(|ms| {
+            ms.right_panel_width
+                .lock()
+                .expect("should be able to lock right panel handle")
+                .size()
+        });
+        let pane_group = tab.pane_group.as_ref(app);
+        TabSnapshot {
+            repository_workspace_id: tab.repository_workspace_id,
+            root: pane_group.snapshot(app),
+            custom_title: pane_group.custom_title(app),
+            default_directory_color: tab.default_directory_color,
+            selected_color: tab.selected_color,
+            left_panel: self.compute_left_panel_snapshot(&tab.pane_group, left_panel_width, app),
+            right_panel: self.compute_right_panel_snapshot(&tab.pane_group, right_panel_width, app),
         }
     }
 
@@ -9903,6 +11384,7 @@ impl Workspace {
         }
 
         let tab_data = self.tabs.remove(index);
+        self.sync_project_tree(ctx);
 
         if add_to_undo_stack {
             let handle = ctx.handle();
@@ -10076,7 +11558,13 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         let is_last_tab = self.tabs.len() == 1;
-        if !ContextFlag::CloseWindow.is_enabled() && is_last_tab {
+        let closing_last_repository_workspace_tab = is_last_tab
+            && FeatureFlag::RepositoryWorkspaces.is_enabled()
+            && self.active_repository_workspace_id().is_some();
+        if !ContextFlag::CloseWindow.is_enabled()
+            && is_last_tab
+            && !closing_last_repository_workspace_tab
+        {
             return;
         }
 
@@ -10217,7 +11705,10 @@ impl Workspace {
     /// Update this workspace when it is reopened after being closed.
     pub fn handle_reopen(&mut self, ctx: &mut ViewContext<Self>) {
         self.sync_window_button_visibility(ctx);
-        for pane_group in self.tab_views() {
+        for pane_group in self
+            .all_repository_workspace_tabs()
+            .map(|tab| &tab.pane_group)
+        {
             pane_group.update(ctx, |pane_group, ctx| {
                 pane_group.reattach_panes(ctx);
             })
@@ -10244,9 +11735,7 @@ impl Workspace {
     }
 
     pub fn open_autoupdate_failure_link(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.open_url(
-            "",
-        );
+        ctx.open_url("");
     }
 
     pub fn add_terminal_tab(&mut self, hide_homepage: bool, ctx: &mut ViewContext<Self>) {
@@ -10503,29 +11992,34 @@ impl Workspace {
             pane_group
         });
 
-        ctx.subscribe_to_view(&new_pane_group, move |me, pane_group, event, ctx| {
-            me.handle_file_tree_event(pane_group, event, ctx)
-        });
-
         let new_tab_placement_setting = TabSettings::as_ref(ctx).new_tab_placement;
 
         match new_tab_placement_setting {
             NewTabPlacement::AfterAllTabs => {
-                self.tabs.push(TabData::new(new_pane_group));
+                self.tabs
+                    .push(self.tab_data_for_active_repository_workspace(new_pane_group.clone()));
                 self.activate_tab_internal(self.tab_count() - 1, ctx);
             }
             // Add tab after current tab
             _ => {
                 if self.tab_count() == 0 {
-                    self.tabs.push(TabData::new(new_pane_group));
+                    self.tabs.push(
+                        self.tab_data_for_active_repository_workspace(new_pane_group.clone()),
+                    );
                     self.activate_tab_internal(self.tab_count() - 1, ctx);
                 } else {
-                    self.tabs
-                        .insert(self.active_tab_index + 1, TabData::new(new_pane_group));
+                    self.tabs.insert(
+                        self.active_tab_index + 1,
+                        self.tab_data_for_active_repository_workspace(new_pane_group.clone()),
+                    );
                     self.activate_tab_internal(self.active_tab_index + 1, ctx);
                 }
             }
         }
+
+        ctx.subscribe_to_view(&new_pane_group, move |me, pane_group, event, ctx| {
+            me.handle_file_tree_event(pane_group, event, ctx)
+        });
 
         if !is_restoration {
             if *TabSettings::as_ref(ctx).preserve_active_tab_color.value() {
@@ -10561,6 +12055,7 @@ impl Workspace {
                 pg.set_left_panel_open(true, ctx);
             });
         }
+        self.sync_project_tree(ctx);
     }
 
     pub fn add_tab_from_existing_pane(
@@ -10579,17 +12074,23 @@ impl Workspace {
                 ctx,
             )
         });
+
+        if self.tab_count() == 0 {
+            self.tabs
+                .push(self.tab_data_for_active_repository_workspace(new_pane_group.clone()));
+            self.activate_tab_internal(self.tab_count() - 1, ctx);
+        } else {
+            self.tabs.insert(
+                new_idx,
+                self.tab_data_for_active_repository_workspace(new_pane_group.clone()),
+            );
+            self.activate_tab_internal(new_idx, ctx);
+        }
+
         ctx.subscribe_to_view(&new_pane_group, move |me, pane_group, event, ctx| {
             me.handle_file_tree_event(pane_group, event, ctx)
         });
-
-        if self.tab_count() == 0 {
-            self.tabs.push(TabData::new(new_pane_group));
-            self.activate_tab_internal(self.tab_count() - 1, ctx);
-        } else {
-            self.tabs.insert(new_idx, TabData::new(new_pane_group));
-            self.activate_tab_internal(new_idx, ctx);
-        }
+        self.sync_project_tree(ctx);
     }
 
     pub fn add_tab_for_cloud_notebook(
@@ -10786,7 +12287,9 @@ impl Workspace {
 
     fn open_repository(&mut self, path: Option<&str>, ctx: &mut ViewContext<Self>) {
         match path {
-            Some(path) => self.handle_open_repository(path, ctx),
+            Some(path) => {
+                let _ = self.handle_open_repository(path, ctx);
+            }
             None => ctx.open_file_picker(
                 |result, ctx| match result {
                     Ok(paths) => {
@@ -10816,11 +12319,28 @@ impl Workspace {
         }
     }
 
-    fn handle_open_repository(&mut self, path: &str, ctx: &mut ViewContext<Self>) {
+    fn touch_repository_for_open(
+        path: &Path,
+        ctx: &mut AppContext,
+    ) -> Result<(), ProjectOrganizationError> {
+        ProjectOrganizationModel::handle(ctx)
+            .update(ctx, |model, ctx| model.touch_repository_path(path, ctx))
+            .map(|_| ())
+    }
+
+    fn handle_open_repository(&mut self, path: &str, ctx: &mut ViewContext<Self>) -> bool {
         let path_buf = PathBuf::from(path);
-        ProjectManagementModel::handle(ctx).update(ctx, |projects, ctx| {
-            projects.upsert_project(path_buf.clone(), ctx);
-        });
+        if let Err(error) = Self::touch_repository_for_open(&path_buf, ctx) {
+            let window_id = ctx.window_id();
+            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                toast_stack.add_ephemeral_toast(
+                    DismissibleToast::error(format!("Failed to open repository: {error}")),
+                    window_id,
+                    ctx,
+                );
+            });
+            return false;
+        }
         self.add_tab_with_pane_layout(
             PanesLayout::SingleTerminal(Box::new(NewTerminalOptions {
                 initial_directory: Some(path_buf.clone()),
@@ -10831,6 +12351,7 @@ impl Workspace {
             None,
             ctx,
         );
+        true
     }
 
     /// Navigate to an existing AI conversation, focusing on its terminal view, if it's open anywhere.
@@ -11118,7 +12639,8 @@ impl Workspace {
             me.handle_file_tree_event(pane_group, event, ctx)
         });
 
-        self.tabs.push(TabData::new(new_pane_group.clone()));
+        self.tabs
+            .push(self.tab_data_for_active_repository_workspace(new_pane_group.clone()));
         let new_tab_index = self.tab_count() - 1;
         self.activate_tab_internal(new_tab_index, ctx);
 
@@ -11607,9 +13129,8 @@ impl Workspace {
             || self.traffic_light_mouse_states.are_traffic_lights_hovered();
 
         // Check if any of the menus/popups rendered relative to the tab bar are open.
-        let is_vertical_tabs_active = FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(app).use_vertical_tabs
-            && self.vertical_tabs_panel_open;
+        let is_vertical_tabs_active =
+            Self::vertical_tabs_active(app) && self.vertical_tabs_panel_open;
         let is_tab_menu_open = self.show_tab_bar_overflow_menu
             || (self.show_tab_right_click_menu.is_some() && !is_vertical_tabs_active)
             || (self.show_new_session_dropdown_menu.is_some() && !is_vertical_tabs_active)
@@ -11619,9 +13140,8 @@ impl Workspace {
 
         // Check if any panes are being dragged (potentially into a new tab).
         let is_pane_being_dragged = self
-            .active_tab_pane_group()
-            .as_ref(app)
-            .any_pane_being_dragged(app);
+            .try_active_tab_pane_group()
+            .is_some_and(|pane_group| pane_group.as_ref(app).any_pane_being_dragged(app));
 
         let workspace_decoration_visibility = TabSettings::as_ref(app)
             .workspace_decoration_visibility
@@ -11678,6 +13198,8 @@ impl Workspace {
                 .as_ref()
                 .set_titlebar_height(scaled_tab_bar_height);
         }
+
+        self.sync_left_panel_titlebar_inset(ctx);
     }
 
     fn request_notification_permissions_if_needed(&mut self, ctx: &mut ViewContext<Self>) {
@@ -12222,14 +13744,15 @@ impl Workspace {
     }
 
     pub fn is_left_panel_open(&self, ctx: &AppContext) -> bool {
-        self.active_tab_pane_group().as_ref(ctx).left_panel_open
+        self.try_active_tab_pane_group()
+            .map(|pane_group| pane_group.as_ref(ctx).left_panel_open)
+            .unwrap_or(self.left_panel_open)
     }
 
     fn is_readonly_shared_session_active(&self, ctx: &mut ViewContext<Self>) -> bool {
         let active_terminal_view = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx);
+            .try_active_tab_pane_group()
+            .and_then(|pane_group| pane_group.as_ref(ctx).active_session_view(ctx));
 
         active_terminal_view.is_some_and(|view| {
             view.as_ref(ctx)
@@ -12354,6 +13877,11 @@ impl Workspace {
         event: &pane_group::Event,
         ctx: &mut ViewContext<Self>,
     ) {
+        // 空 repository workspace 恢复、或新 tab 尚未插入时, PaneGroup 仍可能同步发事件。
+        if self.try_active_tab_pane_group().is_none() {
+            return;
+        }
+
         match event {
             pane_group::Event::AppStateChanged => {
                 ctx.dispatch_global_action("workspace:save_app", ());
@@ -12393,6 +13921,7 @@ impl Workspace {
             }
             pane_group::Event::PaneTitleUpdated => {
                 self.update_window_title(ctx);
+                self.sync_project_tree(ctx);
                 ctx.notify();
             }
             pane_group::Event::ShowCommandSearch(options) => {
@@ -12466,6 +13995,7 @@ impl Workspace {
             }
             pane_group::Event::TerminalViewStateChanged => {
                 self.update_active_session(ctx);
+                self.sync_project_tree(ctx);
                 ctx.notify();
             }
             pane_group::Event::OnboardingTutorialCompleted => {
@@ -12488,11 +14018,7 @@ impl Workspace {
                 self.open_workflow_with_command(command.clone(), ctx)
             }
             pane_group::Event::OpenCloudWorkflowForEdit(workflow_id) => self
-                .open_workflow_with_existing(
-                    *workflow_id,
-                    &ZapDriveObjectSettings::default(),
-                    ctx,
-                ),
+                .open_workflow_with_existing(*workflow_id, &ZapDriveObjectSettings::default(), ctx),
             pane_group::Event::OpenWorkflowModalWithTemporary(workflow) => {
                 self.open_workflow_with_temporary(*workflow.clone(), ctx)
             }
@@ -13624,7 +15150,8 @@ impl Workspace {
     }
 
     fn get_active_input_view_handle(&self, app: &AppContext) -> Option<ViewHandle<Input>> {
-        app.view(self.active_tab_pane_group())
+        let pane_group = self.try_active_tab_pane_group()?;
+        app.view(pane_group)
             .active_session_view(app)
             .map(|terminal_view_handle| app.view(&terminal_view_handle).input().clone())
     }
@@ -13633,7 +15160,7 @@ impl Workspace {
         &self,
         app: &AppContext,
     ) -> Option<Arc<FairMutex<TerminalModel>>> {
-        self.active_tab_pane_group()
+        self.try_active_tab_pane_group()?
             .as_ref(app)
             .active_session_terminal_model(app)
     }
@@ -13898,12 +15425,7 @@ impl Workspace {
                 );
             }
             DrivePanelEvent::OpenSearch => {
-                self.open_palette_action(
-                    PaletteMode::ZapDrive,
-                    PaletteSource::ZapDrive,
-                    None,
-                    ctx,
-                );
+                self.open_palette_action(PaletteMode::ZapDrive, PaletteSource::ZapDrive, None, ctx);
             }
             DrivePanelEvent::OpenNotebook(source) => {
                 self.open_notebook(source, &ZapDriveObjectSettings::default(), ctx, true)
@@ -13911,12 +15433,9 @@ impl Workspace {
             DrivePanelEvent::OpenEnvVarCollection(source) => {
                 self.open_env_var_collection(source, false, ctx)
             }
-            DrivePanelEvent::OpenWorkflowInPane(source, mode) => self.open_workflow_in_pane(
-                source,
-                &ZapDriveObjectSettings::default(),
-                *mode,
-                ctx,
-            ),
+            DrivePanelEvent::OpenWorkflowInPane(source, mode) => {
+                self.open_workflow_in_pane(source, &ZapDriveObjectSettings::default(), *mode, ctx)
+            }
             DrivePanelEvent::OpenAIFactCollection => {
                 self.open_ai_fact_collection_pane(None, None, ctx);
                 send_telemetry_from_ctx!(
@@ -15149,6 +16668,8 @@ impl Workspace {
             StateEvent::ValueChanged { current, previous } => {
                 // Re-render if fullscreen state for active window has changed.
                 if current.is_active_window_fullscreen != previous.is_active_window_fullscreen {
+                    // 全屏进出后红绿灯避让从 TabBar 转到侧栏头（或反过来），必须重写 inset。
+                    self.sync_left_panel_titlebar_inset(ctx);
                     ctx.notify();
                 } else if WindowManager::did_window_change_focus(self.window_id, current, previous)
                 {
@@ -15445,9 +16966,12 @@ impl Workspace {
     }
 
     pub(crate) fn focus_active_tab(&mut self, ctx: &mut ViewContext<Self>) {
-        self.active_tab_pane_group().update(ctx, |tab, ctx| {
+        let Some(pane_group) = self.try_active_tab_pane_group().cloned() else {
+            return;
+        };
+        pane_group.update(ctx, |tab, ctx| {
             tab.focus(ctx);
-        })
+        });
     }
 
     fn focus_theme_chooser(&self, ctx: &mut ViewContext<Self>) {
@@ -15733,6 +17257,7 @@ impl Workspace {
         &self,
         tab_index: usize,
         tab_bar_state: TabBarState,
+        title: &str,
         ctx: &AppContext,
     ) -> Box<dyn Element> {
         let tab = &self.tabs[tab_index];
@@ -15759,6 +17284,7 @@ impl Workspace {
             is_drag_target,
             ctx,
         )
+        .with_title(title.to_owned())
         .build()
         .finish()
     }
@@ -15799,6 +17325,11 @@ impl Workspace {
             // outer `SavePosition`, `Draggable`, and `DropTarget` wrappers
             // so the chip overlay doesn't pollute the target window's
             // position cache (see `TabComponent::for_drag_ghost`).
+            let title = self
+                .repository_workspace_tab_labels(&self.tabs, ctx)
+                .get(tab_index)
+                .cloned()
+                .unwrap_or_else(|| tab.pane_group.as_ref(ctx).display_title(ctx));
             TabComponent::new(
                 tab_index,
                 tab_bar_state,
@@ -15808,6 +17339,7 @@ impl Workspace {
                 false,
                 ctx,
             )
+            .with_title(title)
             .for_drag_ghost()
             .build()
             .finish()
@@ -15827,8 +17359,7 @@ impl Workspace {
         appearance: &Appearance,
         ctx: &AppContext,
     ) -> Box<dyn Element> {
-        let vertical_tabs_active =
-            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs;
+        let vertical_tabs_active = Self::vertical_tabs_active(ctx);
 
         let (is_active, tooltip_text, action, keybinding_name, save_position_id) =
             if vertical_tabs_active {
@@ -15847,6 +17378,7 @@ impl Workspace {
                         .copied()
                         .unwrap_or(ToolPanelView::ZapDrive)
                     {
+                        ToolPanelView::ProjectTree => "Repository workspaces".to_string(),
                         ToolPanelView::ProjectExplorer => {
                             crate::t!("workspace-left-panel-project-explorer")
                         }
@@ -15871,7 +17403,9 @@ impl Workspace {
                     crate::t!("workspace-tools-panel-tooltip")
                 };
                 (
-                    self.active_tab_pane_group().as_ref(ctx).left_panel_open,
+                    self.try_active_tab_pane_group()
+                        .map(|pane_group| pane_group.as_ref(ctx).left_panel_open)
+                        .unwrap_or(self.left_panel_open),
                     tooltip,
                     WorkspaceAction::ToggleLeftPanel,
                     "workspace:toggle_left_panel",
@@ -15907,7 +17441,10 @@ impl Workspace {
         appearance: &Appearance,
         ctx: &AppContext,
     ) -> Box<dyn Element> {
-        let is_active = self.active_tab_pane_group().as_ref(ctx).left_panel_open;
+        let is_active = self
+            .try_active_tab_pane_group()
+            .map(|pane_group| pane_group.as_ref(ctx).left_panel_open)
+            .unwrap_or(self.left_panel_open);
 
         let tooltip_text = if self.left_panel_views.len() <= 1 {
             match self
@@ -15916,6 +17453,7 @@ impl Workspace {
                 .copied()
                 .unwrap_or(ToolPanelView::ZapDrive)
             {
+                ToolPanelView::ProjectTree => "Repository workspaces".to_string(),
                 ToolPanelView::ProjectExplorer => {
                     crate::t!("workspace-left-panel-project-explorer")
                 }
@@ -15980,10 +17518,13 @@ impl Workspace {
         appearance: &Appearance,
         ctx: &AppContext,
     ) -> Box<dyn Element> {
-        let is_active = self.active_tab_pane_group().as_ref(ctx).right_panel_open;
-        let is_enabled = Self::should_enable_file_tree_and_global_search_for_pane_group(
-            self.active_tab_pane_group().as_ref(ctx),
-        );
+        let pane_group = self
+            .try_active_tab_pane_group()
+            .map(|pane_group| pane_group.as_ref(ctx));
+        let is_active = pane_group.is_some_and(|pane_group| pane_group.right_panel_open);
+        let is_enabled = pane_group.is_some_and(|pane_group| {
+            Self::should_enable_file_tree_and_global_search_for_pane_group(pane_group)
+        });
         let disable = !is_enabled;
 
         let theme = appearance.theme();
@@ -16004,9 +17545,8 @@ impl Workspace {
         let show_diff_stats = *TabSettings::as_ref(ctx).show_code_review_diff_stats;
 
         let line_changes = if show_diff_stats {
-            self.active_tab_pane_group()
-                .as_ref(ctx)
-                .active_session_view(ctx)
+            pane_group
+                .and_then(|pane_group| pane_group.active_session_view(ctx))
                 .and_then(|tv| tv.as_ref(ctx).current_diff_line_changes(ctx))
                 .filter(|lc| {
                     // Only show the stat badge when there are actual line-level changes
@@ -16311,8 +17851,7 @@ impl Workspace {
         }
 
         // Check if vertical tabs mode is active
-        let vertical_tabs_active =
-            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs;
+        let vertical_tabs_active = Self::vertical_tabs_active(ctx);
 
         // Render config-driven left-side toolbar buttons (both horizontal and vertical tabs)
         let knowledge_center_closed = true;
@@ -16396,6 +17935,8 @@ impl Workspace {
                 DispatchEventResult::StopPropagation
             })
             .finish();
+        } else if self.use_workspace_info_bar(ctx) {
+            tab_bar.add_child(self.render_workspace_info_bar(appearance, ctx));
         } else {
             // Copy from our saved tab_bar_state to ensure all tabs get rendered with the same state
             let active_tab_index = Some(self.active_tab_index);
@@ -16416,6 +17957,7 @@ impl Workspace {
             // `None` and nothing is hidden — otherwise the stale
             // `source_tab_index` would collapse an unrelated tab (e.g. the
             // first tab shifting into that slot after a leftward put-back).
+            let tab_titles = self.repository_workspace_tab_labels(&self.tabs, ctx);
             let transferred_tab_index = if drag_model.is_active()
                 && drag_model.source_window_id() == Some(self.window_id)
             {
@@ -16451,12 +17993,22 @@ impl Workspace {
                 }
                 if is_transferred {
                     tab_bar.add_child(
-                        ConstrainedBox::new(self.render_tab_in_tab_bar(i, tab_bar_state, ctx))
-                            .with_width(0.)
-                            .finish(),
+                        ConstrainedBox::new(self.render_tab_in_tab_bar(
+                            i,
+                            tab_bar_state,
+                            tab_titles.get(i).map(String::as_str).unwrap_or(""),
+                            ctx,
+                        ))
+                        .with_width(0.)
+                        .finish(),
                     );
                 } else {
-                    tab_bar.add_child(self.render_tab_in_tab_bar(i, tab_bar_state, ctx));
+                    tab_bar.add_child(self.render_tab_in_tab_bar(
+                        i,
+                        tab_bar_state,
+                        tab_titles.get(i).map(String::as_str).unwrap_or(""),
+                        ctx,
+                    ));
                 }
             }
 
@@ -16526,8 +18078,7 @@ impl Workspace {
         if !item.is_available(ctx) {
             return None;
         }
-        let vertical_tabs_active =
-            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(ctx).use_vertical_tabs;
+        let vertical_tabs_active = Self::vertical_tabs_active(ctx);
         let inner = match item {
             HeaderToolbarItemKind::TabsPanel => self.render_left_toggle_button(appearance, ctx),
             HeaderToolbarItemKind::ToolsPanel => {
@@ -16596,33 +18147,24 @@ impl Workspace {
             let icon = agent.icon().unwrap_or(icons::Icon::LayoutAlt01);
             let theme = appearance.theme();
             let icon_color = theme.sub_text_color(theme.background());
-            let button = icon_button_with_color(
-                appearance,
-                icon,
-                false,
-                handle.clone(),
-                icon_color,
-            )
-            .with_hovered_styles(UiComponentStyles {
-                font_color: Some(icon_color.into()),
-                background: Some(theme.surface_2().into()),
-                ..UiComponentStyles::default()
-            })
-            .with_clicked_styles(UiComponentStyles {
-                font_color: Some(icon_color.into()),
-                background: Some(theme.background().into()),
-                ..UiComponentStyles::default()
-            })
-            // 图标缩小到 14×14：padding 从 4 增大到 5.0，按钮外框 24×24 不变
-            .with_style(UiComponentStyles::default()
-                .set_padding(Coords::uniform(5.0))
-            );
+            let button =
+                icon_button_with_color(appearance, icon, false, handle.clone(), icon_color)
+                    .with_hovered_styles(UiComponentStyles {
+                        font_color: Some(icon_color.into()),
+                        background: Some(theme.surface_2().into()),
+                        ..UiComponentStyles::default()
+                    })
+                    .with_clicked_styles(UiComponentStyles {
+                        font_color: Some(icon_color.into()),
+                        background: Some(theme.background().into()),
+                        ..UiComponentStyles::default()
+                    })
+                    // 图标缩小到 14×14：padding 从 4 增大到 5.0，按钮外框 24×24 不变
+                    .with_style(UiComponentStyles::default().set_padding(Coords::uniform(5.0)));
 
             let agent_name = agent.display_name().to_string();
             let button = button
-                .with_tooltip(
-                    self.render_tab_bar_icon_button_tooltip(appearance, agent_name, None),
-                )
+                .with_tooltip(self.render_tab_bar_icon_button_tooltip(appearance, agent_name, None))
                 .build()
                 .on_click(move |ctx, _, _| {
                     ctx.dispatch_typed_action(WorkspaceAction::AddSpecificAgentTab(agent));
@@ -16778,8 +18320,7 @@ impl Workspace {
         let zoom_factor = WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor();
         let traffic_light_data = traffic_light_data(ctx, self.window_id);
         if let Some(traffic_light_data) = traffic_light_data.as_ref() {
-            let vertical_tabs_active = FeatureFlag::VerticalTabs.is_enabled()
-                && *TabSettings::as_ref(ctx).use_vertical_tabs;
+            let vertical_tabs_active = Self::vertical_tabs_active(ctx);
             let right_panel_open = self.current_workspace_state.is_right_panel_open();
             let should_reserve_right_traffic_light_space =
                 vertical_tabs_active || !right_panel_open;
@@ -16797,26 +18338,12 @@ impl Workspace {
     }
 
     fn compute_tab_bar_left_padding(&self, ctx: &AppContext) -> f32 {
-        let zoom_factor = WindowSettings::as_ref(ctx).zoom_level.as_zoom_factor();
-        let traffic_light_data = traffic_light_data(ctx, self.window_id);
-        let is_window_fullscreen = ctx
-            .windows()
-            .platform_window(self.window_id)
-            .map(|window| window.fullscreen_state() == FullscreenState::Fullscreen)
-            .unwrap_or(false);
-        if self.current_workspace_state.is_left_panel_open() {
-            0.
-        } else if is_window_fullscreen && cfg!(target_os = "macos") {
-            // Full-screen mode on MacOS does not need as much padding (traffic lights are hidden).
-            TAB_BAR_PADDING_LEFT
-        } else {
-            traffic_light_data
-                .as_ref()
-                .filter(|data| data.side == TrafficLightSide::Left)
-                .map(|data| data.width(zoom_factor))
-                .unwrap_or(0.)
-                + 16.
-        }
+        full_height_left_panel_chrome::tab_bar_leading_padding(
+            self.use_full_height_left_panel_chrome(ctx),
+            self.current_workspace_state.is_left_panel_open(),
+            self.is_macos_fullscreen(ctx),
+            self.left_traffic_light_width(ctx),
+        )
     }
 
     /// Renders the tab bar contents, wrapped in hover and drag-drop behaviors.
@@ -17369,6 +18896,89 @@ impl Workspace {
         }
     }
 
+    fn render_empty_workspace_content(
+        &self,
+        app: &AppContext,
+        appearance: &Appearance,
+    ) -> Box<dyn Element> {
+        let theme = appearance.theme();
+        let empty_state = Align::new(
+            Flex::column()
+                .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                .with_main_axis_alignment(MainAxisAlignment::Center)
+                .with_spacing(8.)
+                .with_child(
+                    Text::new_inline(
+                        crate::t!("workspace-empty-title"),
+                        appearance.ui_font_family(),
+                        appearance.ui_font_heading_3(),
+                    )
+                    .with_color(theme.main_text_color(theme.background()).into())
+                    .finish(),
+                )
+                .with_child(
+                    Text::new_inline(
+                        crate::t!("workspace-empty-subtitle"),
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_color(theme.sub_text_color(theme.background()).into())
+                    .finish(),
+                )
+                .with_child(
+                    Container::new(
+                        appearance
+                            .ui_builder()
+                            .button(
+                                ButtonVariant::Accent,
+                                self.mouse_states.empty_workspace_new_terminal.clone(),
+                            )
+                            .with_text_label(crate::t!("workspace-empty-new-terminal"))
+                            .build()
+                            .on_click(|ctx, _, _| {
+                                ctx.dispatch_typed_action(WorkspaceAction::AddDefaultTab);
+                            })
+                            .with_cursor(Cursor::PointingHand)
+                            .finish(),
+                    )
+                    .with_margin_top(8.)
+                    .finish(),
+                )
+                .finish(),
+        )
+        .finish();
+
+        let config = TabSettings::as_ref(app)
+            .header_toolbar_chip_selection
+            .clone();
+        let mut main_content = Flex::row();
+        let mut prev_panel_added = false;
+        if !Self::vertical_tabs_active(app) {
+            let full_height_chrome = self.use_full_height_left_panel_chrome(app);
+            for item in full_height_left_panel_chrome::header_items_excluding_lifted_tools_panel(
+                config.left_items(),
+                full_height_chrome,
+            ) {
+                Self::add_panel_with_separator(
+                    &mut main_content,
+                    &mut prev_panel_added,
+                    self.render_config_panel_without_active_tab(&item, &config, app),
+                    app,
+                );
+            }
+        }
+        if prev_panel_added {
+            main_content.add_child(Self::render_panel_separator(app));
+        }
+        main_content = main_content.with_child(Shrinkable::new(1.0, empty_state).finish());
+
+        Shrinkable::new(
+            THEME_CHOOSER_RATIO,
+            SavePosition::new(main_content.finish(), TAB_CONTENT_POSITION_ID).finish(),
+        )
+        .finish()
+    }
+
     fn render_banner_and_active_tab(
         &self,
         app: &AppContext,
@@ -17386,8 +18996,7 @@ impl Workspace {
             None => active_content,
         };
 
-        let vertical_tabs_active =
-            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(app).use_vertical_tabs;
+        let vertical_tabs_active = Self::vertical_tabs_active(app);
         let pane_group = self.active_tab_pane_group().as_ref(app);
         let is_right_open = pane_group.right_panel_open;
         let is_right_maximized = is_right_open && pane_group.is_right_panel_maximized;
@@ -17402,7 +19011,11 @@ impl Workspace {
                 .header_toolbar_chip_selection
                 .clone();
             let mut prev_panel_added = false;
-            for item in config.left_items() {
+            let full_height_chrome = self.use_full_height_left_panel_chrome(app);
+            for item in full_height_left_panel_chrome::header_items_excluding_lifted_tools_panel(
+                config.left_items(),
+                full_height_chrome,
+            ) {
                 Self::add_panel_with_separator(
                     &mut main_content,
                     &mut prev_panel_added,
@@ -17420,7 +19033,10 @@ impl Workspace {
                 prev_panel_added = true;
             }
 
-            for item in config.right_items() {
+            for item in full_height_left_panel_chrome::header_items_excluding_lifted_tools_panel(
+                config.right_items(),
+                full_height_chrome,
+            ) {
                 Self::add_panel_with_separator(
                     &mut main_content,
                     &mut prev_panel_added,
@@ -17898,8 +19514,7 @@ impl Workspace {
         let mut contents = contents;
 
         let traffic_light_data = traffic_light_data(app, self.window_id);
-        let vertical_tabs_active =
-            FeatureFlag::VerticalTabs.is_enabled() && *TabSettings::as_ref(app).use_vertical_tabs;
+        let vertical_tabs_active = Self::vertical_tabs_active(app);
         // Add a spacer for the traffic light buttons on Windows/Linux.
         if traffic_light_data.is_some_and(|data| data.side == TrafficLightSide::Right)
             && *side == PanelPosition::Right
@@ -17976,9 +19591,7 @@ impl Workspace {
         // Config-driven vertical-tabs-era panels (left side).
         // Hidden for simplified WASM views (notebooks, shared sessions, etc.)
         // where these panels are unnecessary.
-        let vertical_tabs_active = !hide_vertical_tabs
-            && FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(app).use_vertical_tabs;
+        let vertical_tabs_active = !hide_vertical_tabs && Self::vertical_tabs_active(app);
 
         // In vertical tabs mode, config-driven panels are rendered here.
         // In horizontal tabs mode, they're rendered inside render_banner_and_active_tab.
@@ -17986,15 +19599,25 @@ impl Workspace {
             let config = TabSettings::as_ref(app)
                 .header_toolbar_chip_selection
                 .clone();
-            let pane_group = self.active_tab_pane_group().as_ref(app);
-
-            for item in config.left_items() {
-                Self::add_panel_with_separator(
-                    &mut panels_view,
-                    &mut prev_panel_added,
-                    self.render_config_panel(&item, pane_group, &config, app),
-                    app,
-                );
+            if let Some(pane_group) = self.try_active_tab_pane_group() {
+                let pane_group = pane_group.as_ref(app);
+                for item in config.left_items() {
+                    Self::add_panel_with_separator(
+                        &mut panels_view,
+                        &mut prev_panel_added,
+                        self.render_config_panel(&item, pane_group, &config, app),
+                        app,
+                    );
+                }
+            } else {
+                for item in config.left_items() {
+                    Self::add_panel_with_separator(
+                        &mut panels_view,
+                        &mut prev_panel_added,
+                        self.render_config_panel_without_active_tab(&item, &config, app),
+                        app,
+                    );
+                }
             }
         }
 
@@ -18026,24 +19649,25 @@ impl Workspace {
             let config = TabSettings::as_ref(app)
                 .header_toolbar_chip_selection
                 .clone();
-            let pane_group = self.active_tab_pane_group().as_ref(app);
+            if let Some(pane_group) = self.try_active_tab_pane_group() {
+                let pane_group = pane_group.as_ref(app);
+                for item in config.right_items() {
+                    Self::add_panel_with_separator(
+                        &mut panels_view,
+                        &mut prev_panel_added,
+                        self.render_config_panel(&item, pane_group, &config, app),
+                        app,
+                    );
+                }
 
-            for item in config.right_items() {
-                Self::add_panel_with_separator(
-                    &mut panels_view,
-                    &mut prev_panel_added,
-                    self.render_config_panel(&item, pane_group, &config, app),
-                    app,
-                );
-            }
-
-            if pane_group.right_panel_open && pane_group.is_right_panel_maximized {
-                Self::add_panel_with_separator(
-                    &mut panels_view,
-                    &mut prev_panel_added,
-                    self.render_config_panel_maximized(pane_group, &config, app),
-                    app,
-                );
+                if pane_group.right_panel_open && pane_group.is_right_panel_maximized {
+                    Self::add_panel_with_separator(
+                        &mut panels_view,
+                        &mut prev_panel_added,
+                        self.render_config_panel_maximized(pane_group, &config, app),
+                        app,
+                    );
+                }
             }
         }
 
@@ -18144,6 +19768,40 @@ impl Workspace {
                 Some(ChildView::new(&self.right_panel_view).finish())
             }
             HeaderToolbarItemKind::AgentManagement
+            | HeaderToolbarItemKind::NotificationsMailbox => None,
+        }
+    }
+
+    fn render_config_panel_without_active_tab(
+        &self,
+        item: &HeaderToolbarItemKind,
+        config: &HeaderToolbarChipSelection,
+        app: &AppContext,
+    ) -> Option<Box<dyn Element>> {
+        if !item.is_available(app) || !item.is_panel() {
+            return None;
+        }
+        match item {
+            HeaderToolbarItemKind::TabsPanel => {
+                if !self.vertical_tabs_panel_open {
+                    return None;
+                }
+                Some(
+                    SavePosition::new(
+                        self.render_vertical_tabs_panel(Self::tabs_panel_side(config), app),
+                        VERTICAL_TABS_PANEL_POSITION_ID,
+                    )
+                    .finish(),
+                )
+            }
+            HeaderToolbarItemKind::ToolsPanel => {
+                if !self.left_panel_open || warpui::platform::is_mobile_device() {
+                    return None;
+                }
+                Some(ChildView::new(&self.left_panel_view).finish())
+            }
+            HeaderToolbarItemKind::CodeReview
+            | HeaderToolbarItemKind::AgentManagement
             | HeaderToolbarItemKind::NotificationsMailbox => None,
         }
     }
@@ -18587,9 +20245,8 @@ impl Workspace {
         // If there is no active terminal (like when all Zap windows are
         // minimized), return an event to start syncing.
         let sync_event = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx)
+            .try_active_tab_pane_group()
+            .and_then(|pane_group| pane_group.as_ref(ctx).active_session_view(ctx))
             .map_or(
                 SyncEvent {
                     source_view_id: ctx.view_id(),
@@ -18638,11 +20295,11 @@ impl Workspace {
     }
 
     fn open_left_panel_view(&mut self, action: &LeftPanelAction, ctx: &mut ViewContext<Self>) {
-        if !self.active_tab_pane_group().as_ref(ctx).left_panel_open {
+        if !self.is_left_panel_open(ctx) {
             self.toggle_left_panel(ctx);
         }
 
-        if self.active_tab_pane_group().as_ref(ctx).left_panel_open {
+        if self.is_left_panel_open(ctx) {
             self.left_panel_view.update(ctx, |left_panel, ctx| {
                 left_panel.handle_action_with_force_open(action, false, ctx);
                 left_panel.focus_active_view_on_entry(ctx);
@@ -18670,6 +20327,9 @@ impl Workspace {
     /// Computes the list of available left panel views based on current AI settings and feature flags.
     fn compute_left_panel_views(ctx: &AppContext) -> Vec<ToolPanelView> {
         let mut views = vec![];
+        if FeatureFlag::RepositoryWorkspaces.is_enabled() {
+            views.push(ToolPanelView::ProjectTree);
+        }
         if FeatureFlag::AgentViewConversationListView.is_enabled()
             && AISettings::as_ref(ctx).is_any_ai_enabled(ctx)
             && *AISettings::as_ref(ctx).show_conversation_history
@@ -18693,7 +20353,8 @@ impl Workspace {
         }
         // openWarp 独有:SSH 管理器,无 feature flag,默认始终显示。
         views.push(ToolPanelView::SshManager);
-        if FeatureFlag::ServerFileBrowser.is_enabled() && FeatureFlag::SshRemoteServer.is_enabled() {
+        if FeatureFlag::ServerFileBrowser.is_enabled() && FeatureFlag::SshRemoteServer.is_enabled()
+        {
             views.push(ToolPanelView::ServerFileBrowser);
         }
         // openWarp 独有:Skill 管理器,无 feature flag,local_fs 构建下默认显示。
@@ -19352,10 +21013,7 @@ impl TypedActionView for Workspace {
                 }
             }
             ToggleVerticalTabsSettingsPopup => {
-                if FeatureFlag::VerticalTabs.is_enabled()
-                    && *TabSettings::as_ref(ctx).use_vertical_tabs
-                    && self.vertical_tabs_panel_open
-                {
+                if Self::vertical_tabs_active(ctx) && self.vertical_tabs_panel_open {
                     self.vertical_tabs_panel.show_settings_popup =
                         !self.vertical_tabs_panel.show_settings_popup;
                     ctx.notify();
@@ -20531,21 +22189,20 @@ impl View for Workspace {
         }
 
         if self
-            .active_tab_pane_group()
-            .as_ref(app)
-            .any_pane_being_dragged(app)
+            .try_active_tab_pane_group()
+            .is_some_and(|pane_group| pane_group.as_ref(app).any_pane_being_dragged(app))
         {
             context.set.insert("Workspace_PaneDragging");
         }
 
         // TODO: This is temporary. We currently check if any code pane is open where it should
         // really be whether the code pane is opened and focused.
-        if self
-            .active_tab_pane_group()
-            .as_ref(app)
-            .pane_ids()
-            .any(|id| id.is_code_pane())
-        {
+        if self.try_active_tab_pane_group().is_some_and(|pane_group| {
+            pane_group
+                .as_ref(app)
+                .pane_ids()
+                .any(|id| id.is_code_pane())
+        }) {
             context.set.insert("Workspace_TextOpen");
         }
 
@@ -20568,9 +22225,7 @@ impl View for Workspace {
         }
 
         match self.tab_count() {
-            0 => {
-                debug_assert!(false, "Should always be at least one tab");
-            }
+            0 => {}
             1 => {
                 context.set.insert("Workspace_SingleTab");
             }
@@ -20611,9 +22266,9 @@ impl View for Workspace {
 
         if sync_state.is_syncing_all_inputs(self.window_id) {
             context.set.insert(flags::SYNC_ALL_TABS_FLAG);
-        } else if sync_state
-            .is_syncing_all_panes_in_pane_group(self.window_id, self.active_tab_pane_group().id())
-        {
+        } else if self.try_active_tab_pane_group().is_some_and(|pane_group| {
+            sync_state.is_syncing_all_panes_in_pane_group(self.window_id, pane_group.id())
+        }) {
             context.set.insert(flags::SYNC_ALL_PANES_IN_CURRENT_TAB);
         }
 
@@ -20664,9 +22319,8 @@ impl View for Workspace {
         }
 
         if let Some(terminal_view) = self
-            .active_tab_pane_group()
-            .as_ref(app)
-            .focused_session_view(app)
+            .try_active_tab_pane_group()
+            .and_then(|pane_group| pane_group.as_ref(app).focused_session_view(app))
         {
             let terminal_view = terminal_view.as_ref(app);
             if terminal_view.is_long_running() {
@@ -20717,7 +22371,11 @@ impl View for Workspace {
             if tab_bar_mode == ShowTabBar::Stacked {
                 outer_column.add_child(self.render_tab_bar(self.tab_fixed_width, appearance, app));
             }
-            let content = self.render_banner_and_active_tab(app, appearance);
+            let content = if self.tabs.is_empty() {
+                self.render_empty_workspace_content(app, appearance)
+            } else {
+                self.render_banner_and_active_tab(app, appearance)
+            };
             // Hide the vertical tab rail for simplified WASM views (notebooks, shared sessions, etc.)
             let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish(), true);
             outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
@@ -20725,16 +22383,52 @@ impl View for Workspace {
                 .with_background(util::get_terminal_background_fill(self.window_id, app))
                 .finish()
         } else {
-            let mut outer_column = Flex::column();
-            if tab_bar_mode == ShowTabBar::Stacked {
-                outer_column.add_child(self.render_tab_bar(self.tab_fixed_width, appearance, app));
-            }
-            let content = self.render_banner_and_active_tab(app, appearance);
+            let content = if self.tabs.is_empty() {
+                self.render_empty_workspace_content(app, appearance)
+            } else {
+                self.render_banner_and_active_tab(app, appearance)
+            };
             let panels_row = self.render_panels(app, Shrinkable::new(1.0, content).finish(), false);
-            outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
-            Container::new(outer_column.finish())
-                .with_background(util::get_terminal_background_fill(self.window_id, app))
+            let tab_bar = if tab_bar_mode == ShowTabBar::Stacked {
+                Some(self.render_tab_bar(self.tab_fixed_width, appearance, app))
+            } else {
+                None
+            };
+            let background = util::get_terminal_background_fill(self.window_id, app);
+
+            if self.use_full_height_left_panel_chrome(app) {
+                let mut content_column = Flex::column().with_main_axis_size(MainAxisSize::Max);
+                if let Some(tab_bar) = tab_bar {
+                    content_column.add_child(tab_bar);
+                }
+                content_column.add_child(Shrinkable::new(1.0, panels_row).finish());
+
+                let left_panel = SavePosition::new(
+                    ChildView::new(&self.left_panel_view).finish(),
+                    LEFT_PANEL_POSITION_ID,
+                )
+                .finish();
+
+                Container::new(
+                    Flex::row()
+                        .with_main_axis_size(MainAxisSize::Max)
+                        .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
+                        .with_child(left_panel)
+                        .with_child(Shrinkable::new(1.0, content_column.finish()).finish())
+                        .finish(),
+                )
+                .with_background(background)
                 .finish()
+            } else {
+                let mut outer_column = Flex::column();
+                if let Some(tab_bar) = tab_bar {
+                    outer_column.add_child(tab_bar);
+                }
+                outer_column.add_child(Shrinkable::new(1.0, panels_row).finish());
+                Container::new(outer_column.finish())
+                    .with_background(background)
+                    .finish()
+            }
         };
         let mut stack = Stack::new();
 
@@ -20791,8 +22485,7 @@ impl View for Workspace {
         );
 
         if !use_simplified_wasm_tab_bar
-            && FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(app).use_vertical_tabs
+            && Self::vertical_tabs_active(app)
             && self.vertical_tabs_panel_open
             && self.vertical_tabs_panel.show_settings_popup
         {
@@ -20813,10 +22506,7 @@ impl View for Workspace {
             );
         }
 
-        if FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(app).use_vertical_tabs
-            && self.vertical_tabs_panel_open
-        {
+        if Self::vertical_tabs_active(app) && self.vertical_tabs_panel_open {
             if let Some(vertical_tabs::DetailSidecarOverlay {
                 anchor_position_id,
                 offset,
@@ -20944,9 +22634,7 @@ impl View for Workspace {
         }
 
         if let Some((tab_idx, right_click_menu_anchor)) = self.show_tab_right_click_menu {
-            let is_vertical = FeatureFlag::VerticalTabs.is_enabled()
-                && *TabSettings::as_ref(app).use_vertical_tabs
-                && self.vertical_tabs_panel_open;
+            let is_vertical = Self::vertical_tabs_active(app) && self.vertical_tabs_panel_open;
             if tab_bar_mode.has_tab_bar() || is_vertical {
                 let positioning = match (is_vertical, right_click_menu_anchor) {
                     (true, TabContextMenuAnchor::VerticalTabsKebab) => {
@@ -20997,9 +22685,7 @@ impl View for Workspace {
         // Render the new session dropdown menu. This is outside the tab bar visibility
         // gate because it can also be opened from the vertical tabs panel.
         if self.show_new_session_dropdown_menu.is_some() {
-            let is_vertical = FeatureFlag::VerticalTabs.is_enabled()
-                && *TabSettings::as_ref(app).use_vertical_tabs
-                && self.vertical_tabs_panel_open;
+            let is_vertical = Self::vertical_tabs_active(app) && self.vertical_tabs_panel_open;
 
             if is_vertical {
                 // Anchor the menu below the vertical-tabs + button.
@@ -21243,9 +22929,7 @@ impl View for Workspace {
         }
 
         if self.should_show_session_config_tab_config_chip() {
-            let use_vertical = FeatureFlag::VerticalTabs.is_enabled()
-                && *TabSettings::as_ref(app).use_vertical_tabs
-                && self.vertical_tabs_panel_open;
+            let use_vertical = Self::vertical_tabs_active(app) && self.vertical_tabs_panel_open;
             let chip =
                 self.render_session_config_tab_config_chip(use_vertical, Appearance::as_ref(app));
             if use_vertical {
@@ -21280,6 +22964,14 @@ impl View for Workspace {
 
         if self.new_worktree_modal.is_open() {
             stack.add_child(self.new_worktree_modal.render());
+        }
+
+        if self.create_workspace_modal.is_open() {
+            stack.add_child(self.create_workspace_modal.render());
+        }
+
+        if self.delete_workspace_dialog.is_open() {
+            stack.add_child(self.delete_workspace_dialog.render());
         }
 
         if self.workflow_modal.as_ref(app).is_open() {
@@ -21693,8 +23385,7 @@ impl View for Workspace {
         }
 
         // Add workspace-wide UI event handling.
-        let stack = if FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(app).use_vertical_tabs
+        let stack = if Self::vertical_tabs_active(app)
             && self.vertical_tabs_panel_open
             // The vertical-tabs detail sidecar can become stale if the pointer moves through a
             // covered region (for example, its scrollbar gutter) and the row/sidecar hoverables
@@ -21766,7 +23457,10 @@ impl View for Workspace {
     /// Update this workspace when it has been closed, but may still be restored.
     fn on_window_closed(&mut self, ctx: &mut ViewContext<Self>) {
         if !self.suppress_detach_panes_on_window_close {
-            for pane_group in self.tab_views() {
+            for pane_group in self
+                .all_repository_workspace_tabs()
+                .map(|tab| &tab.pane_group)
+            {
                 pane_group.update(ctx, |pane_group, ctx| {
                     pane_group.detach_panes(ctx);
                 });
@@ -21817,6 +23511,7 @@ impl Workspace {
 
         Some(TransferredTab {
             pane_group,
+            repository_workspace_id: tab.repository_workspace_id,
             color,
             custom_title,
             left_panel_open,
@@ -21875,8 +23570,14 @@ impl Workspace {
             pane_group,
             color,
             draggable_state,
+            repository_workspace_id,
             ..
         } = transferred_tab;
+        if FeatureFlag::RepositoryWorkspaces.is_enabled()
+            && repository_workspace_id != self.active_repository_workspace_id()
+        {
+            self.switch_repository_workspace(repository_workspace_id, ctx);
+        }
         ctx.subscribe_to_view(&pane_group, move |me, pane_group, event, ctx| {
             me.handle_file_tree_event(pane_group, event, ctx)
         });
@@ -21885,6 +23586,7 @@ impl Workspace {
         let mut tab_data = TabData::new(pane_group);
         tab_data.selected_color = color.map_or(SelectedTabColor::Unset, SelectedTabColor::Color);
         tab_data.draggable_state = draggable_state;
+        tab_data.repository_workspace_id = repository_workspace_id;
         self.tabs.insert(index, tab_data);
         self.activate_tab_internal(index, ctx);
         ctx.notify();
@@ -22345,9 +24047,7 @@ impl Workspace {
             return;
         }
 
-        let new_index = if FeatureFlag::VerticalTabs.is_enabled()
-            && *TabSettings::as_ref(ctx).use_vertical_tabs
-        {
+        let new_index = if Self::vertical_tabs_active(ctx) {
             self.calculate_updated_tab_index_vertical(current_index, position, ctx)
         } else {
             self.calculate_updated_tab_index(current_index, position, ctx)
@@ -22654,4 +24354,12 @@ fn set_opencode_warp_plugin(new_entry: &str) -> String {
         },
         Err(e) => format!("Failed to serialize opencode.json: {e}"),
     }
+}
+
+/// 空 repository workspace 是合法会话状态, 配置完成后可以没有页签。
+pub(crate) fn workspace_configuration_is_valid(
+    tab_count: usize,
+    repository_workspaces_enabled: bool,
+) -> bool {
+    tab_count > 0 || repository_workspaces_enabled
 }

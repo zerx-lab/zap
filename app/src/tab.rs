@@ -8,6 +8,7 @@ use crate::features::FeatureFlag;
 use crate::launch_configs::launch_config::LaunchConfig;
 use crate::menu::{MenuAction, MenuItem, MenuItemFields};
 use crate::pane_group::PaneGroup;
+use crate::project_organization::domain::RepositoryWorkspaceId;
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
 use settings::Setting as _;
 use std::sync::Arc;
@@ -144,6 +145,7 @@ pub struct TabData {
     pub indicator_hover_state: MouseStateHandle,
     // Used by a later drag-tab branch to distinguish tabs that have moved into detached windows.
     pub detached: bool,
+    pub repository_workspace_id: Option<RepositoryWorkspaceId>,
 }
 
 const TAB_COLOR_ICON_PATH: &str = "bundled/svg/ellipse.svg";
@@ -161,6 +163,7 @@ impl TabData {
             selected_color: SelectedTabColor::Unset,
             indicator_hover_state: Default::default(),
             detached: false,
+            repository_workspace_id: None,
         }
     }
 
@@ -707,6 +710,11 @@ impl<'a> TabComponent<'a> {
     /// cross-window tab drag overlay. See [`TabComponent::for_drag_ghost`].
     pub fn for_drag_ghost(mut self) -> Self {
         self.for_drag_ghost = true;
+        self
+    }
+
+    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
         self
     }
 

@@ -655,7 +655,9 @@ impl ServerModel {
             #[cfg(feature = "local_fs")]
             Some(client_message::Message::ResolvePath(msg)) => self.handle_resolve_path(msg),
             #[cfg(feature = "local_fs")]
-            Some(client_message::Message::CreateDirectory(msg)) => self.handle_create_directory(msg),
+            Some(client_message::Message::CreateDirectory(msg)) => {
+                self.handle_create_directory(msg)
+            }
             #[cfg(feature = "local_fs")]
             Some(client_message::Message::ReadFileChunk(msg)) => self.handle_read_file_chunk(msg),
             #[cfg(feature = "local_fs")]
@@ -1525,8 +1527,7 @@ impl ServerModel {
                     let metadata = entry.metadata().ok();
                     let kind = entry_kind(file_type.as_ref(), metadata.as_ref());
                     let is_dir = kind == FileSystemEntryKind::Directory as i32;
-                    let size_bytes =
-                        metadata.as_ref().filter(|m| m.is_file()).map(|m| m.len());
+                    let size_bytes = metadata.as_ref().filter(|m| m.is_file()).map(|m| m.len());
                     let modified_epoch_millis = metadata
                         .as_ref()
                         .and_then(|m| m.modified().ok())
@@ -1732,10 +1733,7 @@ fn expand_user_path(path: &str) -> PathBuf {
 }
 
 #[cfg(feature = "local_fs")]
-fn entry_kind(
-    file_type: Option<&std::fs::FileType>,
-    metadata: Option<&std::fs::Metadata>,
-) -> i32 {
+fn entry_kind(file_type: Option<&std::fs::FileType>, metadata: Option<&std::fs::Metadata>) -> i32 {
     if file_type.is_some_and(|ft| ft.is_symlink()) {
         return FileSystemEntryKind::Symlink as i32;
     }

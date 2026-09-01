@@ -140,7 +140,6 @@ static DEFAULT_TIPS: LazyLock<Vec<AgentTip>> = LazyLock::new(|| {
             action: None,
             kind: AgentTipKind::Context,
         },
-
         AgentTip {
             description: crate::t!("agent-tip-agent-profiles"),
             link: Some("".to_string()),
@@ -411,10 +410,7 @@ pub fn get_agent_tips(ctx: &AppContext) -> Vec<AgentTip> {
     {
         tips.push(AgentTip {
             description: crate::t!("agent-tip-voice-input"),
-            link: Some(
-                ""
-                    .to_string(),
-            ),
+            link: Some("".to_string()),
             binding_name: Some("FN"),
             action: None,
             kind: AgentTipKind::General,

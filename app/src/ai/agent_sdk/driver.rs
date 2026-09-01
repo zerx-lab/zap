@@ -1518,9 +1518,7 @@ impl AgentDriver {
     fn handle_terminal_driver_event(&mut self, event: &TerminalDriverEvent) {
         match event {
             TerminalDriverEvent::SlowBootstrap => {
-                eprintln!(
-                    "Warning: Terminal session is slow to bootstrap."
-                );
+                eprintln!("Warning: Terminal session is slow to bootstrap.");
             }
         }
     }

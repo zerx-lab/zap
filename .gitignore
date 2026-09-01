@@ -15,6 +15,7 @@ app/src/server/graphql/schema/generated
 crates/command-signatures-v2/js/build
 crates/command-signatures-v2/js/node_modules
 .worktrees/
+/.superpowers/
 /target-check
 # For testing changes to the channel versions file
 channel_versions_test.json
@@ -79,3 +80,5 @@ official-website/
 docs/openwarp-cloud-removal-plan.md
 .omx/
 .tmp/
+.codegraph/
+.cursor/

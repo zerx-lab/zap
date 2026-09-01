@@ -22,7 +22,7 @@ use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::{
     pane::view, BackingView, NewTerminalOptions, PaneConfiguration, PaneEvent, PanesLayout,
 };
-use crate::projects::ProjectManagementModel;
+use crate::project_organization::model::ProjectOrganizationModel;
 use crate::search::binding_source::BindingSource;
 use crate::search::welcome_palette::{Event as WelcomePaletteEvent, WelcomePalette};
 use crate::util::bindings::{keybinding_name_to_display_string, BindingGroup, CustomAction};
@@ -173,7 +173,19 @@ impl WelcomeView {
 
     fn open_project_conversation(&mut self, path: &String, ctx: &mut ViewContext<Self>) {
         let path_buf = PathBuf::from(path);
-        // todo(jparker): What happens if the user deletes a project folder between when this list was generated and now?
+        if let Err(error) = ProjectOrganizationModel::handle(ctx).update(ctx, |model, ctx| {
+            model.touch_repository_path(&path_buf, ctx)
+        }) {
+            let window_id = ctx.window_id();
+            ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                toast_stack.add_ephemeral_toast(
+                    DismissibleToast::error(format!("Failed to open repository: {error}")),
+                    window_id,
+                    ctx,
+                );
+            });
+            return;
+        }
         update_workspace(ctx.window_id(), ctx, |workspace, ctx| {
             // Create a new terminal tab with the project path as the initial directory
             workspace.add_tab_with_pane_layout(
@@ -205,11 +217,6 @@ impl WelcomeView {
                         );
                     });
                 }
-            });
-
-            // Update project accesstime
-            ProjectManagementModel::handle(ctx).update(ctx, |projects, ctx| {
-                projects.upsert_project(path_buf, ctx);
             });
         });
     }
@@ -318,20 +325,28 @@ impl TypedActionView for WelcomeView {
 /// WARNING - Don't use. The [`crate::workspace::WorkspaceAction::OpenRepository`] is the
 /// source-of-truth for this now.
 fn save_and_open_project(path: String, window_id: WindowId, ctx: &mut AppContext) {
-    ProjectManagementModel::handle(ctx).update(ctx, |projects, ctx| {
-        let path_buf = PathBuf::from(&path);
-        projects.upsert_project(path_buf, ctx);
-        update_workspace(window_id, ctx, move |workspace, ctx| {
-            workspace.add_tab_with_pane_layout(
-                PanesLayout::SingleTerminal(Box::new(
-                    NewTerminalOptions::default()
-                        .with_initial_directory(path)
-                        .with_homepage_hidden(),
-                )),
-                Arc::new(HashMap::new()),
-                None,
+    if let Err(error) = ProjectOrganizationModel::handle(ctx).update(ctx, |model, ctx| {
+        model.touch_repository_path(PathBuf::from(&path), ctx)
+    }) {
+        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+            toast_stack.add_ephemeral_toast(
+                DismissibleToast::error(format!("Failed to open repository: {error}")),
+                window_id,
                 ctx,
             );
         });
+        return;
+    }
+    update_workspace(window_id, ctx, move |workspace, ctx| {
+        workspace.add_tab_with_pane_layout(
+            PanesLayout::SingleTerminal(Box::new(
+                NewTerminalOptions::default()
+                    .with_initial_directory(path)
+                    .with_homepage_hidden(),
+            )),
+            Arc::new(HashMap::new()),
+            None,
+            ctx,
+        );
     });
 }

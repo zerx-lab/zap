@@ -5,7 +5,7 @@
 
 use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Nonce};
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -35,8 +35,8 @@ fn derive_key(token: &str) -> [u8; 32] {
 /// 使用用户 Token 派生加密密钥
 pub fn encrypt(token: &str, plaintext: &str) -> Result<String, CryptoError> {
     let key = derive_key(token);
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| CryptoError::Encrypt(e.to_string()))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key).map_err(|e| CryptoError::Encrypt(e.to_string()))?;
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext.as_bytes())
@@ -60,8 +60,8 @@ pub fn decrypt(token: &str, encoded: &str) -> Result<String, CryptoError> {
     }
     let (nonce_bytes, ciphertext) = combined.split_at(12);
     let nonce = Nonce::from_slice(nonce_bytes);
-    let cipher = Aes256Gcm::new_from_slice(&key)
-        .map_err(|e| CryptoError::Decrypt(e.to_string()))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key).map_err(|e| CryptoError::Decrypt(e.to_string()))?;
     let plaintext = cipher
         .decrypt(nonce, ciphertext)
         .map_err(|e| CryptoError::Decrypt(e.to_string()))?;

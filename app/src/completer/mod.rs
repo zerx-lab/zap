@@ -199,9 +199,7 @@ impl PathCompletionContext for SessionContext {
         // sends escape sequences to a raw remote shell. Return empty without
         // caching so we retry after the remote server handshake finishes.
         if let SessionType::WarpifiedRemote { host_id: None } = self.session.session_type() {
-            if FeatureFlag::SshRemoteServer.is_enabled()
-                && !self.session.is_legacy_ssh_session()
-            {
+            if FeatureFlag::SshRemoteServer.is_enabled() && !self.session.is_legacy_ssh_session() {
                 return Arc::new(vec![]);
             }
         }

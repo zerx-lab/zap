@@ -1,9 +1,9 @@
 //! Implementation of terminal panes.
 #[cfg(feature = "local_fs")]
 use crate::pane_group::CodeSource;
-use std::sync::mpsc::SyncSender;
+use std::sync::{Arc, mpsc::SyncSender};
 
-use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use warp_multi_agent_api as multi_agent_api;
 
 use warpui::{
@@ -11,19 +11,21 @@ use warpui::{
 };
 
 use crate::{
+    AIExecutionProfilesModel,
     ai::{blocklist::BlocklistAIHistoryModel, llms::LLMPreferences, skills::SkillManager},
     app_state::{AmbientAgentPaneSnapshot, LeafContents, TerminalPaneSnapshot},
+    features::FeatureFlag,
     pane_group::{self, Direction, Event::OpenConversationHistory, PaneGroup},
     persistence::{BlockCompleted, ModelEvent},
     session_management::SessionNavigationData,
+    terminal::cli_agent_resume::CliAgentResumeSnapshot,
     terminal::cli_agent_sessions::CLIAgentSessionsModel,
     terminal::{
-        general_settings::GeneralSettings, shared_session::SharedSessionStatus, view::Event,
-        TerminalManager, TerminalView,
+        TerminalManager, TerminalView, general_settings::GeneralSettings,
+        shared_session::SharedSessionStatus, view::Event,
     },
     view_components::ToastFlavor,
-    workspace::{sync_inputs::SyncedInputState, PaneViewLocator},
-    AIExecutionProfilesModel,
+    workspace::{PaneViewLocator, sync_inputs::SyncedInputState},
 };
 
 #[cfg(feature = "local_fs")]
@@ -151,6 +153,39 @@ impl TerminalPane {
                     err
                 );
             }
+        }
+    }
+
+    /// 在应用退出前将活动命令作为中断 block 保存。
+    pub(in crate::pane_group) fn persist_active_block_for_shutdown(&self, ctx: &AppContext) {
+        if !*GeneralSettings::as_ref(ctx).restore_session
+            || !AppExecutionMode::as_ref(ctx).can_save_session()
+        {
+            return;
+        }
+
+        let terminal_view = self.terminal_view(ctx);
+        let view = terminal_view.as_ref(ctx);
+        let Some(is_local) = view.active_session_is_local(ctx) else {
+            return;
+        };
+        let Some(block) = view.active_block_snapshot_for_shutdown() else {
+            return;
+        };
+        let Some(sender) = &self.model_event_sender else {
+            return;
+        };
+
+        let event = ModelEvent::SaveBlock(BlockCompleted {
+            pane_id: self.uuid.clone(),
+            block: Arc::new(block),
+            is_local,
+        });
+        if let Err(err) = sender.send(event) {
+            log::error!(
+                "Error sending active block shutdown event for terminal id {:?}: {err:?}",
+                self.uuid
+            );
         }
     }
 
@@ -349,6 +384,7 @@ impl PaneContent for TerminalPane {
                 active_profile_id: None,
                 conversation_ids_to_restore: vec![],
                 active_conversation_id: None,
+                cli_agent_resume: None,
             })
         } else if view.model.lock().is_conversation_transcript_viewer() {
             // Conversation transcript viewers (opened from the conversation list)
@@ -371,6 +407,7 @@ impl PaneContent for TerminalPane {
                     active_profile_id: None,
                     conversation_ids_to_restore: vec![],
                     active_conversation_id: None,
+                    cli_agent_resume: None,
                 })
             }
         } else {
@@ -401,17 +438,26 @@ impl PaneContent for TerminalPane {
                         .active_conversation_id()
                 });
 
+            // FairMutex 不可重入。结构体字面量里的 `model.lock()` 守卫会活到
+            // 整条语句结束,后面字段再 lock 就会把 UI 线程卡死成沙滩球。
+            let is_read_only = view.model.lock().is_read_only();
+            let cwd = view.persistable_cwd(app);
+            let shell_launch_data = view.shell_launch_data_if_local(app);
+            let cli_agent_resume =
+                cli_agent_resume_snapshot(view, self.terminal_view(app).id(), app);
+
             LeafContents::Terminal(TerminalPaneSnapshot {
                 uuid: self.uuid.clone(),
-                cwd: view.pwd_if_local(app),
+                cwd,
                 is_active,
-                is_read_only: view.model.lock().is_read_only(),
-                shell_launch_data: view.shell_launch_data_if_local(app),
+                is_read_only,
+                shell_launch_data,
                 input_config: Some(current_input_config),
                 llm_model_override,
                 active_profile_id,
                 conversation_ids_to_restore,
                 active_conversation_id,
+                cli_agent_resume,
             })
         }
     }
@@ -1096,4 +1142,25 @@ fn handle_ai_history_event(
         | BlocklistAIHistoryEvent::UpdatedConversationArtifacts { .. }
         | BlocklistAIHistoryEvent::ConversationAgentIdAssigned { .. } => (),
     }
+}
+
+fn cli_agent_resume_snapshot(
+    view: &TerminalView,
+    terminal_view_id: EntityId,
+    app: &AppContext,
+) -> Option<CliAgentResumeSnapshot> {
+    if !FeatureFlag::CliAgentSessionResume.is_enabled() {
+        return None;
+    }
+    let original_command = {
+        let model = view.model.lock();
+        let block = model.block_list().active_block();
+        block
+            .is_active_and_long_running()
+            .then(|| block.command_with_secrets_obfuscated(false))
+    };
+    CliAgentResumeSnapshot::from_active_session(
+        CLIAgentSessionsModel::as_ref(app).session(terminal_view_id)?,
+        original_command,
+    )
 }

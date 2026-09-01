@@ -98,11 +98,7 @@ impl OneTimeModalModel {
         }
     }
 
-    fn set_zap_launch_modal_open(
-        &mut self,
-        is_open: bool,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
+    fn set_zap_launch_modal_open(&mut self, is_open: bool, ctx: &mut ModelContext<Self>) -> bool {
         if self.is_zap_launch_modal_open != is_open {
             self.is_zap_launch_modal_open = is_open;
             ctx.emit(OneTimeModalEvent::VisibilityChanged { is_open });

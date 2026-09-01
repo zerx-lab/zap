@@ -85,8 +85,7 @@ fn parse_oss(value: &str) -> Option<ParsedVersion> {
     let year: i32 = captures.get(1)?.as_str().parse().ok()?;
     let month: u32 = captures.get(2)?.as_str().parse().ok()?;
     let day: u32 = captures.get(3)?.as_str().parse().ok()?;
-    let date = chrono::NaiveDate::from_ymd_opt(year, month, day)?
-        .and_hms_opt(0, 0, 0)?;
+    let date = chrono::NaiveDate::from_ymd_opt(year, month, day)?.and_hms_opt(0, 0, 0)?;
     let patch: usize = captures
         .get(4)
         .and_then(|m| m.as_str().parse::<usize>().ok())

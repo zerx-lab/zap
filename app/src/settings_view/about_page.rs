@@ -186,13 +186,7 @@ impl SettingsWidget for AboutPageWidget {
                 .with_max_width(350.)
                 .finish(),
             )
-            .with_child(
-                ui_builder
-                    .span("Zap")
-                    .build()
-                    .with_margin_top(12.)
-                    .finish(),
-            )
+            .with_child(ui_builder.span("Zap").build().with_margin_top(12.).finish())
             .with_child(version_row.finish());
 
         // 更新状态区域:显示当前是否有新版本,并提供"检查更新"或"前往 GitHub 下载"链接。
@@ -295,7 +289,9 @@ impl AboutPageWidget {
         // - UpdateReady / UpdatedPendingRestart:可以安装 + "立即安装"按钮
         // - UnableTo*: 自动安装失败 + "前往 GitHub 下载"兜底链接
         let stage = autoupdate::get_update_state(app);
-        let progress = autoupdate::AutoupdateState::as_ref(app).download_progress().cloned();
+        let progress = autoupdate::AutoupdateState::as_ref(app)
+            .download_progress()
+            .cloned();
 
         let (status_text, action) = match &stage {
             AutoupdateStage::CheckingForUpdate => (

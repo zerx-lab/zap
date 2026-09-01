@@ -423,7 +423,9 @@ impl LaunchConfigSaveModal {
                 appearance.theme().active_ui_text_color().into(),
                 Default::default(),
             )
-            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+            .with_heading_to_font_size_multipliers(
+                appearance.heading_font_size_multipliers().clone(),
+            )
             .finish(),
         )
         .with_padding_left(SIDE_PADDING)
@@ -528,10 +530,7 @@ impl LaunchConfigSaveModal {
                     .ui_builder()
                     .link(
                         crate::t!("launch-config-link-to-documentation"),
-                        Some(
-                            ""
-                                .to_string(),
-                        ),
+                        Some("".to_string()),
                         None,
                         self.mouse_states.documentation_link_state.clone(),
                     )

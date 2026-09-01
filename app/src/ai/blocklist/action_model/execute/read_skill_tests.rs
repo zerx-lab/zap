@@ -238,7 +238,9 @@ fn test_read_skill_executor_fallback_returns_error_when_file_missing() {
             on_complete,
         } = execution
         else {
-            panic!("Legal-shaped skill path should still produce Async execution before disk check");
+            panic!(
+                "Legal-shaped skill path should still produce Async execution before disk check"
+            );
         };
 
         let async_result = execute_future.await;

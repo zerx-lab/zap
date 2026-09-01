@@ -174,6 +174,9 @@ pub enum FeatureFlag {
     /// Enables multi-workspace selection.
     MultiWorkspace,
 
+    /// 启用仓库工作区。
+    RepositoryWorkspaces,
+
     /// Maximizes data in flat storage to reduce memory usage.
     MaximizeFlatStorage,
 
@@ -686,6 +689,10 @@ pub enum FeatureFlag {
     /// 关闭时,UI 入口隐藏,`Client::new()` 退回 reqwest 默认(读环境变量)。
     /// 见 Issue #72。
     HttpProxySettings,
+
+    /// 退出后重新打开时,对仍在跑的 Claude / Codex / Grok 等 CLI agent
+    /// 自动执行对应的 resume 命令,接回磁盘上的会话。
+    CliAgentSessionResume,
 }
 
 static FLAG_STATES: [AtomicBool; cardinality::<FeatureFlag>()] =
@@ -718,6 +725,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::LazySceneBuilding,
     FeatureFlag::SshDragAndDrop,
     FeatureFlag::MultiWorkspace,
+    FeatureFlag::RepositoryWorkspaces,
     FeatureFlag::ImeMarkedText,
     FeatureFlag::MSYS2Shells,
     FeatureFlag::RetryTruncatedCodeResponses,
@@ -748,6 +756,7 @@ pub const DOGFOOD_FLAGS: &[FeatureFlag] = &[
     FeatureFlag::ConfigurableContextWindow,
     FeatureFlag::DragTabsToWindows,
     FeatureFlag::ServerFileBrowser,
+    FeatureFlag::CliAgentSessionResume,
 ];
 
 /// Features enabled for feature preview build users (e.g.: Friends of Zap).
@@ -812,7 +821,9 @@ impl FeatureFlag {
         // Allow calling this in integration tests because we sometimes use it in the app
         // during flows that integration tests cover.
         if cfg!(test) && cfg!(not(feature = "integration_tests")) {
-            panic!("Tried to globally enable {self:?} in a test. Use FeatureFlag::{self:?}.override_enabled instead");
+            panic!(
+                "Tried to globally enable {self:?} in a test. Use FeatureFlag::{self:?}.override_enabled instead"
+            );
         }
         FLAG_STATES[self as usize].store(enabled, Ordering::Relaxed);
     }
@@ -856,9 +867,15 @@ impl FeatureFlag {
             BlocklistMarkdownTableRendering => {
                 Some("Enables rendering markdown tables inline in AI block list responses.")
             }
-            MarkdownTables => Some("Enables rendering and interaction support for markdown tables in notebooks."),
-            SettingsFile => Some("Enables configuring Zap via a user-editable `settings.toml` file, with hot reload and error reporting for invalid values."),
-            GitOperationsInCodeReview => Some("Enables commit, push, and create-PR actions directly from the code review panel."),
+            MarkdownTables => {
+                Some("Enables rendering and interaction support for markdown tables in notebooks.")
+            }
+            SettingsFile => Some(
+                "Enables configuring Zap via a user-editable `settings.toml` file, with hot reload and error reporting for invalid values.",
+            ),
+            GitOperationsInCodeReview => Some(
+                "Enables commit, push, and create-PR actions directly from the code review panel.",
+            ),
             _ => None,
         }
     }
@@ -1015,3 +1032,7 @@ impl From<TriState> for Option<bool> {
 #[cfg(test)]
 #[path = "features_test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod lib_tests;

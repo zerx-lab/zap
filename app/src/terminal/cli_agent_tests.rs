@@ -262,6 +262,7 @@ fn test_detect_known_agents() {
                 ("agent", CLIAgent::CursorCli),
                 ("goose", CLIAgent::Goose),
                 ("omp", CLIAgent::Omp),
+                ("grok", CLIAgent::Grok),
             ] {
                 assert_eq!(
                     CLIAgent::detect(command, None, None, ctx),
@@ -535,4 +536,12 @@ fn test_cli_agent_search_dirs_include_home_managed_bins() {
     assert!(dirs.contains(&home.join(".cargo/bin")));
     assert!(dirs.contains(&home.join(".bun/bin")));
     assert!(dirs.contains(&home.join(".local/bin")));
+}
+
+#[test]
+fn grok_has_brand_icon() {
+    assert_eq!(
+        CLIAgent::Grok.icon(),
+        Some(crate::ui_components::icons::Icon::GrokLogo)
+    );
 }

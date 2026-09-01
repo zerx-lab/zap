@@ -27,9 +27,7 @@ use crate::{
     appearance::Appearance,
     auth::UserUid,
     channel::ChannelState,
-    drive::{
-        items::WarpDriveItem, ObjectTypeAndId, ZapDriveObjectArgs, ZapDriveObjectSettings,
-    },
+    drive::{items::WarpDriveItem, ObjectTypeAndId, ZapDriveObjectArgs, ZapDriveObjectSettings},
     persistence::ModelEvent,
     server::ids::{ClientId, HashableId, HashedSqliteId, ObjectUid, ServerId, SyncId, ToServerId},
     server_time::ServerTimestamp,

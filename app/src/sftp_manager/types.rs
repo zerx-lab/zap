@@ -4,8 +4,8 @@
 //! date: 2026-05-26
 
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// 文件条目类型（UI 层）
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,7 +137,9 @@ pub enum Dialog {
         file_size: u64,
         direction: TransferDirection,
     },
-    FileDetails { entry: FileEntry },
+    FileDetails {
+        entry: FileEntry,
+    },
     /// 关闭传输面板确认（有活跃传输时）
     CloseTransferPanelConfirm,
 }
@@ -400,7 +402,10 @@ mod tests {
     #[test]
     fn test_transfer_state_variants() {
         assert!(matches!(TransferState::Pending, TransferState::Pending));
-        assert!(matches!(TransferState::InProgress, TransferState::InProgress));
+        assert!(matches!(
+            TransferState::InProgress,
+            TransferState::InProgress
+        ));
         assert!(matches!(TransferState::Completed, TransferState::Completed));
         assert!(matches!(TransferState::Cancelled, TransferState::Cancelled));
         let failed = TransferState::Failed("io error".into());
@@ -559,7 +564,10 @@ mod tests {
     /// 测试 Dialog::DeleteConfirm 空路径列表
     #[test]
     fn test_dialog_delete_confirm_empty_paths() {
-        let dialog = Dialog::DeleteConfirm { paths: vec![], is_dirs: vec![] };
+        let dialog = Dialog::DeleteConfirm {
+            paths: vec![],
+            is_dirs: vec![],
+        };
         assert!(matches!(dialog, Dialog::DeleteConfirm { .. }));
     }
 

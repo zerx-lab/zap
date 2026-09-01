@@ -51,6 +51,8 @@ if [[ ! -f "$BUNDLED_RESOURCES_DIR/Assets.car" ]]; then
     XCODE_VERSION=$(xcodebuild -version 2>/dev/null | head -1 || echo "unknown")
     echo "Warning: actool did not produce Assets.car which is required for the latest App icon format." >&2
     echo "(Note that XCode version <26 does not support .icon bundles. Your version: $XCODE_VERSION)." >&2
+    echo "Keeping the cargo-bundle generated icon because AppIcon is unavailable." >&2
+    exit 0
 fi
 
 # Update Info.plist to reference AppIcon instead of the old .icns

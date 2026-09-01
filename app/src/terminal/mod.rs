@@ -85,6 +85,8 @@ pub mod wsl;
 
 pub mod cli_agent;
 pub use cli_agent::CLIAgent;
+pub mod cli_agent_resume;
+pub use cli_agent_resume::CliAgentResumeSnapshot;
 pub(crate) mod cli_agent_sessions;
 
 pub use mock_terminal_manager::MockTerminalManager;

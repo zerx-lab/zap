@@ -128,7 +128,10 @@ fn resolve_path_reports_file_metadata() {
         success.canonical_path,
         fs::canonicalize(&file_path).unwrap().to_string_lossy()
     );
-    assert_eq!(success.kind, super::super::proto::FileSystemEntryKind::File as i32);
+    assert_eq!(
+        success.kind,
+        super::super::proto::FileSystemEntryKind::File as i32
+    );
     assert_eq!(success.size_bytes, Some(5));
 }
 

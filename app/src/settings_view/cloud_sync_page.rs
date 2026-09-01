@@ -20,19 +20,19 @@ use warpui::{
 };
 
 use super::settings_page::{
-    render_body_item, AdditionalInfo, LocalOnlyIconState, MatchData, PageType,
-    SettingsPageEvent, SettingsPageMeta, SettingsWidget, ToggleState,
+    render_body_item, AdditionalInfo, LocalOnlyIconState, MatchData, PageType, SettingsPageEvent,
+    SettingsPageMeta, SettingsWidget, ToggleState,
 };
 use super::SettingsSection;
 use crate::appearance::Appearance;
 use crate::editor::{EditorView, SingleLineEditorOptions, TextOptions};
-use crate::settings::SyncPlatformSetting;
 use crate::settings::CloudSyncSettings;
-use crate::settings::{CloudSyncTokenStore, GITHUB_TOKEN_KEY, GITEE_TOKEN_KEY};
+use crate::settings::SyncPlatformSetting;
+use crate::settings::{CloudSyncTokenStore, GITEE_TOKEN_KEY, GITHUB_TOKEN_KEY};
 use crate::ssh_manager::{SshTreeChangedEvent, SshTreeChangedNotifier};
 use crate::view_components::dropdown::{Dropdown, DropdownItem};
 
-use warp_ssh_manager::{with_conn, DbVersionStore, SyncMetaRepository, SshSyncProvider};
+use warp_ssh_manager::{with_conn, DbVersionStore, SshSyncProvider, SyncMetaRepository};
 use zap_sync::{GistClient, SyncEngine, SyncPlatform, SyncResult};
 
 const INPUT_AREA_MAX_WIDTH: f32 = 420.0;
@@ -103,9 +103,7 @@ pub enum CloudSyncPageAction {
         result: Result<SyncResult, String>,
     },
     /// 强制上传（覆盖远程）
-    ForceUpload {
-        platform: SyncPlatform,
-    },
+    ForceUpload { platform: SyncPlatform },
     /// 取消冲突弹窗
     CancelConflict,
     /// 确认下载
@@ -252,7 +250,8 @@ impl CloudSyncPageView {
             );
         });
 
-        let token_editor = build_token_editor(ctx, &crate::t!("settings-cloud-sync-token-placeholder"));
+        let token_editor =
+            build_token_editor(ctx, &crate::t!("settings-cloud-sync-token-placeholder"));
 
         ctx.subscribe_to_model(
             &CloudSyncSettings::handle(ctx),
@@ -363,7 +362,8 @@ impl CloudSyncPageView {
                                     view.conflict_remote_version = *remote_version;
                                     view.conflict_platform = sync_platform;
                                     if view.conflict_token.is_empty() {
-                                        view.conflict_token = token_for_platform(ctx, sync_platform);
+                                        view.conflict_token =
+                                            token_for_platform(ctx, sync_platform);
                                     }
                                     ctx.notify();
                                 }
@@ -375,9 +375,7 @@ impl CloudSyncPageView {
                                 }
                                 Err(e) => {
                                     // 非冲突结局：恢复 Failed 并清理 conflict_token
-                                    view.sync_state = SyncState::Failed {
-                                        message: e.clone(),
-                                    };
+                                    view.sync_state = SyncState::Failed { message: e.clone() };
                                     view.conflict_token.clear();
                                     log::warn!("Auto sync download failed: {e}");
                                     ctx.notify();
@@ -424,7 +422,9 @@ impl CloudSyncPageView {
                     .on_click({
                         let platform = self.conflict_platform;
                         move |ctx, _, _| {
-                            ctx.dispatch_typed_action(CloudSyncPageAction::ForceUpload { platform });
+                            ctx.dispatch_typed_action(CloudSyncPageAction::ForceUpload {
+                                platform,
+                            });
                         }
                     })
                     .finish(),
@@ -483,7 +483,9 @@ impl CloudSyncPageView {
                     .on_click({
                         let platform = self.download_confirm_platform;
                         move |ctx, _, _| {
-                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmDownload { platform });
+                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmDownload {
+                                platform,
+                            });
                         }
                     })
                     .finish(),
@@ -493,7 +495,10 @@ impl CloudSyncPageView {
 
             let cancel_button = appearance
                 .ui_builder()
-                .button(ButtonVariant::Secondary, self.download_confirm_cancel_mouse.clone())
+                .button(
+                    ButtonVariant::Secondary,
+                    self.download_confirm_cancel_mouse.clone(),
+                )
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.ui_font_body()),
                     padding: Some(Coords::uniform(BUTTON_PADDING)),
@@ -508,7 +513,9 @@ impl CloudSyncPageView {
 
             let dialog = Dialog::new(
                 crate::t!("settings-cloud-sync-download-confirm-title"),
-                Some(crate::t!("settings-cloud-sync-download-confirm-description")),
+                Some(crate::t!(
+                    "settings-cloud-sync-download-confirm-description"
+                )),
                 dialog_styles(appearance),
             )
             .with_bottom_row_child(cancel_button)
@@ -543,7 +550,9 @@ impl CloudSyncPageView {
                     .on_click({
                         let platform = self.upload_confirm_platform;
                         move |ctx, _, _| {
-                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmUpload { platform });
+                            ctx.dispatch_typed_action(CloudSyncPageAction::ConfirmUpload {
+                                platform,
+                            });
                         }
                     })
                     .finish(),
@@ -553,7 +562,10 @@ impl CloudSyncPageView {
 
             let cancel_button = appearance
                 .ui_builder()
-                .button(ButtonVariant::Secondary, self.upload_confirm_cancel_mouse.clone())
+                .button(
+                    ButtonVariant::Secondary,
+                    self.upload_confirm_cancel_mouse.clone(),
+                )
                 .with_style(UiComponentStyles {
                     font_size: Some(appearance.ui_font_body()),
                     padding: Some(Coords::uniform(BUTTON_PADDING)),
@@ -600,8 +612,8 @@ impl CloudSyncPageView {
                 log::debug!("Failed to get last sync time: {e}");
                 crate::t!("settings-cloud-sync-never")
             });
-        self.cached_last_sync_platform = with_conn(|c| Ok(SyncMetaRepository::get_last_sync_platform(c)?))
-            .unwrap_or_else(|e| {
+        self.cached_last_sync_platform =
+            with_conn(|c| Ok(SyncMetaRepository::get_last_sync_platform(c)?)).unwrap_or_else(|e| {
                 log::debug!("Failed to get last sync platform: {e}");
                 crate::t!("settings-cloud-sync-na")
             });
@@ -612,7 +624,10 @@ impl CloudSyncPageView {
         if token.is_empty() {
             let label = platform.label();
             self.sync_state = SyncState::Failed {
-                message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+                message: crate::t!(
+                    "settings-cloud-sync-token-not-configured",
+                    platform = label.to_string()
+                ),
             };
             ctx.notify();
             return;
@@ -652,12 +667,20 @@ impl CloudSyncPageView {
     }
 
     /// 启动下载同步。token 由调用方在弹窗打开时捕获。
-    fn spawn_download(&mut self, platform: SyncPlatform, spawn_token: String, ctx: &mut ViewContext<Self>) {
+    fn spawn_download(
+        &mut self,
+        platform: SyncPlatform,
+        spawn_token: String,
+        ctx: &mut ViewContext<Self>,
+    ) {
         let token = spawn_token;
         if token.is_empty() {
             let label = platform.label();
             self.sync_state = SyncState::Failed {
-                message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+                message: crate::t!(
+                    "settings-cloud-sync-token-not-configured",
+                    platform = label.to_string()
+                ),
             };
             ctx.notify();
             return;
@@ -693,11 +716,19 @@ impl CloudSyncPageView {
     }
 
     /// 启动强制上传同步（覆盖远程）。token 来自冲突弹出时的快照。
-    fn spawn_force_upload(&mut self, platform: SyncPlatform, token: String, ctx: &mut ViewContext<Self>) {
+    fn spawn_force_upload(
+        &mut self,
+        platform: SyncPlatform,
+        token: String,
+        ctx: &mut ViewContext<Self>,
+    ) {
         if token.is_empty() {
             let label = platform.label();
             self.sync_state = SyncState::Failed {
-                message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+                message: crate::t!(
+                    "settings-cloud-sync-token-not-configured",
+                    platform = label.to_string()
+                ),
             };
             ctx.notify();
             return;
@@ -886,9 +917,7 @@ impl TypedActionView for CloudSyncPageView {
                     Err(e) => {
                         if *platform_setting == current_platform {
                             self.has_valid_token = false;
-                            self.sync_state = SyncState::Failed {
-                                message: e.clone(),
-                            };
+                            self.sync_state = SyncState::Failed { message: e.clone() };
                         }
                     }
                 }
@@ -900,9 +929,12 @@ impl TypedActionView for CloudSyncPageView {
                     SyncPlatformSetting::GitHub => GITHUB_TOKEN_KEY,
                     SyncPlatformSetting::Gitee => GITEE_TOKEN_KEY,
                 };
-                CloudSyncTokenStore::handle(ctx).update(ctx, |store: &mut CloudSyncTokenStore, ctx| {
-                    store.set(key, String::new(), ctx);
-                });
+                CloudSyncTokenStore::handle(ctx).update(
+                    ctx,
+                    |store: &mut CloudSyncTokenStore, ctx| {
+                        store.set(key, String::new(), ctx);
+                    },
+                );
                 self.token_editor.update(ctx, |editor, ctx| {
                     editor.set_buffer_text("", ctx);
                 });
@@ -919,7 +951,10 @@ impl TypedActionView for CloudSyncPageView {
                 if token.is_empty() {
                     let label = platform.label();
                     self.sync_state = SyncState::Failed {
-                        message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+                        message: crate::t!(
+                            "settings-cloud-sync-token-not-configured",
+                            platform = label.to_string()
+                        ),
                     };
                     ctx.notify();
                     return;
@@ -941,7 +976,10 @@ impl TypedActionView for CloudSyncPageView {
                 if token.is_empty() {
                     let label = platform.label();
                     self.sync_state = SyncState::Failed {
-                        message: crate::t!("settings-cloud-sync-token-not-configured", platform = label.to_string()),
+                        message: crate::t!(
+                            "settings-cloud-sync-token-not-configured",
+                            platform = label.to_string()
+                        ),
                     };
                     ctx.notify();
                     return;
@@ -997,15 +1035,11 @@ impl TypedActionView for CloudSyncPageView {
                         }
                     }
                     Ok(SyncResult::AlreadyUpToDate { version }) => {
-                        self.sync_state = SyncState::AlreadyUpToDate {
-                            version: *version,
-                        };
+                        self.sync_state = SyncState::AlreadyUpToDate { version: *version };
                         self.conflict_token.clear();
                     }
                     Err(e) => {
-                        self.sync_state = SyncState::Failed {
-                            message: e.clone(),
-                        };
+                        self.sync_state = SyncState::Failed { message: e.clone() };
                         self.conflict_token.clear();
                     }
                 }
@@ -1149,10 +1183,7 @@ impl SettingsWidget for CloudSyncPageWidget {
         let editor_element = appearance
             .ui_builder()
             .text_input(view.token_editor.clone())
-            .with_style(
-                UiComponentStyles::default()
-                    .set_width(INPUT_AREA_MAX_WIDTH - 120.0),
-            )
+            .with_style(UiComponentStyles::default().set_width(INPUT_AREA_MAX_WIDTH - 120.0))
             .build()
             .finish();
         let is_validating = matches!(view.sync_state, SyncState::Validating);
@@ -1161,27 +1192,25 @@ impl SettingsWidget for CloudSyncPageWidget {
         } else {
             crate::t!("common-save")
         };
-        let save_button = Container::new(
-            {
-                let mut btn = appearance
-                    .ui_builder()
-                    .button(ButtonVariant::Accent, view.save_state.clone())
-                    .with_style(UiComponentStyles {
-                        font_size: Some(appearance.ui_font_body()),
-                        padding: Some(Coords::uniform(BUTTON_PADDING)),
-                        ..Default::default()
-                    })
-                    .with_text_label(save_label)
-                    .build()
-                    .on_click(move |ctx, _, _| {
-                        ctx.dispatch_typed_action(CloudSyncPageAction::SaveToken);
-                    });
-                if is_validating {
-                    btn = btn.disable();
-                }
-                btn.finish()
-            },
-        )
+        let save_button = Container::new({
+            let mut btn = appearance
+                .ui_builder()
+                .button(ButtonVariant::Accent, view.save_state.clone())
+                .with_style(UiComponentStyles {
+                    font_size: Some(appearance.ui_font_body()),
+                    padding: Some(Coords::uniform(BUTTON_PADDING)),
+                    ..Default::default()
+                })
+                .with_text_label(save_label)
+                .build()
+                .on_click(move |ctx, _, _| {
+                    ctx.dispatch_typed_action(CloudSyncPageAction::SaveToken);
+                });
+            if is_validating {
+                btn = btn.disable();
+            }
+            btn.finish()
+        })
         .with_margin_left(8.)
         .finish();
         let clear_button = Container::new(
@@ -1248,17 +1277,18 @@ impl SettingsWidget for CloudSyncPageWidget {
 
         // 同步操作
         content.add_child(
-            Container::new(
-                super::settings_page::render_sub_header(
-                    appearance,
-                    crate::t!("settings-cloud-sync-operations-header"),
-                    None,
-                ),
-            )
+            Container::new(super::settings_page::render_sub_header(
+                appearance,
+                crate::t!("settings-cloud-sync-operations-header"),
+                None,
+            ))
             .with_margin_top(12.)
             .finish(),
         );
-        let is_syncing = matches!(view.sync_state, SyncState::Syncing { .. } | SyncState::Validating);
+        let is_syncing = matches!(
+            view.sync_state,
+            SyncState::Syncing { .. } | SyncState::Validating
+        );
         let can_sync = view.has_valid_token && !is_syncing;
 
         let render_sync_button = |label: &str,
@@ -1304,11 +1334,7 @@ impl SettingsWidget for CloudSyncPageWidget {
             .finish();
 
         // 与下方版本信息列表保持 12px 间距,避免按钮贴着 本地版本 标签
-        content.add_child(
-            Container::new(buttons_row)
-                .with_margin_bottom(12.)
-                .finish(),
-        );
+        content.add_child(Container::new(buttons_row).with_margin_bottom(12.).finish());
 
         // 同步状态区域（使用缓存）
         let version = &view.cached_version;
@@ -1317,9 +1343,13 @@ impl SettingsWidget for CloudSyncPageWidget {
 
         let info_color = theme.nonactive_ui_text_color();
 
-        let version_text = Text::new(version.clone(), appearance.ui_font_family(), appearance.ui_font_body())
-            .with_color(info_color.into())
-            .finish();
+        let version_text = Text::new(
+            version.clone(),
+            appearance.ui_font_family(),
+            appearance.ui_font_body(),
+        )
+        .with_color(info_color.into())
+        .finish();
         content.add_child(render_body_item::<CloudSyncPageAction>(
             crate::t!("settings-cloud-sync-local-version-label"),
             None::<AdditionalInfo<CloudSyncPageAction>>,
@@ -1330,9 +1360,13 @@ impl SettingsWidget for CloudSyncPageWidget {
             None,
         ));
 
-        let time_text = Text::new(last_sync_time.clone(), appearance.ui_font_family(), appearance.ui_font_body())
-            .with_color(info_color.into())
-            .finish();
+        let time_text = Text::new(
+            last_sync_time.clone(),
+            appearance.ui_font_family(),
+            appearance.ui_font_body(),
+        )
+        .with_color(info_color.into())
+        .finish();
         content.add_child(render_body_item::<CloudSyncPageAction>(
             crate::t!("settings-cloud-sync-last-time-label"),
             None::<AdditionalInfo<CloudSyncPageAction>>,
@@ -1343,9 +1377,13 @@ impl SettingsWidget for CloudSyncPageWidget {
             None,
         ));
 
-        let platform_text = Text::new(last_sync_platform.clone(), appearance.ui_font_family(), appearance.ui_font_body())
-            .with_color(info_color.into())
-            .finish();
+        let platform_text = Text::new(
+            last_sync_platform.clone(),
+            appearance.ui_font_family(),
+            appearance.ui_font_body(),
+        )
+        .with_color(info_color.into())
+        .finish();
         content.add_child(render_body_item::<CloudSyncPageAction>(
             crate::t!("settings-cloud-sync-last-platform-label"),
             None::<AdditionalInfo<CloudSyncPageAction>>,
@@ -1370,34 +1408,48 @@ impl SettingsWidget for CloudSyncPageWidget {
 
         let state_text = match &view.sync_state {
             SyncState::Idle => None,
-            SyncState::Validating => {
-                Some(crate::t!("settings-cloud-sync-validating"))
-            }
-            SyncState::TokenValid { username } => {
-                Some(crate::t!("settings-cloud-sync-token-valid", username = username.clone()))
-            }
-            SyncState::Syncing { platform, direction } => {
-                match direction {
-                    SyncDirection::Upload => Some(crate::t!("settings-cloud-sync-syncing-upload", platform = platform.label().to_string())),
-                    SyncDirection::Download => Some(crate::t!("settings-cloud-sync-syncing-download", platform = platform.label().to_string())),
-                }
-            }
+            SyncState::Validating => Some(crate::t!("settings-cloud-sync-validating")),
+            SyncState::TokenValid { username } => Some(crate::t!(
+                "settings-cloud-sync-token-valid",
+                username = username.clone()
+            )),
+            SyncState::Syncing {
+                platform,
+                direction,
+            } => match direction {
+                SyncDirection::Upload => Some(crate::t!(
+                    "settings-cloud-sync-syncing-upload",
+                    platform = platform.label().to_string()
+                )),
+                SyncDirection::Download => Some(crate::t!(
+                    "settings-cloud-sync-syncing-download",
+                    platform = platform.label().to_string()
+                )),
+            },
             SyncState::Success {
                 platform,
                 direction,
                 version,
-            } => {
-                match direction {
-                    SyncDirection::Upload => Some(crate::t!("settings-cloud-sync-success-upload", platform = platform.label().to_string(), version = (*version).to_string())),
-                    SyncDirection::Download => Some(crate::t!("settings-cloud-sync-success-download", platform = platform.label().to_string(), version = (*version).to_string())),
-                }
-            }
-            SyncState::AlreadyUpToDate { version } => {
-                Some(crate::t!("settings-cloud-sync-already-up-to-date", version = (*version).to_string()))
-            }
-            SyncState::Failed { message } => {
-                Some(crate::t!("settings-cloud-sync-failed", error = message.clone()))
-            }
+            } => match direction {
+                SyncDirection::Upload => Some(crate::t!(
+                    "settings-cloud-sync-success-upload",
+                    platform = platform.label().to_string(),
+                    version = (*version).to_string()
+                )),
+                SyncDirection::Download => Some(crate::t!(
+                    "settings-cloud-sync-success-download",
+                    platform = platform.label().to_string(),
+                    version = (*version).to_string()
+                )),
+            },
+            SyncState::AlreadyUpToDate { version } => Some(crate::t!(
+                "settings-cloud-sync-already-up-to-date",
+                version = (*version).to_string()
+            )),
+            SyncState::Failed { message } => Some(crate::t!(
+                "settings-cloud-sync-failed",
+                error = message.clone()
+            )),
             SyncState::Conflict {
                 local_version,
                 remote_version,
@@ -1406,9 +1458,17 @@ impl SettingsWidget for CloudSyncPageWidget {
                 let local = *local_version;
                 let remote = *remote_version;
                 if local == remote {
-                    Some(crate::t!("settings-cloud-sync-conflict-status-equal", local = local.to_string(), remote = remote.to_string()))
+                    Some(crate::t!(
+                        "settings-cloud-sync-conflict-status-equal",
+                        local = local.to_string(),
+                        remote = remote.to_string()
+                    ))
                 } else {
-                    Some(crate::t!("settings-cloud-sync-conflict-status", local = local.to_string(), remote = remote.to_string()))
+                    Some(crate::t!(
+                        "settings-cloud-sync-conflict-status",
+                        local = local.to_string(),
+                        remote = remote.to_string()
+                    ))
                 }
             }
         };

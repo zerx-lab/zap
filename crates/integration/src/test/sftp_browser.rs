@@ -11,7 +11,10 @@ use warp::integration_testing::sftp;
 use warp::integration_testing::sftp::{ConnectionState, Dialog, SftpBrowserAction};
 use warp::integration_testing::terminal::wait_until_bootstrapped_single_pane_for_tab;
 use warp::integration_testing::view_getters::{pane_group_view, workspace_view};
-use warpui::{async_assert, async_assert_eq, integration::AssertionCallback, integration::StepDataMap, integration::TestStep, TypedActionView};
+use warpui::{
+    async_assert, async_assert_eq, integration::AssertionCallback, integration::StepDataMap,
+    integration::TestStep, TypedActionView,
+};
 
 use super::{new_builder, Builder};
 
@@ -94,17 +97,16 @@ pub fn test_sftp_pane_focus_and_keyboard() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify pane still exists")
-                .add_assertion(|app, window_id| {
-                    let pane_group = pane_group_view(app, window_id, 0);
-                    pane_group.read(app, |pane_group, _ctx| {
-                        async_assert_eq!(
-                            pane_group.pane_count(),
-                            2,
-                            "SFTP pane should still be visible"
-                        )
-                    })
-                }),
+            TestStep::new("Verify pane still exists").add_assertion(|app, window_id| {
+                let pane_group = pane_group_view(app, window_id, 0);
+                pane_group.read(app, |pane_group, _ctx| {
+                    async_assert_eq!(
+                        pane_group.pane_count(),
+                        2,
+                        "SFTP pane should still be visible"
+                    )
+                })
+            }),
         )
 }
 
@@ -122,17 +124,12 @@ pub fn test_sftp_pane_close() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_secs(2)),
         )
         .with_step(
-            TestStep::new("Verify 2 panes")
-                .add_assertion(|app, window_id| {
-                    let pane_group = pane_group_view(app, window_id, 0);
-                    pane_group.read(app, |pane_group, _ctx| {
-                        async_assert_eq!(
-                            pane_group.pane_count(),
-                            2,
-                            "Should have 2 panes"
-                        )
-                    })
-                }),
+            TestStep::new("Verify 2 panes").add_assertion(|app, window_id| {
+                let pane_group = pane_group_view(app, window_id, 0);
+                pane_group.read(app, |pane_group, _ctx| {
+                    async_assert_eq!(pane_group.pane_count(), 2, "Should have 2 panes")
+                })
+            }),
         )
         // 遍历所有可见面板，找到非 terminal 面板（即 SFTP）并关闭
         .with_step(
@@ -154,17 +151,16 @@ pub fn test_sftp_pane_close() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_secs(1)),
         )
         .with_step(
-            TestStep::new("Verify back to single pane")
-                .add_assertion(|app, window_id| {
-                    let pane_group = pane_group_view(app, window_id, 0);
-                    pane_group.read(app, |pane_group, _ctx| {
-                        async_assert_eq!(
-                            pane_group.visible_pane_count(),
-                            1,
-                            "Should have 1 visible pane after closing SFTP"
-                        )
-                    })
-                }),
+            TestStep::new("Verify back to single pane").add_assertion(|app, window_id| {
+                let pane_group = pane_group_view(app, window_id, 0);
+                pane_group.read(app, |pane_group, _ctx| {
+                    async_assert_eq!(
+                        pane_group.visible_pane_count(),
+                        1,
+                        "Should have 1 visible pane after closing SFTP"
+                    )
+                })
+            }),
         )
 }
 
@@ -193,16 +189,12 @@ pub fn test_sftp_pane_tab_switch() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify SFTP pane still visible")
-                .add_assertion(|app, window_id| {
-                    let pane_group = pane_group_view(app, window_id, 0);
-                    pane_group.read(app, |pane_group, _ctx| {
-                        async_assert!(
-                            pane_group.pane_count() >= 1,
-                            "Should have at least 1 pane"
-                        )
-                    })
-                }),
+            TestStep::new("Verify SFTP pane still visible").add_assertion(|app, window_id| {
+                let pane_group = pane_group_view(app, window_id, 0);
+                pane_group.read(app, |pane_group, _ctx| {
+                    async_assert!(pane_group.pane_count() >= 1, "Should have at least 1 pane")
+                })
+            }),
         )
 }
 
@@ -299,26 +291,21 @@ pub fn test_sftp_toolbar_refresh() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("file1.txt", b"content1"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("file1.txt", b"content1")]))
         .with_step(
             TestStep::new("Click refresh button")
                 .with_click_on_saved_position("sftp_btn:refresh")
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify entries still present after refresh")
-                .add_assertion(|app, window_id| {
+            TestStep::new("Verify entries still present after refresh").add_assertion(
+                |app, window_id| {
                     let view = sftp::sftp_browser_view(app, window_id);
                     view.read(app, |v, _| {
-                        async_assert_eq!(
-                            v.entries().len(),
-                            1,
-                            "刷新后条目应仍存在"
-                        )
+                        async_assert_eq!(v.entries().len(), 1, "刷新后条目应仍存在")
                     })
-                }),
+                },
+            ),
         )
 }
 
@@ -337,16 +324,15 @@ pub fn test_sftp_toolbar_new_folder() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify CreateFolder dialog is open")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            matches!(v.dialog(), Some(Dialog::CreateFolder { .. })),
-                            "应打开新建文件夹对话框"
-                        )
-                    })
-                }),
+            TestStep::new("Verify CreateFolder dialog is open").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(
+                        matches!(v.dialog(), Some(Dialog::CreateFolder { .. })),
+                        "应打开新建文件夹对话框"
+                    )
+                })
+            }),
         )
 }
 
@@ -365,8 +351,8 @@ pub fn test_sftp_toolbar_upload() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify view still stable after upload click")
-                .add_assertion(|app, window_id| {
+            TestStep::new("Verify view still stable after upload click").add_assertion(
+                |app, window_id| {
                     let view = sftp::sftp_browser_view(app, window_id);
                     view.read(app, |v, _| {
                         async_assert!(
@@ -374,7 +360,8 @@ pub fn test_sftp_toolbar_upload() -> Builder {
                             "点击上传后应仍为 Connected"
                         )
                     })
-                }),
+                },
+            ),
         )
 }
 
@@ -386,18 +373,19 @@ pub fn test_sftp_toolbar_up() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("subdir/file.txt", b"content"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("subdir/file.txt", b"content")]))
         // 进入子目录
         .with_step(
             TestStep::new("Enter subdirectory")
                 .with_action(|app, window_id, _| {
                     let view = sftp::sftp_browser_view(app, window_id);
                     view.update(app, |v, ctx| {
-                        v.handle_action(&SftpBrowserAction::OpenEntry(
-                            v.entries().iter().position(|e| e.name == "subdir").unwrap(),
-                        ), ctx);
+                        v.handle_action(
+                            &SftpBrowserAction::OpenEntry(
+                                v.entries().iter().position(|e| e.name == "subdir").unwrap(),
+                            ),
+                            ctx,
+                        );
                     });
                 })
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
@@ -409,16 +397,15 @@ pub fn test_sftp_toolbar_up() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify navigated back to root")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            v.entries().iter().any(|e| e.name == "subdir"),
-                            "回到上级后应看到 subdir 目录"
-                        )
-                    })
-                }),
+            TestStep::new("Verify navigated back to root").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(
+                        v.entries().iter().any(|e| e.name == "subdir"),
+                        "回到上级后应看到 subdir 目录"
+                    )
+                })
+            }),
         )
 }
 
@@ -440,16 +427,12 @@ pub fn test_sftp_click_file_row_selects() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(300)),
         )
         .with_step(
-            TestStep::new("Verify file is selected")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            v.selected().contains(&0),
-                            "第一个文件应被选中"
-                        )
-                    })
-                }),
+            TestStep::new("Verify file is selected").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(v.selected().contains(&0), "第一个文件应被选中")
+                })
+            }),
         )
 }
 
@@ -461,25 +444,19 @@ pub fn test_sftp_right_click_opens_menu() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("menu_file.txt", b"content"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("menu_file.txt", b"content")]))
         .with_step(
             TestStep::new("Right-click on file row")
                 .with_right_click_on_saved_position("sftp_row:0")
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify context menu is open")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            v.context_menu().is_some(),
-                            "右键菜单应已打开"
-                        )
-                    })
-                }),
+            TestStep::new("Verify context menu is open").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(v.context_menu().is_some(), "右键菜单应已打开")
+                })
+            }),
         )
 }
 
@@ -491,9 +468,7 @@ pub fn test_sftp_ctx_menu_delete() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("to_delete.txt", b"delete me"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("to_delete.txt", b"delete me")]))
         // 右键打开菜单
         .with_step(
             TestStep::new("Right-click on file")
@@ -508,16 +483,15 @@ pub fn test_sftp_ctx_menu_delete() -> Builder {
         )
         // 验证删除确认对话框
         .with_step(
-            TestStep::new("Verify delete confirm dialog")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            matches!(v.dialog(), Some(Dialog::DeleteConfirm { .. })),
-                            "应打开删除确认对话框"
-                        )
-                    })
-                }),
+            TestStep::new("Verify delete confirm dialog").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(
+                        matches!(v.dialog(), Some(Dialog::DeleteConfirm { .. })),
+                        "应打开删除确认对话框"
+                    )
+                })
+            }),
         )
         // 点击确认
         .with_step(
@@ -527,17 +501,12 @@ pub fn test_sftp_ctx_menu_delete() -> Builder {
         )
         // 验证条目已删除
         .with_step(
-            TestStep::new("Verify file deleted")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert_eq!(
-                            v.entries().len(),
-                            0,
-                            "删除后应无条目"
-                        )
-                    })
-                }),
+            TestStep::new("Verify file deleted").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert_eq!(v.entries().len(), 0, "删除后应无条目")
+                })
+            }),
         )
 }
 
@@ -549,9 +518,7 @@ pub fn test_sftp_ctx_menu_rename() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("old_name.txt", b"content"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("old_name.txt", b"content")]))
         .with_step(
             TestStep::new("Right-click on file")
                 .with_right_click_on_saved_position("sftp_row:0")
@@ -563,16 +530,15 @@ pub fn test_sftp_ctx_menu_rename() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify rename dialog is open")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            matches!(v.dialog(), Some(Dialog::Rename { .. })),
-                            "应打开重命名对话框"
-                        )
-                    })
-                }),
+            TestStep::new("Verify rename dialog is open").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(
+                        matches!(v.dialog(), Some(Dialog::Rename { .. })),
+                        "应打开重命名对话框"
+                    )
+                })
+            }),
         )
 }
 
@@ -584,9 +550,7 @@ pub fn test_sftp_breadcrumb_root_click() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("subdir/file.txt", b"content"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("subdir/file.txt", b"content")]))
         // 进入子目录
         .with_step(
             TestStep::new("Enter subdirectory")
@@ -605,22 +569,24 @@ pub fn test_sftp_breadcrumb_root_click() -> Builder {
                 .with_action(|app, window_id, _| {
                     let view = sftp::sftp_browser_view(app, window_id);
                     view.update(app, |v, ctx| {
-                        v.handle_action(&SftpBrowserAction::NavigateTo(std::path::PathBuf::from("/")), ctx);
+                        v.handle_action(
+                            &SftpBrowserAction::NavigateTo(std::path::PathBuf::from("/")),
+                            ctx,
+                        );
                     });
                 })
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify navigated to root")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            v.entries().iter().any(|e| e.name == "subdir"),
-                            "回到根目录后应看到 subdir"
-                        )
-                    })
-                }),
+            TestStep::new("Verify navigated to root").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(
+                        v.entries().iter().any(|e| e.name == "subdir"),
+                        "回到根目录后应看到 subdir"
+                    )
+                })
+            }),
         )
 }
 
@@ -632,9 +598,7 @@ pub fn test_sftp_keyboard_backspace_up() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("subdir/file.txt", b"x"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("subdir/file.txt", b"x")]))
         // 进入子目录
         .with_step(
             TestStep::new("Enter subdirectory")
@@ -654,16 +618,15 @@ pub fn test_sftp_keyboard_backspace_up() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify back at root")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            v.entries().iter().any(|e| e.name == "subdir"),
-                            "Backspace 后应回到上级看到 subdir"
-                        )
-                    })
-                }),
+            TestStep::new("Verify back at root").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(
+                        v.entries().iter().any(|e| e.name == "subdir"),
+                        "Backspace 后应回到上级看到 subdir"
+                    )
+                })
+            }),
         )
 }
 
@@ -675,9 +638,7 @@ pub fn test_sftp_keyboard_delete() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("del_target.txt", b"x"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("del_target.txt", b"x")]))
         // 选中第一个条目
         .with_step(
             TestStep::new("Select first entry")
@@ -696,16 +657,15 @@ pub fn test_sftp_keyboard_delete() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify delete confirm dialog")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            matches!(v.dialog(), Some(Dialog::DeleteConfirm { .. })),
-                            "Delete 键应触发删除确认对话框"
-                        )
-                    })
-                }),
+            TestStep::new("Verify delete confirm dialog").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(
+                        matches!(v.dialog(), Some(Dialog::DeleteConfirm { .. })),
+                        "Delete 键应触发删除确认对话框"
+                    )
+                })
+            }),
         )
 }
 
@@ -717,9 +677,7 @@ pub fn test_sftp_keyboard_escape_close_dialog() -> Builder {
             false.to_string(),
         )]))
         .with_step(wait_until_bootstrapped_single_pane_for_tab(0))
-        .with_step(open_sftp_with_mock_step(&[
-            ("file.txt", b"x"),
-        ]))
+        .with_step(open_sftp_with_mock_step(&[("file.txt", b"x")]))
         // 打开新建文件夹对话框
         .with_step(
             TestStep::new("Open new folder dialog")
@@ -732,13 +690,12 @@ pub fn test_sftp_keyboard_escape_close_dialog() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(300)),
         )
         .with_step(
-            TestStep::new("Verify dialog open")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(v.dialog().is_some(), "对话框应已打开")
-                    })
-                }),
+            TestStep::new("Verify dialog open").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(v.dialog().is_some(), "对话框应已打开")
+                })
+            }),
         )
         // 按 Escape 关闭
         .with_step(
@@ -747,15 +704,11 @@ pub fn test_sftp_keyboard_escape_close_dialog() -> Builder {
                 .set_post_step_pause(std::time::Duration::from_millis(500)),
         )
         .with_step(
-            TestStep::new("Verify dialog closed")
-                .add_assertion(|app, window_id| {
-                    let view = sftp::sftp_browser_view(app, window_id);
-                    view.read(app, |v, _| {
-                        async_assert!(
-                            v.dialog().is_none(),
-                            "Escape 后对话框应关闭"
-                        )
-                    })
-                }),
+            TestStep::new("Verify dialog closed").add_assertion(|app, window_id| {
+                let view = sftp::sftp_browser_view(app, window_id);
+                view.read(app, |v, _| {
+                    async_assert!(v.dialog().is_none(), "Escape 后对话框应关闭")
+                })
+            }),
         )
 }

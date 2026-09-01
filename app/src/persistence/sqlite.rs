@@ -41,16 +41,17 @@ use super::block_list::{
 };
 use super::model::{
     self, ActiveMCPServer, CurrentUserInformation, MCPEnvironmentVariables, NewActiveMCPServer,
-    NewApp, NewCommand, NewFolder, NewNotebook, NewServerExperiment, NewTab, NewTeam, NewWindow,
-    NewWorkspace, NewWorkspaceTeam, ObjectMetadata, ObjectPermissions, Project, Tab, Window,
+    NewApp, NewCommand, NewFolder, NewNotebook, NewRepositoryWorkspaceWindowState,
+    NewServerExperiment, NewTab, NewTeam, NewWindow, NewWorkspace, NewWorkspaceTeam,
+    ObjectMetadata, ObjectPermissions, Repository, RepositoryWorkspace, Tab, Window,
     AI_DOCUMENT_PANE_KIND, AI_FACT_PANE_KIND, CODE_PANE_KIND, ENV_VAR_COLLECTION_PANE_KIND,
     EXECUTION_PROFILE_EDITOR_PANE_KIND, MCP_SERVER_PANE_KIND, NOTEBOOK_PANE_KIND,
     SETTINGS_PANE_KIND, TERMINAL_PANE_KIND, WELCOME_PANE_KIND, WORKFLOW_PANE_KIND,
 };
 use super::schema;
 use super::{
-    BlockCompleted, FinishedCommandMetadata, ModelEvent, PersistedData, StartedCommandMetadata,
-    WriterHandles,
+    BlockCompleted, FinishedCommandMetadata, ModelEvent, PersistedData, RepositoryPersistenceError,
+    RepositoryPersistenceOperation, StartedCommandMetadata, WriterHandles,
 };
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -64,8 +65,8 @@ use crate::ai::mcp::{
 };
 use crate::app_state::{
     AIFactPaneSnapshot, AmbientAgentPaneSnapshot, CodeReviewPaneSnapshot,
-    EnvVarCollectionPaneSnapshot, LeftPanelSnapshot, RightPanelSnapshot, SettingsPaneSnapshot,
-    WorkflowPaneSnapshot,
+    EnvVarCollectionPaneSnapshot, LeftPanelSnapshot, RepositoryWorkspaceWindowStateSnapshot,
+    RightPanelSnapshot, SettingsPaneSnapshot, WorkflowPaneSnapshot,
 };
 use crate::auth::AuthStateProvider;
 use crate::auth::PersistedCurrentUserInformation;
@@ -88,6 +89,7 @@ use crate::persistence::model::{
     NewGenericStringObject, NewObjectStoreRefresh, NewPersistedObjectAction, NewTeamSettings,
     ProjectRules, UserProfile, CODE_REVIEW_PANE_KIND, GET_STARTED_PANE_KIND,
 };
+use crate::project_organization::domain::RepositoryWorkspaceId;
 use crate::server::experiments::ServerExperiment;
 use crate::server::ids::{ClientId, HashableId, ServerId, SyncId, ToServerId};
 use crate::server::telemetry::TelemetryEvent;
@@ -683,13 +685,27 @@ fn reconstruct_database(path: &Path) -> Result<SqliteConnection> {
     setup_database(path)
 }
 
+#[derive(Clone, Copy)]
+enum WriterState {
+    Running,
+    Paused,
+}
+
 fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<WriterHandles> {
+    start_writer_with_state(conn, database_path, WriterState::Running)
+}
+
+fn start_writer_with_state(
+    conn: SqliteConnection,
+    database_path: PathBuf,
+    initial_state: WriterState,
+) -> Result<WriterHandles> {
     let (tx, rx) = std::sync::mpsc::sync_channel(CHANNEL_SIZE);
     let mut current_conn = conn;
     let handle = thread::Builder::new()
         .name("SQLite Writer".into())
         .spawn(move || {
-            let mut paused = false;
+            let mut state = initial_state;
             loop {
                 let events = match rx.recv() {
                     Ok(event) => {
@@ -714,7 +730,7 @@ fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<Writer
                             match reconstruct_database(&database_path) {
                                 Ok(conn) => {
                                     current_conn = conn;
-                                    paused = false;
+                                    state = WriterState::Running;
                                     log::info!("SQLite Writer is resumed");
                                 }
                                 Err(err) => {
@@ -723,7 +739,7 @@ fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<Writer
                             }
                         }
                         ModelEvent::PauseAndRemoveDatabase => {
-                            paused = true;
+                            state = WriterState::Paused;
                             log::info!("SQLite Writer is paused");
 
                             if let Err(err) = std::fs::remove_file(&database_path) {
@@ -744,10 +760,29 @@ fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<Writer
                             log::info!("Shutting down SQLite writer thread");
                             return;
                         }
+                        ModelEvent::RepositoryPersistence(request) => {
+                            let result = match state {
+                                WriterState::Running => execute_repository_persistence_operation(
+                                    request.operation,
+                                    &mut current_conn,
+                                    &database_path,
+                                    report_db_error,
+                                ),
+                                WriterState::Paused => Err(RepositoryPersistenceError::Paused),
+                            };
+                            if request.response.send(result).is_err() {
+                                log::error!(
+                                    "Repository persistence requester disconnected before acknowledgement"
+                                );
+                            }
+                        }
                         event => {
-                            if paused {
-                                log::info!("Ignoring event as SQLite Writer is on pause");
-                                continue;
+                            match state {
+                                WriterState::Running => {}
+                                WriterState::Paused => {
+                                    log::info!("Ignoring event as SQLite Writer is on pause");
+                                    continue;
+                                }
                             }
                             if let Err(err) = handle_model_event(event, &mut current_conn) {
                                 report_db_error("Model", err, &database_path);
@@ -764,11 +799,13 @@ fn start_writer(conn: SqliteConnection, database_path: PathBuf) -> Result<Writer
 /// Events which affect the SQLite writer event loop _must_ instead be handled by the event loop itself:
 /// * [`ModelEvent::PauseAndRemoveDatabase`]
 /// * [`ModelEvent::ReconstructAndResume`]
+/// * [`ModelEvent::RepositoryPersistence`]
 /// * [`ModelEvent::Terminate`]
 fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> anyhow::Result<()> {
     match event {
         ModelEvent::PauseAndRemoveDatabase
         | ModelEvent::ReconstructAndResume
+        | ModelEvent::RepositoryPersistence(_)
         | ModelEvent::Terminate => {
             panic!("Unhandled control-flow event {event:?}");
         }
@@ -816,12 +853,6 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
         }
         ModelEvent::DeleteObjects { ids } => {
             delete_objects(connection, ids).context("error deleting objects")
-        }
-        ModelEvent::UpsertProject { project } => {
-            save_project(connection, project).context("error upserting project")
-        }
-        ModelEvent::DeleteProject { path } => {
-            delete_project(connection, &path).context("error deleting project")
         }
         ModelEvent::UpsertWorkspace { workspace } => {
             save_workspace(connection, *workspace).context("error upserting workspace")
@@ -942,6 +973,53 @@ fn handle_model_event(event: ModelEvent, connection: &mut SqliteConnection) -> a
             title,
         } => save_ai_document_content(connection, &document_id, &content, version, &title)
             .context("error saving AI document content"),
+    }
+}
+
+fn handle_repository_persistence_operation(
+    operation: RepositoryPersistenceOperation,
+    connection: &mut SqliteConnection,
+) -> anyhow::Result<()> {
+    match operation {
+        RepositoryPersistenceOperation::UpsertRepository { repository } => {
+            save_repository(connection, repository).context("error upserting repository")
+        }
+        RepositoryPersistenceOperation::UpsertRepositoryWithWorkspace {
+            repository,
+            workspace,
+        } => connection.immediate_transaction(|connection| {
+            save_repository(connection, repository).context("error upserting repository")?;
+            save_repository_workspace(connection, workspace)
+                .context("error upserting repository workspace")?;
+            Ok(())
+        }),
+        RepositoryPersistenceOperation::DeleteRepository { repository_id } => {
+            delete_repository(connection, &repository_id).context("error deleting repository")
+        }
+        RepositoryPersistenceOperation::UpsertRepositoryWorkspace { workspace } => {
+            save_repository_workspace(connection, workspace)
+                .context("error upserting repository workspace")
+        }
+        RepositoryPersistenceOperation::DeleteRepositoryWorkspace { workspace_id } => {
+            delete_repository_workspace(connection, &workspace_id)
+                .context("error deleting repository workspace")
+        }
+    }
+}
+
+fn execute_repository_persistence_operation(
+    operation: RepositoryPersistenceOperation,
+    connection: &mut SqliteConnection,
+    database_path: &Path,
+    report_error: impl FnOnce(&str, anyhow::Error, &Path),
+) -> Result<(), RepositoryPersistenceError> {
+    match handle_repository_persistence_operation(operation, connection) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let details = format!("{error:#}");
+            report_error("Repository persistence", error, database_path);
+            Err(RepositoryPersistenceError::Database { details })
+        }
     }
 }
 
@@ -1086,6 +1164,9 @@ fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<(
                     .theme_override
                     .as_ref()
                     .and_then(|k| serde_json::to_string(k).ok()),
+                active_repository_workspace_id: window
+                    .active_repository_workspace_id
+                    .map(|id| id.to_string()),
             };
             diesel::insert_into(schema::windows::dsl::windows)
                 .values(new_window)
@@ -1119,12 +1200,32 @@ fn save_app_state(conn: &mut SqliteConnection, app_state: &AppState) -> Result<(
                         SelectedTabColor::Unset => None,
                         _ => serde_yaml::to_string(&tab.selected_color).ok(),
                     },
+                    repository_workspace_id: tab
+                        .repository_workspace_id
+                        .map(|id| id.to_string()),
                 })
                 .collect();
 
-            diesel::insert_into(schema::tabs::dsl::tabs)
-                .values(tabs)
-                .execute(conn)?;
+            if !tabs.is_empty() {
+                diesel::insert_into(schema::tabs::dsl::tabs)
+                    .values(tabs)
+                    .execute(conn)?;
+            }
+
+            let workspace_window_states = window
+                .repository_workspace_states
+                .iter()
+                .map(|state| NewRepositoryWorkspaceWindowState {
+                    window_id,
+                    repository_workspace_id: state.repository_workspace_id.to_string(),
+                    active_tab_index: state.active_tab_index.try_into().unwrap_or(0),
+                })
+                .collect::<Vec<_>>();
+            if !workspace_window_states.is_empty() {
+                diesel::insert_into(schema::repository_workspace_window_states::dsl::repository_workspace_window_states)
+                    .values(workspace_window_states)
+                    .execute(conn)?;
+            }
 
             // Same ID issue as above.
             let tab_ids: Vec<i32> = schema::tabs::dsl::tabs
@@ -1349,6 +1450,10 @@ fn save_pane_state(
                 active_conversation_id: terminal_snapshot
                     .active_conversation_id
                     .map(|id| id.to_string()),
+                cli_agent_resume: terminal_snapshot
+                    .cli_agent_resume
+                    .as_ref()
+                    .and_then(|resume| serde_json::to_string(resume).ok()),
             };
 
             diesel::insert_into(schema::terminal_panes::dsl::terminal_panes)
@@ -1604,32 +1709,93 @@ fn decode_path(bytes: Vec<u8>) -> PathBuf {
     }
 }
 
-fn save_project(conn: &mut SqliteConnection, project: Project) -> Result<()> {
-    use schema::projects::dsl::*;
+fn save_repository(
+    conn: &mut SqliteConnection,
+    repository: Repository,
+) -> Result<(), diesel::result::Error> {
+    use schema::repositories::dsl::*;
 
-    diesel::insert_into(projects)
-        .values(project.clone())
-        .on_conflict(path)
+    diesel::insert_into(repositories)
+        .values(repository.clone())
+        .on_conflict(id)
         .do_update()
-        .set(&project)
+        .set(&repository)
         .execute(conn)?;
 
     Ok(())
 }
 
-fn get_all_projects(conn: &mut SqliteConnection) -> Result<Vec<Project>, diesel::result::Error> {
-    use schema::projects::dsl::*;
+fn get_all_repositories(
+    conn: &mut SqliteConnection,
+) -> Result<Vec<Repository>, diesel::result::Error> {
+    use schema::repositories::dsl::*;
 
-    Ok(projects
-        .load_iter::<Project, DefaultLoadingMode>(conn)?
-        .filter_map(|item| item.ok())
-        .collect_vec())
+    let mut repository_rows = repositories.load::<Repository>(conn)?;
+    for repository in &mut repository_rows {
+        if repository.display_name != repository.path {
+            continue;
+        }
+
+        let normalized_display_name = Path::new(&repository.path)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .filter(|name| !name.is_empty())
+            .ok_or_else(|| {
+                Error::DeserializationError(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "Failed to normalize migrated repository display name: path `{}` has no valid UTF-8 file name",
+                        repository.path
+                    ),
+                )))
+            })?
+            .to_string();
+        repository.display_name = normalized_display_name;
+        save_repository(conn, repository.clone())?;
+    }
+
+    Ok(repository_rows)
 }
 
-fn delete_project(conn: &mut SqliteConnection, project_path: &str) -> Result<()> {
-    use schema::projects::dsl::*;
+fn delete_repository(conn: &mut SqliteConnection, repository_id: &str) -> Result<()> {
+    use schema::repositories::dsl::*;
 
-    diesel::delete(projects.filter(path.eq(project_path))).execute(conn)?;
+    diesel::delete(repositories.filter(id.eq(repository_id))).execute(conn)?;
+
+    Ok(())
+}
+
+fn save_repository_workspace(
+    conn: &mut SqliteConnection,
+    repository_workspace: RepositoryWorkspace,
+) -> Result<()> {
+    use schema::repository_workspaces::dsl::*;
+
+    diesel::insert_into(repository_workspaces)
+        .values(repository_workspace.clone())
+        .on_conflict(id)
+        .do_update()
+        .set(&repository_workspace)
+        .execute(conn)?;
+
+    Ok(())
+}
+
+fn get_all_repository_workspaces(
+    conn: &mut SqliteConnection,
+) -> Result<Vec<RepositoryWorkspace>, diesel::result::Error> {
+    use schema::repository_workspaces::dsl::*;
+
+    repository_workspaces.load::<RepositoryWorkspace>(conn)
+}
+
+fn delete_repository_workspace(
+    conn: &mut SqliteConnection,
+    repository_workspace_id: &str,
+) -> Result<()> {
+    use schema::repository_workspaces::dsl::*;
+
+    diesel::delete(repository_workspaces.filter(id.eq(repository_workspace_id))).execute(conn)?;
 
     Ok(())
 }
@@ -1741,7 +1907,9 @@ fn get_all_mcp_server_installations(
 
     let improper_rows = rows_len - result.len();
     if improper_rows > 0 {
-        log::warn!("Skipping {improper_rows} rows from mcp_server_installations table due to malformation.");
+        log::warn!(
+            "Skipping {improper_rows} rows from mcp_server_installations table due to malformation."
+        );
     }
 
     Ok(result)
@@ -2466,6 +2634,10 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         .active_conversation_id
                         .and_then(|id_str| AIConversationId::try_from(id_str).ok());
 
+                    let cli_agent_resume = terminal_pane
+                        .cli_agent_resume
+                        .and_then(|resume_str| serde_json::from_str(&resume_str).ok());
+
                     LeafContents::Terminal(TerminalPaneSnapshot {
                         uuid: terminal_pane.uuid,
                         cwd: terminal_pane.cwd,
@@ -2477,6 +2649,7 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
                         active_profile_id,
                         conversation_ids_to_restore,
                         active_conversation_id,
+                        cli_agent_resume,
                     })
                 }
                 NOTEBOOK_PANE_KIND => {
@@ -2704,6 +2877,12 @@ fn read_node(conn: &mut SqliteConnection, node: model::PaneNode) -> Result<PaneN
 /// happen is the user won't have session restoration.
 ///
 /// In the future, the awkwardness of the transaction interface is resolved in diesel 2.0.0.
+fn parse_repository_workspace_id(value: &str) -> std::result::Result<RepositoryWorkspaceId, Error> {
+    value
+        .parse::<RepositoryWorkspaceId>()
+        .map_err(|error| Error::DeserializationError(Box::new(error)))
+}
+
 fn read_sqlite_data(
     conn: &mut SqliteConnection,
     current_user_id: Option<UserUid>,
@@ -2724,6 +2903,54 @@ fn read_sqlite_data(
         .load::<Tab>(conn)?
         .grouped_by(&db_windows);
 
+    let mut workspace_window_states_by_window = HashMap::new();
+    for (window_id, workspace_id, workspace_active_tab_index) in
+        schema::repository_workspace_window_states::dsl::repository_workspace_window_states
+            .select((
+                schema::repository_workspace_window_states::columns::window_id,
+                schema::repository_workspace_window_states::columns::repository_workspace_id,
+                schema::repository_workspace_window_states::columns::active_tab_index,
+            ))
+            .load::<(i32, String, i32)>(conn)?
+    {
+        let repository_workspace_id = parse_repository_workspace_id(&workspace_id)?;
+        let workspace_tab_index = workspace_active_tab_index
+            .try_into()
+            .map_err(|error| Error::DeserializationError(Box::new(error)))?;
+        workspace_window_states_by_window
+            .entry(window_id)
+            .or_insert_with(Vec::new)
+            .push(RepositoryWorkspaceWindowStateSnapshot {
+                repository_workspace_id,
+                active_tab_index: workspace_tab_index,
+            });
+    }
+
+    let tab_workspace_ids = db_tabs
+        .iter()
+        .map(|tabs_for_window| {
+            tabs_for_window
+                .iter()
+                .map(|tab| {
+                    tab.repository_workspace_id
+                        .as_deref()
+                        .map(parse_repository_workspace_id)
+                        .transpose()
+                })
+                .collect::<std::result::Result<Vec<_>, Error>>()
+        })
+        .collect::<std::result::Result<Vec<_>, Error>>()?;
+    let active_workspace_ids = db_windows
+        .iter()
+        .map(|window| {
+            window
+                .active_repository_workspace_id
+                .as_deref()
+                .map(parse_repository_workspace_id)
+                .transpose()
+        })
+        .collect::<std::result::Result<Vec<_>, Error>>()?;
+
     let db_panels = schema::panels::dsl::panels
         .load::<model::Panel>(conn)?
         .into_iter()
@@ -2735,9 +2962,12 @@ fn read_sqlite_data(
         .enumerate()
         .zip(db_tabs)
         .map(|((idx, window), tabs_for_window)| {
+            let tab_workspace_ids = &tab_workspace_ids[idx];
+            let active_workspace_id = active_workspace_ids[idx];
             let saved_tabs: Vec<_> = tabs_for_window
                 .into_iter()
-                .filter_map(|tab| {
+                .zip(tab_workspace_ids.iter().copied())
+                .filter_map(|(tab, repository_workspace_id)| {
                     let root = read_root_node(conn, tab.id).ok()?;
                     let panel = db_panels.get(&tab.id);
 
@@ -2750,6 +2980,7 @@ fn read_sqlite_data(
                         .and_then(|s| serde_json::from_str::<RightPanelSnapshot>(s).ok());
 
                     Some(TabSnapshot {
+                        repository_workspace_id,
                         root,
                         custom_title: tab.custom_title,
                         default_directory_color: None,
@@ -2840,6 +3071,10 @@ fn read_sqlite_data(
             WindowSnapshot {
                 tabs: saved_tabs,
                 active_tab_index: tab_index,
+                active_repository_workspace_id: active_workspace_id,
+                repository_workspace_states: workspace_window_states_by_window
+                    .remove(&window.id)
+                    .unwrap_or_default(),
                 quake_mode: window.quake_mode,
                 bounds,
                 universal_search_width: window.universal_search_width,
@@ -3253,7 +3488,8 @@ fn read_sqlite_data(
     let ai_queries = read_ai_queries(conn)?;
 
     let multi_agent_conversations = read_agent_conversations(conn)?;
-    let projects = get_all_projects(conn)?;
+    let repositories = get_all_repositories(conn)?;
+    let repository_workspaces = get_all_repository_workspaces(conn)?;
     let project_rules = get_all_project_rules(conn)?;
     let ignored_suggestions = get_all_ignored_suggestions(conn)?;
     let mcp_server_installations = get_all_mcp_server_installations(conn)?;
@@ -3271,7 +3507,8 @@ fn read_sqlite_data(
         experiments: server_experiments,
         ai_queries,
         multi_agent_conversations,
-        projects,
+        repositories,
+        repository_workspaces,
         project_rules,
         ignored_suggestions,
         mcp_server_installations,

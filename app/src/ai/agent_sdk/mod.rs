@@ -177,9 +177,7 @@ fn run_agent(
             Ok(())
         }
         AgentCommand::Profile(sub) => profiles::run(ctx, global_options, sub),
-        AgentCommand::List(_) => Err(anyhow::anyhow!(
-            "Agent skill listing is disabled in Zap"
-        )),
+        AgentCommand::List(_) => Err(anyhow::anyhow!("Agent skill listing is disabled in Zap")),
     }
 }
 

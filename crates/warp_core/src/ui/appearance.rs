@@ -371,7 +371,10 @@ impl Appearance {
             return &self.ui_builder;
         }
         match current_render_window() {
-            Some(w) => self.ui_builder_overrides.get(&w).unwrap_or(&self.ui_builder),
+            Some(w) => self
+                .ui_builder_overrides
+                .get(&w)
+                .unwrap_or(&self.ui_builder),
             None => &self.ui_builder,
         }
     }

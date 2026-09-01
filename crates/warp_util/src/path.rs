@@ -471,11 +471,7 @@ pub fn convert_wsl_to_windows_host_path(
         _ => {
             let mut windows_path = TypedPathBuf::new(PathType::Windows);
             windows_path.push(format!(r"\\WSL$\{distro_name}"));
-            for component in unix_path
-                .with_windows_encoding()
-                .components()
-                .skip(1)
-            {
+            for component in unix_path.with_windows_encoding().components().skip(1) {
                 windows_path.push(component.as_bytes());
             }
             windows_path

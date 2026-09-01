@@ -333,10 +333,34 @@ diesel::table! {
 }
 
 diesel::table! {
-    projects (path) {
+    repositories (id) {
+        id -> Text,
+        display_name -> Text,
         path -> Text,
-        added_ts -> Timestamp,
-        last_opened_ts -> Nullable<Timestamp>,
+        remote_url -> Nullable<Text>,
+        source -> Text,
+        created_at -> Timestamp,
+        last_opened_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    repository_workspace_window_states (window_id, repository_workspace_id) {
+        window_id -> Integer,
+        repository_workspace_id -> Text,
+        active_tab_index -> Integer,
+    }
+}
+
+diesel::table! {
+    repository_workspaces (id) {
+        id -> Text,
+        repository_id -> Text,
+        display_name -> Text,
+        branch -> Text,
+        worktree_path -> Text,
+        created_at -> Timestamp,
+        last_opened_at -> Timestamp,
     }
 }
 
@@ -400,6 +424,7 @@ diesel::table! {
         window_id -> Integer,
         custom_title -> Nullable<Text>,
         color -> Nullable<Text>,
+        repository_workspace_id -> Nullable<Text>,
     }
 }
 
@@ -443,6 +468,7 @@ diesel::table! {
         active_profile_id -> Nullable<Text>,
         conversation_ids -> Nullable<Text>,
         active_conversation_id -> Nullable<Text>,
+        cli_agent_resume -> Nullable<Text>,
     }
 }
 
@@ -488,6 +514,7 @@ diesel::table! {
         left_panel_open -> Nullable<Bool>,
         vertical_tabs_panel_open -> Nullable<Bool>,
         theme_override -> Nullable<Text>,
+        active_repository_workspace_id -> Nullable<Text>,
     }
 }
 
@@ -538,11 +565,16 @@ diesel::joinable!(pane_branches -> pane_nodes (pane_node_id));
 diesel::joinable!(pane_leaves -> pane_nodes (pane_node_id));
 diesel::joinable!(pane_nodes -> tabs (tab_id));
 diesel::joinable!(panels -> tabs (tab_id));
+diesel::joinable!(repository_workspace_window_states -> repository_workspaces (repository_workspace_id));
+diesel::joinable!(repository_workspace_window_states -> windows (window_id));
+diesel::joinable!(repository_workspaces -> repositories (repository_id));
 diesel::joinable!(ssh_servers -> ssh_onekey_credentials (credential_id));
 diesel::joinable!(ssh_servers -> ssh_nodes (node_id));
+diesel::joinable!(tabs -> repository_workspaces (repository_workspace_id));
 diesel::joinable!(tabs -> windows (window_id));
 diesel::joinable!(team_members -> teams (team_id));
 diesel::joinable!(team_settings -> teams (team_id));
+diesel::joinable!(windows -> repository_workspaces (active_repository_workspace_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     ambient_agent_panes,
@@ -551,6 +583,9 @@ diesel::allow_tables_to_appear_in_same_query!(
     pane_leaves,
     pane_nodes,
     panels,
+    repositories,
+    repository_workspace_window_states,
+    repository_workspaces,
     tabs,
     windows,
 );

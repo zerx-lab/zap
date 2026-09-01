@@ -911,8 +911,7 @@ impl AgentSlide {
         );
 
         let step_index = 2;
-        let step_count = if warp_core::features::FeatureFlag::ZapNewSettingsModes.is_enabled()
-        {
+        let step_count = if warp_core::features::FeatureFlag::ZapNewSettingsModes.is_enabled() {
             5
         } else {
             4

@@ -26,7 +26,6 @@ use crate::ui_components::icons::Icon;
 use crate::view_components::action_button::{ActionButton, ButtonSize};
 use warp_editor::editor::NavigationKey;
 
-
 const MENU_HORIZONTAL_PADDING: f32 = 16.;
 
 const ITEM_VERTICAL_PADDING: f32 = 4.;

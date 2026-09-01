@@ -1,6 +1,5 @@
 use super::dropdown::{
-    DropdownAction, DropdownItem, MenuHeaderTextFormatter, DROPDOWN_PADDING,
-    TOP_MENU_BAR_MAX_WIDTH,
+    DropdownAction, DropdownItem, MenuHeaderTextFormatter, DROPDOWN_PADDING, TOP_MENU_BAR_MAX_WIDTH,
 };
 use crate::{
     appearance::Appearance,

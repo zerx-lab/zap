@@ -21,31 +21,29 @@ use warp_util::standardized_path::StandardizedPath;
 use warpui::clipboard::ClipboardContent;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, CornerRadius,
-    CrossAxisAlignment,
-    DispatchEventResult, Dismiss, Element, Empty, EventHandler, Flex, Hoverable, MainAxisAlignment,
-    MainAxisSize,
-    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
-    SavePosition, ScrollStateHandle, Scrollable, ScrollableElement, ScrollbarWidth, Shrinkable,
-    Stack, Text, UniformList, UniformListState,
+    CrossAxisAlignment, Dismiss, DispatchEventResult, Element, Empty, EventHandler, Flex,
+    Hoverable, MainAxisAlignment, MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor,
+    ParentElement, ParentOffsetBounds, Radius, SavePosition, ScrollStateHandle, Scrollable,
+    ScrollableElement, ScrollbarWidth, Shrinkable, Stack, Text, UniformList, UniformListState,
 };
 use warpui::modals::{AlertDialogWithCallbacks, ModalButton};
 use warpui::platform::{Cursor, FilePickerConfiguration, SaveFilePickerConfiguration};
-use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::r#async::{SpawnedFutureHandle, Timer};
+use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, BlurContext, Entity, FocusContext, SingletonEntity, TypedActionView, View,
     ViewContext, ViewHandle, WeakViewHandle,
 };
 
+use crate::appearance::Appearance;
 use crate::code::buffer_location::RemotePath;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys,
     PropagateHorizontalNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
-use crate::appearance::Appearance;
 use crate::menu::{
-    Event as MenuEvent, Menu, MenuItem, MenuItemFields, SubMenu, DEFAULT_WIDTH as MENU_DEFAULT_WIDTH,
-    MENU_ITEM_VERTICAL_PADDING, SUBMENU_OVERLAP,
+    Event as MenuEvent, Menu, MenuItem, MenuItemFields, SubMenu,
+    DEFAULT_WIDTH as MENU_DEFAULT_WIDTH, MENU_ITEM_VERTICAL_PADDING, SUBMENU_OVERLAP,
 };
 use crate::remote_server::manager::RemoteServerManager;
 use crate::terminal::model::session::{ExecuteCommandOptions, Session};
@@ -81,10 +79,7 @@ pub enum ServerFileBrowserAction {
     ExpandSelectedItem,
     CollapseSelectedItem,
     ExecuteSelectedItem,
-    OpenContextMenu {
-        index: usize,
-        position: Vector2F,
-    },
+    OpenContextMenu { index: usize, position: Vector2F },
     DismissContextMenu,
     CopyPath(String),
     CopyName(String),
@@ -371,8 +366,7 @@ impl ServerFileBrowserView {
         path: String,
         ctx: &mut ViewContext<Self>,
     ) {
-        let should_load =
-            self.host_id.as_ref() != Some(&host_id) || self.current_path != path;
+        let should_load = self.host_id.as_ref() != Some(&host_id) || self.current_path != path;
         self.host_id = Some(host_id);
         if should_load {
             self.current_path = path;
@@ -396,10 +390,8 @@ impl ServerFileBrowserView {
         };
         let session_id_changed = self.session_id != session_id;
         let host_changed = self.host_id.as_ref() != Some(&host_id);
-        let should_load = host_changed
-            || self.current_path != path
-            || session_changed
-            || session_id_changed;
+        let should_load =
+            host_changed || self.current_path != path || session_changed || session_id_changed;
         // host 或 session 切换时,旧的进度轮询已与新连接无关,先停掉避免
         // 多余的 timer 回调。若后续加载中产生新的 upload/download 任务,
         // `schedule_progress_poll` 会被重新启动。
@@ -446,7 +438,12 @@ impl ServerFileBrowserView {
     }
 
     fn jump_to_editor_path(&mut self, ctx: &mut ViewContext<Self>) {
-        let path = self.path_editor.as_ref(ctx).buffer_text(ctx).trim().to_string();
+        let path = self
+            .path_editor
+            .as_ref(ctx)
+            .buffer_text(ctx)
+            .trim()
+            .to_string();
         if path.is_empty() {
             return;
         }
@@ -455,7 +452,9 @@ impl ServerFileBrowserView {
 
     fn client(&self, ctx: &AppContext) -> Option<Arc<RemoteServerClient>> {
         let host_id = self.host_id.as_ref()?;
-        RemoteServerManager::as_ref(ctx).client_for_host(host_id).cloned()
+        RemoteServerManager::as_ref(ctx)
+            .client_for_host(host_id)
+            .cloned()
     }
 
     fn remote_session_id(&self, ctx: &AppContext) -> Option<SessionId> {
@@ -491,7 +490,10 @@ impl ServerFileBrowserView {
             return;
         }
         self.loading = false;
-        self.status = Some(crate::t!("server-file-browser-operation-failed", error = error));
+        self.status = Some(crate::t!(
+            "server-file-browser-operation-failed",
+            error = error
+        ));
         ctx.notify();
     }
 
@@ -744,11 +746,16 @@ impl ServerFileBrowserView {
     }
 
     fn sync_row_states(&mut self) {
-        let active_paths: HashSet<String> = self.entries.iter().map(|entry| entry.path.clone()).collect();
+        let active_paths: HashSet<String> = self
+            .entries
+            .iter()
+            .map(|entry| entry.path.clone())
+            .collect();
         for path in &active_paths {
             self.row_states.entry(path.clone()).or_default();
         }
-        self.row_states.retain(|path, _| active_paths.contains(path));
+        self.row_states
+            .retain(|path, _| active_paths.contains(path));
     }
 
     fn toggle_directory(&mut self, path: String, ctx: &mut ViewContext<Self>) {
@@ -830,11 +837,19 @@ impl ServerFileBrowserView {
             .selected_index
             .and_then(|index| self.entries.get(index))
             .map(|entry| entry.path.clone());
-        let roots = self.entries.iter().filter(|entry| entry.depth == 0).cloned().collect();
+        let roots = self
+            .entries
+            .iter()
+            .filter(|entry| entry.depth == 0)
+            .cloned()
+            .collect();
         self.entries =
             rebuild_entries_from(roots, &self.expanded_directories, &self.loaded_directories);
-        self.selected_index =
-            selected_index_after_rebuild(&self.entries, selected_path.as_deref(), self.selected_index);
+        self.selected_index = selected_index_after_rebuild(
+            &self.entries,
+            selected_path.as_deref(),
+            self.selected_index,
+        );
         self.sync_row_states();
     }
 
@@ -1098,9 +1113,7 @@ impl ServerFileBrowserView {
                         .into_item(),
                     MenuItemFields::new(crate::t!("server-file-browser-menu-new-folder"))
                         .with_icon(Icon::Folder)
-                        .with_on_select_action(ServerFileBrowserAction::CreateFolder(
-                            upload_target,
-                        ))
+                        .with_on_select_action(ServerFileBrowserAction::CreateFolder(upload_target))
                         .into_item(),
                 ],
             ),
@@ -1117,12 +1130,12 @@ impl ServerFileBrowserView {
             context_menu_submenu(
                 crate::t!("server-file-browser-menu-terminal"),
                 Icon::Terminal,
-                vec![MenuItemFields::new(crate::t!(
-                    "server-file-browser-menu-cd-to-terminal"
-                ))
-                .with_icon(Icon::Terminal)
-                .with_on_select_action(ServerFileBrowserAction::CdToTerminal(cd_target))
-                .into_item()],
+                vec![
+                    MenuItemFields::new(crate::t!("server-file-browser-menu-cd-to-terminal"))
+                        .with_icon(Icon::Terminal)
+                        .with_on_select_action(ServerFileBrowserAction::CdToTerminal(cd_target))
+                        .into_item(),
+                ],
             ),
             context_menu_submenu(
                 crate::t!("server-file-browser-menu-other"),
@@ -1158,7 +1171,10 @@ impl ServerFileBrowserView {
     ) {
         self.dismiss_context_menu(ctx);
         let Some(client) = self.client(ctx) else {
-            self.set_listing_error(crate::t!("server-file-browser-create-requires-session"), ctx);
+            self.set_listing_error(
+                crate::t!("server-file-browser-create-requires-session"),
+                ctx,
+            );
             return;
         };
 
@@ -1221,7 +1237,12 @@ impl ServerFileBrowserView {
         let Some(entry) = self.entries.get(index).cloned() else {
             return;
         };
-        let new_name = self.rename_editor.as_ref(ctx).buffer_text(ctx).trim().to_string();
+        let new_name = self
+            .rename_editor
+            .as_ref(ctx)
+            .buffer_text(ctx)
+            .trim()
+            .to_string();
         self.rename_editor.update(ctx, |editor, ctx| {
             editor.clear_buffer(ctx);
         });
@@ -1247,10 +1268,12 @@ impl ServerFileBrowserView {
         let session = self.session.clone();
         let client = self.client(ctx);
         let remote_session_id = self.remote_session_id(ctx);
-        let can_rename = session.is_some()
-            || (client.is_some() && remote_session_id.is_some());
+        let can_rename = session.is_some() || (client.is_some() && remote_session_id.is_some());
         if !can_rename {
-            self.set_listing_error(crate::t!("server-file-browser-rename-requires-session"), ctx);
+            self.set_listing_error(
+                crate::t!("server-file-browser-rename-requires-session"),
+                ctx,
+            );
             ctx.focus_self();
             return;
         }
@@ -1357,7 +1380,10 @@ impl ServerFileBrowserView {
                         me.delete_entry_confirmed(path.clone(), is_directory, ctx);
                     },
                 ),
-                ModalButton::for_view(crate::t!("common-cancel"), |_: &mut ServerFileBrowserView, _| {}),
+                ModalButton::for_view(
+                    crate::t!("common-cancel"),
+                    |_: &mut ServerFileBrowserView, _| {},
+                ),
             ],
             |_, _| {},
         );
@@ -1398,13 +1424,22 @@ impl ServerFileBrowserView {
     fn remove_path_from_tree_state(&mut self, path: &str) {
         let child_prefix = child_path_prefix(path);
         self.expanded_directories.retain(|key| {
-            key != path && child_prefix.as_ref().is_none_or(|prefix| !key.starts_with(prefix))
+            key != path
+                && child_prefix
+                    .as_ref()
+                    .is_none_or(|prefix| !key.starts_with(prefix))
         });
         self.loaded_directories.retain(|key, _| {
-            key != path && child_prefix.as_ref().is_none_or(|prefix| !key.starts_with(prefix))
+            key != path
+                && child_prefix
+                    .as_ref()
+                    .is_none_or(|prefix| !key.starts_with(prefix))
         });
         self.row_states.retain(|key, _| {
-            key != path && child_prefix.as_ref().is_none_or(|prefix| !key.starts_with(prefix))
+            key != path
+                && child_prefix
+                    .as_ref()
+                    .is_none_or(|prefix| !key.starts_with(prefix))
         });
     }
 
@@ -1782,17 +1817,16 @@ impl ServerFileBrowserView {
         self.upload_pipeline_claimed = true;
 
         let conflict_paths: HashSet<String> = conflicts.iter().map(|c| c.path.clone()).collect();
-        let directory_overwrite_roots: HashSet<String> = if conflict_policy
-            == UploadConflictPolicy::OverwriteAll
-        {
-            conflicts
-                .iter()
-                .filter(|c| c.kind == FileSystemEntryKind::Directory)
-                .map(|c| c.path.clone())
-                .collect()
-        } else {
-            HashSet::new()
-        };
+        let directory_overwrite_roots: HashSet<String> =
+            if conflict_policy == UploadConflictPolicy::OverwriteAll {
+                conflicts
+                    .iter()
+                    .filter(|c| c.kind == FileSystemEntryKind::Directory)
+                    .map(|c| c.path.clone())
+                    .collect()
+            } else {
+                HashSet::new()
+            };
 
         let pending_files =
             filter_upload_tasks_by_policy(pending_files, conflict_policy, &conflict_paths);
@@ -1810,7 +1844,8 @@ impl ServerFileBrowserView {
         let tasks: Vec<ServerFileUploadTask> = pending_files
             .into_iter()
             .map(|file| {
-                let relative = relative_remote_path_from_base(&remote_directory, &file.final_remote_path);
+                let relative =
+                    relative_remote_path_from_base(&remote_directory, &file.final_remote_path);
                 let staging_remote_path = if relative.is_empty() {
                     staging_root.clone()
                 } else {
@@ -1831,9 +1866,7 @@ impl ServerFileBrowserView {
         let staging_root_for_spawn = staging_root.clone();
         let client_for_mkdir = client.clone();
         ctx.spawn(
-            async move {
-                create_remote_directory(client_for_mkdir, staging_root_for_spawn).await
-            },
+            async move { create_remote_directory(client_for_mkdir, staging_root_for_spawn).await },
             move |me, result, ctx| match result {
                 Ok(()) => {
                     me.start_upload_batch_after_staging_ready(
@@ -1897,9 +1930,11 @@ impl ServerFileBrowserView {
         let Some(batch_index) = self.active_upload_batch_index else {
             return;
         };
-        if self.upload_batches.get(batch_index).is_some_and(|batch| {
-            batch.next_task_index >= batch.tasks.len()
-        }) {
+        if self
+            .upload_batches
+            .get(batch_index)
+            .is_some_and(|batch| batch.next_task_index >= batch.tasks.len())
+        {
             self.stop_progress_poll();
             self.verify_and_promote_batch(client, ctx);
             return;
@@ -1912,7 +1947,9 @@ impl ServerFileBrowserView {
             .unwrap_or(0);
         if let Some(batch) = self.upload_batches.get_mut(batch_index) {
             batch.tasks[index].status = UploadTaskStatus::Uploading;
-            batch.tasks[index].uploaded_bytes.store(0, Ordering::Relaxed);
+            batch.tasks[index]
+                .uploaded_bytes
+                .store(0, Ordering::Relaxed);
             batch.next_task_index += 1;
         }
 
@@ -1960,9 +1997,11 @@ impl ServerFileBrowserView {
         let Some(batch) = self.active_upload_batch() else {
             return;
         };
-        if batch.tasks.iter().any(|task| {
-            matches!(task.status, UploadTaskStatus::Failed(_))
-        }) {
+        if batch
+            .tasks
+            .iter()
+            .any(|task| matches!(task.status, UploadTaskStatus::Failed(_)))
+        {
             self.finish_upload_batch_failed(ctx);
             return;
         }
@@ -1979,12 +2018,7 @@ impl ServerFileBrowserView {
                     .tasks
                     .iter()
                     .filter(|task| matches!(task.status, UploadTaskStatus::Completed))
-                    .map(|task| {
-                        (
-                            task.staging_remote_path.clone(),
-                            task.total_bytes,
-                        )
-                    })
+                    .map(|task| (task.staging_remote_path.clone(), task.total_bytes))
                     .collect()
             })
             .unwrap_or_default();
@@ -2001,7 +2035,11 @@ impl ServerFileBrowserView {
         );
     }
 
-    fn promote_staging_batch(&mut self, client: Arc<RemoteServerClient>, ctx: &mut ViewContext<Self>) {
+    fn promote_staging_batch(
+        &mut self,
+        client: Arc<RemoteServerClient>,
+        ctx: &mut ViewContext<Self>,
+    ) {
         let Some(batch_snapshot) = self.active_upload_batch().map(|batch| {
             (
                 batch.staging_root.clone(),
@@ -2206,7 +2244,10 @@ impl ServerFileBrowserView {
                         );
                     },
                 ),
-                ModalButton::for_view(crate::t!("common-cancel"), |_: &mut ServerFileBrowserView, _| {}),
+                ModalButton::for_view(
+                    crate::t!("common-cancel"),
+                    |_: &mut ServerFileBrowserView, _| {},
+                ),
             ],
             |_, _| {},
         );
@@ -2318,7 +2359,9 @@ impl ServerFileBrowserView {
 
     fn clear_completed_uploads(&mut self, ctx: &mut ViewContext<Self>) {
         for batch in &mut self.upload_batches {
-            batch.tasks.retain(|task| !matches!(task.status, UploadTaskStatus::Completed));
+            batch
+                .tasks
+                .retain(|task| !matches!(task.status, UploadTaskStatus::Completed));
         }
         self.upload_batches.retain(|batch| !batch.tasks.is_empty());
         for batch in &mut self.download_batches {
@@ -2326,7 +2369,8 @@ impl ServerFileBrowserView {
                 .tasks
                 .retain(|task| !matches!(task.status, DownloadTaskStatus::Completed));
         }
-        self.download_batches.retain(|batch| !batch.tasks.is_empty());
+        self.download_batches
+            .retain(|batch| !batch.tasks.is_empty());
         if self.upload_batches.is_empty() {
             self.active_upload_batch_index = None;
         } else if let Some(active_index) = self.active_upload_batch_index {
@@ -2403,11 +2447,10 @@ impl ServerFileBrowserView {
         if tasks.is_empty() {
             return;
         }
-        self.download_batches
-            .push(ServerFileDownloadBatch {
-                tasks,
-                next_task_index: 0,
-            });
+        self.download_batches.push(ServerFileDownloadBatch {
+            tasks,
+            next_task_index: 0,
+        });
         self.upload_progress_panel_open = true;
         if !self.has_active_download() {
             self.active_download_batch_index = Some(self.download_batches.len() - 1);
@@ -2420,9 +2463,11 @@ impl ServerFileBrowserView {
         let Some(batch_index) = self.active_download_batch_index else {
             return;
         };
-        if self.download_batches.get(batch_index).is_some_and(|batch| {
-            batch.next_task_index >= batch.tasks.len()
-        }) {
+        if self
+            .download_batches
+            .get(batch_index)
+            .is_some_and(|batch| batch.next_task_index >= batch.tasks.len())
+        {
             self.finish_download_batch(ctx);
             return;
         }
@@ -2434,7 +2479,9 @@ impl ServerFileBrowserView {
             .unwrap_or(0);
         if let Some(batch) = self.download_batches.get_mut(batch_index) {
             batch.tasks[index].status = DownloadTaskStatus::Downloading;
-            batch.tasks[index].downloaded_bytes.store(0, Ordering::Relaxed);
+            batch.tasks[index]
+                .downloaded_bytes
+                .store(0, Ordering::Relaxed);
             batch.next_task_index += 1;
         }
 
@@ -2596,12 +2643,9 @@ impl ServerFileBrowserView {
             self.set_error(crate::t!("server-file-browser-no-session"), ctx);
             return;
         };
-        ctx.spawn(
-            async {},
-            move |me, _, ctx| {
-                me.open_upload_files_picker(client, remote_directory, ctx);
-            },
-        );
+        ctx.spawn(async {}, move |me, _, ctx| {
+            me.open_upload_files_picker(client, remote_directory, ctx);
+        });
     }
 
     fn open_upload_files_picker(
@@ -2619,11 +2663,7 @@ impl ServerFileBrowserView {
                     let remote_directory_for_handler = remote_directory.clone();
                     ctx.spawn(
                         async move {
-                            collect_upload_tasks(
-                                local_paths,
-                                remote_directory_for_collect,
-                                false,
-                            )
+                            collect_upload_tasks(local_paths, remote_directory_for_collect, false)
                         },
                         move |me, result, ctx| {
                             me.handle_collected_upload_tasks(
@@ -2649,12 +2689,9 @@ impl ServerFileBrowserView {
             self.set_error(crate::t!("server-file-browser-no-session"), ctx);
             return;
         };
-        ctx.spawn(
-            async {},
-            move |me, _, ctx| {
-                me.open_upload_folder_picker(client, remote_directory, ctx);
-            },
-        );
+        ctx.spawn(async {}, move |me, _, ctx| {
+            me.open_upload_folder_picker(client, remote_directory, ctx);
+        });
     }
 
     fn open_upload_folder_picker(
@@ -2672,11 +2709,7 @@ impl ServerFileBrowserView {
                     let remote_directory_for_handler = remote_directory.clone();
                     ctx.spawn(
                         async move {
-                            collect_upload_tasks(
-                                local_paths,
-                                remote_directory_for_collect,
-                                true,
-                            )
+                            collect_upload_tasks(local_paths, remote_directory_for_collect, true)
                         },
                         move |me, result, ctx| {
                             me.handle_collected_upload_tasks(
@@ -2698,7 +2731,12 @@ impl ServerFileBrowserView {
     }
 
     fn choose_download_destination(&mut self, remote_path: String, ctx: &mut ViewContext<Self>) {
-        let Some(entry) = self.entries.iter().find(|entry| entry.path == remote_path).cloned() else {
+        let Some(entry) = self
+            .entries
+            .iter()
+            .find(|entry| entry.path == remote_path)
+            .cloned()
+        else {
             return;
         };
         let Some(client) = self.client(ctx) else {
@@ -2709,7 +2747,11 @@ impl ServerFileBrowserView {
     }
 
     fn transfer_overall_summary(&self) -> Option<(usize, usize)> {
-        let upload_total: usize = self.upload_batches.iter().map(|batch| batch.tasks.len()).sum();
+        let upload_total: usize = self
+            .upload_batches
+            .iter()
+            .map(|batch| batch.tasks.len())
+            .sum();
         let download_total: usize = self
             .download_batches
             .iter()
@@ -2796,13 +2838,7 @@ impl ServerFileBrowserView {
             .with_main_axis_size(MainAxisSize::Max)
             .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_child(
-                Shrinkable::new(
-                    1.0,
-                    Clipped::new(title).finish(),
-                )
-                .finish(),
-            );
+            .with_child(Shrinkable::new(1.0, Clipped::new(title).finish()).finish());
 
         if self.has_completed_upload_tasks() || self.has_completed_download_tasks() {
             let clear_label = crate::t!("server-file-browser-upload-clear-completed");
@@ -2829,7 +2865,11 @@ impl ServerFileBrowserView {
             column.add_child(
                 Container::new(
                     Text::new_inline(
-                        crate::t!("server-file-browser-transfer-overall", done = done, total = total),
+                        crate::t!(
+                            "server-file-browser-transfer-overall",
+                            done = done,
+                            total = total
+                        ),
                         appearance.ui_font_family(),
                         11.0,
                     )
@@ -2919,7 +2959,9 @@ impl ServerFileBrowserView {
 
         let panel_body = Container::new(column.finish())
             .with_uniform_padding(12.0)
-            .with_background(warpui::elements::Fill::Solid(theme.surface_2().into_solid()))
+            .with_background(warpui::elements::Fill::Solid(
+                theme.surface_2().into_solid(),
+            ))
             .with_border(Border::all(1.0).with_border_color(theme.outline().into()))
             .with_corner_radius(CornerRadius::with_all(Radius::Pixels(6.0)))
             .finish();
@@ -2935,53 +2977,57 @@ impl ServerFileBrowserView {
     fn render_toolbar(&self, appearance: &crate::appearance::Appearance) -> Box<dyn Element> {
         let theme = appearance.theme();
         let icon_color = theme.sub_text_color(theme.background());
-        let make_btn =
-            |icon: Icon, state: MouseStateHandle, action: ServerFileBrowserAction| -> Box<dyn Element> {
-                let icon_el = ConstrainedBox::new(icon.to_warpui_icon(icon_color).finish())
-                    .with_width(TOOLBAR_ICON_SIZE)
-                    .with_height(TOOLBAR_ICON_SIZE)
-                    .finish();
-                Hoverable::new(state, move |_| {
-                    Container::new(
-                        ConstrainedBox::new(icon_el)
-                            .with_width(TOOLBAR_BUTTON_SIZE)
-                            .with_height(TOOLBAR_BUTTON_SIZE)
-                            .finish(),
-                    )
-                    .with_uniform_padding(2.0)
-                    .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
-                    .finish()
-                })
-                .with_cursor(Cursor::PointingHand)
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(action.clone());
-                })
+        let make_btn = |icon: Icon,
+                        state: MouseStateHandle,
+                        action: ServerFileBrowserAction|
+         -> Box<dyn Element> {
+            let icon_el = ConstrainedBox::new(icon.to_warpui_icon(icon_color).finish())
+                .with_width(TOOLBAR_ICON_SIZE)
+                .with_height(TOOLBAR_ICON_SIZE)
+                .finish();
+            Hoverable::new(state, move |_| {
+                Container::new(
+                    ConstrainedBox::new(icon_el)
+                        .with_width(TOOLBAR_BUTTON_SIZE)
+                        .with_height(TOOLBAR_BUTTON_SIZE)
+                        .finish(),
+                )
+                .with_uniform_padding(2.0)
+                .with_corner_radius(CornerRadius::with_all(Radius::Pixels(4.0)))
                 .finish()
-            };
+            })
+            .with_cursor(Cursor::PointingHand)
+            .on_click(move |ctx, _, _| {
+                ctx.dispatch_typed_action(action.clone());
+            })
+            .finish()
+        };
 
         Flex::row()
             .with_main_axis_size(MainAxisSize::Max)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(6.0)
-            .with_child(Shrinkable::new(
-                1.0,
-                appearance
-                    .ui_builder()
-                    .text_input(self.path_editor.clone())
-                    .with_style(UiComponentStyles {
-                        height: Some(INPUT_HEIGHT),
-                        padding: Some(Coords::uniform(6.0)),
-                        background: Some(theme.surface_2().into()),
-                        border_color: Some(theme.nonactive_ui_detail().into()),
-                        border_width: Some(1.0),
-                        border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.0))),
-                        font_size: Some(ITEM_FONT_SIZE),
-                        ..Default::default()
-                    })
-                    .build()
-                    .finish(),
+            .with_child(
+                Shrinkable::new(
+                    1.0,
+                    appearance
+                        .ui_builder()
+                        .text_input(self.path_editor.clone())
+                        .with_style(UiComponentStyles {
+                            height: Some(INPUT_HEIGHT),
+                            padding: Some(Coords::uniform(6.0)),
+                            background: Some(theme.surface_2().into()),
+                            border_color: Some(theme.nonactive_ui_detail().into()),
+                            border_width: Some(1.0),
+                            border_radius: Some(CornerRadius::with_all(Radius::Pixels(4.0))),
+                            font_size: Some(ITEM_FONT_SIZE),
+                            ..Default::default()
+                        })
+                        .build()
+                        .finish(),
+                )
+                .finish(),
             )
-            .finish())
             .with_child(make_btn(
                 Icon::Refresh,
                 self.refresh_button.clone(),
@@ -3001,10 +3047,15 @@ impl ServerFileBrowserView {
             .finish()
     }
 
-    fn render_entries(&self, app: &AppContext, appearance: &crate::appearance::Appearance) -> Box<dyn Element> {
+    fn render_entries(
+        &self,
+        app: &AppContext,
+        appearance: &crate::appearance::Appearance,
+    ) -> Box<dyn Element> {
         let theme = appearance.theme();
         if self.host_id.is_none() {
-            return self.render_status_text(crate::t!("server-file-browser-no-session"), appearance);
+            return self
+                .render_status_text(crate::t!("server-file-browser-no-session"), appearance);
         } else if self.loading && self.entries.is_empty() {
             return self.render_status_text(crate::t!("server-file-browser-loading"), appearance);
         } else if self.entries.is_empty() {
@@ -3017,7 +3068,8 @@ impl ServerFileBrowserView {
             if let Some(status) = &self.status {
                 return self.render_status_text(status.clone(), appearance);
             }
-            return self.render_status_text(crate::t!("server-file-browser-empty-directory"), appearance);
+            return self
+                .render_status_text(crate::t!("server-file-browser-empty-directory"), appearance);
         }
 
         let entries = self.entries.clone();
@@ -3026,18 +3078,13 @@ impl ServerFileBrowserView {
         let row_states = self.row_states.clone();
         let pending_rename_index = self.pending_rename_index;
         let rename_editor = self.rename_editor.clone();
-        let uniform_list = UniformList::new(
-            self.list_state.clone(),
-            entries.len(),
-            move |range, app| {
+        let uniform_list =
+            UniformList::new(self.list_state.clone(), entries.len(), move |range, app| {
                 let appearance = crate::appearance::Appearance::as_ref(app);
                 range
                     .filter_map(|index| {
                         let entry = entries.get(index)?;
-                        let state = row_states
-                            .get(&entry.path)
-                            .cloned()
-                            .unwrap_or_default();
+                        let state = row_states.get(&entry.path).cloned().unwrap_or_default();
                         Some(render_entry_row(
                             index,
                             entry,
@@ -3051,9 +3098,8 @@ impl ServerFileBrowserView {
                     })
                     .collect::<Vec<_>>()
                     .into_iter()
-            },
-        )
-        .finish_scrollable();
+            })
+            .finish_scrollable();
 
         let scrollable = Shrinkable::new(
             1.0,
@@ -3113,7 +3159,6 @@ impl ServerFileBrowserView {
         .with_padding_right(ITEM_PADDING_HORIZONTAL)
         .finish()
     }
-
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3146,7 +3191,11 @@ fn render_entry_row(
             .with_width(ITEM_ICON_SIZE)
             .finish()
     };
-    let icon = if is_directory { Icon::Folder } else { Icon::File };
+    let icon = if is_directory {
+        Icon::Folder
+    } else {
+        Icon::File
+    };
     let icon_el = ConstrainedBox::new(icon.to_warpui_icon(icon_color).finish())
         .with_width(ITEM_ICON_SIZE)
         .with_height(ITEM_ICON_SIZE)
@@ -3180,9 +3229,13 @@ fn render_entry_row(
             }
         }
         let metadata = (!metadata_parts.is_empty()).then(|| {
-            Text::new_inline(metadata_parts.join(" · "), appearance.ui_font_family(), 11.0)
-                .with_color(theme.sub_text_color(theme.background()).into())
-                .finish()
+            Text::new_inline(
+                metadata_parts.join(" · "),
+                appearance.ui_font_family(),
+                11.0,
+            )
+            .with_color(theme.sub_text_color(theme.background()).into())
+            .finish()
         });
 
         let mut col = Flex::column()
@@ -3264,7 +3317,9 @@ impl TypedActionView for ServerFileBrowserView {
                 ctx.focus_self();
                 self.open_index(*index, ctx);
             }
-            ServerFileBrowserAction::ToggleDirectory(path) => self.toggle_directory(path.clone(), ctx),
+            ServerFileBrowserAction::ToggleDirectory(path) => {
+                self.toggle_directory(path.clone(), ctx)
+            }
             ServerFileBrowserAction::SelectPreviousItem => self.select_previous_item(ctx),
             ServerFileBrowserAction::SelectNextItem => self.select_next_item(ctx),
             ServerFileBrowserAction::ExpandSelectedItem => self.expand_selected_item(ctx),
@@ -3278,9 +3333,7 @@ impl TypedActionView for ServerFileBrowserView {
             ServerFileBrowserAction::CopyName(name) => self.copy_name(name.clone(), ctx),
             ServerFileBrowserAction::CdToTerminal(path) => {
                 self.dismiss_context_menu(ctx);
-                ctx.emit(ServerFileBrowserEvent::CdToDirectory {
-                    path: path.clone(),
-                });
+                ctx.emit(ServerFileBrowserEvent::CdToDirectory { path: path.clone() });
             }
             ServerFileBrowserAction::Download(path) => {
                 self.dismiss_context_menu(ctx);
@@ -3450,7 +3503,12 @@ fn rebuild_entries_from(
         .filter(|entry| entry.depth == 0)
         .collect();
     let mut rebuilt = Vec::new();
-    append_entries_from(roots, expanded_directories, loaded_directories, &mut rebuilt);
+    append_entries_from(
+        roots,
+        expanded_directories,
+        loaded_directories,
+        &mut rebuilt,
+    );
     rebuilt
 }
 
@@ -3553,8 +3611,7 @@ async fn reload_directory_tree(
     expanded_directories: HashSet<String>,
     depth_by_path: HashMap<String, usize>,
 ) -> Result<DirectoryTreeReload, String> {
-    let (current_path, root_entries) =
-        list_directory_with_source(&source, current_path).await?;
+    let (current_path, root_entries) = list_directory_with_source(&source, current_path).await?;
 
     let mut loaded_directories = HashMap::new();
     let mut still_expanded = HashSet::new();
@@ -3563,10 +3620,7 @@ async fn reload_directory_tree(
         match list_directory_with_source(&source, directory_path.clone()).await {
             Ok((canonical_path, entries)) => {
                 still_expanded.insert(canonical_path.clone());
-                loaded_directories.insert(
-                    canonical_path,
-                    entries_with_depth(entries, depth),
-                );
+                loaded_directories.insert(canonical_path, entries_with_depth(entries, depth));
             }
             Err(_) => {
                 // The folder may have been removed or is no longer accessible.
@@ -3586,11 +3640,14 @@ async fn resolve_path(
     client: Arc<RemoteServerClient>,
     path: String,
 ) -> Result<ResolvedRemotePath, String> {
-    let response = client.resolve_path(path).await.map_err(|error| error.to_string())?;
+    let response = client
+        .resolve_path(path)
+        .await
+        .map_err(|error| error.to_string())?;
     match response.result {
         Some(resolve_path_response::Result::Success(success)) => {
-            let kind = FileSystemEntryKind::try_from(success.kind)
-                .unwrap_or(FileSystemEntryKind::Other);
+            let kind =
+                FileSystemEntryKind::try_from(success.kind).unwrap_or(FileSystemEntryKind::Other);
             Ok(ResolvedRemotePath {
                 canonical_path: success.canonical_path,
                 kind,
@@ -3605,7 +3662,10 @@ async fn list_directory(
     client: Arc<RemoteServerClient>,
     path: String,
 ) -> Result<(String, Vec<ServerFileBrowserEntry>), String> {
-    let response = client.list_directory(path).await.map_err(|error| error.to_string())?;
+    let response = client
+        .list_directory(path)
+        .await
+        .map_err(|error| error.to_string())?;
     match response.result {
         Some(list_directory_response::Result::Success(success)) => {
             let canonical_path = success.canonical_path;
@@ -3725,9 +3785,7 @@ async fn list_directory_via_session(
     entries.sort_by(|a, b| {
         let a_is_dir = a.kind == FileSystemEntryKind::Directory;
         let b_is_dir = b.kind == FileSystemEntryKind::Directory;
-        b_is_dir
-            .cmp(&a_is_dir)
-            .then_with(|| a.name.cmp(&b.name))
+        b_is_dir.cmp(&a_is_dir).then_with(|| a.name.cmp(&b.name))
     });
     Ok((canonical_path, entries))
 }
@@ -3808,9 +3866,7 @@ fn collect_upload_tasks(
                     } else {
                         relative_str
                     };
-                    let total_bytes = std::fs::metadata(path)
-                        .map(|meta| meta.len())
-                        .unwrap_or(0);
+                    let total_bytes = std::fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
                     files.push(PendingUploadFile {
                         local_path: path.to_path_buf(),
                         final_remote_path,
@@ -3820,7 +3876,9 @@ fn collect_upload_tasks(
                 }
             }
         } else if local_path.is_file() {
-            let Some(name) = local_path.file_name().map(|name| name.to_string_lossy().to_string())
+            let Some(name) = local_path
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
             else {
                 continue;
             };
@@ -3989,11 +4047,17 @@ fn download_task_status_label(task: &ServerFileDownloadTask) -> String {
         DownloadTaskStatus::Pending => crate::t!("server-file-browser-download-status-pending"),
         DownloadTaskStatus::Downloading => {
             let percent = (download_task_progress(task) * 100.0).round() as u32;
-            crate::t!("server-file-browser-download-status-downloading", percent = percent)
+            crate::t!(
+                "server-file-browser-download-status-downloading",
+                percent = percent
+            )
         }
         DownloadTaskStatus::Completed => crate::t!("server-file-browser-download-status-completed"),
         DownloadTaskStatus::Failed(error) => {
-            crate::t!("server-file-browser-download-status-failed", error = error.clone())
+            crate::t!(
+                "server-file-browser-download-status-failed",
+                error = error.clone()
+            )
         }
     }
 }
@@ -4006,11 +4070,8 @@ fn render_transfer_task_row(
 ) -> Box<dyn Element> {
     let theme = appearance.theme();
     let sub_text = theme.sub_text_color(theme.background());
-    let progress_bar = render_flex_progress_bar(
-        progress,
-        theme.accent().into(),
-        theme.background().into(),
-    );
+    let progress_bar =
+        render_flex_progress_bar(progress, theme.accent().into(), theme.background().into());
     Flex::column()
         .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
         .with_child(
@@ -4030,11 +4091,7 @@ fn render_transfer_task_row(
             .with_padding_top(2.0)
             .finish(),
         )
-        .with_child(
-            Container::new(progress_bar)
-                .with_padding_top(4.0)
-                .finish(),
-        )
+        .with_child(Container::new(progress_bar).with_padding_top(4.0).finish())
         .finish()
 }
 
@@ -4055,7 +4112,11 @@ fn upload_task_progress(task: &ServerFileUploadTask) -> f32 {
     }
 }
 
-fn render_flex_progress_bar(progress: f32, accent: pathfinder_color::ColorU, track: pathfinder_color::ColorU) -> Box<dyn Element> {
+fn render_flex_progress_bar(
+    progress: f32,
+    accent: pathfinder_color::ColorU,
+    track: pathfinder_color::ColorU,
+) -> Box<dyn Element> {
     let progress = progress.clamp(0.0, 1.0);
     let filled_weight = progress.max(0.001);
     let empty_weight = (1.0 - progress).max(0.001);
@@ -4099,15 +4160,22 @@ fn upload_batch_phase_label(phase: UploadBatchPhase) -> String {
 }
 
 fn upload_task_status_label(task: &ServerFileUploadTask, batch_phase: UploadBatchPhase) -> String {
-    if matches!(task.status, UploadTaskStatus::Completed | UploadTaskStatus::Failed(_)) {
+    if matches!(
+        task.status,
+        UploadTaskStatus::Completed | UploadTaskStatus::Failed(_)
+    ) {
         match &task.status {
             UploadTaskStatus::Completed => {
                 return crate::t!("server-file-browser-upload-status-completed");
             }
             UploadTaskStatus::Failed(error) => {
-                return crate::t!("server-file-browser-upload-status-failed", error = error.clone());
+                return crate::t!(
+                    "server-file-browser-upload-status-failed",
+                    error = error.clone()
+                );
             }
-            UploadTaskStatus::Pending | UploadTaskStatus::Uploading | UploadTaskStatus::Skipped => {}
+            UploadTaskStatus::Pending | UploadTaskStatus::Uploading | UploadTaskStatus::Skipped => {
+            }
         }
     }
     match batch_phase {
@@ -4123,11 +4191,17 @@ fn upload_task_status_label(task: &ServerFileUploadTask, batch_phase: UploadBatc
         UploadTaskStatus::Pending => crate::t!("server-file-browser-upload-status-pending"),
         UploadTaskStatus::Uploading => {
             let percent = (upload_task_progress(task) * 100.0).round() as u32;
-            crate::t!("server-file-browser-upload-status-uploading", percent = percent)
+            crate::t!(
+                "server-file-browser-upload-status-uploading",
+                percent = percent
+            )
         }
         UploadTaskStatus::Completed => crate::t!("server-file-browser-upload-status-completed"),
         UploadTaskStatus::Failed(error) => {
-            crate::t!("server-file-browser-upload-status-failed", error = error.clone())
+            crate::t!(
+                "server-file-browser-upload-status-failed",
+                error = error.clone()
+            )
         }
         UploadTaskStatus::Skipped => crate::t!("server-file-browser-upload-status-skipped"),
     }
@@ -4150,8 +4224,7 @@ fn path_is_under_conflict(path: &str, conflict_path: &str) -> bool {
     if path == conflict_path {
         return true;
     }
-    child_path_prefix(conflict_path)
-        .is_some_and(|prefix| path.starts_with(&prefix))
+    child_path_prefix(conflict_path).is_some_and(|prefix| path.starts_with(&prefix))
 }
 
 fn filter_upload_tasks_by_policy(
@@ -4165,9 +4238,9 @@ fn filter_upload_tasks_by_policy(
     files
         .into_iter()
         .filter(|file| {
-            !conflict_paths.iter().any(|conflict| {
-                path_is_under_conflict(&file.final_remote_path, conflict)
-            })
+            !conflict_paths
+                .iter()
+                .any(|conflict| path_is_under_conflict(&file.final_remote_path, conflict))
         })
         .collect()
 }
@@ -4235,7 +4308,10 @@ fn format_upload_promote_error(error: &str) -> String {
             .nth(1)
             .filter(|segment| segment.starts_with('/'))
         {
-            return crate::t!("server-file-browser-upload-promote-not-replacing", path = path);
+            return crate::t!(
+                "server-file-browser-upload-promote-not-replacing",
+                path = path
+            );
         }
         return crate::t!("server-file-browser-upload-promote-not-replacing-generic");
     }
@@ -4320,7 +4396,9 @@ fn staging_cleanup_shell_commands(staging_root: &str) -> String {
     if let Some(staging_parent) = remote_parent(staging_root) {
         let escaped_staging_parent =
             warp_util::path::ShellFamily::Posix.shell_escape(&staging_parent);
-        commands.push(format!("rmdir -- {escaped_staging_parent} 2>/dev/null || true"));
+        commands.push(format!(
+            "rmdir -- {escaped_staging_parent} 2>/dev/null || true"
+        ));
     }
     commands.join("; ")
 }
@@ -4343,9 +4421,8 @@ async fn promote_staging_files(
     promote_pairs: Vec<(String, String)>,
 ) -> Result<(), String> {
     let mut script_lines = Vec::new();
-    let cleanup_trap_body = escape_for_single_quoted_trap_body(&staging_cleanup_shell_commands(
-        &staging_root,
-    ));
+    let cleanup_trap_body =
+        escape_for_single_quoted_trap_body(&staging_cleanup_shell_commands(&staging_root));
     script_lines.push(format!("trap '{cleanup_trap_body}' EXIT"));
     script_lines.push("set -e".to_string());
     if conflict_policy == UploadConflictPolicy::OverwriteAll {
@@ -4369,9 +4446,7 @@ async fn promote_staging_files(
         let escaped_staging = warp_util::path::ShellFamily::Posix.shell_escape(&staging_path);
         let escaped_final = warp_util::path::ShellFamily::Posix.shell_escape(&final_path);
         script_lines.push(format!("mkdir -p -- {escaped_parent}"));
-        script_lines.push(format!(
-            "mv {mv_flag} -- {escaped_staging} {escaped_final}"
-        ));
+        script_lines.push(format!("mv {mv_flag} -- {escaped_staging} {escaped_final}"));
     }
     let script = script_lines.join("\n");
     execute_remote_shell_script(session, Some(client), remote_session_id, script).await
@@ -4537,7 +4612,10 @@ async fn rename_remote_path(
     new_name: String,
 ) -> Result<(), String> {
     let parent = remote_parent(&from_path).ok_or_else(|| {
-        crate::t!("server-file-browser-operation-failed", error = "missing parent path")
+        crate::t!(
+            "server-file-browser-operation-failed",
+            error = "missing parent path"
+        )
     })?;
     let new_path = join_remote_path(&parent, &new_name);
     let escaped_from = warp_util::path::ShellFamily::Posix.shell_escape(&from_path);
@@ -4688,7 +4766,12 @@ fn remote_basename(path: &str) -> Option<String> {
     Path::new(path)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
-        .or_else(|| path.trim_end_matches('/').rsplit('/').next().map(str::to_string))
+        .or_else(|| {
+            path.trim_end_matches('/')
+                .rsplit('/')
+                .next()
+                .map(str::to_string)
+        })
 }
 
 fn format_modified_epoch_millis(epoch_millis: u64) -> Option<String> {
@@ -4773,11 +4856,7 @@ mod tests {
     #[test]
     fn remap_path_after_rename_updates_directory_subtree() {
         assert_eq!(
-            remap_path_after_rename(
-                "/root/test/old",
-                "/root/test/old",
-                "/root/test/new"
-            ),
+            remap_path_after_rename("/root/test/old", "/root/test/old", "/root/test/new"),
             "/root/test/new"
         );
         assert_eq!(
@@ -4875,7 +4954,12 @@ mod tests {
     #[test]
     fn selected_index_preserves_matching_path_after_rebuild() {
         let entries = vec![
-            entry("/root/.openwarp", ".openwarp", FileSystemEntryKind::Directory, 0),
+            entry(
+                "/root/.openwarp",
+                ".openwarp",
+                FileSystemEntryKind::Directory,
+                0,
+            ),
             entry(
                 "/root/.openwarp/remote-server",
                 "remote-server",
@@ -4914,7 +4998,12 @@ mod tests {
     fn next_available_entry_name_appends_suffix_to_avoid_sibling_conflicts() {
         let entries = vec![
             entry("/root/untitled", "untitled", FileSystemEntryKind::File, 0),
-            entry("/root/untitled 2", "untitled 2", FileSystemEntryKind::File, 0),
+            entry(
+                "/root/untitled 2",
+                "untitled 2",
+                FileSystemEntryKind::File,
+                0,
+            ),
             entry(
                 "/root/untitled folder",
                 "untitled folder",
@@ -4923,7 +5012,10 @@ mod tests {
             ),
         ];
 
-        assert_eq!(next_available_entry_name("untitled", &entries), "untitled 3");
+        assert_eq!(
+            next_available_entry_name("untitled", &entries),
+            "untitled 3"
+        );
         assert_eq!(
             next_available_entry_name("untitled folder", &entries),
             "untitled folder 2"
@@ -4958,11 +5050,9 @@ mod tests {
     #[test]
     fn clear_context_menu_state_removes_items_and_selection() {
         let mut position = Some(vec2f(10.0, 20.0));
-        let mut menu_items = vec![
-            MenuItemFields::new("Refresh")
-                .with_on_select_action(ServerFileBrowserAction::Refresh)
-                .into_item(),
-        ];
+        let mut menu_items = vec![MenuItemFields::new("Refresh")
+            .with_on_select_action(ServerFileBrowserAction::Refresh)
+            .into_item()];
 
         clear_context_menu_state(&mut position, &mut menu_items);
 
@@ -4980,11 +5070,7 @@ mod tests {
         )];
 
         assert_eq!(
-            selected_index_after_rebuild(
-                &entries,
-                Some("/root/.openwarp/remote-server"),
-                Some(4),
-            ),
+            selected_index_after_rebuild(&entries, Some("/root/.openwarp/remote-server"), Some(4),),
             Some(0)
         );
     }

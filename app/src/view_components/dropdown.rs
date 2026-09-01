@@ -475,9 +475,9 @@ where
             ctx.dispatch_typed_action(DropdownAction::<A>::ToggleExpanded);
         });
 
-        let effective_height = self.top_bar_height.unwrap_or_else(|| {
-            appearance.dropdown_top_bar_height()
-        });
+        let effective_height = self
+            .top_bar_height
+            .unwrap_or_else(|| appearance.dropdown_top_bar_height());
 
         SavePosition::new(
             Container::new(

@@ -34,19 +34,43 @@ pub enum GistClientError {
 /// Gist 操作 trait，支持真实客户端和测试 mock
 pub trait GistOps: Send + Sync {
     /// 验证 Token 是否有效，返回用户名
-    fn validate_token(&self, platform: SyncPlatform, token: String) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
+    fn validate_token(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+    ) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
 
     /// 查找 description 为 ZAP_CONFIG 的 Gist
-    fn find_gist(&self, platform: SyncPlatform, token: String) -> impl std::future::Future<Output = Result<Option<String>, GistClientError>> + Send;
+    fn find_gist(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+    ) -> impl std::future::Future<Output = Result<Option<String>, GistClientError>> + Send;
 
     /// 创建新 Gist
-    fn create_gist(&self, platform: SyncPlatform, token: String, content: String) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
+    fn create_gist(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+        content: String,
+    ) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
 
     /// 更新已有 Gist
-    fn update_gist(&self, platform: SyncPlatform, token: String, gist_id: String, content: String) -> impl std::future::Future<Output = Result<(), GistClientError>> + Send;
+    fn update_gist(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+        gist_id: String,
+        content: String,
+    ) -> impl std::future::Future<Output = Result<(), GistClientError>> + Send;
 
     /// 获取 Gist 文件内容
-    fn get_gist_content(&self, platform: SyncPlatform, token: String, gist_id: String) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
+    fn get_gist_content(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+        gist_id: String,
+    ) -> impl std::future::Future<Output = Result<String, GistClientError>> + Send;
 }
 
 /// Gist API 客户端，支持 GitHub 和 Gitee
@@ -293,23 +317,47 @@ impl GistClient {
 }
 
 impl GistOps for GistClient {
-    async fn validate_token(&self, platform: SyncPlatform, token: String) -> Result<String, GistClientError> {
+    async fn validate_token(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+    ) -> Result<String, GistClientError> {
         self.validate_token(platform, &token).await
     }
 
-    async fn find_gist(&self, platform: SyncPlatform, token: String) -> Result<Option<String>, GistClientError> {
+    async fn find_gist(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+    ) -> Result<Option<String>, GistClientError> {
         self.find_gist(platform, &token).await
     }
 
-    async fn create_gist(&self, platform: SyncPlatform, token: String, content: String) -> Result<String, GistClientError> {
+    async fn create_gist(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+        content: String,
+    ) -> Result<String, GistClientError> {
         self.create_gist(platform, &token, &content).await
     }
 
-    async fn update_gist(&self, platform: SyncPlatform, token: String, gist_id: String, content: String) -> Result<(), GistClientError> {
+    async fn update_gist(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+        gist_id: String,
+        content: String,
+    ) -> Result<(), GistClientError> {
         self.update_gist(platform, &token, &gist_id, &content).await
     }
 
-    async fn get_gist_content(&self, platform: SyncPlatform, token: String, gist_id: String) -> Result<String, GistClientError> {
+    async fn get_gist_content(
+        &self,
+        platform: SyncPlatform,
+        token: String,
+        gist_id: String,
+    ) -> Result<String, GistClientError> {
         self.get_gist_content(platform, &token, &gist_id).await
     }
 }
@@ -338,15 +386,30 @@ mod tests {
         // validate_token / find_gist / create_gist / update_gist / get_gist_content 应当在 token 为空时立即返回 NoToken,不发起任何 HTTP 请求
         for platform in [SyncPlatform::GitHub, SyncPlatform::Gitee] {
             let r = client.validate_token(platform, "").await;
-            assert!(matches!(r, Err(GistClientError::NoToken)), "validate_token 空 token");
+            assert!(
+                matches!(r, Err(GistClientError::NoToken)),
+                "validate_token 空 token"
+            );
             let r = client.find_gist(platform, "").await;
-            assert!(matches!(r, Err(GistClientError::NoToken)), "find_gist 空 token");
+            assert!(
+                matches!(r, Err(GistClientError::NoToken)),
+                "find_gist 空 token"
+            );
             let r = client.create_gist(platform, "", "{}").await;
-            assert!(matches!(r, Err(GistClientError::NoToken)), "create_gist 空 token");
+            assert!(
+                matches!(r, Err(GistClientError::NoToken)),
+                "create_gist 空 token"
+            );
             let r = client.update_gist(platform, "", "x", "{}").await;
-            assert!(matches!(r, Err(GistClientError::NoToken)), "update_gist 空 token");
+            assert!(
+                matches!(r, Err(GistClientError::NoToken)),
+                "update_gist 空 token"
+            );
             let r = client.get_gist_content(platform, "", "x").await;
-            assert!(matches!(r, Err(GistClientError::NoToken)), "get_gist_content 空 token");
+            assert!(
+                matches!(r, Err(GistClientError::NoToken)),
+                "get_gist_content 空 token"
+            );
         }
     }
 }

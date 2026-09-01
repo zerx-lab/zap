@@ -118,7 +118,7 @@ use crate::code_review::git_status_update::{
     GitRepoStatusModel, GitStatusMetadata, GitStatusUpdateModel,
 };
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
-use crate::projects::ProjectManagementModel;
+use crate::project_organization::model::ProjectOrganizationModel;
 use crate::remote_server::manager::{
     RemoteServerInitPhase, RemoteServerManager, RemoteServerManagerEvent,
 };
@@ -237,9 +237,9 @@ use crate::settings::import::view::{SettingsImportEvent, SettingsImportView};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, AliasExpansionSettings, AppEditorSettings,
     BlockVisibilitySettings, BlockVisibilitySettingsChangedEvent, DebugSettings,
-    DebugSettingsChangedEvent, EmacsBindingsSettings, FontSettings, FontSettingsChangedEvent,
-    InputModeSettings, InputModeSettingsChangedEvent, InputSettings, PaneSettings,
-    PaneSettingsChangedEvent, PrivacySettings, SelectionSettings, VimBannerSettings,
+    DebugSettingsChangedEvent, EmacsBindingsSettings, EnforceMinimumContrast, FontSettings,
+    FontSettingsChangedEvent, InputModeSettings, InputModeSettingsChangedEvent, InputSettings,
+    PaneSettings, PaneSettingsChangedEvent, PrivacySettings, SelectionSettings, VimBannerSettings,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
@@ -644,16 +644,13 @@ const BOOTSTRAP_FAILED_DURATION: Duration = Duration::from_secs(7);
 /// a user needing to type in one or many secret manager passwords
 /// during the bootstrap period.
 const ENV_VAR_BOOTSTRAP_FAILED_DURATION: Duration = Duration::from_secs(60);
-const KNOWN_ISSUES_URL: &str =
-    "";
+const KNOWN_ISSUES_URL: &str = "";
 
 /// Link to supported custom prompts.
-const PROMPT_COMPATIBILITY_URL: &str =
-    "";
+const PROMPT_COMPATIBILITY_URL: &str = "";
 
 /// Link to troubleshooting steps for ControlMaster errors.
-const CONTROLMASTER_ISSUES_URL: &str =
-    "";
+const CONTROLMASTER_ISSUES_URL: &str = "";
 
 /// Link to instructions on how to update p10k.
 const P10K_UPDATE_INSTRUCTIONS_URL: &str =
@@ -679,10 +676,8 @@ const MIN_DELTA_FOR_TEXT_SELECTION: f32 = 0.5;
 
 /// Notifications-specific info
 /// TODO (suraj): add documentation for notifications in gitbook
-const NOTIFICATIONS_LEARN_MORE_URL: &str =
-    "";
-pub const NOTIFICATIONS_TROUBLESHOOT_URL: &str =
-    "";
+const NOTIFICATIONS_LEARN_MORE_URL: &str = "";
+pub const NOTIFICATIONS_TROUBLESHOOT_URL: &str = "";
 
 const DEBOUNCE_PERIOD: Duration = Duration::from_millis(40);
 
@@ -1975,7 +1970,9 @@ impl ContextMenuInfo {
             ContextMenuType::BlockList { .. } => "Block",
             ContextMenuType::Prompt { .. } => "Prompt",
             ContextMenuType::Input { .. } => "Input",
-            ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => "OneKeyPrompt",
+            ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => {
+                "OneKeyPrompt"
+            }
             ContextMenuType::AltScreen { .. } => "AltScreen",
             ContextMenuType::AIBlockAttachedContext { .. } => "AIBlockContextList",
             ContextMenuType::AIBlockOverflowMenu { .. } => "AIBlockOverflowMenu",
@@ -1996,7 +1993,9 @@ impl ContextMenuInfo {
             },
             ContextMenuType::Prompt { .. } => "RightClick",
             ContextMenuType::Input { .. } => "RightClick",
-            ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => "PasswordPrompt",
+            ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => {
+                "PasswordPrompt"
+            }
             ContextMenuType::AltScreen { .. } => "AltScreen",
             ContextMenuType::AIBlockAttachedContext { .. } => "AIBlockAttachedBlockChipLeftClick",
             ContextMenuType::AIBlockOverflowMenu { .. } => "AIBlockOverflowMenuClick",
@@ -2398,6 +2397,9 @@ pub struct TerminalView {
     /// `pane_tree_from_template_recursive` when a tab config has both
     /// commands and `PaneMode::Agent`.
     enter_agent_view_after_pending_commands: bool,
+    /// 重启后要自动 resume 的 CLI agent 命令。在 bootstrap 完成前只排队,
+    /// 不写入 input,避免 restore 阶段在 UI 线程上插入编辑器。
+    pending_cli_agent_resume: Option<String>,
     /// SSH 管理器创建的 tab 会先启动本地 shell，再执行 ssh 并等待远端 shell
     /// bootstrap；默认 Agent 模式必须延后到远端会话可用后再进入。
     enter_agent_view_after_ssh_bootstrap: bool,
@@ -3888,6 +3890,7 @@ impl TerminalView {
             is_login_shell_bootstrapped: false,
             awaiting_pending_command_completion: false,
             enter_agent_view_after_pending_commands: false,
+            pending_cli_agent_resume: None,
             enter_agent_view_after_ssh_bootstrap: false,
             slow_bootstrap_banner,
             is_slow_bootstrap_banner_open: false,
@@ -5216,12 +5219,7 @@ impl TerminalView {
 
         let should_forward_windows_ctrl_c = is_live;
         ctx.subscribe_to_view(&subagent_view, move |me, view, event, ctx| {
-            me.handle_cli_subagent_view_event(
-                view.id(),
-                event,
-                should_forward_windows_ctrl_c,
-                ctx,
-            );
+            me.handle_cli_subagent_view_event(view.id(), event, should_forward_windows_ctrl_c, ctx);
         });
 
         if is_live {
@@ -5403,18 +5401,17 @@ impl TerminalView {
                 if let Some(conversation_id) = conversation_id {
                     let should_restore = {
                         let model = self.model.lock();
-                        model.block_list().block_with_id(block_id).is_some_and(
-                            |block| {
+                        model
+                            .block_list()
+                            .block_with_id(block_id)
+                            .is_some_and(|block| {
                                 block.agent_interaction_metadata().is_some_and(|metadata| {
                                     metadata.conversation_id() == conversation_id
                                         && metadata.subagent_task_id() == Some(task_id)
                                 })
-                            },
-                        )
+                            })
                     };
-                    if should_restore
-                        && !self.cli_subagent_views.contains_key(block_id)
-                    {
+                    if should_restore && !self.cli_subagent_views.contains_key(block_id) {
                         self.create_cli_subagent_view(
                             block_id.clone(),
                             *conversation_id,
@@ -6399,6 +6396,21 @@ impl TerminalView {
             let current_session = self.sessions.as_ref(ctx).get(session_id)?;
             Some(current_session.is_local())
         })
+    }
+
+    /// 返回应用退出时被中断命令的持久化快照。已完成 block 由正常完成事件保存，因此跳过。
+    pub(crate) fn active_block_snapshot_for_shutdown(&self) -> Option<SerializedBlock> {
+        let mut snapshot = {
+            let model = self.model.lock();
+            SerializedBlock::from(model.block_list().active_block())
+        };
+
+        if snapshot.start_ts.is_none() || snapshot.completed_ts.is_some() {
+            return None;
+        }
+
+        snapshot.finalize_for_shutdown(Local::now());
+        Some(snapshot)
     }
 
     /// Returns the active session's launch shell, if it is specified.
@@ -7552,6 +7564,14 @@ impl TerminalView {
         self.input.update(ctx, |input, ctx| {
             input.set_pending_command(exec, ctx);
         })
+    }
+
+    /// 排队 CLI agent resume 命令,等 bootstrap 后再写入 input 并执行。
+    pub fn queue_cli_agent_resume(&mut self, command: String) {
+        if command.is_empty() {
+            return;
+        }
+        self.pending_cli_agent_resume = Some(command);
     }
 
     fn alt_scroll_cmd_sequence(&self, lines_to_scroll: i32) -> Vec<u8> {
@@ -11491,6 +11511,16 @@ impl TerminalView {
         }
 
         self.is_login_shell_bootstrapped = true;
+        // PrecmdDone 可能已经在 bootstrap 前空跑过;延迟一拍再 flush,
+        // 避开仍在跑的 bootstrap 脚本(与 BlockCompleted 同一延迟)。
+        if self.pending_cli_agent_resume.is_some() {
+            let _ = ctx.spawn(
+                async move {
+                    warpui::r#async::Timer::after(EXECUTE_PENDING_COMMAND_DELAY).await;
+                },
+                Self::execute_pending_command,
+            );
+        }
         self.hide_slow_bootstrap_banner(ctx);
 
         if self.should_display_vim_banner(&session, ctx) {
@@ -13482,6 +13512,12 @@ impl TerminalView {
 
     /// Executes a command that was submitted by the user and not yet sent to the shell.
     pub fn execute_pending_command(&mut self, _: (), ctx: &mut ViewContext<Self>) {
+        if let Some(command) = crate::terminal::cli_agent_resume::take_resume_command_if_shell_ready(
+            &mut self.pending_cli_agent_resume,
+            self.is_login_shell_bootstrapped,
+        ) {
+            self.set_pending_command(&command, ctx);
+        }
         let had_pending = self.input.read(ctx, |input, _| input.has_pending_command());
         self.input.update(ctx, |input, ctx| {
             input.execute_pending_command(ctx);
@@ -13521,6 +13557,13 @@ impl TerminalView {
 
     pub fn is_login_shell_bootstrapped(&self) -> bool {
         self.is_login_shell_bootstrapped
+    }
+
+    /// 若 resume 命令已排队且 shell 已 bootstrap,立即写入并执行。
+    pub fn flush_queued_cli_agent_resume(&mut self, ctx: &mut ViewContext<Self>) {
+        if self.pending_cli_agent_resume.is_some() && self.is_login_shell_bootstrapped {
+            self.execute_pending_command((), ctx);
+        }
     }
     pub fn has_pending_command_or_awaiting_completion(&self, ctx: &AppContext) -> bool {
         self.awaiting_pending_command_completion || self.input.as_ref(ctx).has_pending_command()
@@ -15456,7 +15499,9 @@ impl TerminalView {
         ctx.update_view(&self.context_menu, |context_menu, view_ctx| {
             context_menu.set_origin(menu_state.menu_type.origin());
             let width = match menu_state.menu_type {
-                ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => ONEKEY_CONTEXT_MENU_WIDTH,
+                ContextMenuType::OneKeyPrompt | ContextMenuType::SuRootPasswordConfirm => {
+                    ONEKEY_CONTEXT_MENU_WIDTH
+                }
                 ContextMenuType::BlockList { .. }
                 | ContextMenuType::AltScreen { .. }
                 | ContextMenuType::Prompt { .. }
@@ -20716,6 +20761,15 @@ impl TerminalView {
             .map(|path| path.to_string_lossy().into_owned())
     }
 
+    /// 写入会话快照的 cwd:优先用本地 session 校验过的路径,否则回退到 block metadata。
+    pub fn persistable_cwd(&self, ctx: &AppContext) -> Option<String> {
+        persistable_local_cwd(
+            self.pwd_if_local(ctx),
+            self.active_session_is_local(ctx),
+            self.pwd(),
+        )
+    }
+
     pub fn shell_launch_data_if_local(&self, ctx: &AppContext) -> Option<ShellLaunchData> {
         if !FeatureFlag::ShellSelector.is_enabled() {
             return None;
@@ -21272,7 +21326,9 @@ impl TerminalView {
         // SizeInfo that reflects the lack of padding on the AltScreenElement directly
         let render_context = self.get_terminal_view_render_context(model, app);
 
-        let enforce_minimum_contrast = *FontSettings::as_ref(app).enforce_minimum_contrast;
+        // 全屏 TUI(vim/claude 等)自己设计调色;对比度校正会把 16 色 ANSI 冲成灰,
+        // 导致 iTerm2 里鲜艳的界面在 Zap 中看起来没有颜色。
+        let enforce_minimum_contrast = EnforceMinimumContrast::Never;
         // Zap:alt-screen 渲染 cli subagent 浮窗的判定从原 `is_agent_in_control()`
         // 放宽到 `is_agent_in_control_or_tagged_in()`。原来的判定只考虑 handoff 路径
         // (agent 拿走 LRC 控制权),漏掉了用户主动 tag-in 路径(`SetInputModeAgent` →
@@ -21466,7 +21522,9 @@ impl TerminalView {
         let terminal_spacing =
             TerminalSettings::as_ref(app).terminal_spacing(appearance.line_height_ratio(), app);
 
-        let enforce_minimum_contrast = *FontSettings::as_ref(app).enforce_minimum_contrast;
+        // claude/vim 等 TUI 多数不进 alt-screen,而是画在 command block 里。
+        // 对比度校正会把 16 色 ANSI(包括 Claude 吉祥物的橙色)冲成接近前景灰白。
+        let enforce_minimum_contrast = EnforceMinimumContrast::Never;
 
         let mut element = BlockListElement::new(
             self.model.clone(),
@@ -24430,14 +24488,22 @@ impl TypedActionView for TerminalView {
             }
             SummarizeConversation => self.summarize_conversation(ctx),
             AddProjectAtCurrentDirectory => {
-                // Get the current working directory and add it as a project
                 if let Some(current_dir) = self.pwd() {
                     let path = PathBuf::from(&current_dir);
-
-                    // Access the ProjectManagementModel and add the project
-                    ProjectManagementModel::handle(ctx).update(ctx, |project_model, ctx| {
-                        project_model.upsert_project(path, ctx);
-                    });
+                    if let Err(error) = ProjectOrganizationModel::handle(ctx)
+                        .update(ctx, |model, ctx| model.touch_repository_path(path, ctx))
+                    {
+                        let window_id = ctx.window_id();
+                        ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                            toast_stack.add_ephemeral_toast(
+                                DismissibleToast::error(format!(
+                                    "Failed to add repository: {error}"
+                                )),
+                                window_id,
+                                ctx,
+                            );
+                        });
+                    }
                 }
             }
             OpenProjectRulesPane => {
@@ -24844,27 +24910,31 @@ impl View for TerminalView {
                     }
                 },
             ),
-            Some(ContextMenuType::OneKeyPrompt) | Some(ContextMenuType::SuRootPasswordConfirm) => stack.add_positioned_overlay_child(
-                ChildView::new(&self.context_menu).finish(),
-                match input_mode {
-                    InputMode::PinnedToBottom | InputMode::Waterfall => {
-                        OffsetPositioning::offset_from_save_position_element(
-                            self.input.as_ref(app).save_position_id(),
-                            vec2f(0., -8.),
-                            PositionedElementOffsetBounds::WindowByPosition,
-                            PositionedElementAnchor::TopLeft,
-                            ChildAnchor::BottomLeft,
-                        )
-                    }
-                    InputMode::PinnedToTop => OffsetPositioning::offset_from_save_position_element(
-                        self.input.as_ref(app).save_position_id(),
-                        vec2f(0., 8.),
-                        PositionedElementOffsetBounds::WindowByPosition,
-                        PositionedElementAnchor::BottomLeft,
-                        ChildAnchor::TopLeft,
-                    ),
-                },
-            ),
+            Some(ContextMenuType::OneKeyPrompt) | Some(ContextMenuType::SuRootPasswordConfirm) => {
+                stack.add_positioned_overlay_child(
+                    ChildView::new(&self.context_menu).finish(),
+                    match input_mode {
+                        InputMode::PinnedToBottom | InputMode::Waterfall => {
+                            OffsetPositioning::offset_from_save_position_element(
+                                self.input.as_ref(app).save_position_id(),
+                                vec2f(0., -8.),
+                                PositionedElementOffsetBounds::WindowByPosition,
+                                PositionedElementAnchor::TopLeft,
+                                ChildAnchor::BottomLeft,
+                            )
+                        }
+                        InputMode::PinnedToTop => {
+                            OffsetPositioning::offset_from_save_position_element(
+                                self.input.as_ref(app).save_position_id(),
+                                vec2f(0., 8.),
+                                PositionedElementOffsetBounds::WindowByPosition,
+                                PositionedElementAnchor::BottomLeft,
+                                ChildAnchor::TopLeft,
+                            )
+                        }
+                    },
+                )
+            }
             Some(ContextMenuType::AIBlockAttachedContext { ai_block_view_id }) => stack
                 .add_positioned_overlay_child(
                     ChildView::new(&self.context_menu).finish(),
@@ -25754,6 +25824,27 @@ fn is_rich_input_chip_in_cli_toolbar(app: &AppContext) -> bool {
         .any(|item| matches!(item, AgentToolbarItemKind::RichInput))
 }
 
+/// 选择写入会话快照的本地 cwd。
+/// 优先使用经过本地 session 校验的路径;session 尚未就绪或校验失败时,
+/// 回退到 block metadata 中的 pwd,避免退出时把 cwd 存成 NULL。
+pub(crate) fn persistable_local_cwd(
+    verified_local_path: Option<String>,
+    is_local_session: Option<bool>,
+    metadata_pwd: Option<String>,
+) -> Option<String> {
+    if let Some(path) = verified_local_path {
+        return Some(path);
+    }
+    match is_local_session {
+        Some(false) => None,
+        Some(true) | None => metadata_pwd,
+    }
+}
+
 #[cfg(test)]
 #[path = "view_test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "persistable_cwd_tests.rs"]
+mod persistable_cwd_tests;

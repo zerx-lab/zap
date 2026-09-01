@@ -1,12 +1,15 @@
 //! Logic to determine the working directory for new terminal sessions.
 
 use super::Workspace;
+use crate::project_organization::model::ProjectOrganizationModel;
 use crate::terminal::available_shells::AvailableShell;
 #[cfg(feature = "local_tty")]
 use crate::terminal::available_shells::AvailableShells;
-use crate::terminal::session_settings::{NewSessionSource, SessionSettings};
+use crate::terminal::session_settings::{
+    NewSessionSource, SessionSettings, WorkingDirectoryMode,
+};
 use crate::terminal::ShellLaunchData;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use warpui::SingletonEntity;
 use warpui::{AppContext, ViewContext, WindowId};
 
@@ -92,7 +95,7 @@ impl Workspace {
 
         let is_same_system = same_system(prev_session_shell.as_ref(), chosen_shell, ctx);
 
-        compute_startup_directory_from_prev_session(
+        let from_settings = compute_startup_directory_from_prev_session(
             new_session_source,
             if is_same_system {
                 prev_session_working_directory
@@ -101,7 +104,26 @@ impl Workspace {
             },
             is_wsl,
             ctx,
+        );
+        let mode = SessionSettings::handle(ctx).read(ctx, |settings, _ctx| {
+            settings
+                .working_directory_config
+                .config_for_source(new_session_source)
+                .mode
+        });
+        startup_directory_with_repository_workspace_fallback(
+            from_settings,
+            mode,
+            self.active_repository_workspace_directory(ctx),
         )
+    }
+
+    fn active_repository_workspace_directory(&self, ctx: &AppContext) -> Option<PathBuf> {
+        let workspace_id = self.active_repository_workspace_id()?;
+        ProjectOrganizationModel::as_ref(ctx)
+            .workspace(workspace_id)
+            .map(|workspace| workspace.worktree_path.clone())
+            .filter(|path| path.is_dir())
     }
 }
 
@@ -168,3 +190,35 @@ fn compute_startup_directory_from_prev_session(
             )
     })
 }
+
+/// repository workspace 中新建终端的启动目录。
+///
+/// PreviousDir 仅在上一会话 cwd 位于 worktree 内时继承;否则(包括空 workspace、
+/// 或从 ~ 继承而来的页签)使用 worktree 路径。CustomDir 有值时仍尊重用户设置。
+pub(crate) fn startup_directory_with_repository_workspace_fallback(
+    from_settings: Option<PathBuf>,
+    mode: WorkingDirectoryMode,
+    worktree_path: Option<PathBuf>,
+) -> Option<PathBuf> {
+    let Some(worktree_path) = worktree_path else {
+        return from_settings;
+    };
+    match mode {
+        WorkingDirectoryMode::CustomDir => from_settings.or(Some(worktree_path)),
+        WorkingDirectoryMode::PreviousDir | WorkingDirectoryMode::HomeDir => {
+            if cwd_is_inside_worktree(from_settings.as_deref(), &worktree_path) {
+                from_settings
+            } else {
+                Some(worktree_path)
+            }
+        }
+    }
+}
+
+fn cwd_is_inside_worktree(cwd: Option<&Path>, worktree: &Path) -> bool {
+    cwd.is_some_and(|cwd| cwd.starts_with(worktree))
+}
+
+#[cfg(test)]
+#[path = "startup_directory_tests.rs"]
+mod tests;

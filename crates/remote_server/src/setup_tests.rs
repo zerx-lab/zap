@@ -226,8 +226,7 @@ fn oss_download_tarball_url_uses_github_release_asset() {
 fn install_script_uses_zap_asset_and_staging_placeholder() {
     let script = install_script(Some("~/.zap/remote-server/zap-upload.tar.gz"));
 
-    assert!(script
-        .contains("staging_tarball_path=\"~/.zap/remote-server/zap-upload.tar.gz\""));
+    assert!(script.contains("staging_tarball_path=\"~/.zap/remote-server/zap-upload.tar.gz\""));
     assert!(script.contains("zap-$os_name-$arch_name.tar.gz"));
     assert!(!script.contains("app.warp.dev"));
     assert!(!script.contains("/download/cli"));

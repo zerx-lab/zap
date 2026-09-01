@@ -10,12 +10,12 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use warp_ssh_manager::SshRepository;
 use warp_ssh_manager::secrets::SshSecretStore;
 use warp_ssh_manager::types::{AuthType, ResolvedSshAuth, SshServerInfo};
-use zap_sftp::Sftp;
+use warp_ssh_manager::SshRepository;
 use zap_sftp::session::{AuthMethod, SftpSession};
 use zap_sftp::types::OpenOptions;
+use zap_sftp::Sftp;
 
 use super::types::{FileEntry, FileEntryType};
 
