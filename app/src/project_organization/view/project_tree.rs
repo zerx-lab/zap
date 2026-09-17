@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     collections::{HashMap, HashSet},
     hash::Hash,
 };
@@ -11,16 +12,17 @@ use warp_core::ui::theme::WarpTheme;
 use warpui::{
     assets::asset_cache::AssetSource,
     elements::{
-        Border, CacheOption, ChildView, ClippedScrollStateHandle, ClippedScrollable,
-        ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DropShadow, Element, Empty,
-        Fill, Flex, Hoverable, Image, MainAxisAlignment, MainAxisSize, MouseStateHandle,
-        ParentElement, Radius, SavePosition, ScrollbarWidth, Shrinkable, Text,
+        AcceptedByDropTarget, Border, CacheOption, ChildView, ClippedScrollStateHandle,
+        ClippedScrollable, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DragAxis,
+        Draggable, DraggableState, DropShadow, DropTarget, DropTargetData, Element, Empty, Fill,
+        Flex, Hoverable, Image, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
+        Radius, SavePosition, ScrollbarWidth, Shrinkable, Text,
     },
     platform::Cursor,
     text_layout::ClipConfig,
     ui_components::components::UiComponent,
-    AppContext, Entity, ModelHandle, SingletonEntity, TypedActionView, View, ViewContext,
-    ViewHandle,
+    AppContext, Entity, EventContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -119,6 +121,27 @@ pub enum ProjectTreeRow {
     },
 }
 
+#[derive(Clone, Copy, Debug)]
+struct RepositoryDropTarget {
+    repository_id: RepositoryId,
+}
+
+impl DropTargetData for RepositoryDropTarget {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+
+pub(crate) fn repository_drop_indices(
+    ordered_ids: &[RepositoryId],
+    source_id: RepositoryId,
+    target_id: RepositoryId,
+) -> Option<(usize, usize)> {
+    let from = ordered_ids.iter().position(|id| *id == source_id)?;
+    let to = ordered_ids.iter().position(|id| *id == target_id)?;
+    (from != to).then_some((from, to))
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ProjectTreeState {
     repositories: Vec<RepositoryTreeNode>,
@@ -153,8 +176,9 @@ impl ProjectTreeState {
 
         let mut repositories = repositories;
         repositories.sort_by(|left, right| {
-            left.created_at
-                .cmp(&right.created_at)
+            left.sort_index
+                .cmp(&right.sort_index)
+                .then_with(|| left.created_at.cmp(&right.created_at))
                 .then_with(|| left.display_name.cmp(&right.display_name))
         });
         let repositories = repositories
@@ -312,6 +336,9 @@ pub enum ProjectTreeAction {
     CreateWorkspace {
         repository_id: RepositoryId,
     },
+    DeleteRepository {
+        repository_id: RepositoryId,
+    },
     DeleteWorkspace {
         workspace_id: RepositoryWorkspaceId,
     },
@@ -340,12 +367,26 @@ pub enum ProjectTreeAction {
         from: usize,
         to: usize,
     },
+    RepositoryDragStarted {
+        source_id: RepositoryId,
+        from: usize,
+        centers: Vec<f32>,
+    },
+    RepositoryDragMoved {
+        pointer_y: f32,
+    },
+    RepositoryDragDropped {
+        pointer_y: f32,
+    },
 }
 
 #[derive(Clone, Debug)]
 pub enum ProjectTreeEvent {
     AddRepositoryRequested,
     CreateWorkspaceRequested {
+        repository_id: RepositoryId,
+    },
+    DeleteRepositoryRequested {
         repository_id: RepositoryId,
     },
     DeleteWorkspaceRequested {
@@ -370,14 +411,74 @@ pub enum ProjectTreeEvent {
         from: usize,
         to: usize,
     },
+    RepositoriesReordered {
+        from: usize,
+        to: usize,
+    },
 }
 
 fn repository_add_workspace_position_id(repository_id: RepositoryId) -> String {
     format!("project_tree:repository:{repository_id}:add_workspace")
 }
 
+fn repository_remove_position_id(repository_id: RepositoryId) -> String {
+    format!("project_tree:repository:{repository_id}:remove")
+}
+
 fn should_show_workspace_hover_actions(workspace_row_hovered: bool) -> bool {
     workspace_row_hovered
+}
+
+fn should_show_repository_hover_actions(repository_row_hovered: bool) -> bool {
+    repository_row_hovered
+}
+
+pub(crate) fn repository_block_position_id(repository_id: RepositoryId) -> String {
+    format!("project_tree:repository:{repository_id}:block")
+}
+
+pub(crate) fn repository_insert_index_for_centers(centers: &[f32], pointer_y: f32) -> usize {
+    if centers.is_empty() {
+        return 0;
+    }
+    for (index, center) in centers.iter().enumerate() {
+        if pointer_y < *center {
+            return index;
+        }
+    }
+    centers.len() - 1
+}
+
+pub(crate) fn repository_drag_display_order(
+    ordered_ids: &[RepositoryId],
+    from: usize,
+    to: usize,
+) -> Vec<RepositoryId> {
+    let mut ids = ordered_ids.to_vec();
+    if from == to || from >= ids.len() || to >= ids.len() {
+        return ids;
+    }
+    let item = ids.remove(from);
+    ids.insert(to, item);
+    ids
+}
+
+fn repository_block_centers(ctx: &EventContext, ordered_ids: &[RepositoryId]) -> Option<Vec<f32>> {
+    ordered_ids
+        .iter()
+        .map(|id| {
+            ctx.element_position_by_id(repository_block_position_id(*id))
+                .map(|bounds| bounds.center().y())
+        })
+        .collect()
+}
+
+#[derive(Clone, Debug)]
+struct RepositoryDragPreview {
+    source_id: RepositoryId,
+    from: usize,
+    to: usize,
+    centers: Vec<f32>,
 }
 
 fn workspace_row_is_selected(
@@ -557,9 +658,10 @@ fn tab_count_badge_label(tab_count: usize) -> String {
     }
 }
 
-fn synchronize_mouse_states<Id>(mouse_states: &mut HashMap<Id, MouseStateHandle>, ids: &HashSet<Id>)
+fn synchronize_mouse_states<Id, State>(mouse_states: &mut HashMap<Id, State>, ids: &HashSet<Id>)
 where
     Id: Copy + Eq + Hash,
+    State: Default,
 {
     mouse_states.retain(|id, _| ids.contains(id));
     for id in ids {
@@ -587,6 +689,9 @@ pub struct ProjectTreePanel {
     tab_mouse_states: HashMap<ProjectTreeTabId, MouseStateHandle>,
     tab_close_mouse_states: HashMap<ProjectTreeTabId, MouseStateHandle>,
     repository_add_workspace_mouse_states: HashMap<RepositoryId, MouseStateHandle>,
+    repository_remove_mouse_states: HashMap<RepositoryId, MouseStateHandle>,
+    repository_drag_states: HashMap<RepositoryId, DraggableState>,
+    repository_drag: Option<RepositoryDragPreview>,
     unclassified_mouse_state: MouseStateHandle,
     add_repository_button: ViewHandle<ActionButton>,
 }
@@ -617,6 +722,9 @@ impl ProjectTreePanel {
             tab_mouse_states: HashMap::new(),
             tab_close_mouse_states: HashMap::new(),
             repository_add_workspace_mouse_states: HashMap::new(),
+            repository_remove_mouse_states: HashMap::new(),
+            repository_drag_states: HashMap::new(),
+            repository_drag: None,
             unclassified_mouse_state: Default::default(),
             add_repository_button,
         };
@@ -761,6 +869,8 @@ impl ProjectTreePanel {
             &mut self.repository_add_workspace_mouse_states,
             &repository_ids,
         );
+        synchronize_mouse_states(&mut self.repository_remove_mouse_states, &repository_ids);
+        synchronize_mouse_states(&mut self.repository_drag_states, &repository_ids);
         synchronize_mouse_states(&mut self.workspace_mouse_states, &workspace_ids);
         synchronize_mouse_states(&mut self.workspace_delete_mouse_states, &workspace_ids);
         synchronize_mouse_states(&mut self.workspace_add_tab_mouse_states, &workspace_ids);
@@ -773,6 +883,19 @@ impl ProjectTreePanel {
             .retain(|workspace_id, _| workspace_ids.contains(workspace_id));
         self.sync_breathing_states();
         ctx.notify();
+    }
+
+    fn repositories_for_display(&self) -> Vec<&RepositoryTreeNode> {
+        let repositories = self.state.repositories();
+        let Some(preview) = &self.repository_drag else {
+            return repositories.iter().collect();
+        };
+        let mut order: Vec<&RepositoryTreeNode> = repositories.iter().collect();
+        if preview.from < order.len() && preview.to < order.len() && preview.from != preview.to {
+            let moved = order.remove(preview.from);
+            order.insert(preview.to, moved);
+        }
+        order
     }
 
     fn render_header(&self, appearance: &Appearance) -> Box<dyn Element> {
@@ -797,6 +920,7 @@ impl ProjectTreePanel {
     fn render_repository_row(
         &self,
         repository: &RepositoryTreeNode,
+        ordered_ids: &[RepositoryId],
         appearance: &Appearance,
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
@@ -835,6 +959,33 @@ impl ProjectTreePanel {
         .finish();
         let add_workspace_position_id = repository_add_workspace_position_id(repository_id);
         let add_workspace = SavePosition::new(add_workspace, &add_workspace_position_id).finish();
+        let remove_action = ProjectTreeAction::DeleteRepository { repository_id };
+        let remove_tooltip = appearance
+            .ui_builder()
+            .tool_tip("Remove repository".to_string())
+            .build()
+            .finish();
+        let remove_repository = icon_button(
+            appearance,
+            icons::Icon::X,
+            false,
+            self.repository_remove_mouse_states
+                .get(&repository_id)
+                .expect("repository remove mouse state should be initialized during tree refresh")
+                .clone(),
+        )
+        .with_tooltip(move || remove_tooltip)
+        .build()
+        .on_click(move |ctx, _, _| {
+            ctx.dispatch_typed_action(remove_action.clone());
+        })
+        .with_cursor(Cursor::PointingHand)
+        .finish();
+        let remove_repository_position_id = repository_remove_position_id(repository_id);
+        let remove_placeholder = ConstrainedBox::new(Empty::new().finish())
+            .with_width(icons::ICON_DIMENSIONS)
+            .with_height(icons::ICON_DIMENSIONS)
+            .finish();
 
         let workspace_count = Container::new(
             Text::new_inline(
@@ -852,46 +1003,51 @@ impl ProjectTreePanel {
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
         .finish();
 
-        let row = Flex::row()
-            .with_main_axis_size(MainAxisSize::Max)
-            .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(TREE_ICON_GAP)
-            .with_child(tree_row_icon(chevron, icon_color, TREE_CHEVRON_SIZE))
-            .with_child(tree_row_icon(
-                icons::Icon::Folder,
-                icon_color,
-                TREE_ROW_ICON_SIZE,
-            ))
-            .with_child(
-                Shrinkable::new(
-                    1.0,
-                    Text::new_inline(
-                        repository.display_name.clone(),
-                        appearance.ui_font_family(),
-                        appearance.ui_font_body(),
-                    )
-                    .with_clip(ClipConfig::ellipsis())
-                    .with_color(theme.main_text_color(theme.background()).into())
-                    .finish(),
-                )
-                .finish(),
+        let name = Shrinkable::new(
+            1.0,
+            Text::new_inline(
+                repository.display_name.clone(),
+                appearance.ui_font_family(),
+                appearance.ui_font_body(),
             )
-            .with_child(
-                Container::new(workspace_count)
-                    .with_margin_left(8.)
-                    .with_margin_right(6.)
-                    .finish(),
-            )
-            .with_child(add_workspace)
+            .with_clip(ClipConfig::ellipsis())
+            .with_color(theme.main_text_color(theme.background()).into())
+            .finish(),
+        )
+        .finish();
+        let workspace_count = Container::new(workspace_count)
+            .with_margin_left(8.)
+            .with_margin_right(6.)
             .finish();
+        let chevron_icon = tree_row_icon(chevron, icon_color, TREE_CHEVRON_SIZE);
+        let folder_icon = tree_row_icon(icons::Icon::Folder, icon_color, TREE_ROW_ICON_SIZE);
         let toggle_action = ProjectTreeAction::ToggleRepository { repository_id };
 
-        Hoverable::new(
+        let hoverable = Hoverable::new(
             self.repository_mouse_states
                 .get(&repository_id)
                 .expect("repository row mouse state should be initialized during tree refresh")
                 .clone(),
             move |mouse_state| {
+                let show_remove = should_show_repository_hover_actions(mouse_state.is_hovered());
+                let remove_repository = if show_remove {
+                    remove_repository
+                } else {
+                    remove_placeholder
+                };
+                let remove_repository =
+                    SavePosition::new(remove_repository, &remove_repository_position_id).finish();
+                let row = Flex::row()
+                    .with_main_axis_size(MainAxisSize::Max)
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_spacing(TREE_ICON_GAP)
+                    .with_child(chevron_icon)
+                    .with_child(folder_icon)
+                    .with_child(name)
+                    .with_child(workspace_count)
+                    .with_child(add_workspace)
+                    .with_child(remove_repository)
+                    .finish();
                 let mut container = Container::new(row)
                     .with_horizontal_padding(8.)
                     .with_vertical_padding(6.)
@@ -906,6 +1062,52 @@ impl ProjectTreePanel {
         .with_defer_events_to_children()
         .on_click(move |ctx, _, _| {
             ctx.dispatch_typed_action(toggle_action.clone());
+        })
+        .finish();
+
+        let source_id = repository_id;
+        let ordered_ids = ordered_ids.to_vec();
+        Draggable::new(
+            self.repository_drag_states
+                .get(&repository_id)
+                .expect("repository drag state should be initialized during tree refresh")
+                .clone(),
+            hoverable,
+        )
+        .with_drag_axis(DragAxis::VerticalOnly)
+        .with_accepted_by_drop_target_fn(move |data, _| {
+            if data
+                .as_any()
+                .downcast_ref::<RepositoryDropTarget>()
+                .is_some_and(|target| target.repository_id != source_id)
+            {
+                AcceptedByDropTarget::Yes
+            } else {
+                AcceptedByDropTarget::No
+            }
+        })
+        .on_drag_start(move |ctx, _, _| {
+            let Some(from) = ordered_ids.iter().position(|id| *id == source_id) else {
+                return;
+            };
+            let Some(centers) = repository_block_centers(ctx, &ordered_ids) else {
+                return;
+            };
+            ctx.dispatch_typed_action(ProjectTreeAction::RepositoryDragStarted {
+                source_id,
+                from,
+                centers,
+            });
+        })
+        .on_drag(move |ctx, _, drag_position, _| {
+            ctx.dispatch_typed_action(ProjectTreeAction::RepositoryDragMoved {
+                pointer_y: drag_position.center().y(),
+            });
+        })
+        .on_drop(move |ctx, _, drag_position, _| {
+            ctx.dispatch_typed_action(ProjectTreeAction::RepositoryDragDropped {
+                pointer_y: drag_position.center().y(),
+            });
         })
         .finish()
     }
@@ -1458,6 +1660,11 @@ impl TypedActionView for ProjectTreePanel {
                     repository_id: *repository_id,
                 });
             }
+            ProjectTreeAction::DeleteRepository { repository_id } => {
+                ctx.emit(ProjectTreeEvent::DeleteRepositoryRequested {
+                    repository_id: *repository_id,
+                });
+            }
             ProjectTreeAction::DeleteWorkspace { workspace_id } => {
                 ctx.emit(ProjectTreeEvent::DeleteWorkspaceRequested {
                     workspace_id: *workspace_id,
@@ -1520,6 +1727,53 @@ impl TypedActionView for ProjectTreePanel {
                     to: *to,
                 });
             }
+            ProjectTreeAction::RepositoryDragStarted {
+                source_id,
+                from,
+                centers,
+            } => {
+                self.repository_drag = Some(RepositoryDragPreview {
+                    source_id: *source_id,
+                    from: *from,
+                    to: *from,
+                    centers: centers.clone(),
+                });
+                ctx.notify();
+            }
+            ProjectTreeAction::RepositoryDragMoved { pointer_y } => {
+                let Some(preview) = &mut self.repository_drag else {
+                    return;
+                };
+                let to = repository_insert_index_for_centers(&preview.centers, *pointer_y);
+                if preview.to != to {
+                    preview.to = to;
+                    ctx.notify();
+                }
+            }
+            ProjectTreeAction::RepositoryDragDropped { pointer_y } => {
+                let Some(preview) = self.repository_drag.take() else {
+                    return;
+                };
+                let source_matches = self
+                    .state
+                    .repositories
+                    .get(preview.from)
+                    .is_some_and(|repository| repository.repository_id == preview.source_id);
+                let to = repository_insert_index_for_centers(&preview.centers, *pointer_y);
+                if source_matches
+                    && preview.from != to
+                    && preview.from < self.state.repositories.len()
+                    && to < self.state.repositories.len()
+                {
+                    let moved = self.state.repositories.remove(preview.from);
+                    self.state.repositories.insert(to, moved);
+                    ctx.emit(ProjectTreeEvent::RepositoriesReordered {
+                        from: preview.from,
+                        to,
+                    });
+                }
+                ctx.notify();
+            }
         }
     }
 }
@@ -1535,10 +1789,17 @@ impl View for ProjectTreePanel {
         let mut tree = Flex::column()
             .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
             .with_spacing(REPOSITORY_GROUP_SPACING);
-        for repository in self.state.repositories() {
+        let ordered_ids = self
+            .state
+            .repositories()
+            .iter()
+            .map(|repository| repository.repository_id)
+            .collect::<Vec<_>>();
+        for repository in self.repositories_for_display() {
+            let repository_id = repository.repository_id;
             let mut repository_group = Flex::column()
                 .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
-                .with_child(self.render_repository_row(repository, appearance));
+                .with_child(self.render_repository_row(repository, &ordered_ids, appearance));
             if repository.expanded && !repository.workspaces.is_empty() {
                 let mut workspaces = Flex::column()
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
@@ -1562,7 +1823,15 @@ impl View for ProjectTreePanel {
                         .finish(),
                 );
             }
-            tree.add_child(repository_group.finish());
+            // DropTarget 包在 Container 上,避免 Draggable 把 bounds 带到幽灵位置,
+            // 导致松手永远命中自己、顺序弹回。见 ssh_manager/panel.rs 同类嵌套。
+            let stable_anchor = Container::new(repository_group.finish()).finish();
+            let drop_target =
+                DropTarget::new(stable_anchor, RepositoryDropTarget { repository_id }).finish();
+            tree.add_child(
+                SavePosition::new(drop_target, &repository_block_position_id(repository_id))
+                    .finish(),
+            );
         }
 
         let body: Box<dyn Element> = if self.state.repositories().is_empty() {

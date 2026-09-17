@@ -37,13 +37,16 @@ use crate::project_organization::domain::{
 };
 
 use super::{
-    repository_add_workspace_position_id, resolved_project_organization_tab_layout,
-    ring_color_contrasts_on_dark_brand, should_show_workspace_hover_actions,
-    synchronize_mouse_states, tab_count_badge_label, tab_name_offset, tab_status_icon_offset,
-    tree_name_offset, tree_status_icon_offset, workspace_count_pill_label,
-    workspace_row_is_selected, workspace_shows_branch_subtitle, ProjectTreeEvent, ProjectTreePanel,
-    ProjectTreeState, RepositoryTreeNode, TabLayout, WorkspaceTreeNode, WorkspaceVisualState,
-    WORKSPACE_ACTIVITY_SLOT_SIZE, WORKSPACE_AGENT_ICON_SIZING, WORKSPACE_AGENT_RING_WIDTH,
+    repository_add_workspace_position_id, repository_block_position_id,
+    repository_drag_display_order, repository_drop_indices, repository_insert_index_for_centers,
+    repository_remove_position_id, resolved_project_organization_tab_layout,
+    ring_color_contrasts_on_dark_brand, should_show_repository_hover_actions,
+    should_show_workspace_hover_actions, synchronize_mouse_states, tab_count_badge_label,
+    tab_name_offset, tab_status_icon_offset, tree_name_offset, tree_status_icon_offset,
+    workspace_count_pill_label, workspace_row_is_selected, workspace_shows_branch_subtitle,
+    ProjectTreeEvent, ProjectTreePanel, ProjectTreeState, RepositoryTreeNode, TabLayout,
+    WorkspaceTreeNode, WorkspaceVisualState, WORKSPACE_ACTIVITY_SLOT_SIZE,
+    WORKSPACE_AGENT_ICON_SIZING, WORKSPACE_AGENT_RING_WIDTH,
 };
 
 struct ProjectTreeTestHost {
@@ -212,6 +215,7 @@ fn tree_sorts_repositories_and_workspaces_by_creation_time() {
                 source: RepositorySource::Local,
                 created_at: earlier,
                 last_opened_at: earlier,
+                sort_index: 0,
             },
             Repository {
                 id: repository_a,
@@ -221,6 +225,7 @@ fn tree_sorts_repositories_and_workspaces_by_creation_time() {
                 source: RepositorySource::Local,
                 created_at: later,
                 last_opened_at: later,
+                sort_index: 1,
             },
         ],
         vec![
@@ -253,6 +258,60 @@ fn tree_sorts_repositories_and_workspaces_by_creation_time() {
     assert_eq!(state.repositories()[1].workspaces[0].tab_count, 2);
     assert_eq!(state.repositories()[1].workspaces[1].display_name, "beta");
     assert_eq!(state.repositories()[1].workspaces[1].tab_count, 1);
+}
+
+#[test]
+fn tree_sorts_repositories_by_sort_index_before_created_at() {
+    let repository_a = RepositoryId(uuid::Uuid::from_u128(1));
+    let repository_b = RepositoryId(uuid::Uuid::from_u128(2));
+    let earlier = chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc();
+    let later = chrono::DateTime::from_timestamp(1, 0).unwrap().naive_utc();
+
+    let state = ProjectTreeState::from_records(
+        vec![
+            Repository {
+                id: repository_a,
+                display_name: "alpha".to_string(),
+                path: "/tmp/alpha".into(),
+                remote_url: None,
+                source: RepositorySource::Local,
+                created_at: earlier,
+                last_opened_at: earlier,
+                sort_index: 1,
+            },
+            Repository {
+                id: repository_b,
+                display_name: "zebra".to_string(),
+                path: "/tmp/zebra".into(),
+                remote_url: None,
+                source: RepositorySource::Local,
+                created_at: later,
+                last_opened_at: later,
+                sort_index: 0,
+            },
+        ],
+        vec![],
+        &HashMap::new(),
+        &HashMap::new(),
+    );
+
+    assert_eq!(state.repositories()[0].display_name, "zebra");
+    assert_eq!(state.repositories()[1].display_name, "alpha");
+}
+
+#[test]
+fn repository_drop_indices_ignore_identical_and_unknown_ids() {
+    let first = RepositoryId(uuid::Uuid::from_u128(1));
+    let second = RepositoryId(uuid::Uuid::from_u128(2));
+    let missing = RepositoryId(uuid::Uuid::from_u128(3));
+    let ordered = [first, second];
+
+    assert_eq!(
+        repository_drop_indices(&ordered, first, second),
+        Some((0, 1))
+    );
+    assert_eq!(repository_drop_indices(&ordered, first, first), None);
+    assert_eq!(repository_drop_indices(&ordered, first, missing), None);
 }
 
 #[test]
@@ -306,6 +365,50 @@ fn synchronize_mouse_states_removes_stale_entries_and_preserves_existing_handles
 fn workspace_hover_actions_only_show_when_workspace_row_is_hovered() {
     assert!(!should_show_workspace_hover_actions(false));
     assert!(should_show_workspace_hover_actions(true));
+}
+
+#[test]
+fn repository_hover_actions_only_show_when_repository_row_is_hovered() {
+    assert!(!should_show_repository_hover_actions(false));
+    assert!(should_show_repository_hover_actions(true));
+}
+
+#[test]
+fn repository_insert_index_crosses_group_center() {
+    let centers = [10.0, 30.0, 50.0];
+
+    assert_eq!(repository_insert_index_for_centers(&centers, 0.0), 0);
+    assert_eq!(repository_insert_index_for_centers(&centers, 9.9), 0);
+    assert_eq!(repository_insert_index_for_centers(&centers, 10.0), 1);
+    assert_eq!(repository_insert_index_for_centers(&centers, 29.9), 1);
+    assert_eq!(repository_insert_index_for_centers(&centers, 40.0), 2);
+    assert_eq!(repository_insert_index_for_centers(&centers, 80.0), 2);
+    assert_eq!(repository_insert_index_for_centers(&[], 0.0), 0);
+}
+
+#[test]
+fn repository_drag_display_order_moves_source_and_shifts_neighbors() {
+    let first = RepositoryId(uuid::Uuid::from_u128(1));
+    let second = RepositoryId(uuid::Uuid::from_u128(2));
+    let third = RepositoryId(uuid::Uuid::from_u128(3));
+    let ordered = [first, second, third];
+
+    assert_eq!(
+        repository_drag_display_order(&ordered, 0, 1),
+        vec![second, first, third]
+    );
+    assert_eq!(
+        repository_drag_display_order(&ordered, 0, 2),
+        vec![second, third, first]
+    );
+    assert_eq!(
+        repository_drag_display_order(&ordered, 2, 0),
+        vec![third, first, second]
+    );
+    assert_eq!(
+        repository_drag_display_order(&ordered, 1, 1),
+        vec![first, second, third]
+    );
 }
 
 #[test]
@@ -440,6 +543,7 @@ fn project_tree_renders_workspace_rows_with_finite_flex_constraints() {
                     source: "local".to_string(),
                     created_at: timestamp,
                     last_opened_at: timestamp,
+                    sort_index: 0,
                 }],
                 vec![PersistedRepositoryWorkspace {
                     id: workspace_id.to_string(),
@@ -506,6 +610,7 @@ fn project_tree_scrolls_when_workspace_list_overflows() {
                 source: "local".to_string(),
                 created_at: timestamp,
                 last_opened_at: timestamp,
+                sort_index: index as i32,
             });
             workspaces.push(PersistedRepositoryWorkspace {
                 id: workspace_id.to_string(),
@@ -626,6 +731,7 @@ fn project_tree_renders_running_selected_workspace_activity_badge() {
                     source: "local".to_string(),
                     created_at: timestamp,
                     last_opened_at: timestamp,
+                    sort_index: 0,
                 }],
                 vec![PersistedRepositoryWorkspace {
                     id: workspace_id.to_string(),
@@ -692,6 +798,7 @@ fn project_tree_renders_running_grok_agent_avatar() {
                     source: "local".to_string(),
                     created_at: timestamp,
                     last_opened_at: timestamp,
+                    sort_index: 0,
                 }],
                 vec![PersistedRepositoryWorkspace {
                     id: workspace_id.to_string(),
@@ -774,6 +881,7 @@ fn create_workspace_button_does_not_toggle_its_repository() {
                     source: "local".to_string(),
                     created_at: timestamp,
                     last_opened_at: timestamp,
+                    sort_index: 0,
                 }],
                 vec![],
                 RepositoryPersistence::new(None),
@@ -839,6 +947,129 @@ fn create_workspace_button_does_not_toggle_its_repository() {
         assert!(matches!(
             events.borrow().as_slice(),
             [ProjectTreeEvent::CreateWorkspaceRequested {
+                repository_id: event_repository_id
+            }] if *event_repository_id == repository_id
+        ));
+        project_tree.read(&app, |project_tree, _| {
+            assert!(project_tree.state.repositories()[0].expanded);
+        });
+    });
+}
+
+#[test]
+fn remove_repository_button_does_not_toggle_its_repository() {
+    App::test((), |mut app| async move {
+        app.add_singleton_model(|_| Appearance::mock());
+        let tempdir = tempfile::tempdir().expect("temporary directory should be created");
+        let repository_path = tempdir.path().join("dip-agent");
+        std::fs::create_dir(&repository_path).expect("repository directory should be created");
+        let repository_id = RepositoryId(uuid::Uuid::from_u128(1));
+        let timestamp = chrono::DateTime::from_timestamp(0, 0)
+            .expect("timestamp should be valid")
+            .naive_utc();
+        app.add_singleton_model(|ctx| {
+            ProjectOrganizationModel::try_new(
+                vec![PersistedRepository {
+                    id: repository_id.to_string(),
+                    display_name: "dip-agent".to_string(),
+                    path: repository_path.to_string_lossy().to_string(),
+                    remote_url: None,
+                    source: "local".to_string(),
+                    created_at: timestamp,
+                    last_opened_at: timestamp,
+                    sort_index: 0,
+                }],
+                vec![],
+                RepositoryPersistence::new(None),
+                ctx,
+            )
+            .expect("project organization model should initialize")
+        });
+
+        let (window_id, host) =
+            app.add_window(WindowStyle::NotStealFocus, ProjectTreeTestHost::new);
+        let (project_tree, events) = host.read(&app, |host, _| {
+            (host.project_tree.clone(), host.events.clone())
+        });
+        let root_view_id = app
+            .root_view_id(window_id)
+            .expect("window should have a root view");
+        let mut presenter = Presenter::new(window_id);
+        let invalidation = WindowInvalidation {
+            updated: [root_view_id, project_tree.id()].into_iter().collect(),
+            ..Default::default()
+        };
+
+        app.update(|ctx| {
+            presenter.invalidate(invalidation, ctx);
+            presenter.build_scene(vec2f(320., 160.), 1., None, ctx);
+            let hover_bounds = presenter
+                .position_cache()
+                .get_position(&repository_block_position_id(repository_id))
+                .expect("repository row should have a saved position");
+            // Hover the chevron/name side of the row, not the always-visible + button.
+            let hover_position = vec2f(hover_bounds.min_x() + 16., hover_bounds.center().y());
+            let presenter = Rc::new(RefCell::new(presenter));
+            ctx.simulate_window_event(
+                Event::MouseMoved {
+                    position: hover_position,
+                    cmd: false,
+                    shift: false,
+                    is_synthetic: false,
+                },
+                window_id,
+                presenter.clone(),
+            );
+            presenter.borrow_mut().invalidate(
+                WindowInvalidation {
+                    updated: [root_view_id, project_tree.id()].into_iter().collect(),
+                    ..Default::default()
+                },
+                ctx,
+            );
+            presenter
+                .borrow_mut()
+                .build_scene(vec2f(320., 160.), 1., None, ctx);
+            let button_position_id = repository_remove_position_id(repository_id);
+            let click_position = presenter
+                .borrow()
+                .position_cache()
+                .get_position(&button_position_id)
+                .expect("remove repository button should have a saved position after hover")
+                .center();
+            ctx.simulate_window_event(
+                Event::LeftMouseDown {
+                    position: click_position,
+                    modifiers: Default::default(),
+                    click_count: 1,
+                    is_first_mouse: false,
+                },
+                window_id,
+                presenter.clone(),
+            );
+            presenter.borrow_mut().invalidate(
+                WindowInvalidation {
+                    updated: [root_view_id, project_tree.id()].into_iter().collect(),
+                    ..Default::default()
+                },
+                ctx,
+            );
+            presenter
+                .borrow_mut()
+                .build_scene(vec2f(320., 160.), 1., None, ctx);
+            ctx.simulate_window_event(
+                Event::LeftMouseUp {
+                    position: click_position,
+                    modifiers: Default::default(),
+                },
+                window_id,
+                presenter,
+            );
+        });
+
+        assert!(matches!(
+            events.borrow().as_slice(),
+            [ProjectTreeEvent::DeleteRepositoryRequested {
                 repository_id: event_repository_id
             }] if *event_repository_id == repository_id
         ));

@@ -993,9 +993,11 @@ fn handle_repository_persistence_operation(
                 .context("error upserting repository workspace")?;
             Ok(())
         }),
-        RepositoryPersistenceOperation::DeleteRepository { repository_id } => {
-            delete_repository(connection, &repository_id).context("error deleting repository")
-        }
+        RepositoryPersistenceOperation::DeleteRepository { repository_id } => connection
+            .immediate_transaction(|connection| {
+                delete_repository_and_workspaces(connection, &repository_id)
+                    .context("error deleting repository")
+            }),
         RepositoryPersistenceOperation::UpsertRepositoryWorkspace { workspace } => {
             save_repository_workspace(connection, workspace)
                 .context("error upserting repository workspace")
@@ -1761,6 +1763,24 @@ fn delete_repository(conn: &mut SqliteConnection, repository_id: &str) -> Result
     use schema::repositories::dsl::*;
 
     diesel::delete(repositories.filter(id.eq(repository_id))).execute(conn)?;
+
+    Ok(())
+}
+
+fn delete_repository_and_workspaces(
+    conn: &mut SqliteConnection,
+    target_repository_id: &str,
+) -> Result<()> {
+    use schema::repositories::dsl as repositories;
+    use schema::repository_workspaces::dsl as workspaces;
+
+    diesel::delete(
+        workspaces::repository_workspaces
+            .filter(workspaces::repository_id.eq(target_repository_id)),
+    )
+    .execute(conn)?;
+    diesel::delete(repositories::repositories.filter(repositories::id.eq(target_repository_id)))
+        .execute(conn)?;
 
     Ok(())
 }

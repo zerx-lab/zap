@@ -195,6 +195,7 @@ pub struct Repository {
     pub source: String,
     pub created_at: NaiveDateTime,
     pub last_opened_at: NaiveDateTime,
+    pub sort_index: i32,
 }
 
 #[derive(Clone, Debug, Eq, Identifiable, Insertable, PartialEq, Queryable, AsChangeset)]

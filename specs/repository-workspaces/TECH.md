@@ -38,6 +38,7 @@
 - `view/add_repository_modal.rs`: 本地目录与 Git URL 两种添加流程。
 - `view/create_workspace_modal.rs`: 远端基线新建分支与本地分支关联流程。
 - `view/delete_workspace_dialog.rs`: 安全删除、复选框和二次确认。
+- `view/remove_repository_dialog.rs`: 移除 repository 组织记录的确认框。确认后级联删除其 workspace 记录，不触磁盘。
 
 领域模型只依赖持久化事件和 Git 服务，不持有 TerminalModel。UI 通过现有 Workspace/PaneGroup API 创建或关闭页签。
 
@@ -215,7 +216,7 @@ UI 遵循 `warp-ui-guidelines`：按钮使用现有 ActionButton/Button 主题�
 
 树行显示：
 
-- repository: 展开状态、显示名称、进行中/错误状态、添加 workspace 和更多菜单。
+- repository: 展开状态、显示名称、进行中/错误状态、添加 workspace、hover 时显示移除，以及行内纵向拖拽排序。拖拽嵌套为 `DropTarget(Container(组))` + 行内 `Draggable`，避免 drop bounds 跟随幽灵；拖开始时冻结各组中心 Y，拖动中按指针 Y 重排显示顺序做让位，松手后写入 `sort_index`。
 - workspace: 显示名称、页签数量、折叠时的通用绿点（有子页签活动时）、新建页签 `+`、hover 删除。展开后不在父节点画 agent 头像。
 - tab: 活动槽、标题、hover 关闭；当前活动页签高亮。
 - 底部固定“未归类页签”入口和数量。第一期不展开子页签。

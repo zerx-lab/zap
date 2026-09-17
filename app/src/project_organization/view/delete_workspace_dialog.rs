@@ -1,11 +1,11 @@
 use warpui::{
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
-        ChildView, Container, CrossAxisAlignment, Element, Flex, MainAxisAlignment, MainAxisSize,
-        MouseStateHandle, ParentElement, Text,
+        ChildView, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, MainAxisAlignment,
+        MainAxisSize, MouseStateHandle, ParentElement, Text,
     },
     platform::Cursor,
     ui_components::components::UiComponent,
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -169,12 +169,16 @@ impl View for DeleteWorkspaceDialog {
                 .finish(),
             )
             .with_child(
-                Text::new_inline(
-                    details,
-                    appearance.ui_font_family(),
-                    appearance.ui_font_body(),
+                ConstrainedBox::new(
+                    Text::new(
+                        details,
+                        appearance.ui_font_family(),
+                        appearance.ui_font_body(),
+                    )
+                    .with_color(theme.sub_text_color(theme.background()).into())
+                    .finish(),
                 )
-                .with_color(theme.sub_text_color(theme.background()).into())
+                .with_max_width(440.)
                 .finish(),
             );
 

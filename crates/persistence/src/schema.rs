@@ -341,6 +341,7 @@ diesel::table! {
         source -> Text,
         created_at -> Timestamp,
         last_opened_at -> Timestamp,
+        sort_index -> Integer,
     }
 }
 

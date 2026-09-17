@@ -77,7 +77,7 @@ use crate::notifications::{
 };
 use crate::pane_group::pane::ActionOrigin;
 use crate::project_organization::domain::{
-    ProjectOrganizationError, RepositoryWorkspace, RepositoryWorkspaceId,
+    ProjectOrganizationError, RepositoryId, RepositoryWorkspace, RepositoryWorkspaceId,
 };
 use crate::project_organization::git::{
     create_from_local_async, create_from_remote_async, deletion_preflight_async,
@@ -97,6 +97,9 @@ use crate::project_organization::view::delete_workspace_dialog::{
 };
 use crate::project_organization::view::project_tree::{
     resolved_project_organization_tab_layout, ProjectTreeEvent, TabLayout,
+};
+use crate::project_organization::view::remove_repository_dialog::{
+    RemoveRepositoryDialog, RemoveRepositoryDialogEvent,
 };
 use crate::project_organization::workspace_agent_activity::{
     activities_from_terminal_sources, last_agent_activity, OzConversationSource,
@@ -955,6 +958,7 @@ pub struct Workspace {
     new_worktree_modal: ModalViewState<Modal<NewWorktreeModal>>,
     create_workspace_modal: ModalViewState<Modal<CreateWorkspaceModal>>,
     delete_workspace_dialog: ModalViewState<Modal<DeleteWorkspaceDialog>>,
+    remove_repository_dialog: ModalViewState<Modal<RemoveRepositoryDialog>>,
     close_session_confirmation_dialog: ViewHandle<CloseSessionConfirmationDialog>,
     rewind_confirmation_dialog: ViewHandle<RewindConfirmationDialog>,
     delete_conversation_confirmation_dialog: ViewHandle<DeleteConversationConfirmationDialog>,
@@ -2141,6 +2145,27 @@ impl Workspace {
         ModalViewState::new(modal)
     }
 
+    fn build_remove_repository_dialog(
+        ctx: &mut ViewContext<Self>,
+    ) -> ModalViewState<Modal<RemoveRepositoryDialog>> {
+        let body = ctx.add_typed_action_view(RemoveRepositoryDialog::new);
+        ctx.subscribe_to_view(&body, |workspace, _, event, ctx| {
+            workspace.handle_remove_repository_dialog_event(event, ctx);
+        });
+        let modal = ctx.add_typed_action_view(|ctx| {
+            Modal::new(None, body, ctx).with_modal_style(UiComponentStyles {
+                width: Some(480.),
+                ..Default::default()
+            })
+        });
+        ctx.subscribe_to_view(&modal, |workspace, _, event, ctx| {
+            if matches!(event, ModalEvent::Close) {
+                workspace.close_remove_repository_dialog(ctx);
+            }
+        });
+        ModalViewState::new(modal)
+    }
+
     fn build_remove_tab_config_confirmation_dialog(
         ctx: &mut ViewContext<Self>,
     ) -> ViewHandle<RemoveTabConfigConfirmationDialog> {
@@ -2850,6 +2875,7 @@ impl Workspace {
         let new_worktree_modal = Self::build_new_worktree_modal(ctx);
         let create_workspace_modal = Self::build_create_workspace_modal(ctx);
         let delete_workspace_dialog = Self::build_delete_workspace_dialog(ctx);
+        let remove_repository_dialog = Self::build_remove_repository_dialog(ctx);
 
         let session_config_modal = Self::build_session_config_modal(ctx);
 
@@ -3225,6 +3251,7 @@ impl Workspace {
             new_worktree_modal,
             create_workspace_modal,
             delete_workspace_dialog,
+            remove_repository_dialog,
             close_session_confirmation_dialog,
             rewind_confirmation_dialog,
             delete_conversation_confirmation_dialog,
@@ -5214,6 +5241,13 @@ impl Workspace {
     /// Change the active tab index. This must be used instead of setting `self.active_tab_index`
     /// directly, as it updates related state.
     pub(crate) fn set_active_tab_index(&mut self, index: usize, ctx: &mut ViewContext<Self>) {
+        if self.tabs.is_empty() {
+            self.active_tab_index = 0;
+            if FeatureFlag::RepositoryWorkspaces.is_enabled() {
+                self.sync_project_tree(ctx);
+            }
+            return;
+        }
         let index = if index >= self.tab_count() {
             log::warn!(
                 "Attempted to set active tab index {index} but only {} tabs exist, clamping",
@@ -6167,6 +6201,9 @@ impl Workspace {
             ProjectTreeEvent::CreateWorkspaceRequested { repository_id } => {
                 self.open_create_workspace_modal(*repository_id, ctx);
             }
+            ProjectTreeEvent::DeleteRepositoryRequested { repository_id } => {
+                self.open_remove_repository_dialog(*repository_id, ctx);
+            }
             ProjectTreeEvent::DeleteWorkspaceRequested { workspace_id } => {
                 self.open_delete_workspace_dialog(*workspace_id, ctx);
             }
@@ -6195,6 +6232,21 @@ impl Workspace {
                 to,
             } => {
                 self.reorder_repository_workspace_tabs(*workspace_id, *from, *to, ctx);
+            }
+            ProjectTreeEvent::RepositoriesReordered { from, to } => {
+                let result = ProjectOrganizationModel::handle(ctx).update(ctx, |model, ctx| {
+                    model.reorder_repositories(*from, *to, ctx)
+                });
+                if let Err(error) = result {
+                    self.toast_stack.update(ctx, |toast_stack, ctx| {
+                        toast_stack.add_ephemeral_toast(
+                            DismissibleToast::error(format!(
+                                "Failed to reorder repositories: {error}"
+                            )),
+                            ctx,
+                        );
+                    });
+                }
             }
         }
     }
@@ -6515,6 +6567,89 @@ impl Workspace {
             modal.body().update(ctx, |body, ctx| body.reset(ctx));
         });
         ctx.notify();
+    }
+
+    fn open_remove_repository_dialog(
+        &mut self,
+        repository_id: RepositoryId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        let Some(repository) = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .repository(repository_id)
+            .cloned()
+        else {
+            self.toast_stack.update(ctx, |toast_stack, ctx| {
+                toast_stack.add_ephemeral_toast(
+                    DismissibleToast::error("Repository no longer exists.".to_string()),
+                    ctx,
+                );
+            });
+            return;
+        };
+        let workspace_count = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .workspaces_for_repository(repository_id)
+            .count();
+        self.remove_repository_dialog
+            .view
+            .update(ctx, |modal, ctx| {
+                modal.body().update(ctx, |body, ctx| {
+                    body.configure(repository_id, repository.display_name, workspace_count, ctx);
+                });
+            });
+        self.remove_repository_dialog.open();
+        ctx.notify();
+    }
+
+    fn close_remove_repository_dialog(&mut self, ctx: &mut ViewContext<Self>) {
+        self.remove_repository_dialog.close();
+        self.remove_repository_dialog
+            .view
+            .update(ctx, |modal, ctx| {
+                modal.body().update(ctx, |body, ctx| body.reset(ctx));
+            });
+        ctx.notify();
+    }
+
+    fn handle_remove_repository_dialog_event(
+        &mut self,
+        event: &RemoveRepositoryDialogEvent,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        match event {
+            RemoveRepositoryDialogEvent::Close => self.close_remove_repository_dialog(ctx),
+            RemoveRepositoryDialogEvent::Confirm { repository_id } => {
+                self.remove_repository(*repository_id, ctx);
+            }
+        }
+    }
+
+    fn remove_repository(&mut self, repository_id: RepositoryId, ctx: &mut ViewContext<Self>) {
+        let workspace_ids = ProjectOrganizationModel::handle(ctx)
+            .as_ref(ctx)
+            .workspaces_for_repository(repository_id)
+            .map(|workspace| workspace.id)
+            .collect::<Vec<_>>();
+        let result = ProjectOrganizationModel::handle(ctx).update(ctx, |model, ctx| {
+            model.remove_repository(repository_id, ctx)
+        });
+        match result {
+            Ok(_) => {
+                for workspace_id in workspace_ids {
+                    self.close_repository_workspace_tabs(workspace_id, ctx);
+                }
+                self.close_remove_repository_dialog(ctx);
+            }
+            Err(error) => {
+                self.toast_stack.update(ctx, |toast_stack, ctx| {
+                    toast_stack.add_ephemeral_toast(
+                        DismissibleToast::error(format!("Failed to remove repository: {error}")),
+                        ctx,
+                    );
+                });
+            }
+        }
     }
 
     fn handle_delete_workspace_dialog_event(
@@ -11351,9 +11486,14 @@ impl Workspace {
         self.vertical_tabs_panel
             .clear_detail_sidecar_if_for_pane_group(tab_data.pane_group.id());
 
-        // If this is the last tab, close the window instead of actually removing
-        // the tab.
-        if self.tabs.len() == 1 {
+        // If this is the last tab in the window, close the window instead of
+        // removing it. Repository workspaces are an exception: the active set
+        // can become empty while other workspaces in this window keep their tabs.
+        let keep_empty_repository_workspace = last_tab_should_keep_window(
+            FeatureFlag::RepositoryWorkspaces.is_enabled(),
+            self.active_repository_workspace_id().is_some(),
+        );
+        if self.tabs.len() == 1 && !keep_empty_repository_workspace {
             if ContextFlag::CloseWindow.is_enabled() {
                 ctx.close_window();
             }
@@ -11558,8 +11698,10 @@ impl Workspace {
     ) {
         let is_last_tab = self.tabs.len() == 1;
         let closing_last_repository_workspace_tab = is_last_tab
-            && FeatureFlag::RepositoryWorkspaces.is_enabled()
-            && self.active_repository_workspace_id().is_some();
+            && last_tab_should_keep_window(
+                FeatureFlag::RepositoryWorkspaces.is_enabled(),
+                self.active_repository_workspace_id().is_some(),
+            );
         if !ContextFlag::CloseWindow.is_enabled()
             && is_last_tab
             && !closing_last_repository_workspace_tab
@@ -11570,7 +11712,7 @@ impl Workspace {
         let tabs_closed = self.close_tabs(
             vec![index].into_iter(),
             OpenDialogSource::CloseTab { tab_index: index },
-            skip_confirmation || is_last_tab, // If this is the last tab, the confirmation dialog will be handled by the window close.
+            skip_confirmation || (is_last_tab && !closing_last_repository_workspace_tab),
             add_to_undo_stack,
             ctx,
         );
@@ -22978,6 +23120,10 @@ impl View for Workspace {
             stack.add_child(self.delete_workspace_dialog.render());
         }
 
+        if self.remove_repository_dialog.is_open() {
+            stack.add_child(self.remove_repository_dialog.render());
+        }
+
         if self.workflow_modal.as_ref(app).is_open() {
             stack.add_child(ChildView::new(&self.workflow_modal).finish());
         }
@@ -24366,4 +24512,12 @@ pub(crate) fn workspace_configuration_is_valid(
     repository_workspaces_enabled: bool,
 ) -> bool {
     tab_count > 0 || repository_workspaces_enabled
+}
+
+/// 当前活动集合只剩一页时, 是否应保留窗口并允许该 repository workspace 变成空态。
+pub(crate) fn last_tab_should_keep_window(
+    repository_workspaces_enabled: bool,
+    has_active_repository_workspace: bool,
+) -> bool {
+    repository_workspaces_enabled && has_active_repository_workspace
 }

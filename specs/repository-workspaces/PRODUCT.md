@@ -45,7 +45,7 @@ Figma: none provided. 交互和布局以本规格确认过程中批准的视觉�
 
 2. 当 Feature Flag 关闭时，用户继续看到原有项目和页签体验。关闭 Flag 不删除已经保存的 repository、workspace 或页签归属数据。
 
-3. repository 树支持展开、折叠、选择、重命名、刷新、在文件管理器中打开和移除。repository 默认名称取目录名，重命名只改变显示名称，不重命名磁盘目录或 Git remote。
+3. repository 树支持展开、折叠、选择、重命名、刷新、在文件管理器中打开、移除和拖拽排序。移除按钮只在鼠标悬停该 repository 行时显示。拖拽时其余 repository 组按插入位让位，松手后把显示顺序持久化到本机。repository 默认名称取目录名，重命名只改变显示名称，不重命名磁盘目录或 Git remote。
 
 4. 用户可以通过选择本地目录添加 repository。所选目录必须是 Git 主工作目录；linked worktree、普通目录、缺失目录和不可访问目录均被拒绝，并显示具体原因。
 
@@ -55,9 +55,9 @@ Figma: none provided. 交互和布局以本规格确认过程中批准的视觉�
 
 7. 同一规范化本地路径只能添加一次。重复添加时选中已有 repository，而不是创建重复记录。
 
-8. repository 下存在 workspace 时不能移除 repository，界面要求用户先处理这些 workspace。
+8. 移除 repository 会同时从 Zap 中移除其 workspace 记录和页签归属。确认框说明这一点；确认后不删除本地仓库或 worktree 目录。
 
-9. 移除 repository 默认只删除 Zap 中的组织记录，不删除本地仓库。仅当 repository 由 Zap clone 时，界面额外提供“同时删除本地仓库目录”复选框，默认不选中。
+9. 移除 repository 只删除 Zap 中的组织记录，不删除本地仓库。
 
 10. 每个 repository 行提供创建 workspace 的明确入口。workspace 创建界面使用“从远端分支新建”和“关联本地分支”两个互斥模式。
 

@@ -2711,5 +2711,59 @@ fn workspace_configuration_allows_empty_tabs_when_repository_workspaces_are_enab
     assert!(super::workspace_configuration_is_valid(2, true));
 }
 
+#[test]
+fn last_tab_in_repository_workspace_should_keep_the_window() {
+    assert!(super::last_tab_should_keep_window(true, true));
+    assert!(!super::last_tab_should_keep_window(true, false));
+    assert!(!super::last_tab_should_keep_window(false, true));
+    assert!(!super::last_tab_should_keep_window(false, false));
+}
+
+#[test]
+fn closing_last_tab_in_repository_workspace_keeps_other_workspace_tabs() {
+    let _flag = FeatureFlag::RepositoryWorkspaces.override_enabled(true);
+
+    App::test((), |mut app| async move {
+        initialize_app(&mut app);
+        let workspace_view = mock_workspace(&mut app);
+        let workspace_a = RepositoryWorkspaceId(uuid::Uuid::from_u128(1));
+        let workspace_b = RepositoryWorkspaceId(uuid::Uuid::from_u128(2));
+
+        workspace_view.update(&mut app, |workspace, ctx| {
+            workspace.switch_repository_workspace(Some(workspace_a), ctx);
+            if workspace.tabs.is_empty() {
+                workspace.handle_action(&WorkspaceAction::AddDefaultTab, ctx);
+            }
+            for tab in &mut workspace.tabs {
+                tab.repository_workspace_id = Some(workspace_a);
+            }
+            assert_eq!(workspace.tab_count(), 1);
+
+            workspace.switch_repository_workspace(Some(workspace_b), ctx);
+            if workspace.tabs.is_empty() {
+                workspace.handle_action(&WorkspaceAction::AddDefaultTab, ctx);
+            }
+            for tab in &mut workspace.tabs {
+                tab.repository_workspace_id = Some(workspace_b);
+            }
+            assert_eq!(workspace.tab_count(), 1);
+
+            workspace.switch_repository_workspace(Some(workspace_a), ctx);
+            assert_eq!(workspace.tab_count(), 1);
+            workspace.close_tab(0, true, true, ctx);
+
+            assert_eq!(workspace.tab_count(), 0);
+            assert_eq!(
+                workspace.active_repository_workspace_id(),
+                Some(workspace_a)
+            );
+
+            workspace.switch_repository_workspace(Some(workspace_b), ctx);
+            assert_eq!(workspace.tab_count(), 1);
+            assert_eq!(workspace.tabs[0].repository_workspace_id, Some(workspace_b));
+        });
+    });
+}
+
 // 已删:test_open_ambient_agent_setup_guide_action_opens_management_view_and_is_idempotent
 // agent_management_view 字段连同 agent setup guide 整片功能在 Phase 2c 已删。

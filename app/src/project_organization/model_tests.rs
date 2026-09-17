@@ -115,6 +115,7 @@ fn persisted_repository(id: RepositoryId, path: &Path) -> PersistedRepository {
         source: "local".to_string(),
         created_at,
         last_opened_at: created_at,
+        sort_index: 0,
     }
 }
 
@@ -200,6 +201,7 @@ fn repository(id: RepositoryId, path: &Path) -> Repository {
         source: RepositorySource::Local,
         created_at,
         last_opened_at: created_at,
+        sort_index: 0,
     }
 }
 
@@ -993,14 +995,67 @@ fn insert_workspace_rejects_duplicate_repository_branch() {
 }
 
 #[test]
-fn remove_repository_is_blocked_while_workspace_exists() {
+fn reorder_repositories_swaps_display_order() {
+    App::test((), |mut app| async move {
+        let tempdir = TempDir::new().expect("temporary directory should be created");
+        let first_path = tempdir.path().join("first");
+        let second_path = tempdir.path().join("second");
+        for path in [&first_path, &second_path] {
+            std::fs::create_dir(path).expect("repository directory should be created");
+        }
+        let (model, _harness) = create_acknowledged_model(&mut app, vec![], vec![]);
+        let first_id = model
+            .update(&mut app, |model, ctx| {
+                model.add_local_repository(&first_path, ctx)
+            })
+            .expect("first repository should be added");
+        let second_id = model
+            .update(&mut app, |model, ctx| {
+                model.add_local_repository(&second_path, ctx)
+            })
+            .expect("second repository should be added");
+
+        model
+            .update(&mut app, |model, ctx| model.reorder_repositories(0, 1, ctx))
+            .expect("repositories should reorder");
+
+        let ordered_ids = model.read(&app, |model, _| {
+            model
+                .repositories_ordered()
+                .into_iter()
+                .map(|repository| repository.id)
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(ordered_ids, vec![second_id, first_id]);
+        model.read(&app, |model, _| {
+            assert_eq!(
+                model
+                    .repository(second_id)
+                    .expect("second repository should exist")
+                    .sort_index,
+                0
+            );
+            assert_eq!(
+                model
+                    .repository(first_id)
+                    .expect("first repository should exist")
+                    .sort_index,
+                1
+            );
+        });
+    });
+}
+
+#[test]
+fn remove_repository_also_removes_its_workspaces() {
     App::test((), |mut app| async move {
         let tempdir = TempDir::new().expect("temporary directory should be created");
         let repository_path = tempdir.path().join("repository");
         let worktree_path = tempdir.path().join("worktree");
         std::fs::create_dir(&repository_path).expect("repository directory should be created");
         std::fs::create_dir(&worktree_path).expect("worktree directory should be created");
-        let (model, _events) = create_acknowledged_model(&mut app, vec![], vec![]);
+        let (model, events) = create_acknowledged_model(&mut app, vec![], vec![]);
+        let (emitted_events, _event_probe) = capture_project_organization_events(&mut app, &model);
         let repository_id = model
             .update(&mut app, |model, ctx| {
                 model.add_local_repository(&repository_path, ctx)
@@ -1015,19 +1070,37 @@ fn remove_repository_is_blocked_while_workspace_exists() {
                 )
             })
             .expect("workspace should be inserted");
+        emitted_events.lock().unwrap().clear();
 
-        let error = model
+        model
             .update(&mut app, |model, ctx| {
                 model.remove_repository(repository_id, ctx)
             })
-            .expect_err("repository with workspaces should not be removed");
+            .expect("repository with workspaces should be removed from Zap");
 
+        model.read(&app, |model, _| {
+            assert!(model.repository(repository_id).is_none());
+            assert!(model.workspace(workspace_id).is_none());
+            assert!(model
+                .workspaces_for_repository(repository_id)
+                .next()
+                .is_none());
+        });
+        assert_eq!(
+            emitted_events.lock().unwrap().as_slice(),
+            &[
+                ProjectOrganizationEvent::WorkspaceRemoved { workspace_id },
+                ProjectOrganizationEvent::RepositoryRemoved { repository_id },
+            ]
+        );
+        let operations = events.operations.try_iter().collect::<Vec<_>>();
         assert!(matches!(
-            error,
-            ProjectOrganizationError::RepositoryHasWorkspaces {
-                repository_id: blocked_repository_id,
-            } if blocked_repository_id == repository_id
+            operations.last(),
+            Some(RepositoryPersistenceOperation::DeleteRepository { repository_id: id })
+                if id == &repository_id.to_string()
         ));
+        assert!(worktree_path.exists());
+        assert!(repository_path.exists());
     });
 }
 

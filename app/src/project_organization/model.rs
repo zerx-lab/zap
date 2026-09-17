@@ -108,6 +108,7 @@ impl ProjectOrganizationModel {
             source: RepositorySource::Local,
             created_at: now,
             last_opened_at: now,
+            sort_index: self.next_sort_index(),
         };
         self.validate_new_repository(&repository)?;
 
@@ -199,6 +200,7 @@ impl ProjectOrganizationModel {
             source: RepositorySource::Local,
             created_at: now,
             last_opened_at: now,
+            sort_index: self.next_sort_index(),
         };
         let repository_id = repository.id;
 
@@ -328,23 +330,61 @@ impl ProjectOrganizationModel {
         self.update_repository(repository, ctx)
     }
 
+    pub fn reorder_repositories(
+        &mut self,
+        from: usize,
+        to: usize,
+        ctx: &mut ModelContext<Self>,
+    ) -> Result<(), ProjectOrganizationError> {
+        let mut ordered_ids = self
+            .repositories_ordered()
+            .into_iter()
+            .map(|repository| repository.id)
+            .collect::<Vec<_>>();
+        if !reorder_vec(&mut ordered_ids, from, to) {
+            return Ok(());
+        }
+
+        let mut updated = Vec::new();
+        for (sort_index, repository_id) in ordered_ids.into_iter().enumerate() {
+            let sort_index = i32::try_from(sort_index).unwrap_or(i32::MAX);
+            let Some(repository) = self.repositories.get(&repository_id) else {
+                continue;
+            };
+            if repository.sort_index == sort_index {
+                continue;
+            }
+            let mut repository = repository.clone();
+            repository.sort_index = sort_index;
+            updated.push(repository);
+        }
+        for repository in &updated {
+            self.persist_repository(repository, "repository reorder")?;
+        }
+        for repository in updated {
+            let repository_id = repository.id;
+            self.repositories.insert(repository_id, repository);
+            ctx.emit(ProjectOrganizationEvent::RepositoryUpdated { repository_id });
+        }
+        Ok(())
+    }
+
     pub fn remove_repository(
         &mut self,
         repository_id: RepositoryId,
         ctx: &mut ModelContext<Self>,
     ) -> Result<Repository, ProjectOrganizationError> {
-        if self
-            .workspace_ids_by_repository_branch
-            .keys()
-            .any(|(workspace_repository_id, _)| *workspace_repository_id == repository_id)
-        {
-            return Err(ProjectOrganizationError::RepositoryHasWorkspaces { repository_id });
-        }
         let repository = self
             .repositories
             .get(&repository_id)
             .cloned()
             .ok_or(ProjectOrganizationError::RepositoryNotFound { repository_id })?;
+        let workspaces = self
+            .workspaces
+            .values()
+            .filter(|workspace| workspace.repository_id == repository_id)
+            .cloned()
+            .collect::<Vec<_>>();
 
         self.persist(
             RepositoryPersistenceOperation::DeleteRepository {
@@ -352,6 +392,15 @@ impl ProjectOrganizationModel {
             },
             "repository removal",
         )?;
+        for workspace in workspaces {
+            self.workspaces.remove(&workspace.id);
+            self.workspace_ids_by_repository_branch
+                .remove(&(workspace.repository_id, workspace.branch.clone()));
+            self.workspace_ids_by_path.remove(&workspace.worktree_path);
+            ctx.emit(ProjectOrganizationEvent::WorkspaceRemoved {
+                workspace_id: workspace.id,
+            });
+        }
         self.repositories.remove(&repository_id);
         self.repository_ids_by_path.remove(&repository.path);
         ctx.emit(ProjectOrganizationEvent::RepositoryRemoved { repository_id });
@@ -514,6 +563,27 @@ impl ProjectOrganizationModel {
 
     pub fn repositories(&self) -> impl Iterator<Item = &Repository> {
         self.repositories.values()
+    }
+
+    pub fn repositories_ordered(&self) -> Vec<&Repository> {
+        let mut repositories = self.repositories.values().collect::<Vec<_>>();
+        repositories.sort_by(|left, right| {
+            left.sort_index
+                .cmp(&right.sort_index)
+                .then_with(|| left.created_at.cmp(&right.created_at))
+                .then_with(|| left.display_name.cmp(&right.display_name))
+                .then_with(|| left.id.0.cmp(&right.id.0))
+        });
+        repositories
+    }
+
+    fn next_sort_index(&self) -> i32 {
+        self.repositories
+            .values()
+            .map(|repository| repository.sort_index)
+            .max()
+            .map(|max| max.saturating_add(1))
+            .unwrap_or(0)
     }
 
     pub fn workspaces(&self) -> impl Iterator<Item = &RepositoryWorkspace> {
@@ -702,6 +772,7 @@ impl ProjectOrganizationModel {
             source,
             created_at: repository.created_at,
             last_opened_at: repository.last_opened_at,
+            sort_index: repository.sort_index,
         })
     }
 
@@ -749,6 +820,7 @@ impl ProjectOrganizationModel {
             source: repository.source.to_string(),
             created_at: repository.created_at,
             last_opened_at: repository.last_opened_at,
+            sort_index: repository.sort_index,
         })
     }
 
@@ -809,6 +881,15 @@ impl ProjectOrganizationModel {
                 details: error.to_string(),
             })
     }
+}
+
+fn reorder_vec<T>(items: &mut Vec<T>, from: usize, to: usize) -> bool {
+    if from == to || from >= items.len() || to >= items.len() {
+        return false;
+    }
+    let item = items.remove(from);
+    items.insert(to, item);
+    true
 }
 
 #[cfg(test)]

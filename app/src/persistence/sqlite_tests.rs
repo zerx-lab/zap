@@ -441,6 +441,7 @@ fn repository_rows_round_trip() {
         source: "local".to_string(),
         created_at,
         last_opened_at,
+        sort_index: 0,
     };
 
     save_repository(&mut conn, repository.clone()).expect("repository should save");
@@ -518,6 +519,7 @@ fn malformed_repository_workspace_row_returns_error() {
         source: "local".to_string(),
         created_at: now,
         last_opened_at: now,
+        sort_index: 0,
     };
     save_repository(&mut conn, repository).expect("repository should save");
     conn.batch_execute(
@@ -547,6 +549,7 @@ fn repository_row(id: &str, path: &str) -> Repository {
         source: "local".to_string(),
         created_at: now,
         last_opened_at: now,
+        sort_index: 0,
     }
 }
 
@@ -859,6 +862,54 @@ fn repository_persistence_operation_matrix_commits_before_acknowledgement() {
 }
 
 #[test]
+fn deleting_repository_also_deletes_its_workspaces() {
+    let tempdir = tempfile::tempdir().expect("tempdir should be created");
+    let database_path = tempdir.path().join("warp.sqlite");
+    let conn = setup_database(&database_path).expect("database should initialize");
+    let handles = start_writer(conn, database_path.clone()).expect("writer should start");
+    let persistence = RepositoryPersistence::new(Some(handles.sender.clone()));
+    let repository = repository_row(
+        "123e4567-e89b-12d3-a456-426614174201",
+        "/tmp/cascade-repository",
+    );
+    let workspace = repository_workspace_row(
+        "123e4567-e89b-12d3-a456-426614174202",
+        &repository.id,
+        "main",
+        "/tmp/cascade-repository-main",
+    );
+    let mut read_conn = setup_database(&database_path).expect("read connection should initialize");
+
+    persistence
+        .execute(RepositoryPersistenceOperation::UpsertRepository {
+            repository: repository.clone(),
+        })
+        .expect("repository upsert should be acknowledged");
+    persistence
+        .execute(RepositoryPersistenceOperation::UpsertRepositoryWorkspace {
+            workspace: workspace.clone(),
+        })
+        .expect("workspace upsert should be acknowledged");
+
+    persistence
+        .execute(RepositoryPersistenceOperation::DeleteRepository {
+            repository_id: repository.id.clone(),
+        })
+        .expect("repository delete should cascade workspaces");
+    assert!(get_all_repository_workspaces(&mut read_conn)
+        .expect("workspaces should load")
+        .is_empty());
+    assert!(get_all_repositories(&mut read_conn)
+        .expect("repositories should load")
+        .is_empty());
+    handles
+        .sender
+        .send(ModelEvent::Terminate)
+        .expect("writer should receive termination");
+    handles.handle.join().expect("writer should terminate");
+}
+
+#[test]
 fn repository_and_initial_workspace_are_persisted_as_one_transaction() {
     let tempdir = tempfile::tempdir().expect("tempdir should be created");
     let database_path = tempdir.path().join("warp.sqlite");
@@ -1044,6 +1095,7 @@ fn repository_workspace_rows_support_crud_and_repository_restrict() {
         source: "local".to_string(),
         created_at,
         last_opened_at: created_at,
+        sort_index: 0,
     };
     save_repository(&mut conn, repository.clone()).expect("repository should save");
     let mut workspace = RepositoryWorkspace {

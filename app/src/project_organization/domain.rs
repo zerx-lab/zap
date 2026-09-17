@@ -180,6 +180,7 @@ pub struct Repository {
     pub source: RepositorySource,
     pub created_at: NaiveDateTime,
     pub last_opened_at: NaiveDateTime,
+    pub sort_index: i32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -231,8 +232,6 @@ pub enum ProjectOrganizationError {
         canonical_path: PathBuf,
         workspace_ids: Vec<RepositoryWorkspaceId>,
     },
-    #[error("repository {repository_id} still has workspaces")]
-    RepositoryHasWorkspaces { repository_id: RepositoryId },
     #[error("repository {repository_id} does not exist")]
     RepositoryNotFound { repository_id: RepositoryId },
     #[error("repository workspace {workspace_id} does not exist")]
