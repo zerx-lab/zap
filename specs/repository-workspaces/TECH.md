@@ -218,7 +218,7 @@ UI 遵循 `warp-ui-guidelines`：按钮使用现有 ActionButton/Button 主题�
 
 树行显示：
 
-- repository: 展开状态、显示名称、进行中/错误状态、添加 workspace、hover 时显示移除，以及行内纵向拖拽排序。拖拽嵌套为 `DropTarget(Container(组))` + 行内 `Draggable`，避免 drop bounds 跟随幽灵；拖开始时冻结各组中心 Y，拖动中按指针 Y 重排显示顺序做让位，松手后写入 `sort_index`。
+- repository: 展开状态、显示名称、进行中/错误状态、添加 workspace、hover 时显示移除，以及行内纵向拖拽排序。拖拽嵌套为 `DropTarget(Container(组))` + 行内 `Draggable`，避免 drop bounds 跟随幽灵；拖开始时冻结各组中心 Y，拖动中按指针 Y 重排显示顺序做让位，松手后写入 `sort_index`。workspace 数量与 workspace 行的页签数量一样右对齐，共用 trailing 间距。
 - workspace 行带 `SavePosition`，供顶栏指南针滚动定位。
 - workspace: 显示名称、页签数量、折叠时的通用绿点（有子页签活动时）、新建页签 `+`、hover 删除。展开后不在父节点画 agent 头像。
 - tab: 活动槽、标题、hover 关闭；当前活动页签高亮。

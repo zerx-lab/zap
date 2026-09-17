@@ -37,17 +37,17 @@ use crate::project_organization::domain::{
 };
 
 use super::{
-    ProjectTreeEvent, ProjectTreePanel, ProjectTreeState, RepositoryTreeNode, TabLayout,
-    WORKSPACE_ACTIVITY_SLOT_SIZE, WORKSPACE_AGENT_ICON_SIZING, WORKSPACE_AGENT_RING_WIDTH,
-    WorkspaceTreeNode, WorkspaceVisualState, current_workspace_location,
-    repository_add_workspace_position_id, repository_block_position_id,
-    repository_drag_display_order, repository_drop_indices, repository_insert_index_for_centers,
-    repository_remove_position_id, resolved_project_organization_tab_layout,
-    ring_color_contrasts_on_dark_brand, should_show_repository_hover_actions,
-    should_show_workspace_hover_actions, synchronize_mouse_states, tab_count_badge_label,
-    tab_name_offset, tab_status_icon_offset, tree_name_offset, tree_status_icon_offset,
-    workspace_count_pill_label, workspace_row_is_selected, workspace_row_position_id,
-    workspace_shows_branch_subtitle,
+    ProjectTreeEvent, ProjectTreePanel, ProjectTreeState, RepositoryTreeNode,
+    TREE_TRAILING_ACTION_SPACING, TabLayout, WORKSPACE_ACTIVITY_SLOT_SIZE,
+    WORKSPACE_AGENT_ICON_SIZING, WORKSPACE_AGENT_RING_WIDTH, WorkspaceTreeNode,
+    WorkspaceVisualState, current_workspace_location, repository_add_workspace_position_id,
+    repository_block_position_id, repository_drag_display_order, repository_drop_indices,
+    repository_insert_index_for_centers, repository_remove_position_id,
+    resolved_project_organization_tab_layout, ring_color_contrasts_on_dark_brand,
+    should_show_repository_hover_actions, should_show_workspace_hover_actions,
+    synchronize_mouse_states, tab_count_badge_label, tab_name_offset, tab_status_icon_offset,
+    tree_name_offset, tree_status_icon_offset, workspace_count_pill_label,
+    workspace_row_is_selected, workspace_row_position_id, workspace_shows_branch_subtitle,
 };
 
 struct ProjectTreeTestHost {
@@ -473,6 +473,11 @@ fn workspace_row_selection_matches_only_the_active_workspace() {
     assert!(workspace_row_is_selected(Some(selected), selected));
     assert!(!workspace_row_is_selected(Some(selected), other));
     assert!(!workspace_row_is_selected(None, selected));
+}
+
+#[test]
+fn repository_and_workspace_trailing_counts_share_action_spacing() {
+    assert_eq!(TREE_TRAILING_ACTION_SPACING, 8.);
 }
 
 #[test]

@@ -59,6 +59,7 @@ const WORKSPACE_AGENT_RING_WIDTH: f32 = 1.5;
 const TREE_CHEVRON_SIZE: f32 = 16.;
 const TREE_ROW_ICON_SIZE: f32 = 16.;
 const TREE_ICON_GAP: f32 = 6.;
+pub(crate) const TREE_TRAILING_ACTION_SPACING: f32 = 8.;
 /// 页签图标与 workspace 分支图标对齐: 与 chevron 同宽,行内 Flex spacing 再补 gap。
 const TAB_UNDER_WORKSPACE_INDENT: f32 = TREE_CHEVRON_SIZE;
 const ITERM_PROMPT_ICON_PATH: &str = "bundled/svg/iterm-prompt.svg";
@@ -1073,22 +1074,14 @@ impl ProjectTreePanel {
         .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
         .finish();
 
-        let name = Shrinkable::new(
-            1.0,
-            Text::new_inline(
-                repository.display_name.clone(),
-                appearance.ui_font_family(),
-                appearance.ui_font_body(),
-            )
-            .with_clip(ClipConfig::ellipsis())
-            .with_color(theme.main_text_color(theme.background()).into())
-            .finish(),
+        let name = Text::new_inline(
+            repository.display_name.clone(),
+            appearance.ui_font_family(),
+            appearance.ui_font_body(),
         )
+        .with_clip(ClipConfig::ellipsis())
+        .with_color(theme.main_text_color(theme.background()).into())
         .finish();
-        let workspace_count = Container::new(workspace_count)
-            .with_margin_left(8.)
-            .with_margin_right(6.)
-            .finish();
         let chevron_icon = tree_row_icon(chevron, icon_color, TREE_CHEVRON_SIZE);
         let folder_icon = tree_row_icon(icons::Icon::Folder, icon_color, TREE_ROW_ICON_SIZE);
         let toggle_action = ProjectTreeAction::ToggleRepository { repository_id };
@@ -1107,16 +1100,26 @@ impl ProjectTreePanel {
                 };
                 let remove_repository =
                     SavePosition::new(remove_repository, &remove_repository_position_id).finish();
-                let row = Flex::row()
-                    .with_main_axis_size(MainAxisSize::Max)
+                let labeled = Flex::row()
                     .with_cross_axis_alignment(CrossAxisAlignment::Center)
                     .with_spacing(TREE_ICON_GAP)
                     .with_child(chevron_icon)
                     .with_child(folder_icon)
-                    .with_child(name)
+                    .with_child(Shrinkable::new(1.0, name).finish())
+                    .finish();
+                let trailing = Flex::row()
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_spacing(TREE_TRAILING_ACTION_SPACING)
                     .with_child(workspace_count)
                     .with_child(add_workspace)
                     .with_child(remove_repository)
+                    .finish();
+                let row = Flex::row()
+                    .with_main_axis_size(MainAxisSize::Max)
+                    .with_main_axis_alignment(MainAxisAlignment::SpaceBetween)
+                    .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                    .with_child(Shrinkable::new(1.0, labeled).finish())
+                    .with_child(trailing)
                     .finish();
                 let mut container = Container::new(row)
                     .with_horizontal_padding(8.)
@@ -1511,7 +1514,7 @@ impl ProjectTreePanel {
                     .with_child(
                         Flex::row()
                             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-                            .with_spacing(8.)
+                            .with_spacing(TREE_TRAILING_ACTION_SPACING)
                             .with_child(tab_count)
                             .with_child(new_tab)
                             .with_child(delete)
