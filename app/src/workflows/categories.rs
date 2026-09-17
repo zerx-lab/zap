@@ -739,10 +739,7 @@ impl CategoriesView {
                 .ui_builder()
                 .link(
                     "creating your own workflow".into(),
-                    Some(
-                        ""
-                            .into(),
-                    ),
+                    Some("".into()),
                     None,
                     self.link_mouse_state_handles
                         .documentation_link_handle

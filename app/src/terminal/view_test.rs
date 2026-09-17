@@ -548,9 +548,7 @@ fn exiting_restored_cli_subagent_agent_view_inserts_entry_card() {
     });
 }
 
-fn assert_exiting_restored_ordinary_agent_view_inserts_entry_card(
-    origin: AgentViewEntryOrigin,
-) {
+fn assert_exiting_restored_ordinary_agent_view_inserts_entry_card(origin: AgentViewEntryOrigin) {
     App::test((), move |mut app| async move {
         initialize_app_for_terminal_view(&mut app);
         FeatureFlag::AgentView.set_enabled(true);
@@ -604,10 +602,8 @@ fn skips_cli_subagent_view_restore_without_matching_ai_metadata() {
 
         let block_id = BlockId::from("cli-block-1".to_string());
         let task_id = TaskId::new("cli-task-1".to_string());
-        let conversation = build_restored_conversation_with_cli_subagent_for_test(
-            block_id.clone(),
-            task_id,
-        );
+        let conversation =
+            build_restored_conversation_with_cli_subagent_for_test(block_id.clone(), task_id);
         let mut serialized_blocks =
             serialized_blocks_for_restored_cli_subagent_for_test(&conversation);
         clear_ai_metadata_for_serialized_blocks_for_test(&mut serialized_blocks);
@@ -668,7 +664,9 @@ fn finished_cli_subagent_keeps_read_only_card_when_metadata_matches() {
         initialize_app_for_terminal_view(&mut app);
         // FinishedSubagent 会触发 sidecar 持久化，需要 GlobalResourceHandlesProvider。
         let global_resource_handles = crate::GlobalResourceHandles::mock(&mut app);
-        app.add_singleton_model(|_| crate::GlobalResourceHandlesProvider::new(global_resource_handles));
+        app.add_singleton_model(|_| {
+            crate::GlobalResourceHandlesProvider::new(global_resource_handles)
+        });
 
         // 先恢复一个带 CLI subagent 的历史会话，建立带匹配 metadata 的 command block
         // 和一个 RestoredReadOnly 视图，模拟 SSH 会话在 agent view 里展开后的状态。

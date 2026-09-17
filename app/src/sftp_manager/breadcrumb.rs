@@ -47,14 +47,11 @@ pub fn render_breadcrumb(current_path: &PathBuf, appearance: &Appearance) -> Vec
 
         // 分隔符（第一段之后添加）
         if i > 0 {
-            let sep_icon = ConstrainedBox::new(
-                Icon::ChevronRight
-                    .to_warpui_icon(sub_color.into())
-                    .finish(),
-            )
-            .with_width(12.0)
-            .with_height(12.0)
-            .finish();
+            let sep_icon =
+                ConstrainedBox::new(Icon::ChevronRight.to_warpui_icon(sub_color.into()).finish())
+                    .with_width(12.0)
+                    .with_height(12.0)
+                    .finish();
             elements.push(
                 Container::new(sep_icon)
                     .with_padding_left(2.0)

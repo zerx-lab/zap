@@ -172,7 +172,10 @@ pub mod prompt_suggestions {
                 }
             }
         };
-        let system = render("prompt_suggestions_system.j2", context! { language => language });
+        let system = render(
+            "prompt_suggestions_system.j2",
+            context! { language => language },
+        );
         let user = render(
             "prompt_suggestions_user.j2",
             context! {
@@ -433,9 +436,12 @@ pub mod next_command {
             .into_iter()
             .map(|(name, content)| UserRuleCtx { name, content })
             .collect();
-        let system = render("next_command_system.j2", context! {
-            user_rules => user_rule_ctxs,
-        });
+        let system = render(
+            "next_command_system.j2",
+            context! {
+                user_rules => user_rule_ctxs,
+            },
+        );
         let user = render(
             "next_command_user.j2",
             context! {

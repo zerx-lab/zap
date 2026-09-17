@@ -149,7 +149,9 @@ mod tests {
         let mut map = HashMap::new();
         map.insert(GITHUB_TOKEN_KEY.to_string(), "old_token".to_string());
         let mut store = make_store(map);
-        store.tokens.insert(GITHUB_TOKEN_KEY.to_string(), "new_token".to_string());
+        store
+            .tokens
+            .insert(GITHUB_TOKEN_KEY.to_string(), "new_token".to_string());
         assert_eq!(store.get(GITHUB_TOKEN_KEY), Some("new_token"));
     }
 
@@ -205,6 +207,9 @@ mod tests {
 
     #[test]
     fn test_event_equality() {
-        assert_eq!(CloudSyncTokenStoreEvent::TokensChanged, CloudSyncTokenStoreEvent::TokensChanged);
+        assert_eq!(
+            CloudSyncTokenStoreEvent::TokensChanged,
+            CloudSyncTokenStoreEvent::TokensChanged
+        );
     }
 }

@@ -1,5 +1,6 @@
 use asset_macro::bundled_or_fetched_asset;
 use pathfinder_color::ColorU;
+use warp_core::ui::theme::ui_colors::UiColors;
 use warp_core::ui::{
     color::{blend::Blend, coloru_with_opacity, OPAQUE},
     theme::{
@@ -7,7 +8,6 @@ use warp_core::ui::{
         TerminalColors, VerticalGradient, WarpTheme,
     },
 };
-use warp_core::ui::theme::ui_colors::UiColors;
 
 const DARK_MODE_NORMAL_COLORS: AnsiColors = AnsiColors::new(
     AnsiColor::from_u32(0x616161FF),
@@ -306,7 +306,10 @@ const VSCODE_2026_DARK_BRIGHT_COLORS: AnsiColors = AnsiColors::new(
 
 /// 返回 VS Code 2026 Dark 主题的 16 色 ANSI 终端颜色。
 pub(super) fn vscode_2026_dark_colors() -> TerminalColors {
-    TerminalColors::new(VSCODE_2026_DARK_NORMAL_COLORS, VSCODE_2026_DARK_BRIGHT_COLORS)
+    TerminalColors::new(
+        VSCODE_2026_DARK_NORMAL_COLORS,
+        VSCODE_2026_DARK_BRIGHT_COLORS,
+    )
 }
 
 /// VS Code 2026 Dark 内置主题；配色源: vscode/extensions/theme-defaults/themes/2026-dark.json。
@@ -322,24 +325,114 @@ pub(super) fn vscode_2026_dark() -> WarpTheme {
         None,
         Some("VS Code 2026 Dark".to_string()),
         Some(UiColors {
-            surface_1: Some(ColorU { r: 0x20, g: 0x21, b: 0x22, a: 255 }),
-            surface_2: Some(ColorU { r: 0x24, g: 0x25, b: 0x26, a: 255 }),
-            surface_3: Some(ColorU { r: 0x2A, g: 0x2B, b: 0x2C, a: 255 }),
-            border: Some(ColorU { r: 0x33, g: 0x35, b: 0x36, a: 255 }),
-            focus_border: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0xB3 }),
-            split_pane_border: Some(ColorU { r: 0x2A, g: 0x2B, b: 0x2C, a: 255 }),
-            main_text: Some(ColorU { r: 0xED, g: 0xED, b: 0xED, a: 255 }),
-            sub_text: Some(ColorU { r: 0x8C, g: 0x8C, b: 0x8C, a: 255 }),
-            hint_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
-            disabled_text: Some(ColorU { r: 0x55, g: 0x55, b: 0x55, a: 255 }),
-            selection: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }),
-            text_selection: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 }),
-            hover: Some(ColorU { r: 0xFF, g: 0xFF, b: 0xFF, a: 0x0D }),
-            active: Some(ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 255 }),
-            warning: Some(ColorU { r: 0xE5, g: 0xBA, b: 0x7D, a: 255 }),
-            error: Some(ColorU { r: 0xF4, g: 0x87, b: 0x71, a: 255 }),
-            success: Some(ColorU { r: 0x72, g: 0xC8, b: 0x92, a: 255 }),
-            link: Some(ColorU { r: 0x48, g: 0xA0, b: 0xC7, a: 255 }),
+            surface_1: Some(ColorU {
+                r: 0x20,
+                g: 0x21,
+                b: 0x22,
+                a: 255,
+            }),
+            surface_2: Some(ColorU {
+                r: 0x24,
+                g: 0x25,
+                b: 0x26,
+                a: 255,
+            }),
+            surface_3: Some(ColorU {
+                r: 0x2A,
+                g: 0x2B,
+                b: 0x2C,
+                a: 255,
+            }),
+            border: Some(ColorU {
+                r: 0x33,
+                g: 0x35,
+                b: 0x36,
+                a: 255,
+            }),
+            focus_border: Some(ColorU {
+                r: 0x39,
+                g: 0x94,
+                b: 0xBC,
+                a: 0xB3,
+            }),
+            split_pane_border: Some(ColorU {
+                r: 0x2A,
+                g: 0x2B,
+                b: 0x2C,
+                a: 255,
+            }),
+            main_text: Some(ColorU {
+                r: 0xED,
+                g: 0xED,
+                b: 0xED,
+                a: 255,
+            }),
+            sub_text: Some(ColorU {
+                r: 0x8C,
+                g: 0x8C,
+                b: 0x8C,
+                a: 255,
+            }),
+            hint_text: Some(ColorU {
+                r: 0x55,
+                g: 0x55,
+                b: 0x55,
+                a: 255,
+            }),
+            disabled_text: Some(ColorU {
+                r: 0x55,
+                g: 0x55,
+                b: 0x55,
+                a: 255,
+            }),
+            selection: Some(ColorU {
+                r: 0x39,
+                g: 0x94,
+                b: 0xBC,
+                a: 0x33,
+            }),
+            text_selection: Some(ColorU {
+                r: 0x39,
+                g: 0x94,
+                b: 0xBC,
+                a: 0x33,
+            }),
+            hover: Some(ColorU {
+                r: 0xFF,
+                g: 0xFF,
+                b: 0xFF,
+                a: 0x0D,
+            }),
+            active: Some(ColorU {
+                r: 0x39,
+                g: 0x94,
+                b: 0xBC,
+                a: 255,
+            }),
+            warning: Some(ColorU {
+                r: 0xE5,
+                g: 0xBA,
+                b: 0x7D,
+                a: 255,
+            }),
+            error: Some(ColorU {
+                r: 0xF4,
+                g: 0x87,
+                b: 0x71,
+                a: 255,
+            }),
+            success: Some(ColorU {
+                r: 0x72,
+                g: 0xC8,
+                b: 0x92,
+                a: 255,
+            }),
+            link: Some(ColorU {
+                r: 0x48,
+                g: 0xA0,
+                b: 0xC7,
+                a: 255,
+            }),
         }),
     )
 }

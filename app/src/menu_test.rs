@@ -483,8 +483,7 @@ fn test_nested_submenu_leaf_hover_is_handled_at_child_depth() {
 
             assert_eq!(menu.selected_index(), Some(0));
             assert_eq!(
-                menu
-                    .menu
+                menu.menu
                     .selected_submenu()
                     .and_then(|submenu| submenu.selected_index()),
                 Some(0)

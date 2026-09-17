@@ -55,7 +55,11 @@ impl ServerConversationToken {
     }
 
     pub fn debug_link(&self) -> String {
-        format!("{}://debug/maa/{}", ChannelState::url_scheme(), self.as_str())
+        format!(
+            "{}://debug/maa/{}",
+            ChannelState::url_scheme(),
+            self.as_str()
+        )
     }
 
     pub fn conversation_link(&self) -> String {

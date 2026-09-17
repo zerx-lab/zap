@@ -8,10 +8,8 @@
 
 use warpui::{AppContext, ModelHandle, View, ViewContext, ViewHandle};
 
-use crate::pane_group::{
-    BackingView, PaneConfiguration, PaneContent, PaneGroup, PaneView,
-};
 use crate::app_state::LeafContents;
+use crate::pane_group::{BackingView, PaneConfiguration, PaneContent, PaneGroup, PaneView};
 use crate::sftp_manager::browser::SftpBrowserView;
 
 use super::{DetachType, PaneId, ShareableLink, ShareableLinkError};

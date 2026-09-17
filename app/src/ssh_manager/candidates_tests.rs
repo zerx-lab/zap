@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use warp_ssh_manager::SshConfigCandidate;
 
 use super::{
-    CandidateRow, CandidatesViewModel, fake_load_result_error, fake_load_result_loaded,
-    fake_load_result_not_found,
+    fake_load_result_error, fake_load_result_loaded, fake_load_result_not_found, CandidateRow,
+    CandidatesViewModel,
 };
 
 fn cand(alias: &str) -> SshConfigCandidate {

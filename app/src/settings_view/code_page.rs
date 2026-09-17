@@ -61,8 +61,7 @@ impl CodeSettingsPageView {
     fn build_page(
         ctx: &mut ViewContext<Self>,
     ) -> (PageType<Self>, Option<ViewHandle<ExternalEditorView>>) {
-        let (widgets, external_editor_view) = if FeatureFlag::ZapNewSettingsModes.is_enabled()
-        {
+        let (widgets, external_editor_view) = if FeatureFlag::ZapNewSettingsModes.is_enabled() {
             let editor_view = ctx.add_typed_action_view(ExternalEditorView::new);
             let widgets: Vec<Box<dyn SettingsWidget<View = Self>>> = vec![
                 Box::new(ExternalEditorCodeWidget),

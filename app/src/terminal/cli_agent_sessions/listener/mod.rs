@@ -93,6 +93,7 @@ fn create_handler(agent: &CLIAgent) -> Option<Box<dyn CLIAgentSessionHandler>> {
         | CLIAgent::CursorCli
         | CLIAgent::Goose
         | CLIAgent::Omp
+        | CLIAgent::Grok
         | CLIAgent::Unknown => None,
     }
 }

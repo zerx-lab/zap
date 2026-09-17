@@ -10,10 +10,7 @@ use warp::integration_testing::ssh_manager::{
     open_ssh_manager_panel, save_server, select_group_by_id, ssh_server_view,
 };
 use warp::workspace::Workspace;
-use warpui::{
-    async_assert, integration::TestStep,
-    windowing::WindowManager, SingletonEntity,
-};
+use warpui::{async_assert, integration::TestStep, windowing::WindowManager, SingletonEntity};
 
 use crate::Builder;
 
@@ -69,14 +66,16 @@ pub fn test_ssh_server_group_dropdown() -> Builder {
         let fb = ids.folder_b.clone();
         let sid = ids.server.clone();
         builder = builder.with_step(
-            TestStep::new("Create test folders and server via DB").with_action(move |_app, _, _| {
-                let a_id = create_folder_via_db("GroupA");
-                let b_id = create_folder_via_db("GroupB");
-                let s_id = create_server_via_db("TestServer", Some(&a_id));
-                *fa.lock().unwrap() = Some(a_id);
-                *fb.lock().unwrap() = Some(b_id);
-                *sid.lock().unwrap() = Some(s_id);
-            }),
+            TestStep::new("Create test folders and server via DB").with_action(
+                move |_app, _, _| {
+                    let a_id = create_folder_via_db("GroupA");
+                    let b_id = create_folder_via_db("GroupB");
+                    let s_id = create_server_via_db("TestServer", Some(&a_id));
+                    *fa.lock().unwrap() = Some(a_id);
+                    *fb.lock().unwrap() = Some(b_id);
+                    *sid.lock().unwrap() = Some(s_id);
+                },
+            ),
         );
     }
 
@@ -85,33 +84,28 @@ pub fn test_ssh_server_group_dropdown() -> Builder {
         open_ssh_manager_panel()
             .set_timeout(std::time::Duration::from_secs(30))
             .set_retries(3)
-            .add_named_assertion(
-                "SSH manager panel is open",
-                assert_ssh_manager_panel_open(),
-            ),
+            .add_named_assertion("SSH manager panel is open", assert_ssh_manager_panel_open()),
     );
 
     // Step 3: 打开服务器编辑器
     {
         let sid = ids.server.clone();
         builder = builder.with_step(
-            TestStep::new("Open server editor for test server").with_action(
-                move |app, _, _| {
-                    let node_id = sid.lock().unwrap().clone().expect("server id should exist");
-                    let window_id = app.read(|ctx| {
-                        WindowManager::as_ref(ctx)
-                            .active_window()
-                            .expect("no active window")
-                    });
-                    let workspace = app
-                        .views_of_type::<Workspace>(window_id)
-                        .and_then(|views| views.first().cloned())
-                        .expect("no workspace view");
-                    workspace.update(app, |ws, ctx| {
-                        ws.open_ssh_server(node_id, ctx);
-                    });
-                },
-            ),
+            TestStep::new("Open server editor for test server").with_action(move |app, _, _| {
+                let node_id = sid.lock().unwrap().clone().expect("server id should exist");
+                let window_id = app.read(|ctx| {
+                    WindowManager::as_ref(ctx)
+                        .active_window()
+                        .expect("no active window")
+                });
+                let workspace = app
+                    .views_of_type::<Workspace>(window_id)
+                    .and_then(|views| views.first().cloned())
+                    .expect("no workspace view");
+                workspace.update(app, |ws, ctx| {
+                    ws.open_ssh_server(node_id, ctx);
+                });
+            }),
         );
     }
 
@@ -178,10 +172,7 @@ pub fn test_ssh_server_group_dropdown() -> Builder {
     builder = builder.with_step(
         TestStep::new("Verify group changed to Root")
             .set_timeout(std::time::Duration::from_secs(10))
-            .add_named_assertion(
-                "current_group_id is None",
-                assert_server_group_id(None),
-            ),
+            .add_named_assertion("current_group_id is None", assert_server_group_id(None)),
     );
 
     // Step 9: 保存

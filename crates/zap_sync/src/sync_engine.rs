@@ -104,7 +104,9 @@ impl<C: GistOps> SyncEngine<C> {
                 .map_err(|e| SyncEngineError::Gist(e.to_string()))?;
         }
 
-        tokio::task::block_in_place(|| version_store.update_sync_meta(&Utc::now().to_rfc3339(), platform.to_db_str()))?;
+        tokio::task::block_in_place(|| {
+            version_store.update_sync_meta(&Utc::now().to_rfc3339(), platform.to_db_str())
+        })?;
         Ok(SyncResult::Success {
             version: local_version,
             platform,
@@ -152,7 +154,9 @@ impl<C: GistOps> SyncEngine<C> {
         }
 
         tokio::task::block_in_place(|| version_store.set_sync_version(remote_data.version))?;
-        tokio::task::block_in_place(|| version_store.update_sync_meta(&Utc::now().to_rfc3339(), platform.to_db_str()))?;
+        tokio::task::block_in_place(|| {
+            version_store.update_sync_meta(&Utc::now().to_rfc3339(), platform.to_db_str())
+        })?;
 
         Ok(SyncResult::Success {
             version: remote_data.version,
@@ -242,7 +246,9 @@ impl<C: GistOps> SyncEngine<C> {
             return Err(SyncEngineError::Gist(format!("{e}{rollback_msg}")));
         }
 
-        tokio::task::block_in_place(|| version_store.update_sync_meta(&Utc::now().to_rfc3339(), platform.to_db_str()))?;
+        tokio::task::block_in_place(|| {
+            version_store.update_sync_meta(&Utc::now().to_rfc3339(), platform.to_db_str())
+        })?;
 
         Ok(SyncResult::Success {
             version: new_version,
@@ -330,25 +336,49 @@ mod tests {
     }
 
     impl GistOps for MockGistOps {
-        async fn validate_token(&self, platform: SyncPlatform, _token: String) -> Result<String, GistClientError> {
+        async fn validate_token(
+            &self,
+            platform: SyncPlatform,
+            _token: String,
+        ) -> Result<String, GistClientError> {
             *self.last_platform.lock().unwrap() = Some(platform);
             Ok("testuser".to_string())
         }
-        async fn find_gist(&self, platform: SyncPlatform, _token: String) -> Result<Option<String>, GistClientError> {
+        async fn find_gist(
+            &self,
+            platform: SyncPlatform,
+            _token: String,
+        ) -> Result<Option<String>, GistClientError> {
             *self.last_platform.lock().unwrap() = Some(platform);
             Ok(self.find_result.lock().unwrap().clone())
         }
-        async fn create_gist(&self, platform: SyncPlatform, _token: String, _content: String) -> Result<String, GistClientError> {
+        async fn create_gist(
+            &self,
+            platform: SyncPlatform,
+            _token: String,
+            _content: String,
+        ) -> Result<String, GistClientError> {
             *self.last_platform.lock().unwrap() = Some(platform);
             *self.create_called.lock().unwrap() = true;
             Ok("new_gist_id".to_string())
         }
-        async fn update_gist(&self, platform: SyncPlatform, _token: String, _gist_id: String, _content: String) -> Result<(), GistClientError> {
+        async fn update_gist(
+            &self,
+            platform: SyncPlatform,
+            _token: String,
+            _gist_id: String,
+            _content: String,
+        ) -> Result<(), GistClientError> {
             *self.last_platform.lock().unwrap() = Some(platform);
             *self.update_called.lock().unwrap() = true;
             Ok(())
         }
-        async fn get_gist_content(&self, platform: SyncPlatform, _token: String, _gist_id: String) -> Result<String, GistClientError> {
+        async fn get_gist_content(
+            &self,
+            platform: SyncPlatform,
+            _token: String,
+            _gist_id: String,
+        ) -> Result<String, GistClientError> {
             *self.last_platform.lock().unwrap() = Some(platform);
             Ok(self.content.clone())
         }
@@ -357,11 +387,17 @@ mod tests {
     struct MockProvider;
 
     impl SyncDataProvider for MockProvider {
-        fn section_key(&self) -> &str { "ssh" }
+        fn section_key(&self) -> &str {
+            "ssh"
+        }
         fn collect_data(&self, _token: &str) -> Result<serde_json::Value, SyncEngineError> {
             Ok(serde_json::json!({"nodes": []}))
         }
-        fn apply_data(&self, _token: &str, _data: &serde_json::Value) -> Result<(), SyncEngineError> {
+        fn apply_data(
+            &self,
+            _token: &str,
+            _data: &serde_json::Value,
+        ) -> Result<(), SyncEngineError> {
             Ok(())
         }
     }
@@ -394,7 +430,10 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.upload(platform, "token", &[&provider], &store).await.unwrap();
+        let result = engine
+            .upload(platform, "token", &[&provider], &store)
+            .await
+            .unwrap();
         assert!(matches!(result, SyncResult::Success { version: 1, .. }));
         assert!(*engine.client.create_called.lock().unwrap());
         // 断言 platform 真的传到 GistOps,避免 mock 吞参数
@@ -416,7 +455,10 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.upload(platform, "token", &[&provider], &store).await.unwrap();
+        let result = engine
+            .upload(platform, "token", &[&provider], &store)
+            .await
+            .unwrap();
         assert!(matches!(result, SyncResult::Success { version: 1, .. }));
         assert!(*engine.client.update_called.lock().unwrap());
     }
@@ -436,8 +478,17 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.upload(platform, "token", &[&provider], &store).await.unwrap();
-        assert!(matches!(result, SyncResult::Conflict { local_version: 1, remote_version: 5 }));
+        let result = engine
+            .upload(platform, "token", &[&provider], &store)
+            .await
+            .unwrap();
+        assert!(matches!(
+            result,
+            SyncResult::Conflict {
+                local_version: 1,
+                remote_version: 5
+            }
+        ));
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -455,7 +506,10 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(5);
-        let result = engine.download(platform, "token", &[&provider], &store).await.unwrap();
+        let result = engine
+            .download(platform, "token", &[&provider], &store)
+            .await
+            .unwrap();
         assert!(matches!(result, SyncResult::AlreadyUpToDate { version: 1 }));
     }
 
@@ -474,7 +528,10 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.download(platform, "token", &[&provider], &store).await.unwrap();
+        let result = engine
+            .download(platform, "token", &[&provider], &store)
+            .await
+            .unwrap();
         assert!(matches!(result, SyncResult::Success { version: 10, .. }));
         assert_eq!(store.get_sync_version().unwrap(), 10);
     }
@@ -494,7 +551,9 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.download(platform, "token", &[&provider], &store).await;
+        let result = engine
+            .download(platform, "token", &[&provider], &store)
+            .await;
         assert!(result.is_err());
     }
 
@@ -506,7 +565,10 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(3);
-        let result = engine.upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
+        let result = engine
+            .upload(SyncPlatform::GitHub, "token", &[&provider], &store)
+            .await
+            .unwrap();
         assert!(matches!(result, SyncResult::AlreadyUpToDate { version: 3 }));
         // 远程版本未变,不应触发任何写操作
         assert!(!*engine.client.update_called.lock().unwrap());
@@ -519,7 +581,10 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(1);
-        let result = engine.force_upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
+        let result = engine
+            .force_upload(SyncPlatform::GitHub, "token", &[&provider], &store)
+            .await
+            .unwrap();
         assert!(matches!(result, SyncResult::Success { version: 2, .. }));
         assert_eq!(store.get_sync_version().unwrap(), 2);
     }
@@ -530,7 +595,10 @@ mod tests {
         let engine = SyncEngine::with_client(mock);
         let provider = MockProvider;
         let store = MockVersionStore::new(3);
-        let result = engine.force_upload(SyncPlatform::GitHub, "token", &[&provider], &store).await.unwrap();
+        let result = engine
+            .force_upload(SyncPlatform::GitHub, "token", &[&provider], &store)
+            .await
+            .unwrap();
         assert!(matches!(result, SyncResult::Success { version: 6, .. }));
         assert_eq!(store.get_sync_version().unwrap(), 6);
     }

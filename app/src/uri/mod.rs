@@ -281,9 +281,7 @@ impl UriHost {
                         // `SettingsSection::OzCloudAPIKeys`(云端 API key 管理页),
                         // 随 UI 一同物理删。保留 arm 以记录原意图,物理处理为 no-op。
                         "platform" => {
-                            log::warn!(
-                                "warp://settings/platform 路由在 Zap 中已下线,忽略该请求"
-                            );
+                            log::warn!("warp://settings/platform 路由在 Zap 中已下线,忽略该请求");
                         }
                         "appearance" => {
                             dispatch_action_in_new_or_existing_window(

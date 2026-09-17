@@ -52,8 +52,7 @@ use crate::{
     cmd_or_ctrl_shift,
     drive::{
         drive_helpers::has_feature_gated_anonymous_user_reached_notebook_limit,
-        export::ExportManager, items::WarpDriveItemId, ObjectTypeAndId,
-        ZapDriveObjectSettings,
+        export::ExportManager, items::WarpDriveItemId, ObjectTypeAndId, ZapDriveObjectSettings,
     },
     editor::{
         EditOrigin, EditorView, Event as EditorEvent, InteractionState,
@@ -1853,11 +1852,7 @@ impl NotebookView {
         // Load the server's version of the notebook now that the object store has been updated.
         // This will also switch back to edit mode if there isn't an active editor.
         if let Some(notebook) = ObjectStoreModel::as_ref(ctx).get_notebook(&id) {
-            self.load(
-                notebook.clone(),
-                &ZapDriveObjectSettings::default(),
-                ctx,
-            );
+            self.load(notebook.clone(), &ZapDriveObjectSettings::default(), ctx);
         }
         ctx.notify();
     }

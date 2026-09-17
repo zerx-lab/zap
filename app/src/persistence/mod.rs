@@ -51,7 +51,7 @@ use crate::workflows::WorkflowObject;
 use crate::workspaces::user_profiles::UserProfileWithUID;
 use crate::workspaces::workspace::{Workspace as WorkspaceMetadata, WorkspaceUid};
 
-use self::model::{AgentConversation, AgentConversationData, Project};
+use self::model::{AgentConversation, AgentConversationData, Repository, RepositoryWorkspace};
 
 #[cfg(any(feature = "local_fs", feature = "integration_tests"))]
 pub use sqlite::database_file_path;
@@ -119,6 +119,85 @@ pub fn reconstruct(sender: &Option<SyncSender<ModelEvent>>) {
 pub struct WriterHandles {
     pub handle: JoinHandle<()>,
     pub sender: SyncSender<ModelEvent>,
+}
+
+#[derive(Debug)]
+pub enum RepositoryPersistenceOperation {
+    UpsertRepository {
+        repository: model::Repository,
+    },
+    UpsertRepositoryWithWorkspace {
+        repository: model::Repository,
+        workspace: model::RepositoryWorkspace,
+    },
+    DeleteRepository {
+        repository_id: String,
+    },
+    UpsertRepositoryWorkspace {
+        workspace: model::RepositoryWorkspace,
+    },
+    DeleteRepositoryWorkspace {
+        workspace_id: String,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+pub enum RepositoryPersistenceError {
+    #[error("repository persistence is unavailable")]
+    Unavailable,
+    #[error("SQLite writer is paused")]
+    Paused,
+    #[error("repository persistence request channel disconnected: {details}")]
+    RequestDisconnected { details: String },
+    #[error("repository persistence response channel disconnected: {details}")]
+    ResponseDisconnected { details: String },
+    #[error("repository persistence database operation failed: {details}")]
+    Database { details: String },
+}
+
+#[derive(Debug)]
+pub struct RepositoryPersistenceRequest {
+    pub operation: RepositoryPersistenceOperation,
+    pub response: SyncSender<Result<(), RepositoryPersistenceError>>,
+}
+
+#[derive(Clone)]
+pub struct RepositoryPersistence {
+    sender: Option<SyncSender<ModelEvent>>,
+}
+
+impl RepositoryPersistence {
+    /// 创建 repository persistence acknowledgement client.
+    pub fn new(sender: Option<SyncSender<ModelEvent>>) -> Self {
+        Self { sender }
+    }
+
+    /// 执行 repository persistence 操作并等待 SQLite writer acknowledgement.
+    pub fn execute(
+        &self,
+        operation: RepositoryPersistenceOperation,
+    ) -> Result<(), RepositoryPersistenceError> {
+        let sender = self
+            .sender
+            .as_ref()
+            .ok_or(RepositoryPersistenceError::Unavailable)?;
+        let (response, receiver) = std::sync::mpsc::sync_channel(1);
+        sender
+            .send(ModelEvent::RepositoryPersistence(
+                RepositoryPersistenceRequest {
+                    operation,
+                    response,
+                },
+            ))
+            .map_err(|error| RepositoryPersistenceError::RequestDisconnected {
+                details: error.to_string(),
+            })?;
+        receiver
+            .recv()
+            .map_err(|error| RepositoryPersistenceError::ResponseDisconnected {
+                details: error.to_string(),
+            })?
+    }
 }
 
 /// Model for interacting with the writer thread.
@@ -197,7 +276,8 @@ pub struct PersistedData {
     pub experiments: Vec<ServerExperiment>,
     pub ai_queries: Vec<PersistedAIInput>,
     pub multi_agent_conversations: Vec<AgentConversation>,
-    pub projects: Vec<Project>,
+    pub repositories: Vec<Repository>,
+    pub repository_workspaces: Vec<RepositoryWorkspace>,
     pub project_rules: Vec<ProjectRulePath>,
     pub ignored_suggestions: Vec<(String, SuggestionType)>,
     pub mcp_server_installations: HashMap<Uuid, TemplatableMCPServerInstallation>,
@@ -322,12 +402,7 @@ pub enum ModelEvent {
     UpsertCurrentUserInformation {
         user_information: PersistedCurrentUserInformation,
     },
-    UpsertProject {
-        project: Project,
-    },
-    DeleteProject {
-        path: String,
-    },
+    RepositoryPersistence(RepositoryPersistenceRequest),
     UpsertMCPServerEnvironmentVariables {
         mcp_server_uuid: Vec<u8>,
         environment_variables: String,

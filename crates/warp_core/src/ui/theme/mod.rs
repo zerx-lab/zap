@@ -1,6 +1,6 @@
 pub mod color;
-pub mod ui_colors;
 pub mod phenomenon;
+pub mod ui_colors;
 
 use std::path::PathBuf;
 

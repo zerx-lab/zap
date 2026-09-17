@@ -192,9 +192,8 @@ fn oss_open_installer() -> Result<()> {
     let mut autoupdate_dir = warp_core::paths::cache_dir();
     autoupdate_dir.push("autoupdate");
 
-    let dmg = find_latest_dmg(&autoupdate_dir).ok_or_else(|| {
-        anyhow!("openWarp: 找不到已下载的 dmg(目录: {autoupdate_dir:?})")
-    })?;
+    let dmg = find_latest_dmg(&autoupdate_dir)
+        .ok_or_else(|| anyhow!("openWarp: 找不到已下载的 dmg(目录: {autoupdate_dir:?})"))?;
 
     log::info!("openWarp: 准备打开安装 dmg {dmg:?}");
 
@@ -796,18 +795,12 @@ async fn download_dmg(
         if downloaded - last_reported >= REPORT_BYTES_THRESHOLD
             || last_reported_at.elapsed() >= REPORT_TIME_THRESHOLD
         {
-            on_progress(DownloadProgress {
-                downloaded,
-                total,
-            });
+            on_progress(DownloadProgress { downloaded, total });
             last_reported = downloaded;
             last_reported_at = Instant::now();
         }
     }
-    on_progress(DownloadProgress {
-        downloaded,
-        total,
-    });
+    on_progress(DownloadProgress { downloaded, total });
     file.sync_data().await?;
 
     log::info!("Wrote DMG to tempfile at {:?}", &dmg_file);
@@ -867,9 +860,7 @@ fn update_url(channel: Channel, version: &str) -> String {
                 release.tag_name
             );
         }
-        return format!(
-            "https://github.com/zerx-lab/warp/releases/download/v{version}/{asset}"
-        );
+        return format!("https://github.com/zerx-lab/warp/releases/download/v{version}/{asset}");
     }
     format!(
         "{}/{}",

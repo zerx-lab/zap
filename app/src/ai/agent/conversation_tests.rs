@@ -154,7 +154,11 @@ fn run_shell_command_tool() -> api::message::tool_call::Tool {
     })
 }
 
-fn tool_call_message_with_tool(id: &str, call_id: &str, tool: api::message::tool_call::Tool) -> api::Message {
+fn tool_call_message_with_tool(
+    id: &str,
+    call_id: &str,
+    tool: api::message::tool_call::Tool,
+) -> api::Message {
     api::Message {
         id: id.to_string(),
         task_id: "root-task".to_string(),
@@ -475,11 +479,7 @@ fn test_cli_subagent_serialized_block_preserves_block_id_and_metadata() {
             api::Task {
                 id: "root-task".to_string(),
                 messages: vec![
-                    tool_call_message_with_tool(
-                        "tool-call-1",
-                        "call-1",
-                        run_shell_command_tool(),
-                    ),
+                    tool_call_message_with_tool("tool-call-1", "call-1", run_shell_command_tool()),
                     tool_call_result_message_with_result(
                         "tool-result-1",
                         "call-1",

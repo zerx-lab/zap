@@ -316,9 +316,13 @@ impl SettingsImportView {
         let font_family = appearance.monospace_font_family();
         let font_color = blended_colors::text_sub(theme, theme.background());
         let description = Container::new(
-            Text::new_inline(setting.setting_type.get_name(), font_family, appearance.ui_font_subheading())
-                .with_color(font_color)
-                .finish(),
+            Text::new_inline(
+                setting.setting_type.get_name(),
+                font_family,
+                appearance.ui_font_subheading(),
+            )
+            .with_color(font_color)
+            .finish(),
         )
         .with_margin_left(CHECKBOX_SPACING);
         let setting_type = setting.setting_type.to_owned();
@@ -362,9 +366,13 @@ impl SettingsImportView {
         let font_color = theme.main_text_color(theme.background());
 
         let terminal_text = Container::new(
-            Text::new_inline(config_menu_item.config_name.clone(), font_family, appearance.ui_font_subheading())
-                .with_color(font_color.into_solid())
-                .finish(),
+            Text::new_inline(
+                config_menu_item.config_name.clone(),
+                font_family,
+                appearance.ui_font_subheading(),
+            )
+            .with_color(font_color.into_solid())
+            .finish(),
         )
         .with_horizontal_margin(8.)
         .finish();

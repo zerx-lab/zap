@@ -10,15 +10,15 @@ use futures::io::{AsyncRead, AsyncWrite};
 use warpui::r#async::{executor, FutureExt as _};
 
 use crate::proto::{
-    client_message, server_message, Abort, Authenticate, BufferEdit, ClientMessage, CloseBuffer,
-    CreateDirectory, CreateDirectoryResponse, DeleteFile, ErrorCode, Initialize,
-    InitializeResponse, ListDirectory, ListDirectoryResponse, LoadRepoMetadataDirectoryResponse,
-    NavigatedToDirectoryResponse, OpenBuffer, OpenBufferResponse, ReadFileChunk,
-    read_file_chunk_response, ReadFileChunkResponse, ReadFileContextRequest,
-    ReadFileContextResponse, ResolveConflict,
-    ResolveConflictResponse, ResolvePath, ResolvePathResponse, RunCommandRequest,
-    RunCommandResponse, SaveBuffer, SaveBufferResponse, ServerMessage, SessionBootstrapped,
-    TextEdit, WriteFile, WriteFileChunk, WriteFileChunkResponse,
+    client_message, read_file_chunk_response, server_message, Abort, Authenticate, BufferEdit,
+    ClientMessage, CloseBuffer, CreateDirectory, CreateDirectoryResponse, DeleteFile, ErrorCode,
+    Initialize, InitializeResponse, ListDirectory, ListDirectoryResponse,
+    LoadRepoMetadataDirectoryResponse, NavigatedToDirectoryResponse, OpenBuffer,
+    OpenBufferResponse, ReadFileChunk, ReadFileChunkResponse, ReadFileContextRequest,
+    ReadFileContextResponse, ResolveConflict, ResolveConflictResponse, ResolvePath,
+    ResolvePathResponse, RunCommandRequest, RunCommandResponse, SaveBuffer, SaveBufferResponse,
+    ServerMessage, SessionBootstrapped, TextEdit, WriteFile, WriteFileChunk,
+    WriteFileChunkResponse,
 };
 
 use crate::protocol::{self, ProtocolError, RequestId};
@@ -475,7 +475,9 @@ impl RemoteServerClient {
         let mut bytes = Vec::new();
         let mut offset = 0u64;
         loop {
-            let response = self.read_file_chunk(path.clone(), offset, CHUNK_SIZE).await?;
+            let response = self
+                .read_file_chunk(path.clone(), offset, CHUNK_SIZE)
+                .await?;
             let success = match response.result {
                 Some(read_file_chunk_response::Result::Success(success)) => success,
                 Some(read_file_chunk_response::Result::Error(err)) => {

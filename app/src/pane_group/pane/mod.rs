@@ -36,8 +36,8 @@ use std::{any::Any, fmt::Display};
 
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::get_started_view::GetStartedView;
-use crate::ssh_manager::server_view::SshServerView;
 use crate::sftp_manager::browser::SftpBrowserView;
+use crate::ssh_manager::server_view::SshServerView;
 use crate::view_components::action_button::ActionButton;
 use crate::{
     ai::execution_profiles::editor::ExecutionProfileEditorView,
@@ -382,9 +382,7 @@ impl PaneId {
     }
 
     /// Creates a [`PaneId`] from a [`PaneView<SftpBrowserView>`] entity ID.
-    pub fn from_sftp_pane_view(
-        sftp_pane_view: &ViewHandle<PaneView<SftpBrowserView>>,
-    ) -> Self {
+    pub fn from_sftp_pane_view(sftp_pane_view: &ViewHandle<PaneView<SftpBrowserView>>) -> Self {
         Self::new(IPaneType::Sftp, sftp_pane_view)
     }
 

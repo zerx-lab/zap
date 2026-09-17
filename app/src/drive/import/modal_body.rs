@@ -38,8 +38,7 @@ pub(super) const IMPORT_FONT_SIZE: f32 = 14.;
 pub(super) const INDENT_MARGIN: f32 = 22.;
 pub(super) const BASE_INDENT: f32 = 30.;
 
-const FILE_TYPE_DOCS_URL: &str =
-    "";
+const FILE_TYPE_DOCS_URL: &str = "";
 const SUPPORTED_FILE_TYPE_TEXT: &str = "md, yaml, yml";
 
 #[cfg(test)]

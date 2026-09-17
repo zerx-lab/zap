@@ -259,10 +259,7 @@ mod tests {
     fn test_open_code_panels_file_editor_default_is_warp() {
         use crate::util::file::external_editor::settings::OpenCodePanelsFileEditor;
 
-        assert_eq!(
-            OpenCodePanelsFileEditor::default_value(),
-            EditorChoice::Zap
-        );
+        assert_eq!(OpenCodePanelsFileEditor::default_value(), EditorChoice::Zap);
     }
 
     #[test]

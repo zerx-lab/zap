@@ -329,7 +329,9 @@ impl InBandCommandExecutor {
 
                 let in_band_command = match shell.shell_type() {
                     ShellType::PowerShell => {
-                        format!("Zap-Run-GeneratorCommand {id} '{escaped_command}' -ErrorAction Ignore")
+                        format!(
+                            "Zap-Run-GeneratorCommand {id} '{escaped_command}' -ErrorAction Ignore"
+                        )
                     }
                     ShellType::Fish => {
                         // Add a leading space for in-band commands in fish, which omits them from

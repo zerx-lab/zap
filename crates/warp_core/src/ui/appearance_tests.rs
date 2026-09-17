@@ -3,8 +3,8 @@ use crate::ui::theme::mock_terminal_colors;
 use warpui::color::ColorU;
 
 fn mock_appearance() -> Appearance {
-    use crate::ui::theme::Details;
     use super::super::theme::Fill;
+    use crate::ui::theme::Details;
 
     let theme = WarpTheme::new(
         Fill::Solid(ColorU::from_u32(0x000000ff)),
@@ -139,10 +139,18 @@ fn test_semantic_font_size_ordering() {
         let display = appearance.ui_font_display();
         let hero = appearance.ui_font_hero();
 
-        assert!(overline <= footnote, "overline <= footnote at base={}", size);
+        assert!(
+            overline <= footnote,
+            "overline <= footnote at base={}",
+            size
+        );
         assert!(footnote <= body, "footnote <= body at base={}", size);
         assert!(body <= body_large, "body <= body_large at base={}", size);
-        assert!(body_large <= subheading, "body_large <= subheading at base={}", size);
+        assert!(
+            body_large <= subheading,
+            "body_large <= subheading at base={}",
+            size
+        );
         assert!(subheading <= h3, "subheading <= h3 at base={}", size);
         assert!(h3 <= h2, "h3 <= h2 at base={}", size);
         assert!(h2 <= h1, "h2 <= h1 at base={}", size);
@@ -166,19 +174,39 @@ fn test_dropdown_top_bar_height_scaling() {
     let mut appearance = mock_appearance();
 
     appearance.set_ui_font_size_test(8.0);
-    assert_eq!(appearance.dropdown_top_bar_height(), 30.0, "min size should clamp to 30.0");
+    assert_eq!(
+        appearance.dropdown_top_bar_height(),
+        30.0,
+        "min size should clamp to 30.0"
+    );
 
     appearance.set_ui_font_size_test(10.0);
-    assert_eq!(appearance.dropdown_top_bar_height(), 30.0, "size 10: 10*2.5=25, clamped to 30.0");
+    assert_eq!(
+        appearance.dropdown_top_bar_height(),
+        30.0,
+        "size 10: 10*2.5=25, clamped to 30.0"
+    );
 
     appearance.set_ui_font_size_test(12.0);
-    assert_eq!(appearance.dropdown_top_bar_height(), 30.0, "size 12: 12*2.5=30, exactly 30.0");
+    assert_eq!(
+        appearance.dropdown_top_bar_height(),
+        30.0,
+        "size 12: 12*2.5=30, exactly 30.0"
+    );
 
     appearance.set_ui_font_size_test(16.0);
-    assert_eq!(appearance.dropdown_top_bar_height(), 40.0, "size 16: 16*2.5=40");
+    assert_eq!(
+        appearance.dropdown_top_bar_height(),
+        40.0,
+        "size 16: 16*2.5=40"
+    );
 
     appearance.set_ui_font_size_test(20.0);
-    assert_eq!(appearance.dropdown_top_bar_height(), 50.0, "size 20: 20*2.5=50");
+    assert_eq!(
+        appearance.dropdown_top_bar_height(),
+        50.0,
+        "size 20: 20*2.5=50"
+    );
 }
 
 /// 作者: logic
@@ -240,7 +268,10 @@ fn test_per_window_theme_override_resolution() {
     // global theme/ui_builder is always returned.
     set_current_render_window(Some(window_a));
     assert!(std::ptr::eq(appearance.theme(), &appearance.theme));
-    assert!(std::ptr::eq(appearance.ui_builder(), &appearance.ui_builder));
+    assert!(std::ptr::eq(
+        appearance.ui_builder(),
+        &appearance.ui_builder
+    ));
     set_current_render_window(None);
 
     // Insert an override for window A directly (bypassing `ModelContext`, which
@@ -268,7 +299,10 @@ fn test_per_window_theme_override_resolution() {
     // Ambient == B (no override) → the global theme is returned.
     set_current_render_window(Some(window_b));
     assert!(std::ptr::eq(appearance.theme(), &appearance.theme));
-    assert!(std::ptr::eq(appearance.ui_builder(), &appearance.ui_builder));
+    assert!(std::ptr::eq(
+        appearance.ui_builder(),
+        &appearance.ui_builder
+    ));
 
     // Ambient == None (e.g. non-render reads) → the global theme is returned.
     set_current_render_window(None);

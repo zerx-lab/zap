@@ -26,11 +26,51 @@ hover: "#FFFFFF0D"
 "##;
     let colors: UiColors = serde_yaml::from_str(yaml).expect("反序列化失败");
 
-    assert_eq!(colors.surface_1.unwrap(), ColorU { r: 0x20, g: 0x21, b: 0x22, a: 255 });
-    assert_eq!(colors.surface_2.unwrap(), ColorU { r: 0x24, g: 0x25, b: 0x26, a: 255 });
-    assert_eq!(colors.focus_border.unwrap(), ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0xB3 });
-    assert_eq!(colors.selection.unwrap(), ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0x33 });
-    assert_eq!(colors.hover.unwrap(), ColorU { r: 0xFF, g: 0xFF, b: 0xFF, a: 0x0D });
+    assert_eq!(
+        colors.surface_1.unwrap(),
+        ColorU {
+            r: 0x20,
+            g: 0x21,
+            b: 0x22,
+            a: 255
+        }
+    );
+    assert_eq!(
+        colors.surface_2.unwrap(),
+        ColorU {
+            r: 0x24,
+            g: 0x25,
+            b: 0x26,
+            a: 255
+        }
+    );
+    assert_eq!(
+        colors.focus_border.unwrap(),
+        ColorU {
+            r: 0x39,
+            g: 0x94,
+            b: 0xBC,
+            a: 0xB3
+        }
+    );
+    assert_eq!(
+        colors.selection.unwrap(),
+        ColorU {
+            r: 0x39,
+            g: 0x94,
+            b: 0xBC,
+            a: 0x33
+        }
+    );
+    assert_eq!(
+        colors.hover.unwrap(),
+        ColorU {
+            r: 0xFF,
+            g: 0xFF,
+            b: 0xFF,
+            a: 0x0D
+        }
+    );
     // 未设置的字段应为 None
     assert!(colors.main_text.is_none());
 }
@@ -39,9 +79,19 @@ hover: "#FFFFFF0D"
 #[test]
 fn serialize_ui_colors_skips_none() {
     let colors = UiColors {
-        surface_1: Some(ColorU { r: 0x20, g: 0x21, b: 0x22, a: 255 }),
+        surface_1: Some(ColorU {
+            r: 0x20,
+            g: 0x21,
+            b: 0x22,
+            a: 255,
+        }),
         surface_2: None,
-        border: Some(ColorU { r: 0x33, g: 0x35, b: 0x36, a: 255 }),
+        border: Some(ColorU {
+            r: 0x33,
+            g: 0x35,
+            b: 0x36,
+            a: 255,
+        }),
         surface_3: None,
         focus_border: None,
         split_pane_border: None,

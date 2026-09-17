@@ -18,7 +18,9 @@ use warpui::{
 use crate::{
     appearance::Appearance,
     code::buffer_location::RemotePath,
-    pane_group::{focus_state::PaneFocusHandle, pane::view, BackingView, PaneConfiguration, PaneEvent},
+    pane_group::{
+        focus_state::PaneFocusHandle, pane::view, BackingView, PaneConfiguration, PaneEvent,
+    },
     terminal::model::session::Session,
 };
 

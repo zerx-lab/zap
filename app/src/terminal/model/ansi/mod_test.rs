@@ -324,6 +324,20 @@ fn parse_truecolor_attr() {
     assert_eq!(handler.attr, Some(Attr::Foreground(Color::Spec(spec))));
 }
 
+#[test]
+fn parse_truecolor_attr_with_colon_separators() {
+    static BYTES: &[u8] = &[
+        0x1b, b'[', b'3', b'8', b':', b'2', b':', b'1', b'2', b'8', b':', b'6', b'6', b':', b'2',
+        b'5', b'5', b'm',
+    ];
+
+    let (_, handler) = parse_bytes(BYTES);
+
+    let spec = ColorU::new(128, 66, 255, 0xff);
+
+    assert_eq!(handler.attr, Some(Attr::Foreground(Color::Spec(spec))));
+}
+
 /// No exactly a test; useful for debugging.
 #[test]
 fn parse_zsh_startup() {

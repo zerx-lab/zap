@@ -27,7 +27,9 @@ fn coloru_from_hex_alpha(s: &str) -> Result<ColorU, String> {
 
     // 展开 3 位缩写: #RGB -> #RRGGBB
     let expanded: String = if hex.len() == SHORT_LEN {
-        hex.chars().flat_map(|c| std::iter::repeat_n(c, 2)).collect()
+        hex.chars()
+            .flat_map(|c| std::iter::repeat_n(c, 2))
+            .collect()
     } else {
         hex.to_string()
     };
@@ -105,7 +107,9 @@ pub mod option {
     {
         let opt: Option<String> = Option::deserialize(deserializer)?;
         match opt {
-            Some(s) => coloru_from_hex_alpha(&s).map(Some).map_err(de::Error::custom),
+            Some(s) => coloru_from_hex_alpha(&s)
+                .map(Some)
+                .map_err(de::Error::custom),
             None => Ok(None),
         }
     }
@@ -155,13 +159,23 @@ mod tests {
 
     #[test]
     fn test_serialize_opaque() {
-        let c = ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 255 };
+        let c = ColorU {
+            r: 0x39,
+            g: 0x94,
+            b: 0xBC,
+            a: 255,
+        };
         assert_eq!(coloru_to_hex_alpha_string(&c), "#3994bc");
     }
 
     #[test]
     fn test_serialize_with_alpha() {
-        let c = ColorU { r: 0x39, g: 0x94, b: 0xBC, a: 0xB3 };
+        let c = ColorU {
+            r: 0x39,
+            g: 0x94,
+            b: 0xBC,
+            a: 0xB3,
+        };
         assert_eq!(coloru_to_hex_alpha_string(&c), "#3994bcb3");
     }
 }

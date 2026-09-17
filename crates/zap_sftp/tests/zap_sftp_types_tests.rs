@@ -82,18 +82,36 @@ fn test_file_permissions_from_mode_644() {
 #[test]
 fn test_file_permissions_from_mode_777() {
     let p = FilePermissions::from_mode(0o777);
-    assert!(p.owner_read && p.owner_write && p.owner_exec, "owner 位应全部为 true");
-    assert!(p.group_read && p.group_write && p.group_exec, "group 位应全部为 true");
-    assert!(p.other_read && p.other_write && p.other_exec, "other 位应全部为 true");
+    assert!(
+        p.owner_read && p.owner_write && p.owner_exec,
+        "owner 位应全部为 true"
+    );
+    assert!(
+        p.group_read && p.group_write && p.group_exec,
+        "group 位应全部为 true"
+    );
+    assert!(
+        p.other_read && p.other_write && p.other_exec,
+        "other 位应全部为 true"
+    );
 }
 
 /// 验证 0o000 => 所有位均为 false
 #[test]
 fn test_file_permissions_from_mode_000() {
     let p = FilePermissions::from_mode(0o000);
-    assert!(!p.owner_read && !p.owner_write && !p.owner_exec, "owner 位应全部为 false");
-    assert!(!p.group_read && !p.group_write && !p.group_exec, "group 位应全部为 false");
-    assert!(!p.other_read && !p.other_write && !p.other_exec, "other 位应全部为 false");
+    assert!(
+        !p.owner_read && !p.owner_write && !p.owner_exec,
+        "owner 位应全部为 false"
+    );
+    assert!(
+        !p.group_read && !p.group_write && !p.group_exec,
+        "group 位应全部为 false"
+    );
+    assert!(
+        !p.other_read && !p.other_write && !p.other_exec,
+        "other 位应全部为 false"
+    );
 }
 
 /// 验证 0o111 => 仅执行位为 true
@@ -143,7 +161,11 @@ fn test_open_options_write() {
 fn test_open_options_append() {
     let opts = OpenOptions::append();
     assert!(!opts.read, "read 应为 false");
-    assert_eq!(opts.write, Some(WriteMode::Append), "write 应为 Some(Append)");
+    assert_eq!(
+        opts.write,
+        Some(WriteMode::Append),
+        "write 应为 Some(Append)"
+    );
     assert!(opts.create, "create 应为 true");
     assert!(!opts.truncate, "truncate 应为 false");
 }

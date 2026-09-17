@@ -25,8 +25,8 @@ use windows::Win32::Foundation::{HANDLE, WAIT_OBJECT_0};
 use windows::Win32::System::Console::{COORD, HPCON};
 use windows::Win32::System::Threading::{
     CreateProcessW, WaitForSingleObject, CREATE_BREAKAWAY_FROM_JOB, CREATE_UNICODE_ENVIRONMENT,
-    EXTENDED_STARTUPINFO_PRESENT, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
-    STARTUPINFOEXW, STARTUPINFOW,
+    EXTENDED_STARTUPINFO_PRESENT, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOEXW,
+    STARTUPINFOW,
 };
 
 use crate::terminal::local_tty::windows::proc_thread_attribute_list::ProcThreadAttributeList;

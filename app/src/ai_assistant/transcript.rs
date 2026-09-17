@@ -9,10 +9,10 @@ use warpui::units::Pixels;
 use warpui::{
     elements::{
         Align, Border, ChildAnchor, ClippedScrollStateHandle, ClippedScrollable, ConstrainedBox,
-        Container, CornerRadius, CrossAxisAlignment, EventHandler, Fill, Flex,
+        Container, CornerRadius, CrossAxisAlignment, EventHandler, Expanded, Fill, Flex,
         FormattedTextElement, HyperlinkUrl, Icon, MainAxisAlignment, MainAxisSize,
         MouseStateHandle, ParentAnchor, ParentElement, Radius, SavePosition, ScrollbarWidth,
-        Expanded, Shrinkable, Text, Wrap,
+        Shrinkable, Text, Wrap,
     },
     keymap::Keystroke,
     platform::Cursor,
@@ -48,7 +48,6 @@ const TRANSCRIPT_POSITION_ID: &str = "ai_assistant::transcript";
 const TERMINAL_INPUT_SVG_PATH: &str = "bundled/svg/terminal-input.svg";
 const USER_ICON_SVG_PATH: &str = "bundled/svg/user.svg";
 const SAVE_WORKFLOW_ICON_PATH: &str = "bundled/svg/workflow.svg";
-
 
 const PANEL_LEFT_MARGIN: f32 = 15.;
 const DETAILS_BOTTOM_MARGIN: f32 = 12.;
@@ -634,7 +633,9 @@ impl Transcript {
                         theme.main_text_color(theme.surface_2()).into_solid(),
                         highlighted_hyperlink.clone(),
                     )
-                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+                    .with_heading_to_font_size_multipliers(
+                        appearance.heading_font_size_multipliers().clone(),
+                    )
                     .with_inline_code_properties(
                         Some(theme.nonactive_ui_text_color().into()),
                         Some(inline_code_bg_color),

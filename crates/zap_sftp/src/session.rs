@@ -19,8 +19,13 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 /// 认证方式
 #[derive(Debug, Clone)]
 pub enum AuthMethod {
-    Password { password: String },
-    PublicKey { key_path: PathBuf, passphrase: Option<String> },
+    Password {
+        password: String,
+    },
+    PublicKey {
+        key_path: PathBuf,
+        passphrase: Option<String>,
+    },
 }
 
 /// SFTP 会话，封装 ssh2 连接
@@ -51,54 +56,57 @@ impl SftpSession {
         let addr = format!("{host}:{port}");
 
         // 通过 ToSocketAddrs 进行 DNS 解析，支持主机名和 IP 地址
-        let socket_addr = addr.to_socket_addrs()
+        let socket_addr = addr
+            .to_socket_addrs()
             .map_err(|e| SftpError::ConnectionFailed(format!("地址解析失败: {e}")))?
             .next()
             .ok_or_else(|| SftpError::ConnectionFailed(format!("DNS 解析无结果: {addr}")))?;
 
         // 使用带超时的 TCP 连接
-        let tcp = TcpStream::connect_timeout(&socket_addr, effective_timeout)
-            .map_err(|e| {
-                if e.kind() == std::io::ErrorKind::TimedOut {
-                    SftpError::Timeout
-                } else {
-                    SftpError::ConnectionFailed(format!("连接 {addr} 失败: {e}"))
-                }
-            })?;
+        let tcp = TcpStream::connect_timeout(&socket_addr, effective_timeout).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::TimedOut {
+                SftpError::Timeout
+            } else {
+                SftpError::ConnectionFailed(format!("连接 {addr} 失败: {e}"))
+            }
+        })?;
 
         let mut session = ssh2::Session::new()
             .map_err(|e| SftpError::ConnectionFailed(format!("创建 SSH 会话失败: {e}")))?;
 
-        let tcp_for_session = tcp.try_clone()
+        let tcp_for_session = tcp
+            .try_clone()
             .map_err(|e| SftpError::ConnectionFailed(format!("克隆 TCP 流失败: {e}")))?;
         session.set_tcp_stream(tcp_for_session);
 
         // 设置 SSH 会话超时（毫秒），影响 handshake 和后续所有阻塞操作
         session.set_timeout(effective_timeout.as_millis() as u32);
 
-        session.handshake()
-            .map_err(|e| {
-                if is_timeout_error(&e) {
-                    SftpError::Timeout
-                } else {
-                    SftpError::ConnectionFailed(format!("SSH 握手失败: {e}"))
-                }
-            })?;
+        session.handshake().map_err(|e| {
+            if is_timeout_error(&e) {
+                SftpError::Timeout
+            } else {
+                SftpError::ConnectionFailed(format!("SSH 握手失败: {e}"))
+            }
+        })?;
 
         match &auth {
             AuthMethod::Password { password } => {
-                session.userauth_password(username, password)
-                    .map_err(|e| {
-                        if is_timeout_error(&e) {
-                            SftpError::Timeout
-                        } else {
-                            SftpError::AuthFailed(format!("密码认证失败: {e}"))
-                        }
-                    })?;
+                session.userauth_password(username, password).map_err(|e| {
+                    if is_timeout_error(&e) {
+                        SftpError::Timeout
+                    } else {
+                        SftpError::AuthFailed(format!("密码认证失败: {e}"))
+                    }
+                })?;
             }
-            AuthMethod::PublicKey { key_path, passphrase } => {
+            AuthMethod::PublicKey {
+                key_path,
+                passphrase,
+            } => {
                 let pass = passphrase.as_deref();
-                session.userauth_pubkey_file(username, None, key_path, pass)
+                session
+                    .userauth_pubkey_file(username, None, key_path, pass)
                     .map_err(|e| {
                         if is_timeout_error(&e) {
                             SftpError::Timeout

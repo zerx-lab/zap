@@ -22,8 +22,8 @@ use warpui::{
 };
 
 use crate::resource_center::{mark_feature_used_and_write_to_user_defaults, Tip, TipAction};
-use crate::ui_components::tab_selector::{render_tab_selector, SettingsTab};
 use crate::themes::theme::{RespectSystemTheme, ThemeKind, WarpTheme};
+use crate::ui_components::tab_selector::{render_tab_selector, SettingsTab};
 use crate::util::traffic_lights::traffic_light_data;
 use crate::workspace::PANEL_HEADER_HEIGHT;
 use crate::{

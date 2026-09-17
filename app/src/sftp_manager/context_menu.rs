@@ -30,7 +30,10 @@ pub struct ContextMenuState {
 impl ContextMenuState {
     /// 创建新的右键菜单状态
     pub fn new(entry_index: usize, position: Vector2F) -> Self {
-        Self { entry_index, position }
+        Self {
+            entry_index,
+            position,
+        }
     }
 }
 
@@ -251,10 +254,22 @@ mod tests {
         let items = build_file_menu_items(index);
 
         assert!(matches!(&items[0].action, SftpBrowserAction::OpenEntry(7)));
-        assert!(matches!(&items[1].action, SftpBrowserAction::DownloadEntry(7)));
-        assert!(matches!(&items[2].action, SftpBrowserAction::RenameEntry(7)));
-        assert!(matches!(&items[3].action, SftpBrowserAction::DeleteEntry(7)));
-        assert!(matches!(&items[4].action, SftpBrowserAction::DetailsEntry(7)));
+        assert!(matches!(
+            &items[1].action,
+            SftpBrowserAction::DownloadEntry(7)
+        ));
+        assert!(matches!(
+            &items[2].action,
+            SftpBrowserAction::RenameEntry(7)
+        ));
+        assert!(matches!(
+            &items[3].action,
+            SftpBrowserAction::DeleteEntry(7)
+        ));
+        assert!(matches!(
+            &items[4].action,
+            SftpBrowserAction::DetailsEntry(7)
+        ));
     }
 
     /// 测试 index=0 时菜单项动作正确
@@ -262,8 +277,14 @@ mod tests {
     fn test_build_file_menu_items_zero_index() {
         let items = build_file_menu_items(0);
         assert!(matches!(&items[0].action, SftpBrowserAction::OpenEntry(0)));
-        assert!(matches!(&items[3].action, SftpBrowserAction::DeleteEntry(0)));
-        assert!(matches!(&items[4].action, SftpBrowserAction::DetailsEntry(0)));
+        assert!(matches!(
+            &items[3].action,
+            SftpBrowserAction::DeleteEntry(0)
+        ));
+        assert!(matches!(
+            &items[4].action,
+            SftpBrowserAction::DetailsEntry(0)
+        ));
     }
 
     // ============================================================
@@ -286,10 +307,9 @@ mod tests {
             let temp_db = std::env::temp_dir().join("warp_sftp_ctx_test.sqlite");
             let _ = warp_ssh_manager::set_database_path(temp_db);
 
-            let (_, view) = app.add_window(
-                warpui::platform::WindowStyle::NotStealFocus,
-                |ctx| crate::sftp_manager::browser::SftpBrowserView::new("test-node".to_string(), ctx),
-            );
+            let (_, view) = app.add_window(warpui::platform::WindowStyle::NotStealFocus, |ctx| {
+                crate::sftp_manager::browser::SftpBrowserView::new("test-node".to_string(), ctx)
+            });
 
             // 触发右键菜单
             view.update(&mut app, |view, ctx| {

@@ -471,9 +471,7 @@ impl HoaOnboardingFlow {
             text: crate::t!("common-learn-more"),
             styles: FormattedTextStyles {
                 underline: true,
-                hyperlink: Some(Hyperlink::Url(
-                    "".into(),
-                )),
+                hyperlink: Some(Hyperlink::Url("".into())),
                 ..Default::default()
             },
         };

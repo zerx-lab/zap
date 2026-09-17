@@ -221,8 +221,7 @@ fn resolve_tab_config_shell(name: &str, ctx: &AppContext) -> Option<AvailableShe
 
     AvailableShell::try_from(name).ok()
 }
-const WARP_SHELL_COMPATIBILITY_DOCS: &str =
-    "";
+const WARP_SHELL_COMPATIBILITY_DOCS: &str = "";
 // Default minimum width for a newly created Agent Mode pane so that it is legible. Called "default"
 // because this value may be too large for small windows. In that case, we fall back to 50% of the
 // window width.
@@ -983,6 +982,16 @@ impl PaneGroup {
         }
     }
 
+    /// 保存应用退出时仍在运行的 terminal block。
+    pub(crate) fn persist_active_blocks_for_shutdown(&self, ctx: &AppContext) {
+        let pane_ids = self.terminal_pane_ids().collect::<Vec<_>>();
+        for pane_id in pane_ids {
+            if let Some(terminal_pane) = self.terminal_session_by_id(pane_id) {
+                terminal_pane.persist_active_block_for_shutdown(ctx);
+            }
+        }
+    }
+
     /// Executes the provided callback for each CodeView contained within
     /// this pane group.
     pub fn for_all_code_panes(
@@ -1539,6 +1548,18 @@ impl PaneGroup {
                     ctx,
                 );
 
+                if FeatureFlag::CliAgentSessionResume.is_enabled() {
+                    if let Some(resume_command) = terminal_snapshot
+                        .cli_agent_resume
+                        .as_ref()
+                        .and_then(|resume| resume.resume_command())
+                    {
+                        terminal_view.update(ctx, |terminal, _ctx| {
+                            terminal.queue_cli_agent_resume(resume_command);
+                        });
+                    }
+                }
+
                 let terminal_view_id = terminal_view.id();
 
                 let pane_data = TerminalPane::new(
@@ -1997,6 +2018,7 @@ impl PaneGroup {
                             active_profile_id: None,
                             conversation_ids_to_restore: Vec::new(),
                             active_conversation_id: None,
+                            cli_agent_resume: None,
                         })
                     }
                 };

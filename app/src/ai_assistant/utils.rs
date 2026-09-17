@@ -18,7 +18,6 @@ use crate::{appearance::Appearance, ui_components::blended_colors};
 
 use super::{panel::AIAssistantAction, requests::Requests, transcript::CodeBlockMouseStateHandles};
 
-
 const SQUARE_ALERT_SVG_PATH: &str = "bundled/svg/alert-square.svg";
 const TRIANGLE_ALERT_SVG_PATH: &str = "bundled/svg/alert-triangle.svg";
 

@@ -359,9 +359,15 @@ impl Hoverable {
     /// If there is another element above this one at the cursor position, then we treat that as
     /// outside the element for purposes of [`MouseState`].
     fn is_mouse_over_element(&self, ctx: &EventContext, position: Vector2F) -> bool {
-        let Some(origin) = self.origin else { return false; };
-        let Some(size) = self.size() else { return false; };
-        let Some(z_index) = self.child_max_z_index else { return false; };
+        let Some(origin) = self.origin else {
+            return false;
+        };
+        let Some(size) = self.size() else {
+            return false;
+        };
+        let Some(z_index) = self.child_max_z_index else {
+            return false;
+        };
 
         let is_hovering = ctx
             .visible_rect(origin, size)

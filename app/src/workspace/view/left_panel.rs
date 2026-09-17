@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -7,14 +7,14 @@ use warp_core::{send_telemetry_from_ctx, ui::Icon, HostId, SessionId};
 use warp_util::path::LineAndColumnArg;
 use warpui::{
     elements::{
-        resizable_state_handle, ChildView, ConstrainedBox, Container, CrossAxisAlignment,
+        resizable_state_handle, Border, ChildView, ConstrainedBox, Container, CrossAxisAlignment,
         DragBarSide, Element, Empty, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle,
         ParentElement, Resizable, ResizableStateHandle, Shrinkable,
     },
     platform::Cursor,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
     AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WeakViewHandle,
+    ViewContext, ViewHandle, WeakViewHandle, WindowId,
 };
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -45,9 +45,7 @@ use crate::workspace::view::conversation_list::view::{
 use crate::workspace::view::global_search::view::{
     Event as GlobalSearchViewEvent, GlobalSearchEntryFocus, GlobalSearchView,
 };
-use crate::workspace::view::server_file_browser::{
-    ServerFileBrowserEvent, ServerFileBrowserView,
-};
+use crate::workspace::view::server_file_browser::{ServerFileBrowserEvent, ServerFileBrowserView};
 use crate::workspace::view::{
     LEFT_PANEL_AGENT_CONVERSATIONS_BINDING_NAME, LEFT_PANEL_GLOBAL_SEARCH_BINDING_NAME,
     LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME, LEFT_PANEL_SKILL_MANAGER_BINDING_NAME,
@@ -61,6 +59,9 @@ use crate::{
     drive::panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH},
     pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT},
     pane_group::{self},
+    project_organization::domain::RepositoryWorkspaceId,
+    project_organization::project_tree_tab::ProjectTreeTabNode,
+    project_organization::view::project_tree::{ProjectTreeEvent, ProjectTreePanel},
     terminal::resizable_data::{ModalType, ResizableData},
     ui_components::{
         buttons::{icon_button, icon_button_with_color},
@@ -71,8 +72,14 @@ use crate::{
     TelemetryEvent,
 };
 
+/// 与分屏分隔条同宽，让树和终端之间有一条可见分界。
+pub(crate) const LEFT_PANEL_DIVIDER_WIDTH: f32 = 1.;
+/// Resizable 热区是 5px，且默认叠在面板内侧。向外偏一点，让命中区落在分界线上，而不是树行末尾。
+pub(crate) const LEFT_PANEL_DRAGBAR_OUTWARD_OFFSET: f32 = 3.;
+
 #[derive(Default)]
 struct MouseStateHandles {
+    project_tree_button: MouseStateHandle,
     project_explorer_button: MouseStateHandle,
     global_search_button: MouseStateHandle,
     warp_drive_button: MouseStateHandle,
@@ -84,6 +91,7 @@ struct MouseStateHandles {
 
 #[derive(Clone, Debug)]
 pub enum LeftPanelAction {
+    ProjectTree,
     ProjectExplorer,
     GlobalSearch { entry_focus: GlobalSearchEntryFocus },
     ZapDrive,
@@ -94,6 +102,7 @@ pub enum LeftPanelAction {
 }
 
 pub enum LeftPanelEvent {
+    ProjectTree(ProjectTreeEvent),
     #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
     FileTree(pane_group::Event),
     ZapDrive(DrivePanelEvent),
@@ -143,6 +152,7 @@ pub enum LeftPanelEvent {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ToolPanelView {
+    ProjectTree,
     ProjectExplorer,
     GlobalSearch { entry_focus: GlobalSearchEntryFocus },
     ZapDrive,
@@ -219,6 +229,7 @@ pub struct LeftPanelView {
     ssh_manager_view: ViewHandle<SshManagerPanel>,
     server_file_browser_view: ViewHandle<ServerFileBrowserView>,
     skill_manager_view: ViewHandle<SkillManagerPanel>,
+    project_tree_view: ViewHandle<ProjectTreePanel>,
     active_view: active_view_state::ActiveViewState,
     toolbelt_buttons: Vec<ToolbeltButtonConfig>,
     active_pane_group: Option<WeakViewHandle<PaneGroup>>,
@@ -226,6 +237,9 @@ pub struct LeftPanelView {
     working_directories_model: ModelHandle<WorkingDirectoriesModel>,
     is_agent_management_view_open: bool,
     panel_position: super::PanelPosition,
+    window_id: WindowId,
+    /// 事件路径缓存的 inset；header padding 在 render 时按 chrome helper 重算，不读此字段。
+    titlebar_leading_inset: f32,
 }
 
 fn toolbelt_tooltip_keybinding(binding_names: &[&'static str], app: &AppContext) -> Option<String> {
@@ -266,6 +280,10 @@ impl LeftPanelView {
         let ssh_manager_view = ctx.add_typed_action_view(SshManagerPanel::new);
         let server_file_browser_view = ctx.add_typed_action_view(ServerFileBrowserView::new);
         let skill_manager_view = ctx.add_typed_action_view(SkillManagerPanel::new);
+        let project_tree_view = ctx.add_typed_action_view(ProjectTreePanel::new);
+        ctx.subscribe_to_view(&project_tree_view, |_me, _, event, ctx| {
+            ctx.emit(LeftPanelEvent::ProjectTree(event.clone()));
+        });
         ctx.subscribe_to_view(&ssh_manager_view, |_me, _, event, ctx| {
             use crate::ssh_manager::SshManagerPanelEvent;
             match event {
@@ -406,16 +424,41 @@ impl LeftPanelView {
             ssh_manager_view,
             server_file_browser_view,
             skill_manager_view,
+            project_tree_view,
             active_view: active_view_state::new(active_view),
             toolbelt_buttons,
             active_pane_group: None,
             working_directories_model,
             is_agent_management_view_open: false,
             panel_position: super::PanelPosition::Left,
+            window_id: ctx.window_id(),
+            titlebar_leading_inset: 0.,
         };
         view.update_button_active_states();
 
         view
+    }
+
+    pub fn set_titlebar_leading_inset(&mut self, inset: f32, ctx: &mut ViewContext<Self>) {
+        if (self.titlebar_leading_inset - inset).abs() > f32::EPSILON {
+            self.titlebar_leading_inset = inset;
+            ctx.notify();
+        }
+    }
+
+    pub fn titlebar_leading_inset(&self) -> f32 {
+        self.titlebar_leading_inset
+    }
+
+    /// 按 Workspace 同一 chrome 谓词当场计算侧栏头 inset，不依赖缓存字段。
+    pub(crate) fn titlebar_leading_inset_for_render(&self, app: &AppContext) -> f32 {
+        super::full_height_left_panel_chrome::left_panel_titlebar_leading_inset_from_app(
+            app,
+            true,
+            // 通顶 chrome 不会把本 view 放到 simplified WASM 标题栏路径里。
+            false,
+            self.window_id,
+        )
     }
 
     pub fn set_agent_management_view_open(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
@@ -475,6 +518,15 @@ impl LeftPanelView {
         ctx: &ViewContext<Self>,
     ) -> ToolbeltButtonConfig {
         match view {
+            ToolPanelView::ProjectTree => ToolbeltButtonConfig {
+                icon: Icon::Folder,
+                active_icon: None,
+                tooltip_text: "Repository workspaces".to_string(),
+                action: LeftPanelAction::ProjectTree,
+                render_with_active_state: false,
+                tooltip_keybinding: None,
+                tooltip_keybinding_names: Vec::new(),
+            },
             ToolPanelView::ProjectExplorer => {
                 let tooltip_keybinding_names = vec![
                     LEFT_PANEL_PROJECT_EXPLORER_BINDING_NAME,
@@ -686,6 +738,57 @@ impl LeftPanelView {
         self.active_view.get()
     }
 
+    pub fn set_project_tree_tab_counts(
+        &mut self,
+        tab_counts: HashMap<RepositoryWorkspaceId, usize>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.project_tree_view.update(ctx, |tree, ctx| {
+            tree.set_tab_counts(tab_counts, ctx);
+        });
+    }
+
+    pub fn set_project_tree_active_workspace(
+        &mut self,
+        workspace_id: Option<RepositoryWorkspaceId>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.project_tree_view.update(ctx, |tree, ctx| {
+            tree.set_active_workspace(workspace_id, ctx);
+        });
+    }
+
+    pub fn set_project_tree_running_workspaces(
+        &mut self,
+        running_workspace_ids: HashSet<RepositoryWorkspaceId>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.project_tree_view.update(ctx, |tree, ctx| {
+            tree.set_running_workspaces(running_workspace_ids, ctx);
+        });
+    }
+
+    pub fn set_project_tree_tab_nodes(
+        &mut self,
+        tab_nodes: HashMap<RepositoryWorkspaceId, Vec<ProjectTreeTabNode>>,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        self.project_tree_view.update(ctx, |tree, ctx| {
+            tree.set_tab_nodes(tab_nodes, ctx);
+        });
+    }
+
+    pub fn reveal_project_tree_workspace(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        active_view_state::set(self, ToolPanelView::ProjectTree, ctx);
+        self.project_tree_view.update(ctx, |tree, ctx| {
+            tree.reveal_workspace(workspace_id, ctx);
+        });
+    }
+
     pub fn is_warp_drive_active(&self) -> bool {
         self.active_view.get() == ToolPanelView::ZapDrive
     }
@@ -809,6 +912,9 @@ impl LeftPanelView {
 
     pub fn focus_active_view_on_entry(&mut self, ctx: &mut ViewContext<Self>) {
         match self.active_view.get() {
+            ToolPanelView::ProjectTree => {
+                ctx.focus(&self.project_tree_view);
+            }
             ToolPanelView::ProjectExplorer => {
                 if let Some(file_tree_view) = self.active_file_tree_view(ctx) {
                     file_tree_view.update(ctx, |view, ctx| {
@@ -1013,6 +1119,9 @@ impl LeftPanelView {
     fn update_button_active_states(&mut self) {
         for button in &mut self.toolbelt_buttons {
             button.render_with_active_state = match &button.action {
+                LeftPanelAction::ProjectTree => {
+                    self.active_view.get() == ToolPanelView::ProjectTree
+                }
                 LeftPanelAction::ProjectExplorer => {
                     self.active_view.get() == ToolPanelView::ProjectExplorer
                 }
@@ -1109,6 +1218,9 @@ impl LeftPanelView {
         ctx: &mut ViewContext<Self>,
     ) {
         match action {
+            LeftPanelAction::ProjectTree => {
+                active_view_state::set(self, ToolPanelView::ProjectTree, ctx);
+            }
             LeftPanelAction::ProjectExplorer => {
                 active_view_state::set(self, ToolPanelView::ProjectExplorer, ctx);
                 if force_open {
@@ -1267,6 +1379,7 @@ impl View for LeftPanelView {
         // Focus the active tool panel view on-left-panel-focus.
         if focus_ctx.is_self_focused() {
             match self.active_view.get() {
+                ToolPanelView::ProjectTree => ctx.focus(&self.project_tree_view),
                 ToolPanelView::ProjectExplorer => {
                     if let Some(view) = self.active_file_tree_view(ctx) {
                         ctx.focus(&view);
@@ -1288,8 +1401,10 @@ impl View for LeftPanelView {
 
     fn render(&self, app: &AppContext) -> Box<dyn Element> {
         let appearance = Appearance::as_ref(app);
+        let titlebar_leading_inset = self.titlebar_leading_inset_for_render(app);
 
         let mouse_state_handles = vec![
+            self.mouse_state_handles.project_tree_button.clone(),
             self.mouse_state_handles.project_explorer_button.clone(),
             self.mouse_state_handles.global_search_button.clone(),
             self.mouse_state_handles.warp_drive_button.clone(),
@@ -1321,6 +1436,14 @@ impl View for LeftPanelView {
         };
 
         let content_area: Box<dyn Element> = match self.active_view.get() {
+            ToolPanelView::ProjectTree => Shrinkable::new(
+                1.0,
+                Container::new(ChildView::new(&self.project_tree_view).finish())
+                    .with_padding_left(2.)
+                    .with_padding_right(2.)
+                    .finish(),
+            )
+            .finish(),
             ToolPanelView::ProjectExplorer => {
                 if let Some(file_tree_view) = self.active_file_tree_view(app) {
                     Shrinkable::new(
@@ -1405,7 +1528,7 @@ impl View for LeftPanelView {
                 .with_height(PANE_HEADER_HEIGHT)
                 .finish(),
             )
-            .with_padding_left(10.)
+            .with_padding_left(10. + titlebar_leading_inset)
             .with_padding_right(HEADER_EDGE_PADDING)
             .finish();
 
@@ -1415,6 +1538,10 @@ impl View for LeftPanelView {
                 .with_main_axis_size(MainAxisSize::Max)
                 .finish()
         })
+        .with_border(
+            Border::right(LEFT_PANEL_DIVIDER_WIDTH)
+                .with_border_fill(appearance.theme().split_pane_border_color()),
+        )
         .finish();
 
         if warpui::platform::is_mobile_device() {
@@ -1427,6 +1554,7 @@ impl View for LeftPanelView {
         };
         Resizable::new(self.resizable_state_handle.clone(), panel_content)
             .with_dragbar_side(drag_side)
+            .with_dragbar_offset(LEFT_PANEL_DRAGBAR_OUTWARD_OFFSET)
             .on_resize(move |ctx, _| {
                 ctx.notify();
             })
@@ -1446,3 +1574,7 @@ fn deduplicate_by_directory_name(directories: Vec<PathBuf>) -> Vec<PathBuf> {
         .filter(|path| seen_paths.insert(path.clone()))
         .collect()
 }
+
+#[cfg(test)]
+#[path = "left_panel_tests.rs"]
+mod tests;

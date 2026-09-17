@@ -297,8 +297,7 @@ impl ProjectSlide {
             },
         );
 
-        let theme_picker_last =
-            warp_core::features::FeatureFlag::ZapNewSettingsModes.is_enabled();
+        let theme_picker_last = warp_core::features::FeatureFlag::ZapNewSettingsModes.is_enabled();
 
         let (label, keystroke, action) = match settings {
             ProjectOnboardingSettings::Project { .. } => (

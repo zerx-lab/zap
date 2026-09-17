@@ -35,9 +35,7 @@ fn initialize_app(app: &mut warpui::App) {
 }
 
 /// 创建 SftpBrowserView 并放入窗口（Disconnected 状态）
-fn create_view(
-    app: &mut warpui::App,
-) -> (warpui::WindowId, warpui::ViewHandle<SftpBrowserView>) {
+fn create_view(app: &mut warpui::App) -> (warpui::WindowId, warpui::ViewHandle<SftpBrowserView>) {
     app.add_window(WindowStyle::NotStealFocus, |ctx| {
         SftpBrowserView::new("test-node".to_string(), ctx)
     })
@@ -70,8 +68,8 @@ fn create_connected_view(
     tempfile::TempDir,
 ) {
     let temp_dir = create_temp_dir_with_files(files);
-    let backend = Arc::new(InMemorySftpBackend::new(temp_dir.path().to_path_buf()))
-        as Arc<dyn SftpBackend>;
+    let backend =
+        Arc::new(InMemorySftpBackend::new(temp_dir.path().to_path_buf())) as Arc<dyn SftpBackend>;
 
     let (win_id, view) = create_view(app);
     view.update(app, |v, ctx| {
@@ -91,12 +89,15 @@ fn create_standard_view(
     warpui::ViewHandle<SftpBrowserView>,
     tempfile::TempDir,
 ) {
-    create_connected_view(app, &[
-        ("docs/report.txt", b"report content"),
-        ("readme.txt", b"hello world"),
-        ("config.yaml", b"key: value"),
-        ("data/sub/deep.txt", b"deep file"),
-    ])
+    create_connected_view(
+        app,
+        &[
+            ("docs/report.txt", b"report content"),
+            ("readme.txt", b"hello world"),
+            ("config.yaml", b"key: value"),
+            ("data/sub/deep.txt", b"deep file"),
+        ],
+    )
 }
 
 // ============================================================
@@ -108,10 +109,10 @@ fn create_standard_view(
 fn test_connected_state_with_mock_backend() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file1.txt", b"content1"),
-            ("file2.txt", b"content2"),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[("file1.txt", b"content1"), ("file2.txt", b"content2")],
+        );
 
         view.read(&app, |v, _| {
             assert!(
@@ -147,9 +148,7 @@ fn test_connection_failure_shows_error_state() {
 fn test_reconnect_after_failure() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("reconnect.txt", b"data"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("reconnect.txt", b"data")]);
 
         // 先设置为 Failed 状态
         view.update(&mut app, |v, ctx| {
@@ -166,8 +165,8 @@ fn test_reconnect_after_failure() {
 
         // 重新注入后端恢复连接
         let temp2 = create_temp_dir_with_files(&[("new.txt", b"new content")]);
-        let backend = Arc::new(InMemorySftpBackend::new(temp2.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp2.path().to_path_buf())) as Arc<dyn SftpBackend>;
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
         });
@@ -187,9 +186,7 @@ fn test_reconnect_after_failure() {
 fn test_disconnect_clears_entries_and_path() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file.txt", b"content"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("file.txt", b"content")]);
 
         // 验证已连接
         view.read(&app, |v, _| {
@@ -253,20 +250,31 @@ fn test_render_failed_state() {
 fn test_list_dir_populates_entries() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("banana.txt", b"b"),
-            ("apple.txt", b"a"),
-            ("cherry.txt", b"c"),
-            ("folder_a/.keep", b""),
-            ("folder_b/.keep", b""),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[
+                ("banana.txt", b"b"),
+                ("apple.txt", b"a"),
+                ("cherry.txt", b"c"),
+                ("folder_a/.keep", b""),
+                ("folder_b/.keep", b""),
+            ],
+        );
 
         view.read(&app, |v, _| {
             assert_eq!(v.entries.len(), 5, "应有 5 个条目");
 
             // 目录应排在文件前面
-            let dirs: Vec<_> = v.entries.iter().take_while(|e| e.file_type == FileEntryType::Directory).collect();
-            let files: Vec<_> = v.entries.iter().skip_while(|e| e.file_type == FileEntryType::Directory).collect();
+            let dirs: Vec<_> = v
+                .entries
+                .iter()
+                .take_while(|e| e.file_type == FileEntryType::Directory)
+                .collect();
+            let files: Vec<_> = v
+                .entries
+                .iter()
+                .skip_while(|e| e.file_type == FileEntryType::Directory)
+                .collect();
             assert_eq!(dirs.len(), 2, "应有 2 个目录");
             assert_eq!(files.len(), 3, "应有 3 个文件");
         });
@@ -278,10 +286,10 @@ fn test_list_dir_populates_entries() {
 fn test_open_directory_navigates_and_updates_history() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("docs/readme.txt", b"readme"),
-            ("file.txt", b"file"),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[("docs/readme.txt", b"readme"), ("file.txt", b"file")],
+        );
 
         // 找到 docs 目录的索引
         let docs_idx = view.read(&app, |v, _| {
@@ -295,7 +303,8 @@ fn test_open_directory_navigates_and_updates_history() {
 
         view.read(&app, |v, _| {
             assert!(
-                v.current_path.ends_with("docs") || v.current_path.to_string_lossy().contains("docs"),
+                v.current_path.ends_with("docs")
+                    || v.current_path.to_string_lossy().contains("docs"),
                 "当前路径应包含 docs"
             );
             assert!(v.path_history.len() >= 2, "历史记录应增加");
@@ -308,9 +317,7 @@ fn test_open_directory_navigates_and_updates_history() {
 fn test_go_up_from_subdirectory() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("subdir/file.txt", b"content"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("subdir/file.txt", b"content")]);
 
         // 进入子目录
         let sub_idx = view.read(&app, |v, _| {
@@ -327,7 +334,8 @@ fn test_go_up_from_subdirectory() {
 
         view.read(&app, |v, _| {
             assert!(
-                v.current_path == PathBuf::from("/") || v.entries.iter().any(|e| e.name == "subdir"),
+                v.current_path == PathBuf::from("/")
+                    || v.entries.iter().any(|e| e.name == "subdir"),
                 "GoUp 应返回上级目录"
             );
         });
@@ -339,10 +347,10 @@ fn test_go_up_from_subdirectory() {
 fn test_go_back_forward_restores_path() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("alpha/file.txt", b"a"),
-            ("beta/file.txt", b"b"),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[("alpha/file.txt", b"a"), ("beta/file.txt", b"b")],
+        );
 
         // 记录根路径
         let root_path = view.read(&app, |v, _| v.current_path.clone());
@@ -379,9 +387,8 @@ fn test_go_back_forward_restores_path() {
 fn test_breadcrumb_click_navigates_to_segment() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("level1/level2/file.txt", b"deep"),
-        ]);
+        let (_, view, _temp) =
+            create_connected_view(&mut app, &[("level1/level2/file.txt", b"deep")]);
 
         // 进入 level1/level2
         let l1_idx = view.read(&app, |v, _| {
@@ -407,7 +414,9 @@ fn test_breadcrumb_click_navigates_to_segment() {
         // 导航回根（通过 NavigateTo）
         view.update(&mut app, |v, ctx| {
             // 找到 level1 对应的面包屑路径
-            let l1_path = v.current_path.parent()
+            let l1_path = v
+                .current_path
+                .parent()
                 .map(|p| p.to_path_buf())
                 .unwrap_or_else(|| PathBuf::from("/"));
             v.handle_action(&SftpBrowserAction::NavigateTo(l1_path), ctx);
@@ -427,11 +436,14 @@ fn test_breadcrumb_click_navigates_to_segment() {
 fn test_search_filter_narrows_visible_entries() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("readme.txt", b"r"),
-            ("config.yaml", b"c"),
-            ("data.csv", b"d"),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[
+                ("readme.txt", b"r"),
+                ("config.yaml", b"c"),
+                ("data.csv", b"d"),
+            ],
+        );
 
         view.update(&mut app, |v, ctx| {
             v.handle_action(&SftpBrowserAction::SetSearchFilter(".txt".to_string()), ctx);
@@ -439,7 +451,9 @@ fn test_search_filter_narrows_visible_entries() {
 
         view.read(&app, |v, _| {
             assert!(v.search_filter.is_some());
-            let visible: Vec<_> = v.entries.iter()
+            let visible: Vec<_> = v
+                .entries
+                .iter()
                 .filter(|e| e.name.contains(".txt"))
                 .collect();
             assert_eq!(visible.len(), 1, "只有 readme.txt 匹配");
@@ -452,10 +466,8 @@ fn test_search_filter_narrows_visible_entries() {
 fn test_clear_search_restores_all_entries() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("a.txt", b"a"),
-            ("b.yaml", b"b"),
-        ]);
+        let (_, view, _temp) =
+            create_connected_view(&mut app, &[("a.txt", b"a"), ("b.yaml", b"b")]);
 
         let total = view.read(&app, |v, _| v.entries.len());
 
@@ -480,12 +492,10 @@ fn test_clear_search_restores_all_entries() {
 #[test]
 fn test_refresh_dir_reloads_entries() {
     warpui::App::test((), |mut app| async move {
-        let temp = create_temp_dir_with_files(&[
-            ("original.txt", b"original"),
-        ]);
+        let temp = create_temp_dir_with_files(&[("original.txt", b"original")]);
         initialize_app(&mut app);
-        let backend = Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf())) as Arc<dyn SftpBackend>;
         let (_, view) = create_view(&mut app);
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
@@ -514,9 +524,7 @@ fn test_refresh_dir_reloads_entries() {
 fn test_navigate_to_same_path_is_noop() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file.txt", b"f"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("file.txt", b"f")]);
 
         let history_len = view.read(&app, |v, _| v.path_history.len());
         let current = view.read(&app, |v, _| v.current_path.clone());
@@ -527,7 +535,8 @@ fn test_navigate_to_same_path_is_noop() {
 
         view.read(&app, |v, _| {
             assert_eq!(
-                v.path_history.len(), history_len,
+                v.path_history.len(),
+                history_len,
                 "导航到当前路径不应增加历史"
             );
         });
@@ -539,9 +548,7 @@ fn test_navigate_to_same_path_is_noop() {
 fn test_navigate_normalizes_backslashes() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("target/file.txt", b"t"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("target/file.txt", b"t")]);
 
         // 使用反斜杠路径导航
         let target_idx = view.read(&app, |v, _| {
@@ -554,10 +561,7 @@ fn test_navigate_normalizes_backslashes() {
         view.read(&app, |v, _| {
             // 路径不应包含反斜杠
             let path_str = v.current_path.to_string_lossy();
-            assert!(
-                path_str.contains("target"),
-                "导航后路径应包含 target"
-            );
+            assert!(path_str.contains("target"), "导航后路径应包含 target");
         });
     });
 }
@@ -567,11 +571,14 @@ fn test_navigate_normalizes_backslashes() {
 fn test_select_entry_highlights_item() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file_a.txt", b"a"),
-            ("file_b.txt", b"b"),
-            ("file_c.txt", b"c"),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[
+                ("file_a.txt", b"a"),
+                ("file_b.txt", b"b"),
+                ("file_c.txt", b"c"),
+            ],
+        );
 
         // 选中第二个条目
         view.update(&mut app, |v, ctx| {
@@ -579,14 +586,8 @@ fn test_select_entry_highlights_item() {
         });
 
         view.read(&app, |v, _| {
-            assert!(
-                v.selected.contains(&1),
-                "SelectEntry(1) 应选中第二个条目"
-            );
-            assert_eq!(
-                v.selected.len(), 1,
-                "应只有 1 个选中"
-            );
+            assert!(v.selected.contains(&1), "SelectEntry(1) 应选中第二个条目");
+            assert_eq!(v.selected.len(), 1, "应只有 1 个选中");
         });
 
         // 切换选中到第三个条目
@@ -595,10 +596,7 @@ fn test_select_entry_highlights_item() {
         });
 
         view.read(&app, |v, _| {
-            assert!(
-                v.selected.contains(&2),
-                "SelectEntry(2) 应选中第三个条目"
-            );
+            assert!(v.selected.contains(&2), "SelectEntry(2) 应选中第三个条目");
         });
     });
 }
@@ -608,9 +606,7 @@ fn test_select_entry_highlights_item() {
 fn test_select_entry_out_of_bounds_safe() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("only_file.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("only_file.txt", b"x")]);
 
         // 越界选中不应 panic（当前实现直接插入索引）
         view.update(&mut app, |v, ctx| {
@@ -659,10 +655,7 @@ fn test_download_entry_action_without_connection_safe() {
         });
 
         view.read(&app, |v, _| {
-            assert!(
-                v.transfers.is_empty(),
-                "未连接时下载不应创建传输任务"
-            );
+            assert!(v.transfers.is_empty(), "未连接时下载不应创建传输任务");
         });
     });
 }
@@ -672,13 +665,14 @@ fn test_download_entry_action_without_connection_safe() {
 fn test_open_entry_on_file_triggers_download() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("readme.txt", b"hello"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("readme.txt", b"hello")]);
 
         // 双击文件条目应触发下载（文件选择器在 mock 中不触发）
         let file_idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "readme.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "readme.txt")
+                .unwrap()
         });
 
         view.update(&mut app, |v, ctx| {
@@ -701,13 +695,16 @@ fn test_open_entry_on_file_triggers_download() {
 fn test_delete_file_confirmed_removes_entry() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("to_delete.txt", b"delete me"),
-            ("keep.txt", b"keep me"),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[("to_delete.txt", b"delete me"), ("keep.txt", b"keep me")],
+        );
 
         let file_idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "to_delete.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "to_delete.txt")
+                .unwrap()
         });
 
         // 发起删除
@@ -738,10 +735,10 @@ fn test_delete_file_confirmed_removes_entry() {
 fn test_delete_directory_confirmed_removes_recursively() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("mydir/inner.txt", b"inner file"),
-            ("outer.txt", b"outer"),
-        ]);
+        let (_, view, _temp) = create_connected_view(
+            &mut app,
+            &[("mydir/inner.txt", b"inner file"), ("outer.txt", b"outer")],
+        );
 
         let dir_idx = view.read(&app, |v, _| {
             v.entries.iter().position(|e| e.name == "mydir").unwrap()
@@ -766,12 +763,13 @@ fn test_delete_directory_confirmed_removes_recursively() {
 fn test_rename_entry_updates_name() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("old_name.txt", b"content"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("old_name.txt", b"content")]);
 
         let idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "old_name.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "old_name.txt")
+                .unwrap()
         });
 
         // 发起重命名
@@ -806,9 +804,7 @@ fn test_rename_entry_updates_name() {
 fn test_rename_empty_name_shows_error() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file.txt", b"content"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("file.txt", b"content")]);
 
         let idx = view.read(&app, |v, _| {
             v.entries.iter().position(|e| e.name == "file.txt").unwrap()
@@ -830,10 +826,7 @@ fn test_rename_empty_name_shows_error() {
         });
 
         view.read(&app, |v, _| {
-            assert!(
-                v.dialog.is_some(),
-                "空名称时对话框应保持打开"
-            );
+            assert!(v.dialog.is_some(), "空名称时对话框应保持打开");
         });
     });
 }
@@ -844,8 +837,8 @@ fn test_new_folder_creates_entry() {
     warpui::App::test((), |mut app| async move {
         let temp = create_temp_dir_with_files(&[]);
         initialize_app(&mut app);
-        let backend = Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf())) as Arc<dyn SftpBackend>;
         let (_, view) = create_view(&mut app);
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
@@ -875,7 +868,9 @@ fn test_new_folder_creates_entry() {
         view.read(&app, |v, _| {
             assert!(v.dialog.is_none(), "对话框应关闭");
             assert!(
-                v.entries.iter().any(|e| e.name == "test_folder" && e.file_type == FileEntryType::Directory),
+                v.entries
+                    .iter()
+                    .any(|e| e.name == "test_folder" && e.file_type == FileEntryType::Directory),
                 "应出现新建的文件夹"
             );
         });
@@ -910,10 +905,7 @@ fn test_new_folder_empty_name_shows_error() {
         });
 
         view.read(&app, |v, _| {
-            assert!(
-                v.dialog.is_some(),
-                "空名称时对话框应保持打开"
-            );
+            assert!(v.dialog.is_some(), "空名称时对话框应保持打开");
         });
     });
 }
@@ -923,26 +915,26 @@ fn test_new_folder_empty_name_shows_error() {
 fn test_file_details_dialog_shows_metadata() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("details.txt", b"file content here"),
-        ]);
+        let (_, view, _temp) =
+            create_connected_view(&mut app, &[("details.txt", b"file content here")]);
 
         let idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "details.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "details.txt")
+                .unwrap()
         });
 
         view.update(&mut app, |v, ctx| {
             v.handle_action(&SftpBrowserAction::DetailsEntry(idx), ctx);
         });
 
-        view.read(&app, |v, _| {
-            match &v.dialog {
-                Some(Dialog::FileDetails { entry }) => {
-                    assert_eq!(entry.name, "details.txt");
-                    assert_eq!(entry.file_type, FileEntryType::File);
-                }
-                _ => panic!("应打开 FileDetails 对话框"),
+        view.read(&app, |v, _| match &v.dialog {
+            Some(Dialog::FileDetails { entry }) => {
+                assert_eq!(entry.name, "details.txt");
+                assert_eq!(entry.file_type, FileEntryType::File);
             }
+            _ => panic!("应打开 FileDetails 对话框"),
         });
     });
 }
@@ -952,12 +944,13 @@ fn test_file_details_dialog_shows_metadata() {
 fn test_delete_cancel_preserves_entry() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("keep_me.txt", b"keep"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("keep_me.txt", b"keep")]);
 
         let idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "keep_me.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "keep_me.txt")
+                .unwrap()
         });
 
         view.update(&mut app, |v, ctx| {
@@ -985,15 +978,16 @@ fn test_delete_cancel_preserves_entry() {
 fn test_right_click_opens_menu_and_selects_entry() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("menu_file.txt", b"content"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("menu_file.txt", b"content")]);
 
         view.update(&mut app, |v, ctx| {
-            v.handle_action(&SftpBrowserAction::ContextMenu {
-                index: 0,
-                position: Vector2F::new(100.0, 100.0),
-            }, ctx);
+            v.handle_action(
+                &SftpBrowserAction::ContextMenu {
+                    index: 0,
+                    position: Vector2F::new(100.0, 100.0),
+                },
+                ctx,
+            );
         });
 
         view.read(&app, |v, _| {
@@ -1008,16 +1002,17 @@ fn test_right_click_opens_menu_and_selects_entry() {
 fn test_context_menu_delete_item_triggers_delete() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("ctx_delete.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("ctx_delete.txt", b"x")]);
 
         // 打开右键菜单
         view.update(&mut app, |v, ctx| {
-            v.handle_action(&SftpBrowserAction::ContextMenu {
-                index: 0,
-                position: Vector2F::new(50.0, 50.0),
-            }, ctx);
+            v.handle_action(
+                &SftpBrowserAction::ContextMenu {
+                    index: 0,
+                    position: Vector2F::new(50.0, 50.0),
+                },
+                ctx,
+            );
         });
 
         // 从菜单选择删除
@@ -1039,15 +1034,16 @@ fn test_context_menu_delete_item_triggers_delete() {
 fn test_context_menu_rename_item_triggers_rename() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("ctx_rename.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("ctx_rename.txt", b"x")]);
 
         view.update(&mut app, |v, ctx| {
-            v.handle_action(&SftpBrowserAction::ContextMenu {
-                index: 0,
-                position: Vector2F::new(50.0, 50.0),
-            }, ctx);
+            v.handle_action(
+                &SftpBrowserAction::ContextMenu {
+                    index: 0,
+                    position: Vector2F::new(50.0, 50.0),
+                },
+                ctx,
+            );
         });
 
         view.update(&mut app, |v, ctx| {
@@ -1068,15 +1064,16 @@ fn test_context_menu_rename_item_triggers_rename() {
 fn test_context_menu_details_item_triggers_details() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("ctx_details.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("ctx_details.txt", b"x")]);
 
         view.update(&mut app, |v, ctx| {
-            v.handle_action(&SftpBrowserAction::ContextMenu {
-                index: 0,
-                position: Vector2F::new(50.0, 50.0),
-            }, ctx);
+            v.handle_action(
+                &SftpBrowserAction::ContextMenu {
+                    index: 0,
+                    position: Vector2F::new(50.0, 50.0),
+                },
+                ctx,
+            );
         });
 
         view.update(&mut app, |v, ctx| {
@@ -1097,15 +1094,16 @@ fn test_context_menu_details_item_triggers_details() {
 fn test_dismiss_click_closes_menu() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("menu_close.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("menu_close.txt", b"x")]);
 
         view.update(&mut app, |v, ctx| {
-            v.handle_action(&SftpBrowserAction::ContextMenu {
-                index: 0,
-                position: Vector2F::new(50.0, 50.0),
-            }, ctx);
+            v.handle_action(
+                &SftpBrowserAction::ContextMenu {
+                    index: 0,
+                    position: Vector2F::new(50.0, 50.0),
+                },
+                ctx,
+            );
         });
 
         view.read(&app, |v, _| {
@@ -1131,10 +1129,8 @@ fn test_dismiss_click_closes_menu() {
 fn test_delete_confirm_dialog_multiple_paths() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file_a.txt", b"a"),
-            ("file_b.txt", b"b"),
-        ]);
+        let (_, view, _temp) =
+            create_connected_view(&mut app, &[("file_a.txt", b"a"), ("file_b.txt", b"b")]);
 
         // 选中两个条目
         view.update(&mut app, |v, ctx| {
@@ -1148,13 +1144,11 @@ fn test_delete_confirm_dialog_multiple_paths() {
             v.handle_action(&SftpBrowserAction::DeleteSelected, ctx);
         });
 
-        view.read(&app, |v, _| {
-            match &v.dialog {
-                Some(Dialog::DeleteConfirm { paths, .. }) => {
-                    assert_eq!(paths.len(), 2, "应显示 2 个待删除路径");
-                }
-                _ => panic!("应打开删除确认对话框"),
+        view.read(&app, |v, _| match &v.dialog {
+            Some(Dialog::DeleteConfirm { paths, .. }) => {
+                assert_eq!(paths.len(), 2, "应显示 2 个待删除路径");
             }
+            _ => panic!("应打开删除确认对话框"),
         });
     });
 }
@@ -1164,12 +1158,13 @@ fn test_delete_confirm_dialog_multiple_paths() {
 fn test_rename_editor_enter_confirms() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("rename_enter.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("rename_enter.txt", b"x")]);
 
         let idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "rename_enter.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "rename_enter.txt")
+                .unwrap()
         });
 
         view.update(&mut app, |v, ctx| {
@@ -1198,12 +1193,13 @@ fn test_rename_editor_enter_confirms() {
 fn test_rename_editor_escape_cancels() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("rename_esc.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("rename_esc.txt", b"x")]);
 
         let idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "rename_esc.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "rename_esc.txt")
+                .unwrap()
         });
 
         view.update(&mut app, |v, ctx| {
@@ -1266,9 +1262,7 @@ fn test_new_folder_editor_enter_confirms() {
 fn test_overwrite_confirm_dialog() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("file.txt", b"x")]);
 
         // 手动设置覆盖确认对话框
         view.update(&mut app, |v, ctx| {
@@ -1295,13 +1289,11 @@ fn test_overwrite_confirm_dialog() {
 #[test]
 fn test_move_confirm_dialog() {
     warpui::App::test((), |mut app| async move {
-        let temp = create_temp_dir_with_files(&[
-            ("move_src.txt", b"move me"),
-            ("dest_dir/.keep", b""),
-        ]);
+        let temp =
+            create_temp_dir_with_files(&[("move_src.txt", b"move me"), ("dest_dir/.keep", b"")]);
         initialize_app(&mut app);
-        let backend = Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf())) as Arc<dyn SftpBackend>;
         let (_, view) = create_view(&mut app);
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
@@ -1341,8 +1333,8 @@ fn test_upload_creates_transfer_task() {
         std::fs::write(&local_file, b"upload content").unwrap();
 
         initialize_app(&mut app);
-        let backend = Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf())) as Arc<dyn SftpBackend>;
         let (_, view) = create_view(&mut app);
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
@@ -1360,7 +1352,10 @@ fn test_upload_creates_transfer_task() {
             let task = &v.transfers[0];
             assert_eq!(task.direction, TransferDirection::Upload);
             assert!(
-                matches!(task.state, TransferState::Completed | TransferState::InProgress | TransferState::Failed(_)),
+                matches!(
+                    task.state,
+                    TransferState::Completed | TransferState::InProgress | TransferState::Failed(_)
+                ),
                 "传输任务应有明确状态"
             );
         });
@@ -1395,21 +1390,22 @@ fn test_upload_nonexistent_file_fails() {
 #[test]
 fn test_download_creates_transfer_task() {
     warpui::App::test((), |mut app| async move {
-        let temp = create_temp_dir_with_files(&[
-            ("download_me.txt", b"download content"),
-        ]);
+        let temp = create_temp_dir_with_files(&[("download_me.txt", b"download content")]);
         let local_save = temp.path().join("saved_file.txt");
 
         initialize_app(&mut app);
-        let backend = Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf())) as Arc<dyn SftpBackend>;
         let (_, view) = create_view(&mut app);
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
         });
 
         let idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "download_me.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "download_me.txt")
+                .unwrap()
         });
 
         view.update(&mut app, |v, ctx| {
@@ -1497,9 +1493,7 @@ fn test_transfer_panel_renders_with_tasks() {
 fn test_drag_enter_shows_overlay() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("file.txt", b"x")]);
 
         view.update(&mut app, |v, ctx| {
             v.handle_action(&SftpBrowserAction::DragFilesEnter, ctx);
@@ -1516,9 +1510,7 @@ fn test_drag_enter_shows_overlay() {
 fn test_drag_leave_hides_overlay() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("file.txt", b"x")]);
 
         view.update(&mut app, |v, ctx| {
             v.handle_action(&SftpBrowserAction::DragFilesEnter, ctx);
@@ -1544,8 +1536,8 @@ fn test_drop_files_creates_upload_tasks() {
         std::fs::write(&drop_file, b"dropped content").unwrap();
 
         initialize_app(&mut app);
-        let backend = Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf())) as Arc<dyn SftpBackend>;
         let (_, view) = create_view(&mut app);
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
@@ -1591,9 +1583,7 @@ fn test_drop_empty_paths_ignored() {
 fn test_keyboard_navigate_up() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("subdir/file.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("subdir/file.txt", b"x")]);
 
         // 进入子目录
         let sub_idx = view.read(&app, |v, _| {
@@ -1622,9 +1612,7 @@ fn test_keyboard_navigate_up() {
 fn test_keyboard_delete_selected() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("del_target.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("del_target.txt", b"x")]);
 
         // 选中第一个条目
         view.update(&mut app, |v, ctx| {
@@ -1671,9 +1659,7 @@ fn test_keyboard_create_folder() {
 fn test_keyboard_shortcuts_without_selection() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("file.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("file.txt", b"x")]);
 
         // 无选中
         view.update(&mut app, |v, ctx| {
@@ -1686,10 +1672,7 @@ fn test_keyboard_shortcuts_without_selection() {
         });
 
         view.read(&app, |v, _| {
-            assert!(
-                v.dialog.is_none(),
-                "无选中时 DeleteSelected 不应打开对话框"
-            );
+            assert!(v.dialog.is_none(), "无选中时 DeleteSelected 不应打开对话框");
             assert_eq!(v.entries.len(), 1, "条目不应被删除");
         });
     });
@@ -1700,12 +1683,13 @@ fn test_keyboard_shortcuts_without_selection() {
 fn test_keyboard_escape_closes_dialog() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("esc_file.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("esc_file.txt", b"x")]);
 
         let idx = view.read(&app, |v, _| {
-            v.entries.iter().position(|e| e.name == "esc_file.txt").unwrap()
+            v.entries
+                .iter()
+                .position(|e| e.name == "esc_file.txt")
+                .unwrap()
         });
 
         // 打开重命名对话框
@@ -1737,13 +1721,14 @@ fn test_keyboard_escape_closes_dialog() {
 fn test_render_with_all_overlays_connected() {
     warpui::App::test((), |mut app| async move {
         initialize_app(&mut app);
-        let (_, view, _temp) = create_connected_view(&mut app, &[
-            ("overlay.txt", b"x"),
-        ]);
+        let (_, view, _temp) = create_connected_view(&mut app, &[("overlay.txt", b"x")]);
 
         // 打开右键菜单
         view.update(&mut app, |v, ctx| {
-            v.context_menu = Some(super::context_menu::ContextMenuState::new(0, Vector2F::new(50.0, 50.0)));
+            v.context_menu = Some(super::context_menu::ContextMenuState::new(
+                0,
+                Vector2F::new(50.0, 50.0),
+            ));
             // 打开对话框
             v.dialog = Some(Dialog::DeleteConfirm {
                 paths: vec![PathBuf::from("/overlay.txt")],
@@ -1752,8 +1737,11 @@ fn test_render_with_all_overlays_connected() {
             // 添加传输任务
             use super::types::TransferTask;
             v.transfers.push(TransferTask::new(
-                1, PathBuf::from("/file.txt"), PathBuf::from("/local.txt"),
-                TransferDirection::Upload, 1024,
+                1,
+                PathBuf::from("/file.txt"),
+                PathBuf::from("/local.txt"),
+                TransferDirection::Upload,
+                1024,
             ));
             // 启用拖拽悬停
             v.is_drag_hovering = true;
@@ -1823,8 +1811,8 @@ fn test_render_after_multiple_operations() {
             ("root_file.txt", b"root"),
         ]);
         initialize_app(&mut app);
-        let backend = Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf()))
-            as Arc<dyn SftpBackend>;
+        let backend =
+            Arc::new(InMemorySftpBackend::new(temp.path().to_path_buf())) as Arc<dyn SftpBackend>;
         let (_, view) = create_view(&mut app);
         view.update(&mut app, |v, ctx| {
             v.set_backend_for_test(backend, PathBuf::from("/"), ctx);
@@ -1840,7 +1828,10 @@ fn test_render_after_multiple_operations() {
 
         // 搜索
         view.update(&mut app, |v, ctx| {
-            v.handle_action(&SftpBrowserAction::SetSearchFilter("file1".to_string()), ctx);
+            v.handle_action(
+                &SftpBrowserAction::SetSearchFilter("file1".to_string()),
+                ctx,
+            );
         });
 
         // 清除搜索

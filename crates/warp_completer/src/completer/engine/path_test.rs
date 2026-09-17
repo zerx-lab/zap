@@ -23,12 +23,7 @@ use unix_constants::*;
 #[test]
 fn test_split_path() {
     let path = TypedPathBuf::from_unix("/Users/warpuser");
-    let split_path = SplitPath::new(
-        path.to_path(),
-        "~/Zap.app",
-        Some("/Users/warpuser"),
-        &['/'],
-    );
+    let split_path = SplitPath::new(path.to_path(), "~/Zap.app", Some("/Users/warpuser"), &['/']);
 
     assert_eq!(
         split_path,

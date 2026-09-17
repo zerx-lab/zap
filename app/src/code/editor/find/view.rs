@@ -454,12 +454,16 @@ impl CodeEditorFind {
             },
             self.searcher.as_ref(app).match_count()
         );
-        Text::new_inline(label, appearance.ui_font_family(), appearance.ui_font_body())
-            .with_color(blended_colors::text_sub(
-                appearance.theme(),
-                appearance.theme().surface_1(),
-            ))
-            .finish()
+        Text::new_inline(
+            label,
+            appearance.ui_font_family(),
+            appearance.ui_font_body(),
+        )
+        .with_color(blended_colors::text_sub(
+            appearance.theme(),
+            appearance.theme().surface_1(),
+        ))
+        .finish()
     }
 
     #[allow(clippy::too_many_arguments)]

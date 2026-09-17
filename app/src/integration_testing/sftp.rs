@@ -36,9 +36,7 @@ pub fn sftp_browser_view(app: &App, window_id: WindowId) -> ViewHandle<SftpBrows
 /// files 为 (相对路径, 内容) 列表，自动创建所需父目录。
 /// author: logic
 /// date: 2026-05-30
-pub fn create_mock_backend(
-    files: &[(&str, &[u8])],
-) -> (tempfile::TempDir, Arc<dyn SftpBackend>) {
+pub fn create_mock_backend(files: &[(&str, &[u8])]) -> (tempfile::TempDir, Arc<dyn SftpBackend>) {
     let temp_dir = tempfile::tempdir().expect("创建临时目录失败");
     for (path, content) in files {
         let full_path = temp_dir.path().join(path);
@@ -47,8 +45,8 @@ pub fn create_mock_backend(
         }
         std::fs::write(&full_path, content).expect("写入测试文件失败");
     }
-    let backend = Arc::new(InMemorySftpBackend::new(temp_dir.path().to_path_buf()))
-        as Arc<dyn SftpBackend>;
+    let backend =
+        Arc::new(InMemorySftpBackend::new(temp_dir.path().to_path_buf())) as Arc<dyn SftpBackend>;
     (temp_dir, backend)
 }
 
@@ -61,11 +59,7 @@ pub fn open_sftp_pane_with_mock(
     app: &mut App,
     files: &[(&str, &[u8])],
 ) -> (WindowId, tempfile::TempDir) {
-    let window_id = app.read(|ctx| {
-        ctx.windows()
-            .active_window()
-            .expect("应有活跃窗口")
-    });
+    let window_id = app.read(|ctx| ctx.windows().active_window().expect("应有活跃窗口"));
 
     let workspace = super::view_getters::workspace_view(app, window_id);
     app.update(|ctx| {

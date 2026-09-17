@@ -7,7 +7,8 @@
 use warp_core::ui::appearance::Appearance;
 use warpui::elements::{
     Clipped, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, Flex, Hoverable,
-    MainAxisSize, MainAxisAlignment, MouseStateHandle, ParentElement, Radius, SavePosition, Shrinkable, Text,
+    MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Radius, SavePosition,
+    Shrinkable, Text,
 };
 use warpui::platform::Cursor;
 use warpui::Element;

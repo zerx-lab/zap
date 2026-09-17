@@ -152,13 +152,17 @@ impl InactivityModalBody {
         );
 
         Container::new(
-            Text::new_inline(text, appearance.ui_font_family(), appearance.ui_font_subheading())
-                .with_color(blended_colors::text_main(
-                    appearance.theme(),
-                    appearance.theme().background(),
-                ))
-                .with_style(Properties::default().weight(Weight::Normal))
-                .finish(),
+            Text::new_inline(
+                text,
+                appearance.ui_font_family(),
+                appearance.ui_font_subheading(),
+            )
+            .with_color(blended_colors::text_main(
+                appearance.theme(),
+                appearance.theme().background(),
+            ))
+            .with_style(Properties::default().weight(Weight::Normal))
+            .finish(),
         )
         .with_padding_bottom(MODAL_PADDING)
         .finish()

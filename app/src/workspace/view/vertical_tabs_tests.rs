@@ -795,6 +795,22 @@ fn diff_stats_text_matches_rendered_badge_text() {
         }),
         "0"
     );
+    assert_eq!(
+        vtab_diff_stats_text(&GitLineChanges {
+            files_changed: 1,
+            lines_added: 0,
+            lines_removed: 386,
+        }),
+        "+0 -386"
+    );
+    assert_eq!(
+        vtab_diff_stats_text(&GitLineChanges {
+            files_changed: 1,
+            lines_added: 5,
+            lines_removed: 0,
+        }),
+        "+5 -0"
+    );
 }
 
 #[test]

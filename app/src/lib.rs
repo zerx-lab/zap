@@ -62,7 +62,7 @@ mod prefix;
 mod preview_config_migration;
 mod pricing;
 mod profiling;
-mod projects;
+mod project_organization;
 mod prompt;
 mod quit_warning;
 #[allow(dead_code)]
@@ -73,9 +73,9 @@ mod search_bar;
 mod server;
 mod server_time;
 mod session_management;
+mod sftp_manager;
 mod shell_indicator;
 mod skill_manager;
-mod sftp_manager;
 mod ssh_manager;
 mod suggestions;
 mod system;
@@ -213,7 +213,7 @@ use crate::notebooks::manager::NotebookManager;
 use crate::notebooks::NotebookObject;
 use crate::palette::PaletteMode;
 use crate::persistence::PersistenceWriter;
-use crate::projects::ProjectManagementModel;
+use crate::project_organization::model::ProjectOrganizationModel;
 use crate::server::experiments::ServerExperiments;
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};
 use crate::settings::manager::SettingsManager;
@@ -727,6 +727,12 @@ fn init_common(launch_mode: &LaunchMode, timer: Option<&mut IntervalTimer>) -> R
     // rlimits.
     resource_limits::adjust_resource_limits();
 
+    // Zap GUI 若从 agent/CI 终端启动,会继承 NO_COLOR=1 / FORCE_COLOR=0。
+    // terminal-server 和 PTY shell 都会接着遗传;chalk/ink (Claude Code 等)
+    // 看到这些变量就把 TUI 画成灰阶。必须在 fork 子进程之前清掉。
+    #[cfg(not(target_family = "wasm"))]
+    sanitize_inherited_tty_color_env();
+
     // Configure rustls to use its default crypto provider.  This MUST be called
     // before making any network requests that use TLS, otherwise rustls will
     // panic.
@@ -736,6 +742,22 @@ fn init_common(launch_mode: &LaunchMode, timer: Option<&mut IntervalTimer>) -> R
         .expect("must be able to initialize crypto provider for TLS support");
 
     Ok(())
+}
+
+/// Drop color-killer env vars inherited from agent/CI terminals before we spawn
+/// the terminal-server or any PTY shells.
+#[cfg(not(target_family = "wasm"))]
+fn sanitize_inherited_tty_color_env() {
+    std::env::remove_var("NO_COLOR");
+    std::env::remove_var("NODE_DISABLE_COLORS");
+    match std::env::var("FORCE_COLOR").ok().as_deref() {
+        Some("0") | Some("false") => std::env::remove_var("FORCE_COLOR"),
+        _ => {}
+    }
+    match std::env::var("CLICOLOR_FORCE").ok().as_deref() {
+        Some("0") | Some("false") => std::env::remove_var("CLICOLOR_FORCE"),
+        _ => {}
+    }
 }
 
 /// Runs the app.
@@ -1122,7 +1144,8 @@ fn initialize_app(
         experiments,
         ai_queries,
         multi_agent_conversations,
-        persisted_projects,
+        persisted_repositories,
+        persisted_repository_workspaces,
         persisted_project_rules,
         persisted_ignored_suggestions,
         persisted_mcp_server_installations,
@@ -1141,7 +1164,8 @@ fn initialize_app(
                 sqlite_data.experiments,
                 sqlite_data.ai_queries,
                 sqlite_data.multi_agent_conversations,
-                sqlite_data.projects,
+                sqlite_data.repositories,
+                sqlite_data.repository_workspaces,
                 sqlite_data.project_rules,
                 sqlite_data.ignored_suggestions,
                 sqlite_data.mcp_server_installations,
@@ -1150,6 +1174,7 @@ fn initialize_app(
         })
         .unwrap_or_else(|| {
             (
+                Default::default(),
                 Default::default(),
                 Default::default(),
                 Default::default(),
@@ -1435,8 +1460,16 @@ fn initialize_app(
         ctx.add_singleton_model(|_| GitStatusUpdateModel::new());
     }
 
-    ctx.add_singleton_model(|ctx| {
-        ProjectManagementModel::new(persisted_projects, persistence_writer.sender(), ctx)
+    let project_organization_persistence =
+        persistence::RepositoryPersistence::new(persistence_writer.sender());
+    ctx.add_singleton_model(move |ctx| {
+        ProjectOrganizationModel::try_new(
+            persisted_repositories,
+            persisted_repository_workspaces,
+            project_organization_persistence,
+            ctx,
+        )
+        .unwrap_or_else(|error| panic!("Failed to initialize project organization: {error:#}"))
     });
 
     ctx.add_singleton_model(move |_| History::new(command_history));
@@ -1810,6 +1843,21 @@ fn app_callbacks(is_integration_test: bool) -> warpui::platform::AppCallbacks {
                 // been sent to the writer thread before terminating.
                 manager.close_notebooks(ctx);
             });
+
+            // 在终止持久化线程前保存活动 terminal block。否则仍在运行的命令（例如 Claude）尚未
+            // 产生完成事件，应用下次启动后就会从历史中消失。
+            for window_id in ctx.window_ids().collect_vec() {
+                if let Some(workspaces) = ctx.views_of_type::<Workspace>(window_id) {
+                    for workspace in workspaces {
+                        workspace.update(ctx, |workspace, ctx| {
+                            workspace.persist_active_terminal_blocks_for_shutdown(ctx);
+                        });
+                    }
+                }
+            }
+
+            // save_app 有 250ms debounce。退出前同步 flush,否则最后一次页签/工作区变更不会落盘。
+            crate::workspace::flush_app_snapshot(ctx);
 
             PersistenceWriter::handle(ctx).update(ctx, |writer, _ctx| {
                 writer.terminate();

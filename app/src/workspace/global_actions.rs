@@ -100,6 +100,13 @@ impl SaveAppSnapshotDebouncer {
             .abort_handle(),
         );
     }
+
+    fn flush_now(&mut self, ctx: &mut ModelContext<Self>) {
+        if let Some(handle) = self.pending_save.take() {
+            handle.abort();
+        }
+        save_app_snapshot_now(ctx);
+    }
 }
 
 impl Entity for SaveAppSnapshotDebouncer {
@@ -164,6 +171,14 @@ fn save_app(_: &(), ctx: &mut AppContext) {
     });
 }
 
+/// 立即写入窗口/页签快照,并取消尚未触发的 debounce。
+/// 应用退出时必须调用,否则最后 250ms 内的页签变更不会落盘。
+pub(crate) fn flush_app_snapshot(ctx: &mut AppContext) {
+    SaveAppSnapshotDebouncer::handle(ctx).update(ctx, |debouncer, ctx| {
+        debouncer.flush_now(ctx);
+    });
+}
+
 fn save_app_snapshot_now(ctx: &mut AppContext) {
     if !AppExecutionMode::as_ref(ctx).can_save_session() {
         return;
@@ -195,6 +210,10 @@ fn save_app_snapshot_now(ctx: &mut AppContext) {
 
     // Only compute the app state if we're definitely going to use it.
     let app_state = get_app_state(ctx);
+    // delete-then-insert:空窗口列表会把磁盘上已保存的会话擦掉。
+    if app_state.windows.is_empty() {
+        return;
+    }
     let event = ModelEvent::Snapshot(app_state);
 
     if let Err(err) = model_event_sender.send(event) {

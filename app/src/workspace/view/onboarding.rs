@@ -1,9 +1,12 @@
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
+use crate::project_organization::model::ProjectOrganizationModel;
 use crate::settings::AISettings;
 use crate::terminal;
 use crate::terminal::view::{
     AgentOnboardingVersion, OnboardingIntention, OnboardingVersion, TerminalAction,
 };
+use crate::view_components::DismissibleToast;
+use crate::workspace::ToastStack;
 use crate::workspace::Workspace;
 use crate::FeatureFlag;
 use onboarding::{ProjectOnboardingSettings, SelectedSettings};
@@ -97,7 +100,9 @@ impl Workspace {
                     log::error!("Failed to convert path to string: {path:?}");
                     return;
                 };
-                self.handle_open_repository(path_str, ctx);
+                if !self.handle_open_repository(path_str, ctx) {
+                    return;
+                }
 
                 // Subscribe to the terminal view to wait for init completion
                 if let Some(terminal_view_handle) = self.active_session_view(ctx) {
@@ -117,6 +122,21 @@ impl Workspace {
                 ref path,
                 intention,
             } => {
+                if let Err(error) = ProjectOrganizationModel::handle(ctx)
+                    .update(ctx, |model, ctx| model.touch_repository_path(path, ctx))
+                {
+                    let window_id = ctx.window_id();
+                    ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
+                        toast_stack.add_ephemeral_toast(
+                            DismissibleToast::error(format!(
+                                "Failed to open repository for onboarding: {error}"
+                            )),
+                            window_id,
+                            ctx,
+                        );
+                    });
+                    return;
+                }
                 // Create a new terminal in the project directory
                 self.add_tab_with_pane_layout(
                     PanesLayout::SingleTerminal(Box::new(NewTerminalOptions {

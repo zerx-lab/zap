@@ -98,3 +98,15 @@ fn serialized_ai_metadata_preserves_explicit_visible_block() {
 
     assert!(!agent_metadata.should_hide_block());
 }
+
+#[test]
+fn active_block_can_be_finalized_for_shutdown() {
+    let completed_ts = chrono::Local::now();
+    let mut block = SerializedBlock::new_for_test(b"claude".to_vec(), Vec::new());
+    block.completed_ts = None;
+
+    block.finalize_for_shutdown(completed_ts);
+
+    assert_eq!(block.completed_ts, Some(completed_ts));
+    assert_eq!(block.exit_code.value(), 130);
+}

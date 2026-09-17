@@ -355,7 +355,9 @@ impl<S: Slide> LaunchModal<S> {
                                             .content_hyperlink
                                             .clone(),
                                     )
-                                    .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+                                    .with_heading_to_font_size_multipliers(
+                                        appearance.heading_font_size_multipliers().clone(),
+                                    )
                                     .with_hyperlink_font_color(theme.accent().into_solid())
                                     .register_default_click_handlers_with_action_support(
                                         |hyperlink_lens, _event, ctx| {
@@ -527,7 +529,9 @@ impl<S: Slide> View for LaunchModal<S> {
                                 blended_colors::text_main(theme, blended_colors::neutral_1(theme)),
                                 Default::default(), // no hyperlink highlighting needed
                             )
-                            .with_heading_to_font_size_multipliers(appearance.heading_font_size_multipliers().clone())
+                            .with_heading_to_font_size_multipliers(
+                                appearance.heading_font_size_multipliers().clone(),
+                            )
                             .disable_mouse_interaction()
                             .finish();
 

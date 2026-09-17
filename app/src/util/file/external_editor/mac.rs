@@ -366,9 +366,7 @@ pub fn open_file_path_with_line_and_col(
 
 fn is_zap_bundle(bundle_id: &str) -> bool {
     AppId::parse(bundle_id)
-        .map(|id| {
-            id.qualifier() == "dev" && matches!(id.organization(), "warp" | "zap")
-        })
+        .map(|id| id.qualifier() == "dev" && matches!(id.organization(), "warp" | "zap"))
         .unwrap_or(false)
 }
 

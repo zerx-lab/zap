@@ -6,10 +6,10 @@
 use std::sync::{Arc, Mutex};
 
 use warp_ssh_manager::{SshRepository, SshServerInfo};
-use warpui::SingletonEntity;
-use warpui::TypedActionView;
 use warpui::integration::TestStep;
 use warpui::windowing::WindowManager;
+use warpui::SingletonEntity;
+use warpui::TypedActionView;
 
 use crate::ssh_manager::server_view::SshServerAction;
 use crate::workspace::{Workspace, WorkspaceAction};

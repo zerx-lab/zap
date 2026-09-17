@@ -305,20 +305,17 @@ impl ShellCommandExecutor {
                         RequestCommandOutputResult::CancelledBeforeExecution,
                     ));
                 }
-                // Zap:同步等待型命令(wait_until_completion=true)无条件禁用 pager。
+                // Zap:同步等待型命令默认禁用 pager,避免模型漏标 `uses_pager` 时卡在
+                // less 提示符。但 `git log` / `git log --stat` / `man` 这类**本就是
+                // 交互式 pager** 的命令不能套这条规则 —— 关掉 pager 会把整段 log
+                // 直接打到 block 里,用户无法滚动/搜索。
                 //
-                // 模型自报的 `uses_pager` 不可靠 —— deepseek-v4-flash 等小模型几乎不会主动标,
-                // 一旦命中 `git diff`/`git log`/`man` 等隐式 pager 就会卡在 less 提示符,
-                // warp 把命令降级成 LongRunningCommandSnapshot 返回,但 agent 不知道这种契约
-                // 切换、继续并行发新 tool call,导致 PTY 和 UI 双重锁死(输入框消失)。
-                //
-                // 治本逻辑:既然 agent 显式说"等到完成",pager 提示符违反这个契约,warp
-                // 必须确保 pager 一定不被触发,而不是让模型来预判每个 CLI 的分页行为。
-                //
-                // 不影响显式异步路径(wait_until_completion=false),tail -f / dev server
-                // 等真正长运行命令仍走原有 LongRunningCommandSnapshot 链路。
-                let _ = uses_pager; // 字段保留作 API 兼容,但语义已不再依赖
-                let decorated_command = if *wait_until_completion {
+                // 对隐式 pager 命令:保留真实 pager,并按 wait_until_completion=false
+                // 走 LongRunningCommandSnapshot,让用户与 less 交互。
+                let _ = uses_pager; // 字段保留作 API 兼容,判定改走启发式
+                let wait_for_completion =
+                    should_disable_pager_for_requested_command(*wait_until_completion, command);
+                let decorated_command = if wait_for_completion {
                     self.turn_off_pager_for_command(command, ctx)
                 } else {
                     command.clone()
@@ -335,7 +332,7 @@ impl ShellCommandExecutor {
                 ActionExecution::new_async(
                     self.action_result_future(
                         block_selector.clone(),
-                        action_result_delay_for_requested_command(*wait_until_completion),
+                        action_result_delay_for_requested_command(wait_for_completion),
                     ),
                     move |result, ctx| {
                         // Remove the senders from the maps.
@@ -819,6 +816,220 @@ fn action_result_delay_for_requested_command(wait_until_completion: bool) -> Act
     } else {
         ActionResultDelay::Default
     }
+}
+
+/// 同步等待命令才会关 pager。隐式 pager 命令(`git log --stat` 等)必须保持
+/// 可交互,否则整段输出会被直接打印到 block。
+fn should_disable_pager_for_requested_command(wait_until_completion: bool, command: &str) -> bool {
+    wait_until_completion && !command_uses_implicit_pager(command)
+}
+
+/// 判断命令是否会进入 less/more 这类交互式 pager。
+///
+/// `git log --stat` 与裸 `git log` 一样会调 pager,必须按交互命令处理。
+/// 管道 / `--no-pager` / `-P` 会让 git 不再进 pager,这时仍可关 pager。
+///
+/// 必须看整条链,而不是只看第一个可执行文件:`cd repo && git log --stat`
+/// 的入口是 `cd`,旧实现会误关 pager,把整段 log 一次性打进 block。
+/// 引号里的 `|`(`--pretty=format:'%h | %s'`)不是管道,不能当成已关闭 pager。
+fn command_uses_implicit_pager(command: &str) -> bool {
+    let command = command.trim_start();
+    if let Some(inner) = in_band_generator_command(command) {
+        return command_uses_implicit_pager(&inner);
+    }
+
+    split_unquoted_chain(command)
+        .into_iter()
+        .any(pipeline_uses_implicit_pager)
+}
+
+fn pipeline_uses_implicit_pager(segment: &str) -> bool {
+    let stages = split_unquoted_pipes(segment);
+    match stages.as_slice() {
+        [] => false,
+        [single] => simple_command_uses_implicit_pager(single),
+        [.., last] => explicit_pager_executable(last),
+    }
+}
+
+fn simple_command_uses_implicit_pager(segment: &str) -> bool {
+    let command = skip_env_assignments_and_wrappers(segment);
+    match first_executable_name(command).as_deref() {
+        Some("less" | "less.exe" | "more" | "more.exe" | "man" | "man.exe") => true,
+        Some("git" | "git.exe") => git_subcommand_uses_pager(command),
+        _ => false,
+    }
+}
+
+fn explicit_pager_executable(segment: &str) -> bool {
+    matches!(
+        first_executable_name(skip_env_assignments_and_wrappers(segment)).as_deref(),
+        Some("less" | "less.exe" | "more" | "more.exe")
+    )
+}
+
+const COMMAND_WRAPPER_PREFIXES: &[&str] = &[
+    "builtin", "env", "exec", "nice", "noglob", "nohup", "sudo", "time",
+];
+
+fn skip_env_assignments_and_wrappers(command: &str) -> &str {
+    let mut current = command.trim_start();
+    loop {
+        let Some((token, rest)) =
+            first_executable_token(current).or_else(|| first_command_token(current))
+        else {
+            return current;
+        };
+        if is_env_assignment(token)
+            || COMMAND_WRAPPER_PREFIXES
+                .iter()
+                .any(|prefix| token.eq_ignore_ascii_case(prefix))
+        {
+            current = rest.trim_start();
+            continue;
+        }
+        return current;
+    }
+}
+
+fn is_env_assignment(token: &str) -> bool {
+    let Some(eq) = token.find('=') else {
+        return false;
+    };
+    eq > 0 && !token[..eq].contains(['/', '\\'])
+}
+
+fn split_unquoted_chain(command: &str) -> Vec<&str> {
+    split_unquoted(command, SplitKind::Chain)
+}
+
+fn split_unquoted_pipes(command: &str) -> Vec<&str> {
+    split_unquoted(command, SplitKind::Pipe)
+}
+
+enum SplitKind {
+    Chain,
+    Pipe,
+}
+
+fn split_unquoted(command: &str, kind: SplitKind) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut quote: Option<char> = None;
+    let mut chars = command.char_indices().peekable();
+    while let Some((idx, ch)) = chars.next() {
+        if let Some(q) = quote {
+            if ch == q {
+                quote = None;
+            }
+            continue;
+        }
+        if ch == '\'' || ch == '"' {
+            quote = Some(ch);
+            continue;
+        }
+        let rest = &command[idx..];
+        let sep_len = match kind {
+            SplitKind::Chain => {
+                if rest.starts_with("&&") || rest.starts_with("||") {
+                    Some(2)
+                } else if ch == ';' {
+                    Some(1)
+                } else {
+                    None
+                }
+            }
+            SplitKind::Pipe => {
+                if rest.starts_with("||") {
+                    None
+                } else if ch == '|' {
+                    Some(1)
+                } else {
+                    None
+                }
+            }
+        };
+        if let Some(sep_len) = sep_len {
+            parts.push(command[start..idx].trim());
+            for _ in 1..sep_len {
+                chars.next();
+            }
+            start = idx + sep_len;
+        }
+    }
+    parts.push(command[start..].trim());
+    parts.retain(|part| !part.is_empty());
+    parts
+}
+
+/// git 全局选项里会吃掉下一个 token 的旗标。漏掉会把 `-C repo log` 的
+/// `repo` 误当成 subcommand。
+const GIT_GLOBAL_VALUE_FLAGS: &[&str] = &[
+    "-C",
+    "-c",
+    "--git-dir",
+    "--work-tree",
+    "--namespace",
+    "--super-prefix",
+    "--config-env",
+    "--exec-path",
+];
+
+fn git_subcommand_uses_pager(command: &str) -> bool {
+    let tokens = git_command_tokens(command);
+    if tokens.len() < 2 {
+        return false;
+    }
+    if tokens
+        .iter()
+        .any(|token| *token == "--no-pager" || *token == "-P")
+    {
+        return false;
+    }
+
+    let mut i = 1;
+    while i < tokens.len() {
+        let token = tokens[i];
+        if GIT_GLOBAL_VALUE_FLAGS.contains(&token) {
+            i += 2;
+            continue;
+        }
+        if token.starts_with("--git-dir=")
+            || token.starts_with("--work-tree=")
+            || token.starts_with("--namespace=")
+            || token.starts_with("--super-prefix=")
+            || token.starts_with("--config-env=")
+            || token.starts_with("--exec-path=")
+            || token.starts_with("-c") && token.len() > 2
+        {
+            i += 1;
+            continue;
+        }
+        if token.starts_with('-') {
+            i += 1;
+            continue;
+        }
+        return matches!(
+            token,
+            "log" | "diff" | "show" | "blame" | "reflog" | "shortlog"
+        );
+    }
+    false
+}
+
+fn git_command_tokens(command: &str) -> Vec<&str> {
+    let mut tokens = Vec::new();
+    let mut rest = command;
+    while let Some((token, next)) =
+        first_executable_token(rest).or_else(|| first_command_token(rest))
+    {
+        tokens.push(token);
+        rest = next;
+        if rest.is_empty() {
+            break;
+        }
+    }
+    tokens
 }
 
 /// 把 agent 请求的 `ShellCommandDelay` 映射成内部使用的 `ActionResultDelay`,

@@ -121,7 +121,10 @@ pub struct SerializedAIMetadata {
 
     /// `true` if this block should be hidden from the user (as is the case with AI-requested
     /// commands, for example).
-    #[serde(default = "default_as_true", skip_serializing_if = "skip_hide_when_true")]
+    #[serde(
+        default = "default_as_true",
+        skip_serializing_if = "skip_hide_when_true"
+    )]
     should_hide_block: bool,
 }
 
@@ -265,6 +268,13 @@ impl SerializedBlock {
             .map_err(|e| anyhow::anyhow!("Failed to deserialize block from JSON: {e}"))
     }
 
+    /// 当应用在 shell 报告完成前退出时，将活动 block 标记为已结束。退出码 130 与 UI
+    /// 现有的 SIGINT 语义保持一致。
+    pub(crate) fn finalize_for_shutdown(&mut self, completed_ts: DateTime<Local>) {
+        self.completed_ts = Some(completed_ts);
+        self.exit_code = ExitCode::from(130);
+    }
+
     pub fn has_failed(&self) -> bool {
         let block_state = match self.did_execute {
             true => BlockState::DoneWithExecution,
@@ -274,7 +284,7 @@ impl SerializedBlock {
     }
 }
 
-/// We should only be serializing a block that has finished.
+/// Serializes a block for persistence.
 impl From<&Block> for SerializedBlock {
     fn from(block: &Block) -> Self {
         let stylized_command = block

@@ -147,18 +147,12 @@ mod appimage {
             if downloaded - last_reported >= REPORT_BYTES_THRESHOLD
                 || last_reported_at.elapsed() >= REPORT_TIME_THRESHOLD
             {
-                on_progress(DownloadProgress {
-                    downloaded,
-                    total,
-                });
+                on_progress(DownloadProgress { downloaded, total });
                 last_reported = downloaded;
                 last_reported_at = Instant::now();
             }
         }
-        on_progress(DownloadProgress {
-            downloaded,
-            total,
-        });
+        on_progress(DownloadProgress { downloaded, total });
 
         // openWarp:在覆盖原 AppImage 之前先对临时文件做 SHA-256 校验,
         // 防御 CDN 中间人 / 网络损坏。其他 channel 跳过(有自家流程)。
@@ -395,9 +389,7 @@ impl PackageManager {
             .output();
         let output = match output {
             Ok(o) => o,
-            Err(err) => {
-                return Err(err).context("Failed to run package manager detection script")
-            }
+            Err(err) => return Err(err).context("Failed to run package manager detection script"),
         };
 
         // exit 1 = 这个候选名没被任何 PM 识别;不是错,继续下一个候选。

@@ -21,8 +21,8 @@ use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection}
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
 use crate::terminal::available_shells::AvailableShell;
-use crate::terminal::CLIAgent;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
+use crate::terminal::CLIAgent;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::themes::theme_chooser::ThemeChooserMode;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
@@ -257,6 +257,8 @@ pub enum WorkspaceAction {
     /// In Code Mode V2 this toggles the left panel which contains both the project explorer and
     /// Zap Drive. This happens as explicit action from the user.
     ToggleLeftPanel,
+    /// 在左侧树中展开并滚动到当前 terminal 所属 workspace。
+    RevealCurrentWorkspace,
     /// Toggles directly to the Zap Drive tab of the left panel in Code Mode V2
     ToggleWarpDrive,
     /// Unconditionally opens Zap Drive. This is used in the case of user lifecycle
@@ -760,6 +762,7 @@ impl WorkspaceAction {
             | DragTab { .. }
             | StartTabDrag
             | ToggleLeftPanel
+            | RevealCurrentWorkspace
             | ToggleWarpDrive
             | ZapDrive
             | ClosePanel

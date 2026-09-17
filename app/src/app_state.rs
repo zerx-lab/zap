@@ -14,10 +14,12 @@ use crate::ai::blocklist::InputConfig;
 use crate::ai::blocklist::SerializedBlockListItem;
 use crate::code::editor_management::CodeSource;
 use crate::drive::ZapDriveObjectSettings;
+use crate::project_organization::domain::RepositoryWorkspaceId;
 use crate::root_view::quake_mode_window_id;
 use crate::server::ids::SyncId;
 use crate::settings_view::SettingsSection;
 use crate::tab::SelectedTabColor;
+use crate::terminal::cli_agent_resume::CliAgentResumeSnapshot;
 use crate::terminal::ShellLaunchData;
 use crate::themes::theme::{AnsiColorIdentifier, ThemeKind};
 use crate::workspace::view::left_panel::ToolPanelView;
@@ -45,6 +47,8 @@ pub struct PersistedAgentManagementFilters {
 pub struct WindowSnapshot {
     pub tabs: Vec<TabSnapshot>,
     pub active_tab_index: usize,
+    pub active_repository_workspace_id: Option<RepositoryWorkspaceId>,
+    pub repository_workspace_states: Vec<RepositoryWorkspaceWindowStateSnapshot>,
     pub bounds: Option<RectF>,
     pub fullscreen_state: FullscreenState,
     pub quake_mode: bool,
@@ -64,12 +68,19 @@ pub struct WindowSnapshot {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TabSnapshot {
+    pub repository_workspace_id: Option<RepositoryWorkspaceId>,
     pub custom_title: Option<String>,
     pub root: PaneNodeSnapshot,
     pub default_directory_color: Option<AnsiColorIdentifier>,
     pub selected_color: SelectedTabColor,
     pub left_panel: Option<LeftPanelSnapshot>,
     pub right_panel: Option<RightPanelSnapshot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RepositoryWorkspaceWindowStateSnapshot {
+    pub repository_workspace_id: RepositoryWorkspaceId,
+    pub active_tab_index: usize,
 }
 
 impl TabSnapshot {
@@ -226,6 +237,8 @@ pub struct TerminalPaneSnapshot {
     /// The active conversation ID if the agent view was open in fullscreen mode.
     /// When `Some`, the agent view should be restored to fullscreen for this conversation.
     pub active_conversation_id: Option<AIConversationId>,
+    /// 退出时仍在跑的 CLI agent 会话,重启后用来自动 resume。
+    pub cli_agent_resume: Option<CliAgentResumeSnapshot>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -317,6 +330,7 @@ pub enum CodeReviewPaneSnapshot {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum LeftPanelDisplayedTab {
+    ProjectTree,
     FileTree,
     GlobalSearch,
     ZapDrive,
@@ -329,6 +343,7 @@ pub enum LeftPanelDisplayedTab {
 impl From<ToolPanelView> for LeftPanelDisplayedTab {
     fn from(view: ToolPanelView) -> Self {
         match view {
+            ToolPanelView::ProjectTree => LeftPanelDisplayedTab::ProjectTree,
             ToolPanelView::ProjectExplorer => LeftPanelDisplayedTab::FileTree,
             ToolPanelView::GlobalSearch { .. } => LeftPanelDisplayedTab::GlobalSearch,
             ToolPanelView::ZapDrive => LeftPanelDisplayedTab::ZapDrive,
@@ -395,7 +410,7 @@ pub fn get_app_state(app: &AppContext) -> AppState {
                 quake_mode_id.map(|id| id == window_id).unwrap_or(false),
                 app,
             );
-            if !snapshot.tabs.is_empty() {
+            if should_persist_window_snapshot(&snapshot) {
                 windows.push(snapshot);
             }
         }
@@ -407,6 +422,14 @@ pub fn get_app_state(app: &AppContext) -> AppState {
         block_lists: Default::default(),
         running_mcp_servers: Vec::new(),
     }
+}
+
+/// 判断窗口快照是否值得写入会话恢复。
+///
+/// 无页签的窗口通常应跳过,以免把空窗口写进 SQLite。但选中了 repository
+/// workspace 的空窗口必须保留,重启后才能回到同一个 workspace 的空状态。
+pub(crate) fn should_persist_window_snapshot(snapshot: &WindowSnapshot) -> bool {
+    !snapshot.tabs.is_empty() || snapshot.active_repository_workspace_id.is_some()
 }
 
 #[cfg(test)]

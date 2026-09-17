@@ -3,21 +3,21 @@ use itertools::Itertools;
 use warpui::{AppContext, Entity, ModelContext, ModelHandle, SingletonEntity};
 
 use super::ProjectSearchItem;
-use crate::projects::ProjectManagementModel;
+use crate::project_organization::model::ProjectOrganizationModel;
 use crate::search::command_palette::mixer::CommandPaletteItemAction;
 use crate::search::data_source::{Query, QueryResult};
 use crate::search::mixer::{DataSourceRunErrorWrapper, SyncDataSource};
 
 /// Manages querying projects for Command Search (existing, user-added projects only).
 pub struct ProjectDataSource {
-    project_model: ModelHandle<ProjectManagementModel>,
+    project_model: ModelHandle<ProjectOrganizationModel>,
 }
 
 impl ProjectDataSource {
     /// Creates a new ProjectsDataSource with access to the project management model.
     pub fn new(app: &mut ModelContext<Self>) -> Self {
         Self {
-            project_model: ProjectManagementModel::handle(app),
+            project_model: ProjectOrganizationModel::handle(app),
         }
     }
 
@@ -25,12 +25,16 @@ impl ProjectDataSource {
         // Create search items and sort them using the Ord implementation
         self.project_model
             .as_ref(app)
-            .all_projects()
+            .repositories()
             .map(|project| {
                 ProjectSearchItem::new(
-                    project.path.clone(),
+                    project
+                        .path
+                        .to_str()
+                        .expect("repository paths are validated as UTF-8 before insertion")
+                        .to_string(),
                     fuzzy_match::FuzzyMatchResult::no_match(),
-                    project.last_used_at(),
+                    project.last_opened_at,
                 )
             })
             .k_largest(limit)
@@ -56,7 +60,7 @@ impl SyncDataSource for ProjectDataSource {
         let projects = self
             .project_model
             .as_ref(app)
-            .all_projects()
+            .repositories()
             .collect::<Vec<_>>();
 
         // Create search items and sort them using the Ord implementation
@@ -64,9 +68,13 @@ impl SyncDataSource for ProjectDataSource {
             .into_iter()
             .filter_map(|project| {
                 let mut search_item = ProjectSearchItem::new(
-                    project.path.clone(),
+                    project
+                        .path
+                        .to_str()
+                        .expect("repository paths are validated as UTF-8 before insertion")
+                        .to_string(),
                     fuzzy_match::FuzzyMatchResult::no_match(),
-                    project.last_used_at(),
+                    project.last_opened_at,
                 );
 
                 // Perform fuzzy matching on the project display name

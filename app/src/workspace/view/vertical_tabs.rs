@@ -3191,17 +3191,14 @@ fn terminal_pull_request_badge_label(pull_request_url: &str) -> String {
 }
 
 fn vtab_diff_stats_tokens(line_changes: &GitLineChanges) -> Vec<String> {
-    let mut tokens = Vec::new();
-    if line_changes.lines_added > 0 {
-        tokens.push(format!("+{}", line_changes.lines_added));
+    if line_changes.lines_added == 0 && line_changes.lines_removed == 0 {
+        vec!["0".to_string()]
+    } else {
+        vec![
+            format!("+{}", line_changes.lines_added),
+            format!("-{}", line_changes.lines_removed),
+        ]
     }
-    if line_changes.lines_removed > 0 {
-        tokens.push(format!("-{}", line_changes.lines_removed));
-    }
-    if tokens.is_empty() {
-        tokens.push("0".to_string());
-    }
-    tokens
 }
 
 fn vtab_diff_stats_text(line_changes: &GitLineChanges) -> String {

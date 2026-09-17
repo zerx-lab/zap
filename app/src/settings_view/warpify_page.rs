@@ -537,10 +537,7 @@ impl TitleWidget {
     fn render_top_of_page(&self, appearance: &Appearance, _app: &AppContext) -> Box<dyn Element> {
         let warpify_description = vec![
             FormattedTextFragment::plain_text(crate::t!("settings-warpify-description-prefix")),
-            FormattedTextFragment::hyperlink(
-                crate::t!("settings-warpify-learn-more"),
-                "",
-            ),
+            FormattedTextFragment::hyperlink(crate::t!("settings-warpify-learn-more"), ""),
         ];
 
         let warpify_description = FormattedTextElement::new(
@@ -754,9 +751,7 @@ impl SettingsWidget for SSHWidget {
                     crate::t!("settings-warpify-use-tmux"),
                     Some(AdditionalInfo {
                         mouse_state: self.additional_info_mouse_state.clone(),
-                        on_click_action: Some(WarpifyPageAction::OpenUrl(
-                            "".into(),
-                        )),
+                        on_click_action: Some(WarpifyPageAction::OpenUrl("".into())),
                         secondary_text: None,
                         tooltip_override_text: None,
                     }),

@@ -24,8 +24,7 @@ use warpui::{
 };
 use warpui::{BlurContext, FocusContext};
 
-pub const WHY_INSTALL_TMUX_URL: &str =
-    "";
+pub const WHY_INSTALL_TMUX_URL: &str = "";
 
 #[derive(Debug, Clone)]
 pub struct TmuxInstallMethod {

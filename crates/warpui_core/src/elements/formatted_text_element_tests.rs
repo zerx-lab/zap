@@ -128,7 +128,12 @@ fn test_heading_multipliers_size_ordering() {
 #[test]
 fn test_get_multiplier_const_fn() {
     const M: HeadingFontSizeMultipliers = HeadingFontSizeMultipliers {
-        h1: 2.0, h2: 1.5, h3: 1.17, h4: 1.0, h5: 0.83, h6: 0.75,
+        h1: 2.0,
+        h2: 1.5,
+        h3: 1.17,
+        h4: 1.0,
+        h5: 0.83,
+        h6: 0.75,
     };
     const H1: f32 = M.get_multiplier(1);
     const H4: f32 = M.get_multiplier(4);

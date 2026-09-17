@@ -468,12 +468,7 @@ impl AutoupdateState {
             }) => {
                 // openWarp(Channel::Oss):走和官方一致的下载流程,平台 download_update_and_cleanup
                 // 内部在 OSS 分支自己挑选合适的资产并跳过 codesign verify。
-                self.download_new_update(
-                    update_id.clone(),
-                    request_type,
-                    new_version.clone(),
-                    ctx,
-                );
+                self.download_new_update(update_id.clone(), request_type, new_version.clone(), ctx);
                 // We report the update status after attempting to download the update.
                 return;
             }
@@ -551,8 +546,7 @@ impl AutoupdateState {
         // spawn_stream_local 收到后写入 self.download_progress 并 notify。
         // 用 unbounded channel 避免下载阻塞在 send 上;UI 每次只读最新进度,
         // 中间 backlog 由 model 处理时直接覆盖,不会"卡帧"。
-        let (progress_tx, progress_rx) =
-            futures::channel::mpsc::unbounded::<DownloadProgress>();
+        let (progress_tx, progress_rx) = futures::channel::mpsc::unbounded::<DownloadProgress>();
         let on_progress: ProgressCallback = Arc::new(move |p| {
             // 接收端断开(下载完成 / model 销毁)时忽略,不影响下载本体。
             let _ = progress_tx.unbounded_send(p);

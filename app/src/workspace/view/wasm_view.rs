@@ -16,7 +16,7 @@ use crate::ui_components::icons;
 use crate::view_components::action_button::{ActionButton, ButtonSize, NakedTheme, PrimaryTheme};
 use crate::wasm_nux_dialog::{WasmNUXDialog, WasmNUXDialogEvent};
 use crate::workspace::action::WorkspaceAction;
-use crate::workspace::view::{NotebookSource, ZapDriveObjectSettings, Workspace};
+use crate::workspace::view::{NotebookSource, Workspace, ZapDriveObjectSettings};
 use crate::BlocklistAIHistoryModel;
 
 const TRANSCRIPT_PANEL_WIDTH: f32 = 280.0;
