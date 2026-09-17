@@ -163,6 +163,8 @@ active_repository_workspace_id: Option<RepositoryWorkspaceId>
 
 `FeatureFlag::RepositoryWorkspaces` 开启且 `Workspace::is_left_panel_open` 为真、且不是简化 WASM 标题栏 / vertical tabs / mobile overlay 时，`Workspace::render` 使用：
 
+左侧 ToolsPanel 右缘画 1px `split_pane_border_color` 分隔线，并把 Resizable 热区向外偏，命中区落在分界上，避免和树行抢点击。
+
 ```
 row
   ├── ToolsPanel（通顶，SavePosition `LEFT_PANEL_POSITION_ID`）
