@@ -3,18 +3,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use warp_core::ui::theme::color::internal_colors;
-use warp_core::{HostId, SessionId, send_telemetry_from_ctx, ui::Icon};
+use warp_core::{send_telemetry_from_ctx, ui::Icon, HostId, SessionId};
 use warp_util::path::LineAndColumnArg;
 use warpui::{
-    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle, WeakViewHandle, WindowId,
     elements::{
-        Border, ChildView, ConstrainedBox, Container, CrossAxisAlignment, DragBarSide, Element,
-        Empty, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement, Resizable,
-        ResizableStateHandle, Shrinkable, resizable_state_handle,
+        resizable_state_handle, Border, ChildView, ConstrainedBox, Container, CrossAxisAlignment,
+        DragBarSide, Element, Empty, Flex, MainAxisAlignment, MainAxisSize, MouseStateHandle,
+        ParentElement, Resizable, ResizableStateHandle, Shrinkable,
     },
     platform::Cursor,
     ui_components::components::{Coords, UiComponent, UiComponentStyles},
+    AppContext, Entity, FocusContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle, WeakViewHandle, WindowId,
 };
 
 use crate::ai::agent::conversation::AIConversationId;
@@ -36,9 +36,9 @@ use crate::ssh_manager::SshManagerPanel;
 use crate::terminal::model::session::Session;
 #[cfg(feature = "local_fs")]
 use crate::util::file::external_editor::EditorSettings;
-use crate::util::openable_file_type::FileTarget;
 #[cfg(feature = "local_fs")]
 use crate::util::openable_file_type::resolve_file_target_with_editor_choice;
+use crate::util::openable_file_type::FileTarget;
 use crate::workspace::view::conversation_list::view::{
     ConversationListView, Event as ConversationListViewEvent,
 };
@@ -54,11 +54,10 @@ use crate::workspace::view::{
     TOGGLE_PROJECT_EXPLORER_BINDING_NAME, TOGGLE_WARP_DRIVE_BINDING_NAME,
 };
 use crate::{
-    TelemetryEvent,
     appearance::Appearance,
     code::file_tree::FileTreeView,
     drive::panel::{MAX_SIDEBAR_WIDTH_RATIO, MIN_SIDEBAR_WIDTH},
-    pane_group::pane::view::header::{PANE_HEADER_HEIGHT, components::HEADER_EDGE_PADDING},
+    pane_group::pane::view::header::{components::HEADER_EDGE_PADDING, PANE_HEADER_HEIGHT},
     pane_group::{self},
     project_organization::domain::RepositoryWorkspaceId,
     project_organization::project_tree_tab::ProjectTreeTabNode,
@@ -70,6 +69,7 @@ use crate::{
     },
     util::bindings::keybinding_name_to_display_string,
     workspace::WorkspaceAction,
+    TelemetryEvent,
 };
 
 /// 与分屏分隔条同宽，让树和终端之间有一条可见分界。

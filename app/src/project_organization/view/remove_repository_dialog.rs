@@ -1,9 +1,9 @@
 use warpui::{
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         ChildView, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, MainAxisAlignment,
         MainAxisSize, ParentElement, Text,
     },
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{

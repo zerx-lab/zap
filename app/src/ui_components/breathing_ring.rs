@@ -117,14 +117,12 @@ impl Element for BreathingRing {
         ctx.scene
             .draw_rect_with_hit_recording(RectF::new(origin, size))
             .with_background(Fill::None)
-            .with_border(
-                Border::all(self.border_width).with_border_fill(ColorU::new(
-                    self.color.r,
-                    self.color.g,
-                    self.color.b,
-                    opacity,
-                )),
-            )
+            .with_border(Border::all(self.border_width).with_border_fill(ColorU::new(
+                self.color.r,
+                self.color.g,
+                self.color.b,
+                opacity,
+            )))
             .with_corner_radius(CornerRadius::with_all(Radius::Percentage(50.)));
         self.child.paint(
             origin + vec2f(self.border_width, self.border_width),

@@ -4,14 +4,14 @@ use std::sync::Arc;
 
 use warp_util::path::LineAndColumnArg;
 
-use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::AIConversationId;
+use crate::ai::agent::AIAgentExchangeId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::auth::LoginGatedFeature;
-use crate::drive::ObjectTypeAndId;
 use crate::drive::items::WarpDriveItemId;
+use crate::drive::ObjectTypeAndId;
 use crate::palette::PaletteMode;
 use crate::prompt::editor_modal::OpenSource as PromptEditorOpenSource;
 use crate::search;
@@ -20,9 +20,9 @@ use crate::server::telemetry::{AddTabWithShellSource, AgentModeEntrypoint, Palet
 use crate::settings_view::{SettingsAction as SettingsTabAction, SettingsSection};
 use crate::tab::{NewSessionMenuItem, SelectedTabColor};
 use crate::tab_configs::TabConfig;
-use crate::terminal::CLIAgent;
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
+use crate::terminal::CLIAgent;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::themes::theme_chooser::ThemeChooserMode;
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};

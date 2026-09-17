@@ -1,9 +1,9 @@
 //! Implementation of terminal panes.
 #[cfg(feature = "local_fs")]
 use crate::pane_group::CodeSource;
-use std::sync::{Arc, mpsc::SyncSender};
+use std::sync::{mpsc::SyncSender, Arc};
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use warp_multi_agent_api as multi_agent_api;
 
 use warpui::{
@@ -11,7 +11,6 @@ use warpui::{
 };
 
 use crate::{
-    AIExecutionProfilesModel,
     ai::{blocklist::BlocklistAIHistoryModel, llms::LLMPreferences, skills::SkillManager},
     app_state::{AmbientAgentPaneSnapshot, LeafContents, TerminalPaneSnapshot},
     features::FeatureFlag,
@@ -21,11 +20,12 @@ use crate::{
     terminal::cli_agent_resume::CliAgentResumeSnapshot,
     terminal::cli_agent_sessions::CLIAgentSessionsModel,
     terminal::{
-        TerminalManager, TerminalView, general_settings::GeneralSettings,
-        shared_session::SharedSessionStatus, view::Event,
+        general_settings::GeneralSettings, shared_session::SharedSessionStatus, view::Event,
+        TerminalManager, TerminalView,
     },
     view_components::ToastFlavor,
-    workspace::{PaneViewLocator, sync_inputs::SyncedInputState},
+    workspace::{sync_inputs::SyncedInputState, PaneViewLocator},
+    AIExecutionProfilesModel,
 };
 
 #[cfg(feature = "local_fs")]

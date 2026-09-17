@@ -15,9 +15,9 @@ use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel, AIDo
 use crate::ai::execution_profiles::profiles::{AIExecutionProfilesModel, ClientProfileId};
 use crate::ai::llms::LLMId;
 use crate::ai::restored_conversations::RestoredAgentConversations;
-use crate::cloud_object::Space;
 #[cfg(target_family = "wasm")]
 use crate::cloud_object::model::persistence::ObjectStoreModel;
+use crate::cloud_object::Space;
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeSource;
 use crate::code::view::CodeViewAction;
@@ -26,9 +26,9 @@ use crate::code_review::diff_state::DiffMode;
 use crate::env_vars::EnvVarCollectionType;
 use crate::notebooks::file::FileNotebookView;
 use crate::pane_group::focus_state::PaneGroupFocusEvent;
-use crate::pane_group::pane::ActionOrigin;
 use crate::pane_group::pane::get_started_pane::GetStartedPane;
 use crate::pane_group::pane::welcome_pane::WelcomePane;
+use crate::pane_group::pane::ActionOrigin;
 use crate::quit_warning::UnsavedStateSummary;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
@@ -56,7 +56,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::{Arc, mpsc::SyncSender};
+use std::sync::{mpsc::SyncSender, Arc};
 
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -64,19 +64,19 @@ use lazy_static::lazy_static;
 use markdown_parser::FormattedTextFragment;
 use parking_lot::FairMutex;
 use pathfinder_geometry::rect::RectF;
-use pathfinder_geometry::vector::{Vector2F, vec2f};
+use pathfinder_geometry::vector::{vec2f, Vector2F};
 use serde::{Deserialize, Serialize};
 use tree::DEFAULT_FLEX_VALUE;
 use typed_path::TypedPath;
 use url::Url;
 use uuid::Uuid;
 use warp_cli::agent::Harness;
-use warp_core::HostId;
 use warp_core::command::ExitCode;
 use warp_core::context_flag::ContextFlag;
+use warp_core::HostId;
+use warp_util::path::convert_wsl_to_windows_host_path;
 #[cfg(feature = "local_fs")]
 use warp_util::path::LineAndColumnArg;
-use warp_util::path::convert_wsl_to_windows_host_path;
 use warpui::elements::{
     CrossAxisAlignment, DispatchEventResult, EventHandler, Flex, MainAxisSize, Shrinkable, Stack,
 };
@@ -85,8 +85,8 @@ use warpui::notification::NotificationSendError;
 
 use warpui::windowing::WindowManager;
 use warpui::{
-    AppContext, Entity, EntityId, ModelHandle, TypedActionView, View, ViewHandle, WindowId,
     elements::{ChildView, Element, ParentElement},
+    AppContext, Entity, EntityId, ModelHandle, TypedActionView, View, ViewHandle, WindowId,
 };
 use warpui::{SingletonEntity, ViewContext};
 
@@ -110,7 +110,7 @@ use crate::launch_configs::launch_config::{self, PaneMode, PaneTemplateType};
 use crate::persistence::ModelEvent;
 use crate::report_if_error;
 use crate::resource_center::{
-    Tip, TipAction, TipsCompleted, mark_feature_used_and_write_to_user_defaults,
+    mark_feature_used_and_write_to_user_defaults, Tip, TipAction, TipsCompleted,
 };
 use crate::server::ids::{ObjectUid, SyncId};
 use crate::server::telemetry::{PaletteSource, TelemetryEvent};
@@ -134,7 +134,7 @@ use crate::{cmd_or_ctrl_shift, send_telemetry_from_ctx};
 use settings::Setting as _;
 
 use crate::code::active_file::ActiveFileModel;
-use crate::util::bindings::{CustomAction, is_binding_pty_compliant};
+use crate::util::bindings::{is_binding_pty_compliant, CustomAction};
 use crate::workflows::{WorkflowSelectionSource, WorkflowSource, WorkflowType};
 
 use crate::palette::PaletteMode;
@@ -158,8 +158,6 @@ pub use pane::code_diff_pane::CodeDiffPane;
 pub use pane::code_pane::CodePane;
 pub use pane::env_var_collection_pane::EnvVarCollectionPane;
 // Zap Wave 7-3:`EnvironmentManagementPane` 随 ambient-agent UI 子系统物理删。
-pub use pane::PaneHeaderAction;
-pub use pane::PaneHeaderCustomAction;
 pub use pane::execution_profile_editor_pane::ExecutionProfileEditorPane;
 pub use pane::file_pane::FilePane;
 pub use pane::image_pane::ImagePane;
@@ -167,6 +165,8 @@ pub use pane::notebook_pane::NotebookPane;
 pub use pane::settings_pane::SettingsPane;
 pub use pane::terminal_pane::TerminalPane;
 pub use pane::workflow_pane::WorkflowPane;
+pub use pane::PaneHeaderAction;
+pub use pane::PaneHeaderCustomAction;
 pub use pane::{
     AnyPaneContent, BackingView, PaneConfiguration, PaneConfigurationEvent, PaneContent, PaneEvent,
     PaneId, PaneView, TerminalPaneId,
@@ -4802,11 +4802,9 @@ impl PaneGroup {
                     });
 
                 GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
-                    report_if_error!(
-                        general_settings
-                            .user_default_shell_unsupported_banner_state
-                            .set_value(BannerState::Dismissed, ctx)
-                    );
+                    report_if_error!(general_settings
+                        .user_default_shell_unsupported_banner_state
+                        .set_value(BannerState::Dismissed, ctx));
                 });
             }
             BannerEvent::Action(_) => {

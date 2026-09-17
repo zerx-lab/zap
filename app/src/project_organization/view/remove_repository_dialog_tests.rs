@@ -2,16 +2,16 @@ use std::{cell::RefCell, rc::Rc};
 
 use warp_core::ui::appearance::Appearance;
 use warpui::{
-    App, Element, Entity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{ChildView, ConstrainedBox},
     platform::WindowStyle,
+    App, Element, Entity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::project_organization::domain::RepositoryId;
 
 use super::{
-    RemoveRepositoryDialog, RemoveRepositoryDialogAction, RemoveRepositoryDialogEvent,
-    removal_details,
+    removal_details, RemoveRepositoryDialog, RemoveRepositoryDialogAction,
+    RemoveRepositoryDialogEvent,
 };
 
 struct RemoveRepositoryDialogTestHost {

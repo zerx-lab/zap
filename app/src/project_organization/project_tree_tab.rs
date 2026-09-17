@@ -2,7 +2,7 @@ use warpui::EntityId;
 
 use crate::project_organization::domain::RepositoryWorkspaceId;
 use crate::project_organization::workspace_agent_activity::{
-    WorkspaceActivitySlot, WorkspaceAgentActivity, workspace_activity_slot,
+    workspace_activity_slot, WorkspaceActivitySlot, WorkspaceAgentActivity,
 };
 
 /// 树内页签节点的稳定身份,对应所属 PaneGroup。

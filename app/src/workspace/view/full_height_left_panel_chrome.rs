@@ -1,7 +1,7 @@
 use crate::project_organization::view::project_tree::{
-    TabLayout, resolved_project_organization_tab_layout,
+    resolved_project_organization_tab_layout, TabLayout,
 };
-use crate::util::traffic_lights::{TrafficLightSide, traffic_light_data};
+use crate::util::traffic_lights::{traffic_light_data, TrafficLightSide};
 use crate::window_settings::WindowSettings;
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_settings::TabSettings;

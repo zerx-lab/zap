@@ -7,9 +7,9 @@ use crate::project_organization::workspace_agent_activity::{
 use crate::terminal::CLIAgent;
 
 use super::{
-    ProjectTreeTabId, ProjectTreeTabNode, ResolvedWorkspaceTabLabel, TabNodeActivity,
     assign_idle_terminal_numbers, default_terminal_tab_title, resolve_terminal_tab_label,
-    tab_is_active, tab_node_activity, workspace_parent_activity_slot,
+    tab_is_active, tab_node_activity, workspace_parent_activity_slot, ProjectTreeTabId,
+    ProjectTreeTabNode, ResolvedWorkspaceTabLabel, TabNodeActivity,
 };
 
 fn grok_running() -> WorkspaceAgentActivity {

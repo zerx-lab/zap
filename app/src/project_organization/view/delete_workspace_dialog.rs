@@ -1,11 +1,11 @@
 use warpui::{
-    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
     elements::{
         ChildView, ConstrainedBox, Container, CrossAxisAlignment, Element, Flex, MainAxisAlignment,
         MainAxisSize, MouseStateHandle, ParentElement, Text,
     },
     platform::Cursor,
     ui_components::components::UiComponent,
+    AppContext, Entity, SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use crate::{
