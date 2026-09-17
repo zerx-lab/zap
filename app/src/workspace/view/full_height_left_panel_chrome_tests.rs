@@ -2,7 +2,7 @@ use super::{
     header_items_excluding_lifted_code_review, header_items_excluding_lifted_tools_panel,
     left_panel_titlebar_leading_inset, short_upstream_name, tab_bar_leading_padding,
     use_full_height_left_panel_chrome, use_workspace_info_bar, workspace_info_bar_diff_tokens,
-    workspace_info_bar_label, workspace_info_bar_parts,
+    workspace_info_bar_label, workspace_info_bar_location_label, workspace_info_bar_parts,
 };
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 
@@ -26,6 +26,14 @@ fn use_full_height_left_panel_chrome_truth_table() {
     assert!(!use_full_height_left_panel_chrome(
         true, true, false, false, true
     ));
+}
+
+#[test]
+fn workspace_info_bar_location_label_joins_repository_and_workspace() {
+    assert_eq!(
+        workspace_info_bar_location_label("index-platform-backend", "release-601"),
+        "index-platform-backend / release-601"
+    );
 }
 
 #[test]

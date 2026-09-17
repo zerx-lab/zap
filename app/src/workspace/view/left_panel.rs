@@ -778,6 +778,17 @@ impl LeftPanelView {
         });
     }
 
+    pub fn reveal_project_tree_workspace(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        active_view_state::set(self, ToolPanelView::ProjectTree, ctx);
+        self.project_tree_view.update(ctx, |tree, ctx| {
+            tree.reveal_workspace(workspace_id, ctx);
+        });
+    }
+
     pub fn is_warp_drive_active(&self) -> bool {
         self.active_view.get() == ToolPanelView::ZapDrive
     }

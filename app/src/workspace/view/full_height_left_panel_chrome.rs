@@ -1,7 +1,7 @@
 use crate::project_organization::view::project_tree::{
-    resolved_project_organization_tab_layout, TabLayout,
+    TabLayout, resolved_project_organization_tab_layout,
 };
-use crate::util::traffic_lights::{traffic_light_data, TrafficLightSide};
+use crate::util::traffic_lights::{TrafficLightSide, traffic_light_data};
 use crate::window_settings::WindowSettings;
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::tab_settings::TabSettings;
@@ -35,7 +35,7 @@ pub(crate) fn use_full_height_left_panel_chrome(
         && !mobile_overlay
 }
 
-/// 侧栏打开且当前是真正的 repository workspace 时,顶栏中间换成 Git 信息栏。
+/// 侧栏打开且当前是真正的 repository workspace 时,顶栏中间换成 repository/workspace 定位条。
 pub(crate) fn use_workspace_info_bar(
     full_height_chrome: bool,
     has_active_repository_workspace: bool,
@@ -103,6 +103,14 @@ pub(crate) fn workspace_info_bar_parts(
         lines_added,
         lines_removed,
     }
+}
+
+/// 顶栏定位文案：当前 terminal 所属 repository / workspace。
+pub(crate) fn workspace_info_bar_location_label(
+    repository_name: &str,
+    workspace_name: &str,
+) -> String {
+    format!("{repository_name} / {workspace_name}")
 }
 
 /// 信息栏纯文本回退。无 upstream 省略 from; +/- 都为 0 或未知时不显示数字。

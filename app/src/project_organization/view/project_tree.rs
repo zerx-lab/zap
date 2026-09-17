@@ -10,19 +10,19 @@ use warp_core::ui::color::coloru_with_opacity;
 use warp_core::ui::icons::Icon as WarpIcon;
 use warp_core::ui::theme::WarpTheme;
 use warpui::{
+    AppContext, Entity, EventContext, ModelHandle, SingletonEntity, TypedActionView, View,
+    ViewContext, ViewHandle,
     assets::asset_cache::AssetSource,
     elements::{
         AcceptedByDropTarget, Border, CacheOption, ChildView, ClippedScrollStateHandle,
         ClippedScrollable, ConstrainedBox, Container, CornerRadius, CrossAxisAlignment, DragAxis,
         Draggable, DraggableState, DropShadow, DropTarget, DropTargetData, Element, Empty, Fill,
         Flex, Hoverable, Image, MainAxisAlignment, MainAxisSize, MouseStateHandle, ParentElement,
-        Radius, SavePosition, ScrollbarWidth, Shrinkable, Text,
+        Radius, SavePosition, ScrollTarget, ScrollToPositionMode, ScrollbarWidth, Shrinkable, Text,
     },
     platform::Cursor,
     text_layout::ClipConfig,
     ui_components::components::UiComponent,
-    AppContext, Entity, EventContext, ModelHandle, SingletonEntity, TypedActionView, View,
-    ViewContext, ViewHandle,
 };
 
 use crate::{
@@ -30,14 +30,14 @@ use crate::{
     project_organization::{
         model::ProjectOrganizationModel,
         workspace_agent_activity::{
-            workspace_activity_slot, WorkspaceActivitySlot, WorkspaceAgentActivity,
-            WorkspaceAgentIdentity, WorkspaceAgentPhase,
+            WorkspaceActivitySlot, WorkspaceAgentActivity, WorkspaceAgentIdentity,
+            WorkspaceAgentPhase, workspace_activity_slot,
         },
     },
     ui_components::{
         breathing_ring::{BreathingRing, BreathingStateHandle},
         buttons::icon_button,
-        icon_with_status::{render_icon_with_status, IconWithStatusSizing, IconWithStatusVariant},
+        icon_with_status::{IconWithStatusSizing, IconWithStatusVariant, render_icon_with_status},
         icons,
     },
     view_components::action_button::{ActionButton, ButtonSize, SecondaryTheme},
@@ -47,7 +47,7 @@ use crate::project_organization::domain::{
     Repository, RepositoryId, RepositoryWorkspace, RepositoryWorkspaceId,
 };
 use crate::project_organization::project_tree_tab::{
-    workspace_parent_activity_slot, ProjectTreeTabId, ProjectTreeTabNode, TabNodeActivity,
+    ProjectTreeTabId, ProjectTreeTabNode, TabNodeActivity, workspace_parent_activity_slot,
 };
 
 const WORKSPACE_RUNNING_DOT_SIZE: f32 = 6.;
@@ -328,6 +328,28 @@ impl ProjectTreeState {
     pub fn selected_workspace_id(&self) -> Option<RepositoryWorkspaceId> {
         self.selected_workspace_id
     }
+
+    pub fn reveal_workspace(&mut self, workspace_id: RepositoryWorkspaceId) -> bool {
+        let Some(repository) = self.repositories.iter_mut().find(|repository| {
+            repository
+                .workspaces
+                .iter()
+                .any(|workspace| workspace.workspace_id == workspace_id)
+        }) else {
+            return false;
+        };
+        repository.expanded = true;
+        let Some(workspace) = repository
+            .workspaces
+            .iter_mut()
+            .find(|workspace| workspace.workspace_id == workspace_id)
+        else {
+            return false;
+        };
+        workspace.expanded = true;
+        self.selected_workspace_id = Some(workspace_id);
+        true
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -435,6 +457,40 @@ fn should_show_repository_hover_actions(repository_row_hovered: bool) -> bool {
 
 pub(crate) fn repository_block_position_id(repository_id: RepositoryId) -> String {
     format!("project_tree:repository:{repository_id}:block")
+}
+
+pub(crate) fn workspace_row_position_id(workspace_id: RepositoryWorkspaceId) -> String {
+    format!("project_tree:workspace:{workspace_id}:row")
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CurrentWorkspaceLocation {
+    pub repository_id: RepositoryId,
+    pub repository_name: String,
+    pub workspace_id: RepositoryWorkspaceId,
+    pub workspace_name: String,
+}
+
+pub(crate) fn current_workspace_location(
+    repositories: &[RepositoryTreeNode],
+    selected_workspace_id: Option<RepositoryWorkspaceId>,
+) -> Option<CurrentWorkspaceLocation> {
+    let selected_workspace_id = selected_workspace_id?;
+    for repository in repositories {
+        if let Some(workspace) = repository
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.workspace_id == selected_workspace_id)
+        {
+            return Some(CurrentWorkspaceLocation {
+                repository_id: repository.repository_id,
+                repository_name: repository.display_name.clone(),
+                workspace_id: workspace.workspace_id,
+                workspace_name: workspace.display_name.clone(),
+            });
+        }
+    }
+    None
 }
 
 pub(crate) fn repository_insert_index_for_centers(centers: &[f32], pointer_y: f32) -> usize {
@@ -797,6 +853,20 @@ impl ProjectTreePanel {
         }
         self.state.set_active_workspace(workspace_id);
         ctx.notify();
+    }
+
+    pub fn reveal_workspace(
+        &mut self,
+        workspace_id: RepositoryWorkspaceId,
+        ctx: &mut ViewContext<Self>,
+    ) {
+        if self.state.reveal_workspace(workspace_id) {
+            self.clipped_scroll_state.scroll_to_position(ScrollTarget {
+                position_id: workspace_row_position_id(workspace_id),
+                mode: ScrollToPositionMode::TopIntoView,
+            });
+            ctx.notify();
+        }
     }
 
     fn refresh_tree(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1805,7 +1875,13 @@ impl View for ProjectTreePanel {
                     .with_cross_axis_alignment(CrossAxisAlignment::Stretch)
                     .with_spacing(0.);
                 for workspace in &repository.workspaces {
-                    workspaces.add_child(self.render_workspace_row(workspace, appearance));
+                    workspaces.add_child(
+                        SavePosition::new(
+                            self.render_workspace_row(workspace, appearance),
+                            &workspace_row_position_id(workspace.workspace_id),
+                        )
+                        .finish(),
+                    );
                     if workspace.expanded {
                         for tab in &workspace.tabs {
                             workspaces.add_child(self.render_tab_row(

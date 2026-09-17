@@ -9,18 +9,18 @@ use pathfinder_color::ColorU;
 use pathfinder_geometry::vector::vec2f;
 use warp_core::ui::appearance::Appearance;
 use warpui::{
-    elements::{ChildView, MouseStateHandle, ParentElement, Stack},
-    platform::WindowStyle,
     App, Element, Entity, Event, Presenter, TypedActionView, View, ViewContext, ViewHandle,
     WindowInvalidation,
+    elements::{ChildView, MouseStateHandle, ParentElement, Stack},
+    platform::WindowStyle,
 };
 
 use crate::{
     persistence::{
+        RepositoryPersistence,
         model::{
             Repository as PersistedRepository, RepositoryWorkspace as PersistedRepositoryWorkspace,
         },
-        RepositoryPersistence,
     },
     project_organization::{
         model::ProjectOrganizationModel,
@@ -37,16 +37,17 @@ use crate::project_organization::domain::{
 };
 
 use super::{
+    ProjectTreeEvent, ProjectTreePanel, ProjectTreeState, RepositoryTreeNode, TabLayout,
+    WORKSPACE_ACTIVITY_SLOT_SIZE, WORKSPACE_AGENT_ICON_SIZING, WORKSPACE_AGENT_RING_WIDTH,
+    WorkspaceTreeNode, WorkspaceVisualState, current_workspace_location,
     repository_add_workspace_position_id, repository_block_position_id,
     repository_drag_display_order, repository_drop_indices, repository_insert_index_for_centers,
     repository_remove_position_id, resolved_project_organization_tab_layout,
     ring_color_contrasts_on_dark_brand, should_show_repository_hover_actions,
     should_show_workspace_hover_actions, synchronize_mouse_states, tab_count_badge_label,
     tab_name_offset, tab_status_icon_offset, tree_name_offset, tree_status_icon_offset,
-    workspace_count_pill_label, workspace_row_is_selected, workspace_shows_branch_subtitle,
-    ProjectTreeEvent, ProjectTreePanel, ProjectTreeState, RepositoryTreeNode, TabLayout,
-    WorkspaceTreeNode, WorkspaceVisualState, WORKSPACE_ACTIVITY_SLOT_SIZE,
-    WORKSPACE_AGENT_ICON_SIZING, WORKSPACE_AGENT_RING_WIDTH,
+    workspace_count_pill_label, workspace_row_is_selected, workspace_row_position_id,
+    workspace_shows_branch_subtitle,
 };
 
 struct ProjectTreeTestHost {
@@ -337,6 +338,59 @@ fn tree_can_clear_and_restore_the_active_workspace_selection() {
 
     state.set_active_workspace(None);
     assert_eq!(state.selected_workspace_id(), None);
+}
+
+#[test]
+fn current_workspace_location_reads_selected_repository_and_workspace_names() {
+    let repository_id = RepositoryId(uuid::Uuid::from_u128(1));
+    let workspace_id = RepositoryWorkspaceId(uuid::Uuid::from_u128(2));
+    let state = ProjectTreeState::new(vec![RepositoryTreeNode {
+        repository_id,
+        display_name: "index-platform-backend".to_string(),
+        expanded: true,
+        workspaces: vec![WorkspaceTreeNode {
+            workspace_id,
+            display_name: "release-601".to_string(),
+            branch: "scm/conflict/release-601".to_string(),
+            tab_count: 2,
+            expanded: true,
+            tabs: vec![],
+        }],
+    }]);
+
+    assert_eq!(current_workspace_location(state.repositories(), None), None);
+
+    let location = current_workspace_location(state.repositories(), Some(workspace_id))
+        .expect("selected workspace should resolve to a location");
+    assert_eq!(location.repository_id, repository_id);
+    assert_eq!(location.repository_name, "index-platform-backend");
+    assert_eq!(location.workspace_id, workspace_id);
+    assert_eq!(location.workspace_name, "release-601");
+}
+
+#[test]
+fn reveal_workspace_expands_collapsed_ancestors() {
+    let repository_id = RepositoryId(uuid::Uuid::from_u128(1));
+    let workspace_id = RepositoryWorkspaceId(uuid::Uuid::from_u128(2));
+    let mut state = ProjectTreeState::new(vec![RepositoryTreeNode {
+        repository_id,
+        display_name: "zap".to_string(),
+        expanded: false,
+        workspaces: vec![WorkspaceTreeNode {
+            workspace_id,
+            display_name: "Feature A".to_string(),
+            branch: "feature/a".to_string(),
+            tab_count: 0,
+            expanded: false,
+            tabs: vec![],
+        }],
+    }]);
+
+    assert!(state.reveal_workspace(workspace_id));
+    assert!(state.repositories()[0].expanded);
+    assert!(state.repositories()[0].workspaces[0].expanded);
+    assert_eq!(state.selected_workspace_id(), Some(workspace_id));
+    assert!(workspace_row_position_id(workspace_id).contains(&workspace_id.to_string()));
 }
 
 #[test]

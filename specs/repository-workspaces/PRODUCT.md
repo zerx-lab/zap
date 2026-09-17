@@ -41,7 +41,7 @@ Figma: none provided. 交互和布局以本规格确认过程中批准的视觉�
 
 ## Behavior
 
-1. 当 `RepositoryWorkspaces` Feature Flag 启用时，主窗口左侧显示 repository → workspace → 页签三层树。左侧 ToolsPanel 打开且当前是真正的 repository workspace 时，侧栏通顶，右侧内容列顶部是 workspace 信息栏而不是页签列表；侧栏收起，或当前是未归类页签时，顶部恢复 TabBar。项目组织模式不显示 Vertical Tabs，也不修改用户原有的 Vertical Tabs 设置值。
+1. 当 `RepositoryWorkspaces` Feature Flag 启用时，主窗口左侧显示 repository → workspace → 页签三层树。左侧 ToolsPanel 打开且当前是真正的 repository workspace 时，侧栏通顶，右侧内容列顶部是当前 terminal 所属的 `repository / workspace` 定位条（含指南针，点击后在树中展开并滚动到该 workspace），而不是页签列表或分支信息；侧栏收起，或当前是未归类页签时，顶部恢复 TabBar。项目组织模式不显示 Vertical Tabs，也不修改用户原有的 Vertical Tabs 设置值。
 
 2. 当 Feature Flag 关闭时，用户继续看到原有项目和页签体验。关闭 Flag 不删除已经保存的 repository、workspace 或页签归属数据。
 

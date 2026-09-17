@@ -20,8 +20,8 @@ pub(crate) mod zap_launch_modal;
 
 use self::vertical_tabs::telemetry::{VerticalTabsDisplayOption, VerticalTabsTelemetryEvent};
 use self::vertical_tabs::{
-    render_detail_sidecar, render_settings_popup, VerticalTabsPanelState,
-    VERTICAL_TABS_SETTINGS_BUTTON_POSITION_ID,
+    VERTICAL_TABS_SETTINGS_BUTTON_POSITION_ID, VerticalTabsPanelState, render_detail_sidecar,
+    render_settings_popup,
 };
 use crate::workspace::cross_window_tab_drag::{
     AttachTarget, CrossWindowTabDrag, DragResult, DropResult, GhostState,
@@ -29,15 +29,15 @@ use crate::workspace::cross_window_tab_drag::{
 pub(crate) use onboarding::OnboardingTutorial;
 
 use self::full_height_left_panel_chrome::{
-    header_items_excluding_lifted_code_review, use_workspace_info_bar,
-    workspace_info_bar_diff_tokens, workspace_info_bar_label, workspace_info_bar_parts,
-    WorkspaceInfoBarGitStats, WorkspaceInfoBarParts,
+    WorkspaceInfoBarGitStats, WorkspaceInfoBarParts, header_items_excluding_lifted_code_review,
+    use_workspace_info_bar, workspace_info_bar_label, workspace_info_bar_location_label,
+    workspace_info_bar_parts,
 };
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::agent_conversations_model::ConversationOrTask;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
-use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
+use crate::ai::blocklist::agent_view::agent_input_footer::editor::AgentToolbarEditorMode;
 use crate::ai::blocklist::suggested_agent_mode_workflow_modal::SuggestedAgentModeWorkflowAndId;
 use crate::ai::blocklist::suggested_rule_modal::{
     SuggestedRuleAndId, SuggestedRuleModal, SuggestedRuleModalEvent,
@@ -46,15 +46,15 @@ use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
 use crate::ai::llms::LLMPreferences;
 use crate::ai::{
-    agent::{api::ServerConversationToken, conversation::AIConversationId, EntrypointType},
+    agent::{EntrypointType, api::ServerConversationToken, conversation::AIConversationId},
     blocklist::{
+        SlashCommandRequest,
         inline_action::code_diff_view::CodeDiffView,
         suggested_agent_mode_workflow_modal::{
             SuggestedAgentModeWorkflowModal, SuggestedAgentModeWorkflowModalEvent,
         },
-        SlashCommandRequest,
     },
-    facts::{view::AIFactPage, AIFactManager, AIFactView, AIFactViewEvent},
+    facts::{AIFactManager, AIFactView, AIFactViewEvent, view::AIFactPage},
 };
 use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::app_state::{
@@ -62,10 +62,10 @@ use crate::app_state::{
     PaneNodeSnapshot, PaneUuid, RepositoryWorkspaceWindowStateSnapshot, RightPanelSnapshot,
     SettingsPaneSnapshot, TabSnapshot, TerminalPaneSnapshot, WindowSnapshot, WorkflowPaneSnapshot,
 };
-use crate::code_review::diff_state::DiffStateModel;
 #[cfg(feature = "local_fs")]
 use crate::code_review::CodeReviewTelemetryEvent;
 use crate::code_review::GlobalCodeReviewModel;
+use crate::code_review::diff_state::DiffStateModel;
 use crate::coding_panel_enablement_state::CodingPanelEnablementState;
 use crate::default_terminal::DefaultTerminal;
 use crate::notebooks::NotebookObject;
@@ -86,8 +86,8 @@ use crate::project_organization::git::{
 };
 use crate::project_organization::model::ProjectOrganizationModel;
 use crate::project_organization::project_tree_tab::{
-    assign_idle_terminal_numbers, resolve_terminal_tab_label, tab_node_activity, ProjectTreeTabId,
-    ProjectTreeTabNode, ResolvedWorkspaceTabLabel,
+    ProjectTreeTabId, ProjectTreeTabNode, ResolvedWorkspaceTabLabel, assign_idle_terminal_numbers,
+    resolve_terminal_tab_label, tab_node_activity,
 };
 use crate::project_organization::view::create_workspace_modal::{
     CreateWorkspaceModal, CreateWorkspaceModalEvent, CreateWorkspaceRequest, CreateWorkspaceSource,
@@ -96,14 +96,14 @@ use crate::project_organization::view::delete_workspace_dialog::{
     DeleteWorkspaceDialog, DeleteWorkspaceDialogEvent,
 };
 use crate::project_organization::view::project_tree::{
-    resolved_project_organization_tab_layout, ProjectTreeEvent, TabLayout,
+    ProjectTreeEvent, TabLayout, resolved_project_organization_tab_layout,
 };
 use crate::project_organization::view::remove_repository_dialog::{
     RemoveRepositoryDialog, RemoveRepositoryDialogEvent,
 };
 use crate::project_organization::workspace_agent_activity::{
-    activities_from_terminal_sources, last_agent_activity, OzConversationSource,
-    WorkspaceAgentActivity,
+    OzConversationSource, WorkspaceAgentActivity, activities_from_terminal_sources,
+    last_agent_activity,
 };
 use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::terminal::model::terminal_model::ConversationTranscriptViewerStatus;
@@ -129,15 +129,16 @@ use crate::util::file::external_editor::Editor;
 use crate::util::file::external_editor::EditorSettings;
 use crate::util::openable_file_type::FileTarget;
 #[cfg(feature = "local_fs")]
-use crate::util::openable_file_type::{resolve_file_target_with_editor_choice, EditorLayout};
+use crate::util::openable_file_type::{EditorLayout, resolve_file_target_with_editor_choice};
 
-use crate::ai::blocklist::history_model::LoadedConversationData;
+use crate::BlocklistAIHistoryModel;
 use crate::ai::blocklist::FORK_PREFIX;
+use crate::ai::blocklist::history_model::LoadedConversationData;
+use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent::{CLIAgentInstallEvent, CLIAgentInstallModel};
 #[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::{plugin_manager_for, PluginModalKind};
+use crate::terminal::cli_agent_sessions::plugin_manager::{PluginModalKind, plugin_manager_for};
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
-use crate::terminal::CLIAgent;
 use crate::workspace::header_toolbar_editor::{HeaderToolbarEditorEvent, HeaderToolbarEditorModal};
 use crate::workspace::header_toolbar_item::HeaderToolbarItemKind;
 use crate::workspace::repository_workspace_tabs::{
@@ -147,17 +148,16 @@ use crate::workspace::tab_settings::TabCloseButtonPosition;
 use crate::workspace::view::codex_modal::{CodexModal, CodexModalEvent};
 use crate::workspace::view::zap_launch_modal::{ZapLaunchModal, ZapLaunchModalEvent};
 use crate::workspace::{ForkFromExchange, ForkedConversationDestination};
-use crate::BlocklistAIHistoryModel;
 
 use serde_json;
 use warpui::notification::NotificationSendError;
 
+use super::WorkspaceRegistry;
 use super::hoa_onboarding::{
-    mark_hoa_onboarding_completed, HoaOnboardingFlow, HoaOnboardingFlowEvent, HoaOnboardingStep,
+    HoaOnboardingFlow, HoaOnboardingFlowEvent, HoaOnboardingStep, mark_hoa_onboarding_completed,
 };
 use super::lightbox_view::{LightboxParams, LightboxView, LightboxViewEvent};
 use super::util;
-use super::WorkspaceRegistry;
 use crate::ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use crate::ai::execution_profiles::profiles::{AIExecutionProfilesModel, ClientProfileId};
 use crate::auth::AuthState;
@@ -220,15 +220,15 @@ use crate::wasm_nux_dialog::WasmNUXDialog;
 use crate::drive::items::WarpDriveItemId;
 use crate::drive::settings::WarpDriveSettingsChangedEvent;
 use crate::env_vars::{
-    manager::{EnvVarCollectionManager, EnvVarCollectionSource},
     EnvVarCollectionObject,
+    manager::{EnvVarCollectionManager, EnvVarCollectionSource},
 };
 use crate::settings::cloud_preferences::PreferencesSettings;
 
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::auth::AuthStateProvider;
 use crate::autoupdate::{
-    is_incoming_version_past_current, AutoupdateState, AutoupdateStateEvent, RelaunchModel,
+    AutoupdateState, AutoupdateStateEvent, RelaunchModel, is_incoming_version_past_current,
 };
 use crate::banner::BannerState;
 use crate::changelog_model::{ChangelogModel, ChangelogRequestType, Event as ChangelogEvent};
@@ -246,8 +246,8 @@ use crate::drive::{
 };
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::menu::{
-    Event as MenuEvent, Menu, MenuItem, MenuItemFields, MenuSelectionSource,
-    DEFAULT_WIDTH as MENU_DEFAULT_WIDTH,
+    DEFAULT_WIDTH as MENU_DEFAULT_WIDTH, Event as MenuEvent, Menu, MenuItem, MenuItemFields,
+    MenuSelectionSource,
 };
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::{NetworkStatus, NetworkStatusEvent};
@@ -274,8 +274,8 @@ use crate::prompt::editor_modal::{
 };
 use crate::report_if_error;
 use crate::resource_center::{
-    mark_feature_used_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults,
     ResourceCenterEvent, ResourceCenterPage, ResourceCenterView, Tip, TipAction, TipsCompleted,
+    mark_feature_used_and_write_to_user_defaults, skip_tips_and_write_to_user_defaults,
 };
 use crate::root_view::{NewWorkspaceSource, OpenLaunchConfigArg};
 use crate::search::command_search::searcher::{
@@ -291,10 +291,10 @@ use crate::server::telemetry::{
 use crate::server_time::ServerTime;
 use crate::session_management::{RunningSessionSummary, SessionNavigationData, SessionSource};
 use crate::settings::{
-    active_theme_kind, respect_system_theme, AccessibilitySettings, AliasExpansionSettings,
-    AppEditorSettings, BlockVisibilitySettings, CursorBlink, DebugSettings, FontSettings,
-    GPUSettings, InputSettings, MonospaceFontSize, PaneSettings, PrivacySettings,
-    SelectionSettings, SshSettings, ThemeSettings,
+    AccessibilitySettings, AliasExpansionSettings, AppEditorSettings, BlockVisibilitySettings,
+    CursorBlink, DebugSettings, FontSettings, GPUSettings, InputSettings, MonospaceFontSize,
+    PaneSettings, PrivacySettings, SelectionSettings, SshSettings, ThemeSettings,
+    active_theme_kind, respect_system_theme,
 };
 use crate::settings_view::flags;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
@@ -308,7 +308,7 @@ use crate::terminal::model::blockgrid::BlockGrid;
 use crate::terminal::model::session::Session;
 use crate::terminal::model::session::SessionId;
 use crate::terminal::resizable_data::{
-    ModalSizes, ModalType, ResizableData, DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH,
+    DEFAULT_LEFT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH, ModalSizes, ModalType, ResizableData,
 };
 use crate::terminal::safe_mode_settings::SafeModeSettings;
 use crate::terminal::session_settings::{
@@ -328,7 +328,7 @@ use warp_core::features::FeatureFlag;
 
 use crate::search::{self, QueryFilter};
 use crate::terminal::view::{
-    SyncEvent, SyncInputType, TerminalAction, NOTIFICATIONS_TROUBLESHOOT_URL,
+    NOTIFICATIONS_TROUBLESHOOT_URL, SyncEvent, SyncInputType, TerminalAction,
 };
 use crate::terminal::{BlockListSettings, TerminalModel};
 use crate::themes::theme::{AnsiColorIdentifier, RespectSystemTheme, ThemeKind};
@@ -338,27 +338,27 @@ use crate::themes::theme_deletion_modal::{ThemeDeletionModal, ThemeDeletionModal
 use crate::tips::{TipsEvent, TipsView};
 use crate::ui_components::buttons::{combo_inner_button, icon_button_with_color};
 use crate::undo_close::UndoCloseStack;
+use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 #[cfg(feature = "local_fs")]
 use crate::user_config::{
     ensure_default_worktree_config, find_unused_tab_config_path, find_unused_toml_path,
     find_unused_worktree_config_path, materialize_default_worktree_config, sanitize_toml_base_name,
     tab_configs_dir,
 };
-use crate::user_config::{WarpConfig, WarpConfigUpdateEvent};
 use crate::util::bindings::{keybinding_name_to_display_string, keybinding_name_to_keystroke};
 use crate::util::links;
-use crate::util::traffic_lights::{traffic_light_data, TrafficLightMouseStates, TrafficLightSide};
+use crate::util::traffic_lights::{TrafficLightMouseStates, TrafficLightSide, traffic_light_data};
 use crate::util::truncation::truncate_from_end;
 #[cfg(target_family = "wasm")]
 use crate::view_components::action_button::ActionButton;
 use crate::view_components::callout_bubble::{
-    render_callout_bubble, CalloutArrowDirection, CalloutArrowPosition, CalloutBubbleConfig,
+    CalloutArrowDirection, CalloutArrowPosition, CalloutBubbleConfig, render_callout_bubble,
 };
 use crate::view_components::{AgentToastStack, DismissibleToast, DismissibleToastStack, ToastLink};
 use crate::window_settings::{WindowSettings, WindowSettingsChangedEvent, ZoomLevel};
 use crate::workflows::{
-    manager::WorkflowOpenSource, AIWorkflowOrigin, WorkflowObject, WorkflowSelectionSource,
-    WorkflowSource, WorkflowType, WorkflowViewMode,
+    AIWorkflowOrigin, WorkflowObject, WorkflowSelectionSource, WorkflowSource, WorkflowType,
+    WorkflowViewMode, manager::WorkflowOpenSource,
 };
 use crate::workspace::action::CommandSearchOptions;
 use crate::workspace::one_time_modal_model::OneTimeModalModel;
@@ -366,15 +366,15 @@ use crate::workspace::sync_inputs::SyncedInputState;
 use crate::workspace::toast_stack::{
     ToastStack as WorkspaceToastStack, ToastStackEvent as WorkspaceToastStackEvent,
 };
+use crate::{GlobalResourceHandles, send_telemetry_from_ctx};
 use crate::{
     ai_assistant::{
+        AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AskAIType,
         panel::{AIAssistantPanelEvent, AIAssistantPanelView},
-        AskAIType, AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR,
     },
     settings,
     ui_components::blended_colors,
 };
-use crate::{send_telemetry_from_ctx, GlobalResourceHandles};
 
 use futures::Future;
 use itertools::Itertools;
@@ -388,10 +388,10 @@ use std::time::Duration;
 #[cfg(target_os = "macos")]
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+use warp_core::HostId;
 use warp_core::context_flag::ContextFlag;
 use warp_core::semantic_selection::SemanticSelection;
-use warp_core::HostId;
-use warp_util::path::{user_friendly_path, LineAndColumnArg};
+use warp_util::path::{LineAndColumnArg, user_friendly_path};
 use warpui::fonts::Weight;
 use warpui::modals::{AlertDialogWithCallbacks, AppModalCallback};
 
@@ -458,17 +458,17 @@ use crate::tab_configs::{
     NewWorktreeModal, NewWorktreeModalEvent, TabConfigParamsModal, TabConfigParamsModalEvent,
 };
 
+use crate::TelemetryEvent;
 use crate::code::editor::{add_color, remove_color};
 use crate::palette::PaletteMode;
 use crate::search::command_palette::view::{Event as CommandPaletteEvent, View as CommandPalette};
 use crate::server::telemetry::{NotificationsTurnedOnSource, PaletteSource, TabRenameEvent};
 use crate::tab::{
-    tab_position_id, uses_vertical_tabs, NewSessionMenuItem, PaneNameMenuTarget, SelectedTabColor,
-    TabBarState, TabComponent, TabData, TabTelemetryAction, TAB_BAR_BORDER_HEIGHT,
+    NewSessionMenuItem, PaneNameMenuTarget, SelectedTabColor, TAB_BAR_BORDER_HEIGHT, TabBarState,
+    TabComponent, TabData, TabTelemetryAction, tab_position_id, uses_vertical_tabs,
 };
 use crate::terminal::view::ssh_file_upload::FileUploadId;
 use crate::ui_components::icons;
-use crate::TelemetryEvent;
 use autoupdate::AutoupdateStage;
 #[cfg(target_os = "macos")]
 use command::blocking::Command;
@@ -483,10 +483,10 @@ use std::path::Path;
 use std::path::PathBuf;
 #[cfg(target_os = "macos")]
 use std::process;
-use std::sync::{mpsc, Mutex};
+use std::sync::{Mutex, mpsc};
 use std::{cmp::Ordering, sync::Arc};
-use warp_core::ui::theme::{color::internal_colors, phenomenon::PhenomenonStyle, Fill};
-use warp_core::ui::{color::coloru_with_opacity, Icon};
+use warp_core::ui::theme::{Fill, color::internal_colors, phenomenon::PhenomenonStyle};
+use warp_core::ui::{Icon, color::coloru_with_opacity};
 use warp_editor::editor::NavigationKey;
 use warpui::keymap::Context;
 use warpui::notification::{RequestPermissionsOutcome, UserNotification};
@@ -496,6 +496,7 @@ use warpui::platform::{
 use warpui::text_layout::ClipConfig;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::{
+    AppContext, Entity, TypedActionView, UpdateView, View, ViewContext, ViewHandle,
     accessibility::{
         AccessibilityContent, AccessibilityVerbosity, ActionAccessibilityContent, WarpA11yRole,
     },
@@ -507,8 +508,7 @@ use warpui::{
         PositionedElementAnchor, PositionedElementOffsetBounds, Radius, SavePosition, Shrinkable,
         Stack, Text,
     },
-    geometry::vector::{vec2f, Vector2F},
-    AppContext, Entity, TypedActionView, UpdateView, View, ViewContext, ViewHandle,
+    geometry::vector::{Vector2F, vec2f},
 };
 use warpui::{
     EntityId, FocusContext, ModelHandle, SingletonEntity, UpdateModel, ViewAsRef, WeakViewHandle,
@@ -1115,67 +1115,87 @@ impl Workspace {
     ) -> Box<dyn Element> {
         let theme = appearance.theme();
         let muted = theme.sub_text_color(theme.background());
-        let parts = self.workspace_info_bar_parts(ctx);
         let show_code_review_button = HeaderToolbarItemKind::CodeReview.is_available(ctx);
         let mut row = Flex::row()
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
-            .with_spacing(6.)
+            .with_spacing(8.)
             .with_main_axis_size(MainAxisSize::Max);
-        row.add_child(
-            Text::new_inline(
-                parts.branch.clone(),
-                appearance.ui_font_family(),
-                appearance.ui_font_body(),
+        if let Some(label) = self.workspace_info_bar_location_text(ctx) {
+            let locator = Hoverable::new(
+                self.mouse_states.workspace_locator.clone(),
+                move |mouse_state| {
+                    let content = Flex::row()
+                        .with_cross_axis_alignment(CrossAxisAlignment::Center)
+                        .with_spacing(8.)
+                        .with_child(
+                            ConstrainedBox::new(icons::Icon::Folder.to_warpui_icon(muted).finish())
+                                .with_width(14.)
+                                .with_height(14.)
+                                .finish(),
+                        )
+                        .with_child(
+                            Shrinkable::new(
+                                1.0,
+                                Text::new_inline(
+                                    label.clone(),
+                                    appearance.ui_font_family(),
+                                    appearance.ui_font_body(),
+                                )
+                                .with_clip(ClipConfig::ellipsis())
+                                .with_color(theme.main_text_color(theme.background()).into())
+                                .finish(),
+                            )
+                            .finish(),
+                        )
+                        .with_child(
+                            ConstrainedBox::new(
+                                icons::Icon::Compass.to_warpui_icon(muted).finish(),
+                            )
+                            .with_width(14.)
+                            .with_height(14.)
+                            .finish(),
+                        )
+                        .finish();
+                    let mut chip = Container::new(content)
+                        .with_horizontal_padding(10.)
+                        .with_vertical_padding(4.)
+                        .with_corner_radius(CornerRadius::with_all(Radius::Pixels(8.)))
+                        .with_background(theme.surface_overlay_1())
+                        .with_border(Border::all(1.).with_border_fill(theme.surface_2()));
+                    if mouse_state.is_hovered() {
+                        chip = chip.with_background(theme.surface_overlay_2());
+                    }
+                    chip.finish()
+                },
             )
-            .with_color(muted.into())
-            .finish(),
-        );
-        if let Some(upstream) = &parts.from_upstream {
-            row.add_child(
-                Text::new_inline("·", appearance.ui_font_family(), appearance.ui_font_body())
-                    .with_color(muted.into())
-                    .finish(),
-            );
-            row.add_child(
-                Text::new_inline(
-                    format!("from {upstream}"),
-                    appearance.ui_font_family(),
-                    appearance.ui_font_body(),
-                )
-                .with_color(muted.into())
-                .finish(),
-            );
+            .with_cursor(Cursor::PointingHand)
+            .on_click(|ctx, _, _| {
+                ctx.dispatch_typed_action(WorkspaceAction::RevealCurrentWorkspace);
+            })
+            .finish();
+            row.add_child(Shrinkable::new(1.0, locator).finish());
+        } else {
+            row.add_child(Shrinkable::new(1.0, Empty::new().finish()).finish());
         }
         if show_code_review_button {
             row.add_child(self.render_right_panel_button(appearance, ctx));
-        } else if parts.has_diff() {
-            row.add_child(
-                Text::new_inline("·", appearance.ui_font_family(), appearance.ui_font_body())
-                    .with_color(muted.into())
-                    .finish(),
-            );
-            for token in workspace_info_bar_diff_tokens(parts.lines_added, parts.lines_removed) {
-                let color = if token.starts_with('+') {
-                    theme.terminal_colors().normal.green
-                } else {
-                    theme.terminal_colors().normal.red
-                };
-                row.add_child(
-                    Text::new_inline(
-                        token,
-                        appearance.ui_font_family(),
-                        appearance.ui_font_body(),
-                    )
-                    .with_color(color.into())
-                    .finish(),
-                );
-            }
         }
         Shrinkable::new(
             1.0,
             Container::new(row.finish()).with_padding_left(8.).finish(),
         )
         .finish()
+    }
+
+    fn workspace_info_bar_location_text(&self, ctx: &AppContext) -> Option<String> {
+        let workspace_id = self.active_repository_workspace_id()?;
+        let model = ProjectOrganizationModel::handle(ctx).as_ref(ctx);
+        let workspace = model.workspace(workspace_id)?;
+        let repository = model.repository(workspace.repository_id)?;
+        Some(workspace_info_bar_location_label(
+            &repository.display_name,
+            &workspace.display_name,
+        ))
     }
 
     fn workspace_info_bar_parts(&self, ctx: &AppContext) -> WorkspaceInfoBarParts {
@@ -2191,12 +2211,16 @@ impl Workspace {
                     && ai_settings.default_tab_config_path() == path.to_string_lossy();
                 if is_removed_default {
                     AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                        report_if_error!(settings
-                            .default_session_mode_internal
-                            .set_value(DefaultSessionMode::Terminal, ctx));
-                        report_if_error!(settings
-                            .default_tab_config_path
-                            .set_value(String::new(), ctx));
+                        report_if_error!(
+                            settings
+                                .default_session_mode_internal
+                                .set_value(DefaultSessionMode::Terminal, ctx)
+                        );
+                        report_if_error!(
+                            settings
+                                .default_tab_config_path
+                                .set_value(String::new(), ctx)
+                        );
                     });
                 }
                 if let Err(e) = std::fs::remove_file(path) {
@@ -5846,9 +5870,11 @@ impl Workspace {
             right,
         };
         TabSettings::handle(ctx).update(ctx, |settings, ctx| {
-            report_if_error!(settings
-                .header_toolbar_chip_selection
-                .set_value(selection, ctx));
+            report_if_error!(
+                settings
+                    .header_toolbar_chip_selection
+                    .set_value(selection, ctx)
+            );
         });
     }
 
@@ -9143,17 +9169,21 @@ impl Workspace {
 
     fn toggle_recording_mode(&self, ctx: &mut ViewContext<Self>) {
         DebugSettings::handle(ctx).update(ctx, |debug_settings, settings_ctx| {
-            report_if_error!(debug_settings
-                .recording_mode
-                .toggle_and_save_value(settings_ctx));
+            report_if_error!(
+                debug_settings
+                    .recording_mode
+                    .toggle_and_save_value(settings_ctx)
+            );
         });
     }
 
     fn toggle_in_band_generators(&self, ctx: &mut ViewContext<Self>) {
         DebugSettings::handle(ctx).update(ctx, |debug_settings, settings_ctx| {
-            report_if_error!(debug_settings
-                .are_in_band_generators_for_all_sessions_enabled
-                .toggle_and_save_value(settings_ctx));
+            report_if_error!(
+                debug_settings
+                    .are_in_band_generators_for_all_sessions_enabled
+                    .toggle_and_save_value(settings_ctx)
+            );
         });
     }
 
@@ -9323,9 +9353,11 @@ impl Workspace {
 
         // Mark that we've done the one-time auto-open
         AISettings::handle(ctx).update(ctx, |settings, ctx| {
-            report_if_error!(settings
-                .has_auto_opened_conversation_list
-                .set_value(true, ctx));
+            report_if_error!(
+                settings
+                    .has_auto_opened_conversation_list
+                    .set_value(true, ctx)
+            );
         });
     }
 
@@ -11089,9 +11121,11 @@ impl Workspace {
 
     pub fn toggle_block_snackbar(&mut self, ctx: &mut ViewContext<Self>) {
         BlockListSettings::handle(ctx).update(ctx, |blocklist_settings, ctx| {
-            report_if_error!(blocklist_settings
-                .snackbar_enabled
-                .toggle_and_save_value(ctx));
+            report_if_error!(
+                blocklist_settings
+                    .snackbar_enabled
+                    .toggle_and_save_value(ctx)
+            );
         });
     }
 
@@ -11103,9 +11137,11 @@ impl Workspace {
 
     pub fn toggle_syntax_highlighting(&mut self, ctx: &mut ViewContext<Self>) {
         InputSettings::handle(ctx).update(ctx, |input_settings, ctx| {
-            report_if_error!(input_settings
-                .syntax_highlighting
-                .toggle_and_save_value(ctx));
+            report_if_error!(
+                input_settings
+                    .syntax_highlighting
+                    .toggle_and_save_value(ctx)
+            );
         });
     }
 
@@ -11120,9 +11156,11 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         AccessibilitySettings::handle(ctx).update(ctx, |accessibility_settings, ctx| {
-            report_if_error!(accessibility_settings
-                .a11y_verbosity
-                .set_value(verbosity, ctx));
+            report_if_error!(
+                accessibility_settings
+                    .a11y_verbosity
+                    .set_value(verbosity, ctx)
+            );
         });
     }
 
@@ -16679,9 +16717,11 @@ impl Workspace {
 
     fn reset_zoom(&mut self, ctx: &mut ViewContext<Self>) {
         WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
-            report_if_error!(window_settings
-                .zoom_level
-                .set_value(ZoomLevel::default_value(), ctx));
+            report_if_error!(
+                window_settings
+                    .zoom_level
+                    .set_value(ZoomLevel::default_value(), ctx)
+            );
         });
     }
 
@@ -16701,9 +16741,11 @@ impl Workspace {
         };
 
         WindowSettings::handle(ctx).update(ctx, |window_settings, ctx| {
-            report_if_error!(window_settings
-                .zoom_level
-                .set_value(crate::window_settings::ZoomLevel::VALUES[next_index], ctx));
+            report_if_error!(
+                window_settings
+                    .zoom_level
+                    .set_value(crate::window_settings::ZoomLevel::VALUES[next_index], ctx)
+            );
         });
     }
 
@@ -16716,9 +16758,11 @@ impl Workspace {
 
     fn set_terminal_font_size(&mut self, new_font_size: f32, ctx: &mut ViewContext<Self>) {
         FontSettings::handle(ctx).update(ctx, |font_settings, ctx| {
-            report_if_error!(font_settings
-                .monospace_font_size
-                .set_value(new_font_size, ctx));
+            report_if_error!(
+                font_settings
+                    .monospace_font_size
+                    .set_value(new_font_size, ctx)
+            );
         });
     }
 
@@ -16882,8 +16926,8 @@ impl Workspace {
     }
 
     fn handle_codex_modal_event(&mut self, event: &CodexModalEvent, ctx: &mut ViewContext<Self>) {
-        use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
         use crate::AIExecutionProfilesModel;
+        use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 
         match event {
             CodexModalEvent::Close => {
@@ -20645,12 +20689,16 @@ impl TypedActionView for Workspace {
                         } else {
                             // Config missing or deleted — clear and fall through to Terminal.
                             AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                                report_if_error!(settings
-                                    .default_session_mode_internal
-                                    .set_value(DefaultSessionMode::Terminal, ctx));
-                                report_if_error!(settings
-                                    .default_tab_config_path
-                                    .set_value(String::new(), ctx));
+                                report_if_error!(
+                                    settings
+                                        .default_session_mode_internal
+                                        .set_value(DefaultSessionMode::Terminal, ctx)
+                                );
+                                report_if_error!(
+                                    settings
+                                        .default_tab_config_path
+                                        .set_value(String::new(), ctx)
+                                );
                             });
                             self.add_terminal_tab(false, ctx);
                         }
@@ -20773,9 +20821,11 @@ impl TypedActionView for Workspace {
                 AISettings::handle(ctx).update(ctx, |settings, ctx| {
                     report_if_error!(settings.default_session_mode_internal.set_value(*mode, ctx));
                     if let Some(path) = tab_config_path {
-                        report_if_error!(settings
-                            .default_tab_config_path
-                            .set_value(path.to_string_lossy().into_owned(), ctx));
+                        report_if_error!(
+                            settings
+                                .default_tab_config_path
+                                .set_value(path.to_string_lossy().into_owned(), ctx)
+                        );
                     }
                 });
                 #[cfg(feature = "local_tty")]
@@ -21035,6 +21085,17 @@ impl TypedActionView for Workspace {
                 if WarpDriveSettings::is_warp_drive_enabled(ctx) {
                     self.open_left_panel_view(&LeftPanelAction::ZapDrive, ctx);
                 }
+            }
+            RevealCurrentWorkspace => {
+                let Some(workspace_id) = self.active_repository_workspace_id() else {
+                    return;
+                };
+                if !self.left_panel_open {
+                    self.open_left_panel(ctx);
+                }
+                self.left_panel_view.update(ctx, |left_panel, ctx| {
+                    left_panel.reveal_project_tree_workspace(workspace_id, ctx);
+                });
             }
             ToggleLeftPanel => {
                 let active_pane_group = self.active_tab_pane_group().clone();
