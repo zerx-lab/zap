@@ -87,10 +87,17 @@ fn insert_anthropic_reasoning(
 	effort: &ReasoningEffort,
 ) -> Result<()> {
 	let mut budget: Option<u32> = None;
-	let support_effort = has_model(SUPPORT_EFFORT_MODELS, model_name);
-	let support_reasoning_max = has_model(SUPPORT_REASONING_MAX_MODELS, model_name);
-	let support_adaptive = has_model(SUPPORT_ADAPTTIVE_THINK_MODELS, model_name);
-	let support_xhigh = is_opus_4_7_or_higher(model_name);
+	// From Opus 4.7 onward (including 5.x) only adaptive thinking is accepted: `budget_tokens`
+	// was removed, and `temperature` / `top_p` / `top_k` are no longer available either. See
+	// https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+	// These newer models must therefore take the effort + adaptive path and must not fall
+	// through to the legacy budget branch (which would send `{type:"enabled", budget_tokens}`
+	// and be rejected upstream with a 400).
+	let is_adaptive_only = is_opus_4_7_or_higher(model_name);
+	let support_effort = is_adaptive_only || has_model(SUPPORT_EFFORT_MODELS, model_name);
+	let support_reasoning_max = is_adaptive_only || has_model(SUPPORT_REASONING_MAX_MODELS, model_name);
+	let support_adaptive = is_adaptive_only || has_model(SUPPORT_ADAPTTIVE_THINK_MODELS, model_name);
+	let support_xhigh = is_adaptive_only;
 
 	// if support effort, we default with effor
 	if support_effort {
@@ -121,12 +128,15 @@ fn insert_anthropic_reasoning(
 	// -- if support adaptive, we add it (with the eventual budget tokens)
 	// if not (but support effort), it should be fined without the thinking object.
 	if support_adaptive {
+		// `budget_tokens` was removed on adaptive-only models (Opus 4.7+) and sending it
+		// returns a 400, so keep the field only for older adaptive models (4.6 family)
+		// that still support a budget.
 		let thinking = match budget {
-			Some(budget) => json!({
+			Some(budget) if !is_adaptive_only => json!({
 						"type": "adaptive",
 						"budget_tokens": budget // if None, should be ok.
 			}),
-			None => json!({
+			_ => json!({
 				"type": "adaptive"}),
 		};
 
@@ -1046,6 +1056,95 @@ mod tests {
 			output_config.get("format").and_then(|f| f.get("type")).and_then(|v| v.as_str()),
 			Some("json_schema"),
 			"format.type must be present in output_config"
+		);
+	}
+
+	fn build_request_with_effort(model_name: &str, effort: ReasoningEffort) -> WebRequestData {
+		let chat_options = ChatOptions {
+			reasoning_effort: Some(effort),
+			..Default::default()
+		};
+		let target = ServiceTarget {
+			endpoint: AnthropicAdapter::default_endpoint(),
+			auth: AuthData::from_single("test-key"),
+			model: ModelIden::new(AdapterKind::Anthropic, model_name),
+		};
+		let options_set = ChatOptionsSet::default().with_chat_options(Some(&chat_options));
+		AnthropicAdapter::to_web_request_data(target, ServiceType::Chat, ChatRequest::from_user("hello"), options_set)
+			.expect("to_web_request_data should succeed")
+	}
+
+	/// Regression guard: Opus 4.7+
+	/// legacy `{type:"enabled", budget_tokens}` (rejected upstream with a 400).
+	#[test]
+	fn test_opus_5_5_uses_adaptive_thinking_and_effort() {
+		let req = build_request_with_effort("claude-opus-5-5", ReasoningEffort::High);
+
+		let thinking = req.payload.get("thinking").expect("thinking must be present");
+		assert_eq!(
+			thinking.get("type").and_then(|v| v.as_str()),
+			Some("adaptive"),
+			"opus 5.5 must use adaptive thinking"
+		);
+		assert!(
+			thinking.get("budget_tokens").is_none(),
+			"4.7+ does not allow budget_tokens"
+		);
+		assert_eq!(
+			req.payload
+				.get("output_config")
+				.and_then(|c| c.get("effort"))
+				.and_then(|v| v.as_str()),
+			Some("high"),
+			"effort must be written to output_config"
+		);
+	}
+
+	#[test]
+	fn test_opus_4_7_uses_adaptive_thinking_and_effort() {
+		let req = build_request_with_effort("claude-opus-4-7", ReasoningEffort::High);
+		let thinking = req.payload.get("thinking").expect("thinking must be present");
+		assert_eq!(thinking.get("type").and_then(|v| v.as_str()), Some("adaptive"));
+		assert!(thinking.get("budget_tokens").is_none());
+	}
+
+	#[test]
+	fn test_opus_5_5_effort_mapping_for_xhigh_and_max() {
+		let xhigh = build_request_with_effort("claude-opus-5-5", ReasoningEffort::XHigh);
+		assert_eq!(
+			xhigh
+				.payload
+				.get("output_config")
+				.and_then(|c| c.get("effort"))
+				.and_then(|v| v.as_str()),
+			Some("xhigh")
+		);
+
+		let max = build_request_with_effort("claude-opus-5-5", ReasoningEffort::Max);
+		assert_eq!(
+			max.payload
+				.get("output_config")
+				.and_then(|c| c.get("effort"))
+				.and_then(|v| v.as_str()),
+			Some("max")
+		);
+	}
+
+	/// Opus 4.5 supports effort but not adaptive thinking: it gets `output_config.effort`
+	/// and no `thinking` object (no legacy `budget_tokens`).
+	#[test]
+	fn test_opus_4_5_uses_effort_without_thinking() {
+		let req = build_request_with_effort("claude-opus-4-5", ReasoningEffort::High);
+		assert!(
+			req.payload.get("thinking").is_none(),
+			"opus 4.5 must not send a thinking object"
+		);
+		assert_eq!(
+			req.payload
+				.get("output_config")
+				.and_then(|c| c.get("effort"))
+				.and_then(|v| v.as_str()),
+			Some("high")
 		);
 	}
 
