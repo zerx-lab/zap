@@ -40,6 +40,8 @@ struct ByopDispatch {
     /// 由 adapter 自己按模型名后缀推断;非 Auto 经 client capability gate 后注入。
     reasoning_effort: crate::settings::ReasoningEffortSetting,
     extra_headers: Vec<(String, String)>,
+    /// 解析 header 里 `{conversationId}` 用的本地会话 id(与 server token 不同)。
+    conversation_id: Option<AIConversationId>,
     /// conversation 的 root task id — 必须用本地已注册的 id,
     /// 否则下游 `Action::AddMessagesToTask` 在 task_store 找不到会 `TaskNotFound`。
     root_task_id: String,
@@ -70,6 +72,8 @@ pub(crate) struct TitleGenParams {
     pub model_id: String,
     pub api_type: crate::settings::AgentProviderApiType,
     pub reasoning_effort: crate::settings::ReasoningEffortSetting,
+    /// 标题模型所属 provider 的额外 header(可能与主 provider 不同)。
+    pub extra_headers: Vec<(String, String)>,
 }
 
 fn byop_dispatch_info(
@@ -117,6 +121,7 @@ fn byop_dispatch_info(
                     model_id: t_model_id,
                     api_type: t_provider.api_type,
                     reasoning_effort: t_effort,
+                    extra_headers: t_provider.extra_headers,
                 }
             },
         )
@@ -150,6 +155,7 @@ fn byop_dispatch_info(
         api_type: provider.api_type,
         reasoning_effort,
         extra_headers,
+        conversation_id: params.byop_conversation_id,
         root_task_id,
         target_task_id,
         needs_create_task,
@@ -181,6 +187,8 @@ fn pending_title_generation_from_byop(
             model_id: title_gen.model_id.clone(),
             api_type: title_gen.api_type,
             reasoning_effort: title_gen.reasoning_effort,
+            extra_headers: title_gen.extra_headers.clone(),
+            conversation_id: byop.conversation_id,
         },
         user_query,
         task_id: byop.root_task_id.clone(),
@@ -284,6 +292,7 @@ impl ResponseStream {
                             api_type: byop.api_type,
                             reasoning_effort: byop.reasoning_effort,
                             extra_headers: byop.extra_headers,
+                            conversation_id: byop.conversation_id,
                             task_id: byop.root_task_id,
                             target_task_id: byop.target_task_id,
                             needs_create_task: byop.needs_create_task,
@@ -392,6 +401,7 @@ impl ResponseStream {
                             api_type: byop.api_type,
                             reasoning_effort: byop.reasoning_effort,
                             extra_headers: byop.extra_headers,
+                            conversation_id: byop.conversation_id,
                             task_id: byop.root_task_id,
                             target_task_id: byop.target_task_id,
                             needs_create_task: byop.needs_create_task,

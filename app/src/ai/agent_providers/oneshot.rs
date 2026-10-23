@@ -21,6 +21,8 @@ use genai::chat::{ChatMessage, ChatOptions, ChatRequest, ChatStreamEvent};
 use warpui::{AppContext, EntityId, SingletonEntity as _};
 
 use super::chat_stream;
+use super::header_vars::HeaderVars;
+use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::llms::LLMPreferences;
 use crate::settings::{AgentProviderApiType, ReasoningEffortSetting};
 
@@ -32,6 +34,10 @@ pub struct OneshotConfig {
     pub model_id: String,
     pub api_type: AgentProviderApiType,
     pub reasoning_effort: ReasoningEffortSetting,
+    /// Provider 的额外 header(值可含 `{conversationId}`)。
+    pub extra_headers: Vec<(String, String)>,
+    /// 解析 `{conversationId}` 用的会话 id;无会话的 one-shot 为 `None`。
+    pub conversation_id: Option<AIConversationId>,
 }
 
 /// One-shot 调用的可选参数。
@@ -82,6 +88,15 @@ fn build_oneshot_request(
 
     let max_chars = opts.max_chars.unwrap_or(DEFAULT_MAX_CHARS);
     let user_truncated = truncate_chars(user, max_chars);
+
+    // header 值里的 `{conversationId}` 在发请求前解析;无会话时该行 header 整体省略。
+    let headers = super::header_vars::resolve_headers(
+        &cfg.extra_headers,
+        &HeaderVars::default().with_conversation_id(cfg.conversation_id),
+    );
+    if !headers.is_empty() {
+        chat_opts = chat_opts.with_extra_headers(headers);
+    }
 
     let chat_req = ChatRequest::from_messages(vec![ChatMessage::user(user_truncated)])
         .with_system(system.to_owned());
@@ -174,6 +189,8 @@ pub fn resolve_active_ai_oneshot(
         model_id,
         api_type: provider.api_type,
         reasoning_effort,
+        extra_headers: provider.extra_headers,
+        conversation_id: None,
     })
 }
 
@@ -197,5 +214,11 @@ pub fn resolve_next_command_oneshot(
         model_id,
         api_type: provider.api_type,
         reasoning_effort,
+        extra_headers: provider.extra_headers,
+        conversation_id: None,
     })
 }
+
+#[cfg(test)]
+#[path = "oneshot_tests.rs"]
+mod tests;
