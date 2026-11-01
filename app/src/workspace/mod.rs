@@ -1417,6 +1417,15 @@ fn add_open_setting_pages_as_editable_binding(app: &mut AppContext) {
         .with_group(bindings::BindingGroup::Settings.as_str())
         .with_context_predicate(id!("Workspace")),
         EditableBinding::new(
+            "workspace:show_agent_config_settings_page",
+            BindingDescription::new(crate::t!(
+                "keybinding-desc-workspace-show-settings-agent-config"
+            )),
+            WorkspaceAction::ShowSettingsPage(SettingsSection::AgentConfig),
+        )
+        .with_group(bindings::BindingGroup::Settings.as_str())
+        .with_context_predicate(id!("Workspace")),
+        EditableBinding::new(
             "workspace:open_settings_file",
             crate::t!("keybinding-desc-workspace-open-settings-file"),
             WorkspaceAction::OpenSettingsFile,

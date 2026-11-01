@@ -3,6 +3,8 @@
 //!
 //! The side panel Zap AI implementation lives in `super::ai_assistant`.
 pub(crate) mod agent;
+#[cfg(feature = "local_fs")]
+pub mod agent_config;
 pub(crate) mod agent_conversations_model;
 pub(crate) mod agent_events;
 pub(crate) mod agent_providers;

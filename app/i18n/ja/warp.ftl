@@ -534,6 +534,7 @@ settings-section-agent-profiles = プロファイル
 settings-section-agent-mcp-servers = MCP サーバー
 settings-section-agent-providers = プロバイダー
 settings-section-knowledge = ナレッジ
+settings-section-agent-config = 設定管理
 settings-section-third-party-cli-agents = サードパーティ CLI エージェント
 settings-section-code = コード
 settings-section-editor-and-code-review = エディタとコードレビュー
@@ -1761,6 +1762,8 @@ keybinding-desc-workspace-show-settings-code = 設定を開く: コード
 keybinding-desc-workspace-show-settings-referrals = 設定を開く: リファラル
 keybinding-desc-workspace-show-settings-environments = 設定を開く: 環境
 keybinding-desc-workspace-show-settings-mcp-servers = 設定を開く: MCP サーバー
+keybinding-desc-workspace-show-settings-agent-config = 設定を開く: 設定管理
+keybinding-desc-workspace-rollback-agent-config = エージェント設定の直前変更をロールバック
 keybinding-desc-workspace-open-settings-file = 設定ファイルを開く
 
 # Overflow menu / external links

@@ -67,6 +67,7 @@ pub enum MCPProvider {
     Zap,
     Claude,
     Codex,
+    Grok,
     Agents,
 }
 
@@ -76,6 +77,7 @@ impl MCPProvider {
             MCPProvider::Zap => "Zap",
             MCPProvider::Claude => "Claude",
             MCPProvider::Codex => "Codex",
+            MCPProvider::Grok => "Grok",
             MCPProvider::Agents => "Other Agents",
         }
     }
@@ -85,6 +87,7 @@ impl MCPProvider {
             MCPProvider::Zap => Icon::Zap,
             MCPProvider::Claude => Icon::ClaudeLogo,
             MCPProvider::Codex => Icon::OpenAILogo,
+            MCPProvider::Grok => Icon::GrokLogo,
             MCPProvider::Agents => Icon::Zap,
         }
     }
@@ -95,6 +98,7 @@ impl MCPProvider {
             MCPProvider::Zap => Path::new(".warp/.mcp.json"),
             MCPProvider::Claude => Path::new(".claude.json"),
             MCPProvider::Codex => Path::new(".codex/config.toml"),
+            MCPProvider::Grok => Path::new(".grok/config.toml"),
             MCPProvider::Agents => Path::new(".agents/.mcp.json"),
         }
     }
@@ -105,6 +109,7 @@ impl MCPProvider {
             MCPProvider::Zap => Path::new(".warp/.mcp.json"),
             MCPProvider::Claude => Path::new(".mcp.json"),
             MCPProvider::Codex => Path::new(".codex/config.toml"),
+            MCPProvider::Grok => Path::new(".grok/config.toml"),
             MCPProvider::Agents => Path::new(".agents/.mcp.json"),
         }
     }

@@ -575,6 +575,7 @@ settings-section-agent-profiles = 配置
 settings-section-agent-mcp-servers = MCP 服务器
 settings-section-agent-providers = 提供商
 settings-section-knowledge = Rules
+settings-section-agent-config = 配置管理
 settings-section-third-party-cli-agents = 第三方 CLI 智能体
 settings-section-code = 代码
 settings-section-editor-and-code-review = 编辑器与代码评审
@@ -1766,6 +1767,8 @@ keybinding-desc-workspace-show-settings-code = 打开设置：代码
 keybinding-desc-workspace-show-settings-referrals = 打开设置：推荐
 keybinding-desc-workspace-show-settings-environments = 打开设置：环境
 keybinding-desc-workspace-show-settings-mcp-servers = 打开设置：MCP 服务器
+keybinding-desc-workspace-show-settings-agent-config = 打开设置：配置管理
+keybinding-desc-workspace-rollback-agent-config = 回滚上次 Agent 配置修改
 keybinding-desc-workspace-open-settings-file = 打开设置文件
 
 # 溢出菜单 / 外部链接

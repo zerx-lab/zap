@@ -9,6 +9,7 @@ use super::{
     about_page::AboutPageView,
     ai_page::{AISettingsPageAction, AISettingsPageView},
     appearance_page::AppearanceSettingsPageView,
+    agent_config_page::AgentConfigPageView,
     cloud_sync_page::CloudSyncPageView,
     code_page::CodeSettingsPageView,
     features_page::FeaturesPageView,
@@ -113,6 +114,8 @@ pub enum SettingsPageViewHandle {
     Network(ViewHandle<NetworkPageView>),
     /// 云同步设置页。
     CloudSync(ViewHandle<CloudSyncPageView>),
+    /// Agents › 配置管理。
+    AgentConfig(ViewHandle<AgentConfigPageView>),
 }
 
 impl SettingsPageViewHandle {
@@ -133,6 +136,7 @@ impl SettingsPageViewHandle {
             ZapDrive(view_handle) => ChildView::new(view_handle).finish(),
             Network(view_handle) => ChildView::new(view_handle).finish(),
             CloudSync(view_handle) => ChildView::new(view_handle).finish(),
+            AgentConfig(view_handle) => ChildView::new(view_handle).finish(),
         }
     }
 }

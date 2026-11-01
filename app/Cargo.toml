@@ -155,6 +155,7 @@ serde.workspace = true
 serde_bytes.workspace = true
 serde-bytes-repr.workspace = true
 serde_json.workspace = true
+toml_edit.workspace = true
 serde_regex = "1.1.0"
 serde_urlencoded.workspace = true
 serde_with.workspace = true

@@ -676,6 +676,7 @@ impl SkillManagerPanel {
             SkillProvider::Copilot => theme.ansi_fg_magenta(),
             SkillProvider::Droid => theme.ansi_fg_yellow(),
             SkillProvider::OpenCode => theme.ansi_fg_red(),
+            SkillProvider::Grok => ColorU::from_u32(0xffffffff),
         }
     }
 

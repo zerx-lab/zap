@@ -585,6 +585,7 @@ settings-section-agent-profiles = Profiles
 settings-section-agent-mcp-servers = MCP servers
 settings-section-agent-providers = Providers
 settings-section-knowledge = Knowledge
+settings-section-agent-config = Config manager
 settings-section-third-party-cli-agents = Third party CLI agents
 settings-section-code = Code
 settings-section-editor-and-code-review = Editor and Code Review
@@ -1843,6 +1844,8 @@ keybinding-desc-workspace-show-settings-code = Open Settings: Code
 keybinding-desc-workspace-show-settings-referrals = Open Settings: Referrals
 keybinding-desc-workspace-show-settings-environments = Open Settings: Environments
 keybinding-desc-workspace-show-settings-mcp-servers = Open Settings: MCP Servers
+keybinding-desc-workspace-show-settings-agent-config = Open Settings: Agent Config
+keybinding-desc-workspace-rollback-agent-config = Rollback last agent config change
 keybinding-desc-workspace-open-settings-file = Open settings file
 
 # Overflow menu / external links

@@ -249,7 +249,7 @@ impl FileBasedMCPManager {
                     }
                     match provider {
                         MCPProvider::Zap => Self::is_global_warp_root(root_path),
-                        MCPProvider::Claude | MCPProvider::Codex | MCPProvider::Agents => {
+                        MCPProvider::Claude | MCPProvider::Codex | MCPProvider::Grok | MCPProvider::Agents => {
                             home_dir.as_ref().is_some_and(|home| root_path == home)
                         }
                     }

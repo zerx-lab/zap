@@ -70,6 +70,7 @@ mod agent_providers_widget;
 mod ai_page;
 mod appearance_page;
 mod cloud_sync_page;
+mod agent_config_page;
 mod code_page;
 mod directory_color_add_picker;
 mod execution_profile_view;
@@ -184,6 +185,8 @@ pub enum SettingsSection {
     AgentProviders,
     Knowledge,
     ThirdPartyCLIAgents,
+    /// Agents › 配置管理：三栏浏览/编辑 rules/hooks/skills/settings/MCP。
+    AgentConfig,
     /// 全局 HTTP 代理设置页。受 `FeatureFlag::HttpProxySettings` 门控。
     Network,
     /// Internal backing-page identifier for CodeSettingsPageView. EditorAndCodeReview
@@ -220,6 +223,7 @@ impl Display for SettingsSection {
             SettingsSection::ThirdPartyCLIAgents => {
                 crate::t!("settings-section-third-party-cli-agents")
             }
+            SettingsSection::AgentConfig => crate::t!("settings-section-agent-config"),
             SettingsSection::Code => crate::t!("settings-section-code"),
             SettingsSection::EditorAndCodeReview => {
                 crate::t!("settings-section-editor-and-code-review")
@@ -250,6 +254,7 @@ impl SettingsSection {
                 | Self::AgentProviders
                 | Self::Knowledge
                 | Self::ThirdPartyCLIAgents
+                | Self::AgentConfig
         )
     }
 
@@ -259,6 +264,8 @@ impl SettingsSection {
         match self {
             // AgentMCPServers renders the standalone MCPServers page directly.
             Self::AgentMCPServers => Self::MCPServers,
+            // AgentConfig has its own backing page under the Agents umbrella.
+            Self::AgentConfig => Self::AgentConfig,
             // All other AI subpages render within the AI page.
             s if s.is_ai_subpage() => Self::AI,
             // EditorAndCodeReview is the only label still pointing at the Code page.
@@ -278,6 +285,7 @@ impl SettingsSection {
             Self::AgentMCPServers,
             Self::Knowledge,
             Self::ThirdPartyCLIAgents,
+            Self::AgentConfig,
         ]
     }
 }
@@ -303,6 +311,7 @@ impl FromStr for SettingsSection {
             "Providers" | "AgentProviders" => Ok(Self::AgentProviders),
             "Knowledge" => Ok(Self::Knowledge),
             "Third party CLI agents" | "ThirdPartyCLIAgents" => Ok(Self::ThirdPartyCLIAgents),
+            "Agent config" | "AgentConfig" | "配置管理" => Ok(Self::AgentConfig),
             "Editor and Code Review" | "EditorAndCodeReview" => Ok(Self::EditorAndCodeReview),
             "Network" | "网络" => Ok(Self::Network),
             "CloudSync" | "Cloud Sync" | "云同步" => Ok(Self::CloudSync),
@@ -932,6 +941,7 @@ macro_rules! update_page {
             // Issue #72: 全局 HTTP 代理设置页。
             SettingsPageViewHandle::Network(handle) => $ctx.update_view(handle, $update),
             SettingsPageViewHandle::CloudSync(handle) => $ctx.update_view(handle, $update),
+            SettingsPageViewHandle::AgentConfig(handle) => $ctx.update_view(handle, $update),
         }
     };
 }
@@ -1048,6 +1058,10 @@ impl SettingsView {
         let cloud_sync_page_handle =
             ctx.add_typed_action_view(cloud_sync_page::CloudSyncPageView::new);
 
+        // Agents › 配置管理。
+        let agent_config_page_handle =
+            ctx.add_typed_action_view(agent_config_page::AgentConfigPageView::new);
+
         let font_family = Appearance::as_ref(ctx).ui_font_family();
         let search_editor = ctx.add_typed_action_view(|ctx| {
             let options = SingleLineEditorOptions {
@@ -1098,6 +1112,7 @@ impl SettingsView {
         }
 
         settings_pages.push(SettingsPage::new(cloud_sync_page_handle));
+        settings_pages.push(SettingsPage::new(agent_config_page_handle));
 
         // 去中心化分支:本地模式下移除所有云端账号 / 计费 / 团队 / 同步 / 分享相关的
         // 设置入口。
@@ -1240,8 +1255,10 @@ impl SettingsView {
                     // widget set and run the filter to get a subpage-specific result.
                     self.subpage_filter.clear();
                     for &subpage_section in SettingsSection::ai_subpages() {
-                        if subpage_section == SettingsSection::AgentMCPServers {
-                            // AgentMCPServers has its own backing page; handled below.
+                        if subpage_section == SettingsSection::AgentMCPServers
+                            || subpage_section == SettingsSection::AgentConfig
+                        {
+                            // Own backing pages; handled by pages_filter below.
                             continue;
                         }
                         if let Some(subpage) = AISubpage::from_section(subpage_section) {
@@ -1291,7 +1308,8 @@ impl SettingsView {
                 // Restore the active subpage after filtering.
                 if is_search_active {
                     let current = self.current_settings_page;
-                    if current.is_ai_subpage() && current != SettingsSection::AgentMCPServers {
+                    if current.is_ai_subpage() && current != SettingsSection::AgentMCPServers
+                        && current != SettingsSection::AgentConfig {
                         if let Some(subpage) = AISubpage::from_section(current) {
                             self.ai_page_handle.update(ctx, |view, ctx| {
                                 view.set_active_subpage(Some(subpage), ctx);
@@ -1747,7 +1765,9 @@ impl SettingsView {
         // and auto-expand the umbrella containing it.
         if section.is_subpage() {
             // AI subpages: update the AI page's subpage mode.
-            if section.is_ai_subpage() && section != SettingsSection::AgentMCPServers {
+            if section.is_ai_subpage()
+                && section != SettingsSection::AgentMCPServers
+                && section != SettingsSection::AgentConfig {
                 let subpage = AISubpage::from_section(section);
                 self.ai_page_handle.update(ctx, |view, ctx| {
                     view.set_active_subpage(subpage, ctx);
@@ -1813,6 +1833,7 @@ impl SettingsView {
             // Issue #72: 全局 HTTP 代理设置页。
             SettingsPageViewHandle::Network(v) => v.as_ref(app).should_render(app),
             SettingsPageViewHandle::CloudSync(v) => v.as_ref(app).should_render(app),
+            SettingsPageViewHandle::AgentConfig(v) => v.as_ref(app).should_render(app),
         }
     }
 

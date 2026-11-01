@@ -635,7 +635,7 @@ async fn parse_mcp_config_file(
     };
 
     let json = match provider {
-        MCPProvider::Codex => match normalize_codex_toml_to_json(&file_contents) {
+        MCPProvider::Codex | MCPProvider::Grok => match normalize_codex_toml_to_json(&file_contents) {
             Ok(json) => json,
             Err(err) => {
                 safe_warn!(

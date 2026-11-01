@@ -76,6 +76,8 @@ impl From<SkillProvider> for api::skill_descriptor::Provider {
             SkillProvider::Droid => api::skill_descriptor::provider::Type::Droid(()),
             SkillProvider::Github => api::skill_descriptor::provider::Type::Github(()),
             SkillProvider::OpenCode => api::skill_descriptor::provider::Type::OpenCode(()),
+            // Grok 无独立 proto；本地发现用，上云时归入 Agents。
+            SkillProvider::Grok => api::skill_descriptor::provider::Type::Agents(()),
         };
 
         api::skill_descriptor::Provider {

@@ -39,6 +39,7 @@ pub enum SkillProvider {
     Droid,
     Github,
     OpenCode,
+    Grok,
 }
 
 /// Represents the scope of a skill.
@@ -80,6 +81,7 @@ impl SkillProvider {
             SkillProvider::Gemini => Icon::GeminiLogo,
             SkillProvider::Droid => Icon::DroidLogo,
             SkillProvider::OpenCode => Icon::OpenCodeLogo,
+            SkillProvider::Grok => Icon::GrokLogo,
             SkillProvider::Zap
             | SkillProvider::Agents
             | SkillProvider::Cursor
@@ -117,6 +119,10 @@ pub static SKILL_PROVIDER_DEFINITIONS: LazyLock<Vec<SkillProviderDefinition>> =
             SkillProviderDefinition {
                 provider: SkillProvider::Codex,
                 skills_path: PathBuf::from(".codex").join("skills"),
+            },
+            SkillProviderDefinition {
+                provider: SkillProvider::Grok,
+                skills_path: PathBuf::from(".grok").join("skills"),
             },
             SkillProviderDefinition {
                 provider: SkillProvider::Cursor,

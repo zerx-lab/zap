@@ -294,7 +294,7 @@ impl CLIAgent {
             CLIAgent::DeepSeek => &[SkillProvider::Agents],
             CLIAgent::Antigravity => &[SkillProvider::Agents],
             CLIAgent::Omp => &[SkillProvider::Agents],
-            CLIAgent::Grok => &[SkillProvider::Agents],
+            CLIAgent::Grok => &[SkillProvider::Grok, SkillProvider::Agents],
             CLIAgent::Unknown => &[],
         }
     }
