@@ -71,39 +71,57 @@ fn compile_metal_shaders() {
     let metal_path = "src/platform/mac/rendering/metal/shaders/shaders.metal";
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    let air_path = out_path.join("shaders.air");
-    let air_path = air_path.to_str().unwrap();
-
-    let lib_path = out_path.join("shaders.metallib");
-    let lib_path = lib_path.to_str().unwrap();
-
     println!("cargo:rerun-if-changed={header_path}");
     println!("cargo:rerun-if-changed={metal_path}");
 
-    let mut compile_args = vec!["-sdk", "macosx", "metal", "-c", metal_path, "-o", air_path];
-    if cfg!(feature = "enable-metal-frame-capture") {
-        compile_args.push("-frecord-sources");
-        compile_args.push("-gline-tables-only");
-    }
-    let result = Command::new("xcrun")
-        .args(&compile_args)
-        .output()
-        .expect("error compiling metal shaders to .air");
-    assert!(
-        result.status.success(),
-        "error compiling metal shaders to .air; {}",
-        std::str::from_utf8(&result.stderr).unwrap(),
-    );
+    // Generate combined shader source (for runtime compilation fallback)
+    let header_src = std::fs::read_to_string(header_path).expect("failed to read shader_types.h");
+    let metal_src = std::fs::read_to_string(metal_path).expect("failed to read shaders.metal");
+    let combined_src = metal_src.replace("#include \"shader_types.h\"", &header_src);
+    std::fs::write(out_path.join("shaders_combined.metal"), combined_src)
+        .expect("failed to write shaders_combined.metal");
 
-    let result = Command::new("xcrun")
-        .args(["-sdk", "macosx", "metallib", air_path, "-o", lib_path])
+    let air_path = out_path.join("shaders.air");
+    let lib_path = out_path.join("shaders.metallib");
+
+    let has_metal = Command::new("xcrun")
+        .args(["--find", "metal"])
         .output()
-        .expect("error compiling metal shaders to .metallib");
-    assert!(
-        result.status.success(),
-        "error compling metal shaders to .metallib; {}",
-        std::str::from_utf8(&result.stderr).unwrap(),
-    );
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if has_metal {
+        let air_path = air_path.to_str().unwrap();
+        let lib_path = lib_path.to_str().unwrap();
+
+        let mut compile_args = vec!["-sdk", "macosx", "metal", "-c", metal_path, "-o", air_path];
+        if cfg!(feature = "enable-metal-frame-capture") {
+            compile_args.push("-frecord-sources");
+            compile_args.push("-gline-tables-only");
+        }
+        let result = Command::new("xcrun")
+            .args(&compile_args)
+            .output()
+            .expect("error compiling metal shaders to .air");
+        assert!(
+            result.status.success(),
+            "error compiling metal shaders to .air; {}",
+            std::str::from_utf8(&result.stderr).unwrap(),
+        );
+
+        let result = Command::new("xcrun")
+            .args(["-sdk", "macosx", "metallib", air_path, "-o", lib_path])
+            .output()
+            .expect("error compiling metal shaders to .metallib");
+        assert!(
+            result.status.success(),
+            "error compling metal shaders to .metallib; {}",
+            std::str::from_utf8(&result.stderr).unwrap(),
+        );
+    } else {
+        println!("cargo:warning=xcrun metal not found; writing empty shaders.metallib and falling back to runtime compilation.");
+        std::fs::write(lib_path, b"").expect("failed to write dummy shaders.metallib");
+    }
 }
 
 fn compile_objc_lib() {

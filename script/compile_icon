@@ -32,6 +32,11 @@ if [[ ! -d "$ICON_BUNDLE_PATH" ]]; then
     exit 1
 fi
 
+if ! xcrun --find actool &>/dev/null; then
+    echo "Warning: actool not found (Xcode.app not installed); skipping adaptive icon compilation." >&2
+    exit 0
+fi
+
 echo "Compiling .icon bundle for $CHANNEL channel"
 
 BUNDLED_RESOURCES_DIR="$APP_BUNDLE_PATH/Contents/Resources"

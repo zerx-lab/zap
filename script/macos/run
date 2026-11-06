@@ -101,7 +101,7 @@ echo "Successfully bundled..."
 popd > /dev/null
 
 echo "Adding rpath to support mac frameworks"
-install_name_tool -add_rpath "@executable_path/../Frameworks" "$WARP_APP_PATH/Contents/MacOS/$WARP_BIN_NAME"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$WARP_APP_PATH/Contents/MacOS/$WARP_BIN_NAME" 2>/dev/null || true
 
 export WARP_SCHEME_NAME
 export WARP_PLIST_PATH="$WARP_APP_PATH/Contents/Info.plist"

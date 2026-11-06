@@ -32,6 +32,7 @@ use std::{io::Write, os::raw::c_void};
 use warpui_core::scene::GlyphKey;
 
 const METAL_LIB_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shaders.metallib"));
+const SHADER_SOURCE: &str = include_str!(concat!(env!("OUT_DIR"), "/shaders_combined.metal"));
 static WRITE_LIB_TO_FILE: Once = Once::new();
 
 /// A structure to help manage a single rendering pass.
@@ -137,7 +138,12 @@ impl Renderer {
         color_pixel_format: metal::MTLPixelFormat,
         glyph_config: rendering::GlyphConfig,
     ) -> Self {
-        let library = if cfg!(feature = "enable-metal-frame-capture") {
+        let library = if METAL_LIB_BYTES.is_empty() {
+            let options = metal::CompileOptions::new();
+            device
+                .new_library_with_source(SHADER_SOURCE, &options)
+                .expect("Failed to compile Metal shaders from source")
+        } else if cfg!(feature = "enable-metal-frame-capture") {
             let temp_lib_path = std::env::temp_dir().join("shaders.metallib");
             WRITE_LIB_TO_FILE.call_once(|| {
                 let mut file = File::create(&temp_lib_path).unwrap();
