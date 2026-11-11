@@ -4507,6 +4507,9 @@ impl Element for BlockListElement {
 
         if events_to_propagate_on {
             for cli_subagent_view in self.cli_subagent_views.values_mut() {
+                if !should_dispatch_to_cli_subagent_view(cli_subagent_view.as_ref()) {
+                    continue;
+                }
                 // If the event is handled by the CLI subagent view, do not propagate it down to the blocklist.
                 if cli_subagent_view.dispatch_event(event, ctx, app) {
                     return true;
@@ -4899,6 +4902,10 @@ where
     button.finish()
 }
 
+fn should_dispatch_to_cli_subagent_view(view: &dyn Element) -> bool {
+    view.origin().is_some() && view.size().is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5019,5 +5026,65 @@ mod tests {
             cli_subagent_layout_max_size(vec2f(320., 700.), 300., true).x(),
             360.
         );
+    }
+
+    struct StubSubagentElement {
+        origin: Option<Point>,
+        size: Option<Vector2F>,
+    }
+
+    impl Element for StubSubagentElement {
+        fn layout(
+            &mut self,
+            _constraint: SizeConstraint,
+            _ctx: &mut LayoutContext,
+            _app: &AppContext,
+        ) -> Vector2F {
+            self.size.unwrap_or_default()
+        }
+
+        fn after_layout(&mut self, _ctx: &mut AfterLayoutContext, _app: &AppContext) {}
+
+        fn paint(&mut self, _origin: Vector2F, _ctx: &mut PaintContext, _app: &AppContext) {}
+
+        fn dispatch_event(
+            &mut self,
+            _event: &DispatchedEvent,
+            _ctx: &mut EventContext,
+            _app: &AppContext,
+        ) -> bool {
+            false
+        }
+
+        fn size(&self) -> Option<Vector2F> {
+            self.size
+        }
+
+        fn origin(&self) -> Option<Point> {
+            self.origin
+        }
+    }
+
+    #[test]
+    fn unpainted_cli_subagent_view_is_skipped_for_event_dispatch() {
+        let origin = Point::from_vec2f(vec2f(10., 20.), ZIndex::Normal(1));
+        let size = vec2f(360., 120.);
+
+        assert!(!should_dispatch_to_cli_subagent_view(&StubSubagentElement {
+            origin: None,
+            size: None,
+        }));
+        assert!(!should_dispatch_to_cli_subagent_view(&StubSubagentElement {
+            origin: None,
+            size: Some(size),
+        }));
+        assert!(!should_dispatch_to_cli_subagent_view(&StubSubagentElement {
+            origin: Some(origin),
+            size: None,
+        }));
+        assert!(should_dispatch_to_cli_subagent_view(&StubSubagentElement {
+            origin: Some(origin),
+            size: Some(size),
+        }));
     }
 }

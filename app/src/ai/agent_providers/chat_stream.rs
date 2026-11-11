@@ -3627,7 +3627,11 @@ pub async fn generate_byop_output(
                 ))));
                 return;
             };
-            let subtask_id = Uuid::new_v4().to_string();
+            let subtask_id = if target_task_id != task_id {
+                target_task_id.clone()
+            } else {
+                Uuid::new_v4().to_string()
+            };
             let tool_call_id = Uuid::new_v4().to_string();
             log::info!(
                 "[byop] LRC tag-in: spawning cli subagent subtask={subtask_id} \

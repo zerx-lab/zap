@@ -1422,3 +1422,208 @@ fn test_set_server_conversation_token_rebinds_reverse_index() {
         });
     });
 }
+
+#[test]
+fn test_failed_add_messages_on_optimistic_subtask_preserves_task_and_allows_upgrade() {
+    App::test((), |mut app| async move {
+        use crate::ai::agent::{conversation::UpdateConversationError, task::UpdateTaskError};
+        use crate::ai::blocklist::history_model::UpdateHistoryError;
+        use crate::terminal::model::BlockId;
+
+        initialize_history_model_test_app(&mut app);
+        let history_model = app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+        let terminal_view_id = EntityId::new();
+        let stream_id = ResponseStreamId::new_for_test();
+        let lrc_block_id = BlockId::from("precmd-lrc-1".to_string());
+        let now = Local::now();
+
+        let (conversation_id, root_task_id, subtask_id) =
+            history_model.update(&mut app, |history_model, ctx| {
+                let conversation_id =
+                    history_model.start_new_conversation(terminal_view_id, false, false, ctx);
+                let root_task_id = history_model
+                    .conversation(&conversation_id)
+                    .unwrap()
+                    .get_root_task_id()
+                    .clone();
+                let subtask_id = history_model
+                    .create_cli_subagent_task_for_conversation(
+                        lrc_block_id.clone(),
+                        conversation_id,
+                        terminal_view_id,
+                        ctx,
+                    )
+                    .unwrap();
+
+                let exchange = create_exchange_with_query("inspect output", now, None);
+                let request_input = RequestInput {
+                    conversation_id,
+                    input_messages: std::collections::HashMap::from([(
+                        subtask_id.clone(),
+                        exchange.input,
+                    )]),
+                    working_directory: exchange.working_directory,
+                    model_id: exchange.model_id,
+                    coding_model_id: exchange.coding_model_id,
+                    cli_agent_model_id: exchange.cli_agent_model_id,
+                    computer_use_model_id: exchange.computer_use_model_id,
+                    shared_session_response_initiator: exchange.response_initiator,
+                    request_start_ts: exchange.start_time,
+                    supported_tools_override: None,
+                };
+                history_model
+                    .update_conversation_for_new_request_input(
+                        request_input,
+                        stream_id.clone(),
+                        terminal_view_id,
+                        ctx,
+                    )
+                    .unwrap();
+                history_model.initialize_output_for_response_stream(
+                    &stream_id,
+                    conversation_id,
+                    terminal_view_id,
+                    api::response_event::StreamInit {
+                        request_id: "req-1".to_string(),
+                        conversation_id: String::new(),
+                        run_id: String::new(),
+                    },
+                    ctx,
+                );
+                (conversation_id, root_task_id, subtask_id)
+            });
+
+        // Direct AddMessagesToTask on an optimistic subtask must fail with TaskNotInitialized
+        // AND keep the subtask in `task_store` instead of dropping it on early return.
+        history_model.update(&mut app, |history_model, ctx| {
+            let err = history_model
+                .apply_client_actions(
+                    &stream_id,
+                    vec![api::ClientAction {
+                        action: Some(api::client_action::Action::AddMessagesToTask(
+                            api::client_action::AddMessagesToTask {
+                                task_id: subtask_id.to_string(),
+                                messages: vec![byop_user_query_message(
+                                    "msg-1",
+                                    "req-1",
+                                    "inspect output",
+                                    None,
+                                )],
+                            },
+                        )),
+                    }],
+                    conversation_id,
+                    terminal_view_id,
+                    ctx,
+                )
+                .unwrap_err();
+            assert!(matches!(
+                err,
+                UpdateHistoryError::Conversation(UpdateConversationError::UpdateTask(
+                    UpdateTaskError::TaskNotInitialized
+                ))
+            ));
+        });
+
+        history_model.read(&app, |model, _| {
+            assert!(
+                model
+                    .conversation(&conversation_id)
+                    .unwrap()
+                    .get_task(&subtask_id)
+                    .is_some(),
+                "failed AddMessagesToTask must not drop the optimistic task from task_store"
+            );
+        });
+
+        // Now run the proper BYOP spawn/upgrade sequence (root CreateTask -> subagent tool_call
+        // on root -> subtask CreateTask -> AddMessagesToTask on upgraded subtask).
+        history_model.update(&mut app, |history_model, ctx| {
+            let subagent_msg = api::Message {
+                id: "msg-subagent".to_string(),
+                task_id: root_task_id.to_string(),
+                server_message_data: String::new(),
+                citations: vec![],
+                message: Some(api::message::Message::ToolCall(api::message::ToolCall {
+                    tool_call_id: "call-subagent".to_string(),
+                    tool: Some(api::message::tool_call::Tool::Subagent(
+                        api::message::tool_call::Subagent {
+                            task_id: subtask_id.to_string(),
+                            payload: String::new(),
+                            metadata: Some(api::message::tool_call::subagent::Metadata::Cli(
+                                api::message::tool_call::subagent::CliSubagent {
+                                    command_id: lrc_block_id.to_string(),
+                                },
+                            )),
+                        },
+                    )),
+                })),
+                request_id: "req-1".to_string(),
+                timestamp: None,
+            };
+            let subtask_user_query = api::Message {
+                task_id: subtask_id.to_string(),
+                ..byop_user_query_message("msg-sub-uq", "req-1", "inspect output", None)
+            };
+
+            history_model
+                .apply_client_actions(
+                    &stream_id,
+                    vec![
+                        api::ClientAction {
+                            action: Some(api::client_action::Action::CreateTask(
+                                api::client_action::CreateTask {
+                                    task: Some(byop_test_task(&root_task_id.to_string(), vec![])),
+                                },
+                            )),
+                        },
+                        api::ClientAction {
+                            action: Some(api::client_action::Action::AddMessagesToTask(
+                                api::client_action::AddMessagesToTask {
+                                    task_id: root_task_id.to_string(),
+                                    messages: vec![subagent_msg],
+                                },
+                            )),
+                        },
+                        api::ClientAction {
+                            action: Some(api::client_action::Action::CreateTask(
+                                api::client_action::CreateTask {
+                                    task: Some(api::Task {
+                                        id: subtask_id.to_string(),
+                                        messages: vec![],
+                                        dependencies: Some(api::task::Dependencies {
+                                            parent_task_id: root_task_id.to_string(),
+                                        }),
+                                        description: String::new(),
+                                        summary: String::new(),
+                                        server_data: String::new(),
+                                    }),
+                                },
+                            )),
+                        },
+                        api::ClientAction {
+                            action: Some(api::client_action::Action::AddMessagesToTask(
+                                api::client_action::AddMessagesToTask {
+                                    task_id: subtask_id.to_string(),
+                                    messages: vec![subtask_user_query],
+                                },
+                            )),
+                        },
+                    ],
+                    conversation_id,
+                    terminal_view_id,
+                    ctx,
+                )
+                .expect("preserved optimistic subtask should upgrade and accept messages cleanly");
+        });
+
+        history_model.read(&app, |model, _| {
+            let task = model
+                .conversation(&conversation_id)
+                .unwrap()
+                .get_task(&subtask_id)
+                .expect("upgraded CLI subtask must remain in task_store");
+            assert!(task.source().is_some());
+        });
+    });
+}

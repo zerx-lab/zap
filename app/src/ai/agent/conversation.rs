@@ -2205,6 +2205,17 @@ impl AIConversation {
                 self.checkpoint_task(&task_id);
 
                 if let Some(parent_id) = task.parent_id() {
+                    let Some(parent_source) = self
+                        .task_store
+                        .get(&TaskId::new(parent_id.to_owned()))
+                        .map(|parent_task| parent_task.source().cloned())
+                    else {
+                        log::error!(
+                            "Attempted to create task with parent id {parent_id} but no parent task found"
+                        );
+                        return Err(UpdateConversationError::TaskNotFound);
+                    };
+
                     // If we're expecting a server-created CLI subagent subtask, instead of creating
                     // a net-new subtask, we convert the optimistically-created CLI subtask into a
                     // server-backed one.
@@ -2212,13 +2223,6 @@ impl AIConversation {
                         .optimistic_cli_subagent_subtask_id
                         .as_ref()
                         .and_then(|id| self.task_store.remove(id));
-                    let Some(parent_task) = self.task_store.get(&TaskId::new(parent_id.to_owned()))
-                    else {
-                        log::error!(
-                            "Attempted to create task with parent id {parent_id} but no parent task found"
-                        );
-                        return Err(UpdateConversationError::TaskNotFound);
-                    };
 
                     if let Some(optimistic_subtask) = optimistic_cli_subagent_subtask {
                         log::debug!(
@@ -2230,7 +2234,7 @@ impl AIConversation {
                         let optimistic_id = optimistic_subtask.id().clone();
                         let server_subtask = optimistic_subtask.into_server_created_task(
                             task,
-                            parent_task.source(),
+                            parent_source.as_ref(),
                             self.todo_lists.last(),
                             self.code_review.as_ref(),
                         )?;
@@ -2263,8 +2267,8 @@ impl AIConversation {
                     {
                         let subtask = Task::new_subtask(
                             task,
-                            parent_task
-                                .source()
+                            parent_source
+                                .as_ref()
                                 .ok_or(UpdateConversationError::TaskNotInitialized)?,
                             existing_exchange,
                             self.todo_lists.last(),
@@ -2348,6 +2352,12 @@ impl AIConversation {
                         }
                     }
                 } else {
+                    if !self
+                        .added_exchanges_by_response
+                        .contains_key(response_stream_id)
+                    {
+                        return Err(UpdateConversationError::NoPendingRequest);
+                    }
                     let root_task_id = self.task_store.root_task_id().clone();
                     if let Some(mut root_task) = self.task_store.remove(&root_task_id) {
                         let old_id = root_task.id().clone();
@@ -2513,25 +2523,41 @@ impl AIConversation {
                 self.checkpoint_task(&task_id);
                 let current_todo_list = self.todo_lists.last().cloned();
 
+                let existing_exchange_id = self
+                    .added_exchanges_by_response
+                    .get(response_stream_id)
+                    .ok_or(UpdateConversationError::NoPendingRequest)?
+                    .iter()
+                    .find(|info| info.task_id == task_id)
+                    .map(|info| info.exchange_id);
+                let existing_exchange_to_append = if existing_exchange_id.is_none() {
+                    let last = self
+                        .added_exchanges_by_response
+                        .get(response_stream_id)
+                        .ok_or(UpdateConversationError::NoPendingRequest)?
+                        .last();
+                    Some(
+                        self.get_task(&last.task_id)
+                            .ok_or(UpdateConversationError::TaskNotFound)?
+                            .exchange(last.exchange_id)
+                            .ok_or(UpdateConversationError::ExchangeNotFound)?
+                            .clone(),
+                    )
+                } else {
+                    None
+                };
+
                 // Remove the task to relinquish mutable borrow on self, we add it back later.
                 let mut task = self
                     .task_store
                     .remove(&task_id)
                     .ok_or(UpdateConversationError::TaskNotFound)?;
-                let added_exchanges = self
-                    .added_exchanges_by_response
-                    .get(response_stream_id)
-                    .ok_or(UpdateConversationError::NoPendingRequest)?;
-                let exchange_id = if let Some(info) =
-                    added_exchanges.iter().find(|info| info.task_id == task_id)
-                {
-                    info.exchange_id
+                let exchange_id = if let Some(exchange_id) = existing_exchange_id {
+                    exchange_id
                 } else {
-                    let existing_exchange = self
-                        .get_task(&added_exchanges.last().task_id)
-                        .ok_or(UpdateConversationError::TaskNotFound)?
-                        .exchange(added_exchanges.last().exchange_id)
-                        .ok_or(UpdateConversationError::ExchangeNotFound)?;
+                    let existing_exchange = existing_exchange_to_append
+                        .as_ref()
+                        .expect("resolved above when existing_exchange_id is None");
                     let new_exchange_id = task.append_new_exchange(existing_exchange);
                     if self.optimistic_cli_subagent_subtask_id.is_some() && task.is_root_task() {
                         // If we are lazily creating a new exchange at this point, this means we are updating
@@ -2553,7 +2579,7 @@ impl AIConversation {
                 };
 
                 let current_comment_state = self.code_review.as_ref().cloned();
-                task.add_messages(
+                let add_result = task.add_messages(
                     messages,
                     exchange_id,
                     current_todo_list.as_ref(),
@@ -2564,13 +2590,13 @@ impl AIConversation {
                     // to mimic the normal conversation flow. (If this is not a shared session, the
                     // exchange inputs will already be populated).
                     self.is_viewing_shared_session,
-                )?;
+                );
 
+                // Errors like `TaskNotInitialized` must still preserve the task in `task_store`
+                // instead of dropping it on early return.
                 self.task_store.insert(task);
-                if !added_exchanges
-                    .iter()
-                    .any(|new_exchange_info| new_exchange_info.exchange_id == exchange_id)
-                {
+                add_result?;
+                if existing_exchange_id.is_none() {
                     self.added_exchanges_by_response
                         .get_mut(response_stream_id)
                         .ok_or(UpdateConversationError::NoPendingRequest)?
