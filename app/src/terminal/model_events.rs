@@ -117,6 +117,9 @@ impl ModelEventDispatcher {
                     is_subshell,
                 })
             }
+            Event::Handler(HandlerEvent::BootstrapRecovered) => {
+                ModelEvent::Handler(AnsiHandlerEvent::BootstrapRecovered)
+            }
             Event::RemoteServerReady { session_id } => {
                 log::info!("Remote server ready for session {session_id:?}");
                 return;
@@ -498,6 +501,7 @@ pub enum AnsiHandlerEvent {
         session_id: SessionId,
         is_subshell: bool,
     },
+    BootstrapRecovered,
     Precmd,
     Preexec,
     UserCommandFinished,

@@ -44,7 +44,9 @@ use super::kitty::{
 };
 use super::secrets::{RespectObfuscatedSecrets, SecretAndHandle};
 use super::selection::ScrollDelta;
-use super::session::{BootstrapSessionType, InBandCommandOutputReceiver, SessionId};
+use super::session::{
+    BootstrapSessionType, InBandCommandOutputReceiver, IsLegacySSHSession, SessionId,
+};
 use super::tmux::commands::TmuxCommand;
 use super::{
     super::{AltScreen, BlockList},
@@ -76,7 +78,7 @@ use instant::Instant;
 use itertools::{Either, Itertools};
 use serde::Serialize;
 use std::cmp::{max, min};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::num::ParseIntError;
 use std::ops::{Range, RangeInclusive};
 use std::path::PathBuf;
@@ -512,6 +514,10 @@ pub struct TerminalModel {
     /// This is used to construct a final, populated `SessionInfo` after the session is
     /// bootstrapped.
     pending_session_info: Option<SessionInfo>,
+
+    /// 记录已完成引导的会话 ID。当子 shell 或 SSH 会话在引导完成前中断并退回父 shell 时，
+    /// 通过识别父 shell 的 `Precmd` session_id 来自动恢复 BlockList 状态。
+    bootstrapped_session_ids: HashSet<SessionId>,
 
     /// If true, the terminal was bootstrapping but received a ^D from the user. We cannot stop the
     /// shell from sending us bootstrapping messages, but we can ignore them. This value is always
@@ -1141,6 +1147,7 @@ impl TerminalModel {
             pending_shell_launch_data: None,
             active_shell_launch_data: None,
             pending_session_info: None,
+            bootstrapped_session_ids: HashSet::new(),
             ignore_bootstrapping_messages: false,
             session_startup_path,
             is_receiving_in_band_command_output: IsReceivingInBandCommandOutput::No,
@@ -1623,7 +1630,63 @@ impl TerminalModel {
     }
 
     pub fn has_pending_ssh_session(&self) -> bool {
+        // `init_shell` 会把 `pending_legacy_ssh_session` take 到 `pending_session_info` 中，
+        // 必须在引导完成前持续从两边判断 SSH 状态，避免慢启动日志和遥测误报 `ssh false`。
         self.pending_legacy_ssh_session.is_some()
+            || self.pending_session_info.as_ref().is_some_and(|info| {
+                matches!(info.is_legacy_ssh_session, IsLegacySSHSession::Yes { .. })
+                    || matches!(info.session_type, BootstrapSessionType::WarpifiedRemote)
+            })
+    }
+
+    fn clear_pending_bootstrap_state(&mut self) -> Option<SessionInfo> {
+        self.pending_legacy_ssh_session = None;
+        self.pending_shell_launch_data = None;
+        self.did_receive_rc_file_dcs = None;
+        self.env_var_collection_name = None;
+        self.pending_session_info.take()
+    }
+
+    /// 当远端 SSH 或子 shell 未发送 `Bootstrapped` 即断开/退出并回到已引导的父 shell 时，
+    /// 根据父 shell 发回的 `Precmd.session_id` 清理挂起的引导状态，并将 BlockList 恢复到可交互状态。
+    fn recover_from_aborted_bootstrap_if_needed(&mut self, precmd_session_id: Option<SessionId>) {
+        let Some(sid) = precmd_session_id else {
+            return;
+        };
+
+        if self.block_list().is_bootstrapped() {
+            self.bootstrapped_session_ids.insert(sid);
+            if self
+                .pending_session_info
+                .as_ref()
+                .is_none_or(|pending| pending.session_id != sid)
+            {
+                let had_pending = self.pending_legacy_ssh_session.is_some()
+                    || self.pending_session_info.is_some()
+                    || self.did_receive_rc_file_dcs.is_some();
+                self.clear_pending_bootstrap_state();
+                if had_pending {
+                    self.emit_handler_event(HandlerEvent::BootstrapRecovered);
+                }
+            }
+            return;
+        }
+
+        if self.bootstrapped_session_ids.contains(&sid)
+            && self
+                .pending_session_info
+                .as_ref()
+                .is_none_or(|pending| pending.session_id != sid)
+        {
+            let aborted_pending = self.clear_pending_bootstrap_state();
+            self.block_list_mut().recover_post_bootstrap_precmd();
+            log::warn!(
+                "Recovered from aborted bootstrap (pending_session_id={:?}) on Precmd from session {:?}",
+                aborted_pending.as_ref().map(|info| info.session_id),
+                sid,
+            );
+            self.emit_handler_event(HandlerEvent::BootstrapRecovered);
+        }
     }
 
     pub fn pending_shell_type(&self) -> Option<ShellType> {
@@ -2385,6 +2448,7 @@ pub enum HandlerEvent {
         pending_session_info: Box<SessionInfo>,
     },
     Bootstrapped(BootstrappedEvent),
+    BootstrapRecovered,
     Precmd {
         session_id: Option<SessionId>,
         handled_after_inband: bool,
@@ -2813,6 +2877,7 @@ impl ansi::Handler for TerminalModel {
     fn precmd(&mut self, data: PrecmdValue) {
         self.ignore_bootstrapping_messages = false;
         let session_id = data.session_id;
+        self.recover_from_aborted_bootstrap_if_needed(session_id.map(Into::into));
         let mut env_vars = HashMap::new();
         if let Some(kube_config) = data.kube_config.clone() {
             env_vars.insert("KUBECONFIG".to_string(), kube_config);
@@ -2853,6 +2918,9 @@ impl ansi::Handler for TerminalModel {
 
         let fully_populated_session_info = pending_session_info
             .merge_from_bootstrapped_value(value, self.tmux_control_mode_context.is_some());
+
+        self.bootstrapped_session_ids
+            .insert(fully_populated_session_info.session_id);
 
         self.block_list
             .early_output_mut()
@@ -2935,6 +3003,9 @@ impl ansi::Handler for TerminalModel {
             self.pending_session_info = Some(pending_session_info.clone());
 
             if self.block_list().is_bootstrapped() {
+                if let Some(active_session_id) = self.block_list().active_block().session_id() {
+                    self.bootstrapped_session_ids.insert(active_session_id);
+                }
                 self.block_list_mut().reinit_shell();
             }
 

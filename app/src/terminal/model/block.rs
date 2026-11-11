@@ -1910,6 +1910,10 @@ impl Block {
         self.bootstrap_stage
     }
 
+    pub(super) fn set_bootstrap_stage(&mut self, bootstrap_stage: BootstrapStage) {
+        self.bootstrap_stage = bootstrap_stage;
+    }
+
     /// Returns the ENTIRE HEIGHT of the prompt and command (no padding top or middle included).
     /// In the case of combined grid: for Zap prompt, this includes the height of both the Zap prompt
     /// AND combined grid; for PS1, this is just the combined grid (PS1 is included there).
