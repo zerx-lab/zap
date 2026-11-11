@@ -2997,6 +2997,58 @@ impl BlocklistAIController {
         let server_conversation_token_for_identifiers =
             conversation_data.server_conversation_token.clone();
 
+        let response_stream_id = ResponseStreamId::new_local();
+        let input_contains_user_query = request_input
+            .all_inputs()
+            .any(|input| input.is_user_query());
+        let is_passive_request = request_input
+            .all_inputs()
+            .any(|input| input.is_passive_request());
+        let referenced_attachments_to_populate: Vec<_> = request_input
+            .all_inputs()
+            .filter_map(|input| match input {
+                AIAgentInput::UserQuery {
+                    referenced_attachments,
+                    ..
+                } => Some(referenced_attachments.clone()),
+                _ => None,
+            })
+            .collect();
+
+        // 先尝试把本轮 exchange 写入会话再启动 ResponseStream;
+        // 若推入失败(例如 Conversation(NoActiveTask)),绝不能创建/注册无法被取消的孤儿流。
+        let push_exchange_result = history_model.update(ctx, |history_model, ctx| {
+            let res = history_model.update_conversation_for_new_request_input(
+                request_input,
+                response_stream_id.clone(),
+                self.terminal_view_id,
+                ctx,
+            );
+            if res.is_ok() {
+                history_model.update_conversation_status(
+                    self.terminal_view_id,
+                    conversation_data.id,
+                    ConversationStatus::InProgress,
+                    ctx,
+                );
+            }
+            res
+        });
+        if let Err(e) = push_exchange_result {
+            log::warn!("Failed to push new exchange to AI conversation: {e:?}");
+            return Err(anyhow::anyhow!(
+                "Failed to push new exchange to AI conversation: {e:?}"
+            ));
+        }
+
+        for referenced_attachments in &referenced_attachments_to_populate {
+            self.maybe_populate_plans_for_ai_document_model(
+                referenced_attachments,
+                conversation_data.id,
+                ctx,
+            );
+        }
+
         let response_stream = ctx.add_model(|ctx| {
             // Create AIIdentifiers for the response stream
             let ai_identifiers = AIIdentifiers {
@@ -3006,18 +3058,15 @@ impl BlocklistAIController {
                 client_exchange_id: None,
                 model_id: Some(request_params.model.clone()),
             };
-            ResponseStream::new(
+            ResponseStream::new_with_id(
+                response_stream_id.clone(),
                 request_params.clone(),
                 ai_identifiers,
                 can_attempt_resume_on_error,
                 ctx,
             )
         });
-        let response_stream_id = response_stream.as_ref(ctx).id().clone();
         let response_stream_clone = response_stream.clone();
-        let input_contains_user_query = request_input
-            .all_inputs()
-            .any(|input| input.is_user_query());
         ctx.subscribe_to_model(&response_stream, move |me, event, ctx| {
             me.handle_response_stream_event(
                 input_contains_user_query,
@@ -3025,45 +3074,6 @@ impl BlocklistAIController {
                 &response_stream_clone,
                 ctx,
             );
-        });
-
-        let is_passive_request = request_input
-            .all_inputs()
-            .any(|input| input.is_passive_request());
-
-        for input in request_input.all_inputs() {
-            if let AIAgentInput::UserQuery {
-                referenced_attachments,
-                ..
-            } = input
-            {
-                self.maybe_populate_plans_for_ai_document_model(
-                    referenced_attachments,
-                    conversation_data.id,
-                    ctx,
-                );
-            }
-        }
-
-        history_model.update(ctx, |history_model, ctx| {
-            match history_model.update_conversation_for_new_request_input(
-                request_input,
-                response_stream_id.clone(),
-                self.terminal_view_id,
-                ctx,
-            ) {
-                Ok(_) => {
-                    history_model.update_conversation_status(
-                        self.terminal_view_id,
-                        conversation_data.id,
-                        ConversationStatus::InProgress,
-                        ctx,
-                    );
-                }
-                Err(e) => {
-                    log::warn!("Failed to push new exchange to AI conversation: {e:?}");
-                }
-            }
         });
 
         self.in_flight_response_streams.register_new_stream(
@@ -3176,9 +3186,29 @@ impl BlocklistAIController {
             .try_cancel_streams_for_conversation(conversation_id, reason, ctx)
         {
             // Otherwise, cancel pending actions and update the input state.
-            self.action_model.update(ctx, |action_model, ctx| {
+            let has_unfinished_actions = self.action_model.update(ctx, |action_model, ctx| {
+                let has_unfinished =
+                    action_model.has_unfinished_actions_for_conversation(conversation_id);
                 action_model.cancel_all_pending_actions(conversation_id, Some(reason), ctx);
+                has_unfinished
             });
+            // 若既无在途请求又无 pending/running actions,但会话状态仍卡在 InProgress
+            // (例如子任务/未映射流状态脱节),显式收敛为 Cancelled 以免 Stop 按钮永久无响应。
+            if !has_unfinished_actions {
+                BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
+                    if history_model
+                        .conversation(&conversation_id)
+                        .is_some_and(|conversation| conversation.status().is_in_progress())
+                    {
+                        history_model.update_conversation_status(
+                            self.terminal_view_id,
+                            conversation_id,
+                            ConversationStatus::Cancelled,
+                            ctx,
+                        );
+                    }
+                });
+            }
             self.set_input_mode_for_cancellation(ctx);
         }
     }

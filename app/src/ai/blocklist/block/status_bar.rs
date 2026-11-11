@@ -25,8 +25,8 @@ use warp_multi_agent_api as api;
 use crate::{
     ai::{
         agent::{
-            conversation::AIConversationId, icons, AIAgentExchangeId, AIAgentOutput,
-            AIAgentOutputMessageType, CancellationReason, SummarizationType,
+            conversation::AIConversationId, icons, AIAgentActionId, AIAgentExchangeId,
+            AIAgentOutput, AIAgentOutputMessageType, CancellationReason, SummarizationType,
         },
         blocklist::{
             agent_view::shortcuts::AgentShortcutViewModel,
@@ -174,6 +174,7 @@ impl BlocklistAIStatusBar {
                     me.reset_model_for_exchange(*exchange_id, *conversation_id, ctx);
                 }
                 BlocklistAIHistoryEvent::ClearedConversationsInTerminalView { .. } => {
+                    me.latest_response_stream_id = None;
                     me.active_exchange_model = None;
                     ctx.notify();
                 }
@@ -188,6 +189,7 @@ impl BlocklistAIStatusBar {
                             .conversation_id(ctx)
                             .is_some_and(|id| id == *conversation_id)
                     }) {
+                        me.latest_response_stream_id = None;
                         me.active_exchange_model = None;
                         ctx.notify();
                     }
@@ -198,6 +200,14 @@ impl BlocklistAIStatusBar {
                 BlocklistAIHistoryEvent::SetActiveConversation {
                     conversation_id, ..
                 } => {
+                    if me
+                        .active_exchange_model
+                        .as_ref()
+                        .and_then(|model| model.conversation_id(ctx))
+                        != Some(*conversation_id)
+                    {
+                        me.latest_response_stream_id = None;
+                    }
                     let Some(conversation) =
                         BlocklistAIHistoryModel::as_ref(ctx).conversation(conversation_id)
                     else {
@@ -568,35 +578,36 @@ impl BlocklistAIStatusBar {
         let Some(model) = self.active_exchange_model.as_ref() else {
             return;
         };
+        let Some(conversation_id) = model.conversation_id(ctx) else {
+            return;
+        };
         if model.status(ctx).is_streaming() {
-            if let Some(response_stream_id) = self.latest_response_stream_id.as_ref() {
+            let cancelled = self.latest_response_stream_id.as_ref().is_some_and(|id| {
                 self.controller.update(ctx, |controller, ctx| {
-                    controller.cancel_request(
-                        response_stream_id,
-                        CancellationReason::ManuallyCancelled,
-                        ctx,
-                    );
-                });
+                    controller.cancel_request(id, CancellationReason::ManuallyCancelled, ctx)
+                })
+            });
+            if cancelled {
+                return;
             }
-        } else {
-            let Some(conversation_id) = model.conversation_id(ctx) else {
-                return;
-            };
-            let Some(output) = model.status(ctx).output_to_render() else {
-                return;
-            };
+        }
+        let active_action_id = model.status(ctx).output_to_render().and_then(|output| {
             let actions = output
                 .get()
                 .actions()
                 .map(|action| action.id.clone())
                 .collect::<HashSet<_>>();
-            if let Some(active_action_id) = self
-                .action_model
+            self.action_model
                 .as_ref(ctx)
                 .get_pending_or_running_action_id(ctx)
                 .filter(|id| actions.contains(id))
                 .cloned()
-            {
+        });
+        let is_conversation_in_progress = model
+            .conversation(ctx)
+            .is_some_and(|c| c.status().is_in_progress());
+        match resolve_fallback_cancel_target(active_action_id, is_conversation_in_progress) {
+            FallbackCancelTarget::Action(active_action_id) => {
                 self.action_model.update(ctx, |action_model, ctx| {
                     action_model.cancel_action_with_id(
                         conversation_id,
@@ -605,13 +616,10 @@ impl BlocklistAIStatusBar {
                         ctx,
                     );
                 });
-            } else if model
-                .conversation(ctx)
-                .is_some_and(|c| c.status().is_in_progress())
-            {
-                // No streaming request or pending action, but conversation is still in progress.
-                // This happens when a subagent (e.g., computer use or advice) is running.
-                // Cancel the entire conversation's progress.
+            }
+            FallbackCancelTarget::ConversationProgress => {
+                // No streaming request or pending action (or stale stream id), but conversation
+                // is still in progress (e.g., a subagent or unmapped request is active).
                 self.controller.update(ctx, |controller, ctx| {
                     controller.cancel_conversation_progress(
                         conversation_id,
@@ -620,6 +628,7 @@ impl BlocklistAIStatusBar {
                     );
                 });
             }
+            FallbackCancelTarget::None => {}
         }
     }
 
@@ -1219,5 +1228,57 @@ impl TypedActionView for BlocklistAIStatusBar {
                 });
             }
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum FallbackCancelTarget {
+    Action(AIAgentActionId),
+    ConversationProgress,
+    None,
+}
+
+fn resolve_fallback_cancel_target(
+    active_action_id: Option<AIAgentActionId>,
+    is_conversation_in_progress: bool,
+) -> FallbackCancelTarget {
+    if let Some(action_id) = active_action_id {
+        FallbackCancelTarget::Action(action_id)
+    } else if is_conversation_in_progress {
+        FallbackCancelTarget::ConversationProgress
+    } else {
+        FallbackCancelTarget::None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{resolve_fallback_cancel_target, FallbackCancelTarget};
+    use crate::ai::agent::AIAgentActionId;
+
+    #[test]
+    fn fallback_cancel_targets_conversation_when_in_progress_without_action() {
+        // E.g. active exchange output is `Cancelled { partial_output: None }` or stream id is stale.
+        assert_eq!(
+            resolve_fallback_cancel_target(None, true),
+            FallbackCancelTarget::ConversationProgress
+        );
+    }
+
+    #[test]
+    fn fallback_cancel_prefers_active_action_over_conversation_progress() {
+        let action_id = AIAgentActionId::from("action-1".to_string());
+        assert_eq!(
+            resolve_fallback_cancel_target(Some(action_id.clone()), true),
+            FallbackCancelTarget::Action(action_id)
+        );
+    }
+
+    #[test]
+    fn fallback_cancel_is_noop_when_conversation_not_in_progress() {
+        assert_eq!(
+            resolve_fallback_cancel_target(None, false),
+            FallbackCancelTarget::None
+        );
     }
 }

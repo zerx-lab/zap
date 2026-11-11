@@ -96,6 +96,8 @@ fn byop_dispatch_info(
         .byop_target_task_id
         .clone()
         .unwrap_or_else(|| root_task_id.clone());
+    let (lrc_should_spawn_subagent, lrc_command_id) =
+        resolve_lrc_subagent_params(conversation, &root_task_id, &target_task_id, params);
     // compute_active_tasks 只返回 `task.source().is_some()` 的 task —
     // 因此非空 ⇒ root 已经升级为 Server 状态,不要再 emit CreateTask。
     let needs_create_task = conversation.compute_active_tasks().is_empty();
@@ -154,8 +156,8 @@ fn byop_dispatch_info(
         target_task_id,
         needs_create_task,
         title_gen,
-        lrc_command_id: params.lrc_command_id.clone(),
-        lrc_should_spawn_subagent: params.lrc_should_spawn_subagent,
+        lrc_command_id,
+        lrc_should_spawn_subagent,
         context_window,
         attachment_caps,
     })
@@ -260,6 +262,22 @@ impl ResponseStream {
         can_attempt_resume_on_error: bool,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
+        Self::new_with_id(
+            ResponseStreamId::new_local(),
+            params,
+            ai_identifiers,
+            can_attempt_resume_on_error,
+            ctx,
+        )
+    }
+
+    pub fn new_with_id(
+        id: ResponseStreamId,
+        params: api::RequestParams,
+        ai_identifiers: AIIdentifiers,
+        can_attempt_resume_on_error: bool,
+        ctx: &mut ModelContext<Self>,
+    ) -> Self {
         let (cancellation_tx, cancellation_rx) = oneshot::channel();
         let start_time = Local::now();
 
@@ -304,7 +322,7 @@ impl ResponseStream {
             },
         );
         Self {
-            id: ResponseStreamId(Uuid::new_v4().to_string()),
+            id,
             params: params.clone(),
             start_time,
             time_to_latest_event: TimeDelta::seconds(0),
@@ -657,4 +675,82 @@ async fn byop_required_response_stream(
     })
     .take_until(cancellation_rx);
     Ok(Box::pin(error_stream))
+}
+
+fn resolve_lrc_subagent_params(
+    conversation: &crate::ai::agent::conversation::AIConversation,
+    root_task_id: &str,
+    target_task_id: &str,
+    params: &api::RequestParams,
+) -> (bool, Option<String>) {
+    // 若 `target_task_id` 是尚未升级为 Server 的 Optimistic CLI subagent,
+    // BYOP 必须走 subagent spawn/upgrade 路径先把前置消息写到 root 并升级该 subtask;
+    // 否则直接对 Optimistic subtask 发 `AddMessagesToTask` 会确定性失败(`TaskNotInitialized`)。
+    let target_task =
+        conversation.get_task(&crate::ai::agent::task::TaskId::new(target_task_id.to_owned()));
+    let optimistic_cli_subagent_block_id = target_task.and_then(|task| {
+        (task.id().to_string() != root_task_id && task.source().is_none())
+            .then(|| task.cli_subagent_block_id())
+            .flatten()
+    });
+    let lrc_should_spawn_subagent =
+        params.lrc_should_spawn_subagent || optimistic_cli_subagent_block_id.is_some();
+    let lrc_command_id = params
+        .lrc_command_id
+        .clone()
+        .or_else(|| optimistic_cli_subagent_block_id.map(|block_id| block_id.to_string()));
+    (lrc_should_spawn_subagent, lrc_command_id)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_lrc_subagent_params;
+    use crate::ai::agent::api;
+    use crate::ai::blocklist::BlocklistAIHistoryModel;
+    use crate::terminal::model::BlockId;
+    use warpui::{App, EntityId};
+
+    #[test]
+    fn optimistic_cli_subagent_target_forces_byop_subagent_spawn_and_command_id() {
+        App::test((), |mut app| async move {
+            let history_model =
+                app.add_singleton_model(|_| BlocklistAIHistoryModel::new(vec![], &[]));
+            let terminal_view_id = EntityId::new();
+            let lrc_block_id = BlockId::from("precmd-179393590118629-10".to_string());
+
+            let (root_task_id, subtask_id, should_spawn, command_id) =
+                history_model.update(&mut app, |history_model, ctx| {
+                    let conversation_id =
+                        history_model.start_new_conversation(terminal_view_id, false, false, ctx);
+                    let root_task_id = history_model
+                        .conversation(&conversation_id)
+                        .unwrap()
+                        .get_root_task_id()
+                        .to_string();
+                    let subtask_id = history_model
+                        .create_cli_subagent_task_for_conversation(
+                            lrc_block_id.clone(),
+                            conversation_id,
+                            terminal_view_id,
+                            ctx,
+                        )
+                        .unwrap()
+                        .to_string();
+                    let conversation = history_model.conversation(&conversation_id).unwrap();
+
+                    let mut params = api::RequestParams::new_for_test(vec![], vec![]);
+                    params.byop_target_task_id = Some(subtask_id.clone());
+                    params.lrc_should_spawn_subagent = false;
+                    params.lrc_command_id = None;
+
+                    let (should_spawn, command_id) =
+                        resolve_lrc_subagent_params(conversation, &root_task_id, &subtask_id, &params);
+                    (root_task_id, subtask_id, should_spawn, command_id)
+                });
+
+            assert_ne!(subtask_id, root_task_id);
+            assert!(should_spawn);
+            assert_eq!(command_id, Some(lrc_block_id.to_string()));
+        });
+    }
 }
