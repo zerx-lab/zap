@@ -10803,6 +10803,12 @@ impl TerminalView {
                     }
                 }
             }
+            ModelEvent::Handler(AnsiHandlerEvent::BootstrapRecovered) => {
+                self.cancel_bootstrap_workflow(ctx);
+                self.hide_slow_bootstrap_banner(ctx);
+                self.execute_pending_command((), ctx);
+                ctx.notify();
+            }
             ModelEvent::Handler(_) => {}
             ModelEvent::FinishUpdate(data) => {
                 let AutoupdateStage::UpdateReady {

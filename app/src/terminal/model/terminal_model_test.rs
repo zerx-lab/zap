@@ -931,3 +931,151 @@ fn test_synchronized_output_sharing_session_split_batch() {
     };
     assert_eq!(bytes.as_slice(), b"after");
 }
+
+#[test]
+fn test_aborted_ssh_bootstrap_recovers_to_bootstrapped_parent_session() {
+    let (event_tx, event_rx) = async_channel::unbounded();
+    let event_proxy = ChannelEventListener::builder_for_test()
+        .with_terminal_events_tx(event_tx)
+        .build();
+    let mut terminal = TerminalModel::mock(None, Some(event_proxy));
+    while event_rx.try_recv().is_ok() {}
+
+    terminal.ssh(SSHValue::default());
+    assert!(terminal.has_pending_ssh_session());
+
+    terminal.init_shell(InitShellValue {
+        shell: "bash".into(),
+        user: "forest".to_owned(),
+        hostname: "remote-host".to_owned(),
+        session_id: 999.into(),
+        ..Default::default()
+    });
+    assert!(terminal.has_pending_ssh_session());
+    assert!(!terminal.is_active_block_bootstrapped());
+    assert!(matches!(
+        terminal.terminal_input_state(),
+        TerminalInputState::NotBootstrapped
+    ));
+
+    // 远端 SSH 在未发出 Bootstrapped 时断开，本地 zsh 随后发出 CommandFinished + Precmd。
+    terminal.command_finished(Default::default());
+    assert!(!terminal.block_list().is_bootstrapped());
+    while event_rx.try_recv().is_ok() {}
+
+    terminal.precmd(PrecmdValue {
+        session_id: Some(123),
+        pwd: Some("/tmp".to_owned()),
+        ..Default::default()
+    });
+
+    let emitted: Vec<_> = std::iter::from_fn(|| event_rx.try_recv().ok()).collect();
+    assert!(emitted.iter().any(|event| matches!(
+        event,
+        Event::Handler(HandlerEvent::BootstrapRecovered)
+    )));
+    assert!(emitted.iter().any(|event| matches!(
+        event,
+        Event::BlockMetadataReceived(meta) if meta.is_done_bootstrapping
+    )));
+
+    assert!(terminal.is_active_block_bootstrapped());
+    assert!(terminal.block_list().is_bootstrapped());
+    assert!(terminal.block_list().is_bootstrapping_precmd_done());
+    assert_eq!(
+        terminal.block_list().active_block().bootstrap_stage(),
+        BootstrapStage::PostBootstrapPrecmd
+    );
+    assert!(matches!(
+        terminal.terminal_input_state(),
+        TerminalInputState::InputEditor
+    ));
+    assert!(!terminal.has_pending_ssh_session());
+    assert!(terminal.pending_session_id().is_none());
+
+    // 恢复后的本地 shell 继续执行命令应保持在 PostBootstrapPrecmd。
+    terminal.command_finished(Default::default());
+    terminal.precmd(PrecmdValue {
+        session_id: Some(123),
+        ..Default::default()
+    });
+    assert_eq!(
+        terminal.block_list().active_block().bootstrap_stage(),
+        BootstrapStage::PostBootstrapPrecmd
+    );
+    assert!(terminal.block_list().is_bootstrapped());
+}
+
+#[test]
+fn test_aborted_subshell_bootstrap_without_command_finished_recovers_to_parent() {
+    let (event_tx, event_rx) = async_channel::unbounded();
+    let event_proxy = ChannelEventListener::builder_for_test()
+        .with_terminal_events_tx(event_tx)
+        .build();
+    let mut terminal = TerminalModel::mock(None, Some(event_proxy));
+    let hostname =
+        crate::terminal::model::session::get_local_hostname().unwrap_or_else(|_| "localhost".to_string());
+
+    terminal.init_shell(InitShellValue {
+        shell: "bash".into(),
+        user: "forest".to_owned(),
+        hostname,
+        session_id: 456.into(),
+        is_subshell: true,
+        ..Default::default()
+    });
+    assert!(!terminal.has_pending_ssh_session());
+    assert_eq!(
+        terminal.block_list().active_block().bootstrap_stage(),
+        BootstrapStage::WarpInput
+    );
+    while event_rx.try_recv().is_ok() {}
+
+    terminal.precmd(PrecmdValue {
+        session_id: Some(123),
+        ..Default::default()
+    });
+
+    let emitted: Vec<_> = std::iter::from_fn(|| event_rx.try_recv().ok()).collect();
+    assert!(emitted.iter().any(|event| matches!(
+        event,
+        Event::Handler(HandlerEvent::BootstrapRecovered)
+    )));
+    assert!(terminal.is_active_block_bootstrapped());
+    assert_eq!(
+        terminal.block_list().active_block().bootstrap_stage(),
+        BootstrapStage::PostBootstrapPrecmd
+    );
+    assert!(terminal.pending_session_id().is_none());
+}
+
+#[test]
+fn test_aborted_ssh_before_init_shell_clears_pending_ssh_on_parent_precmd() {
+    let (event_tx, event_rx) = async_channel::unbounded();
+    let event_proxy = ChannelEventListener::builder_for_test()
+        .with_terminal_events_tx(event_tx)
+        .build();
+    let mut terminal = TerminalModel::mock(None, Some(event_proxy));
+
+    terminal.ssh(SSHValue::default());
+    assert!(terminal.has_pending_ssh_session());
+    while event_rx.try_recv().is_ok() {}
+
+    terminal.command_finished(Default::default());
+    terminal.precmd(PrecmdValue {
+        session_id: Some(123),
+        ..Default::default()
+    });
+
+    let emitted: Vec<_> = std::iter::from_fn(|| event_rx.try_recv().ok()).collect();
+    assert!(emitted.iter().any(|event| matches!(
+        event,
+        Event::Handler(HandlerEvent::BootstrapRecovered)
+    )));
+    assert!(!terminal.has_pending_ssh_session());
+    assert!(terminal.block_list().is_bootstrapped());
+    assert_eq!(
+        terminal.block_list().active_block().bootstrap_stage(),
+        BootstrapStage::PostBootstrapPrecmd
+    );
+}

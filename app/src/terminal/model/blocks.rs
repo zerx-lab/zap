@@ -2886,6 +2886,15 @@ impl BlockList {
         self.bootstrap_stage = BootstrapStage::Bootstrapped;
     }
 
+    /// 当远端 SSH 或子 shell 未完成引导便退出、控制权回到已引导的父 shell 时，
+    /// 将 BlockList 与当前活动 block 一并恢复到 `PostBootstrapPrecmd` 正常状态。
+    pub fn recover_post_bootstrap_precmd(&mut self) {
+        self.bootstrap_stage = BootstrapStage::PostBootstrapPrecmd;
+        self.active_block_mut()
+            .set_bootstrap_stage(BootstrapStage::PostBootstrapPrecmd);
+        self.update_active_block_height();
+    }
+
     pub fn is_empty(&self) -> bool {
         self.block_heights().summary().height.as_f64() < f64::EPSILON
     }

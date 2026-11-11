@@ -131,6 +131,12 @@ impl<T: EventLoopSender> PtyController<T> {
             ModelEvent::Handler(AnsiHandlerEvent::Bootstrapped { is_subshell, .. }) => {
                 me.shell_bootstrapped(*is_subshell);
             }
+            ModelEvent::Handler(AnsiHandlerEvent::BootstrapRecovered) => {
+                // 未完成引导的 SSH/子 shell 退回已引导的父 shell 时，解除命令执行占用并清理临时引导文件。
+                me.is_user_command_executing = false;
+                #[cfg(not(target_family = "wasm"))]
+                me.bootstrap_file.take();
+            }
             ModelEvent::Handler(AnsiHandlerEvent::SetBracketedPaste) => {
                 me.is_bracketed_paste_enabled = true;
             }
